@@ -1,0 +1,45 @@
+/*!
+ * Start Bootstrap - Thumbnail Gallery (https://startbootstrap.com/template-overviews/thumbnail-gallery)
+ * Copyright 2013-2017 Start Bootstrap
+ * Licensed under MIT (https://github.com/BlackrockDigital/startbootstrap-thumbnail-gallery/blob/master/LICENSE)
+ */
+
+body {
+  padding-top: 54px;
+}
+
+@media (min-width: 992px) {
+  body {
+    padding-top: 56px;
+  }
+}
+#bottomrow{
+    background-color: #002b5c;
+    text-align: center;
+}
+.fa {
+  font-size: 30px;
+    height:5vh;
+    width:10vh;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Add a hover effect if you want */
+.fa:hover {
+  opacity: 0.7;
+}
+
+/* Set a specific color for each brand */
+/*instagram icon*/
+.fa-instagram {
+  color: white;
+  align-content:center;
+}
+.fa-google {
+  color: white;
+  align-content:center;
+}
+#navbarlogo{
+    height: 5vh;
+}

@@ -1,0 +1,99 @@
+/*!
+ * Start Bootstrap - Modern Business (https://startbootstrap.com/template-overviews/modern-business)
+ * Copyright 2013-2017 Start Bootstrap
+ * Licensed under MIT (https://github.com/BlackrockDigital/startbootstrap-logomodern-business-nav/blob/master/LICENSE)
+ */
+
+body {
+    /* background-color:#002b5c; */
+    padding-top: 54px;
+}
+
+@media{
+  body {
+    padding-top: 56px;
+  }
+}
+
+.carousel-item {
+  height: 85vh;
+  min-height: 300px;
+  background: no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+.portfolio-item {
+  margin-bottom: 30px;
+}
+.dropdown-item{
+    overflow:hidden;
+    opacity:0.5;
+    -webkit-transition:opacity 500ms ease;
+    -moz-transition:opacity 500ms ease;
+    -o-transition:opacity 500ms ease;
+    transition:opacity 500ms ease; 
+}
+.dropdown-item:hover{
+    opacity:1.5;
+}
+#homepage-text{
+    color:black;
+}
+#bulletpoints{
+    display:inline;
+    width=100%;
+}
+/* #slideshowimage{
+    color:white;
+    background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,1), rgba(0,0,0,0)); */
+}
+#contactuspage{
+    color: white;
+}
+
+#bottomrow{
+    background-color: #002b5c;
+    text-align: center;
+}
+.navbar-default{
+    background color: #002b5c
+}
+.bg-default{
+    background color: #002b5c
+}
+#sponsorphoto{
+    width: 100vh;
+}
+#logophotomainpage{
+    text-align: center;
+}
+/* Style all font awesome icons */
+.fa {
+  font-size: 30px;
+    height:5vh;
+    width:10vh;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Add a hover effect if you want */
+.fa:hover {
+  opacity: 0.7;
+}
+
+/* Set a specific color for each brand */
+/*instagram icon*/
+.fa-instagram {
+  color: white;
+  align-content:center;
+}
+.fa-google {
+  color: white;
+  align-content:center;
+}
+#navbarlogo{
+    height: 5vh;
+}
