@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Sign In</title>
+  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="css/main.css" rel="stylesheet">
+  <link href="css/auth.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="index.html"><img src="img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link" href="oursponsors.html">Our Sponsors</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right">
+              <a class="dropdown-item" href="about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+          <li class="nav-item"><a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a></li>
+          <li class="nav-item"><a class="nav-link" href="contact.html">Contact Us</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h1>Robosaints account</h1>
+      <p class="sub">Team members use their @stalux.org email. Everyone else can view data the team shares.</p>
+
+      <div class="auth-tabs" role="tablist">
+        <button type="button" id="tabIn" class="active">Sign in</button>
+        <button type="button" id="tabUp">Create account</button>
+      </div>
+
+      <div id="msg" class="alert d-none" role="alert" aria-live="polite"></div>
+
+      <form id="signinForm" novalidate>
+        <div class="form-group"><label for="inEmail">Email</label>
+          <input id="inEmail" type="email" class="form-control" autocomplete="email" required></div>
+        <div class="form-group"><label for="inPass">Password</label>
+          <input id="inPass" type="password" class="form-control" autocomplete="current-password" required></div>
+        <button class="btn btn-navy" type="submit">Sign in</button>
+        <div class="mt-3 d-flex justify-content-between">
+          <button type="button" class="auth-link" id="toForgot">Forgot password?</button>
+          <button type="button" class="auth-link d-none" id="resendBtn">Resend verification email</button>
+        </div>
+      </form>
+
+      <form id="signupForm" class="d-none" novalidate>
+        <div class="form-group"><label for="upName">Your name</label>
+          <input id="upName" type="text" class="form-control" maxlength="60" autocomplete="name" required></div>
+        <div class="form-group"><label for="upEmail">Email</label>
+          <input id="upEmail" type="email" class="form-control" autocomplete="email" required>
+          <small class="form-text text-muted">We'll send a link to this address. Your account stays locked until you click it.</small></div>
+        <div class="form-group"><label for="upPass">Password</label>
+          <input id="upPass" type="password" class="form-control" minlength="10" autocomplete="new-password" required>
+          <small class="form-text text-muted">At least 10 characters.</small></div>
+        <div class="form-group"><label for="upPass2">Confirm password</label>
+          <input id="upPass2" type="password" class="form-control" autocomplete="new-password" required></div>
+        <div class="hp" aria-hidden="true"><label>Leave blank<input id="upWebsite" type="text" tabindex="-1" autocomplete="off"></label></div>
+        <button class="btn btn-navy" type="submit">Create account</button>
+      </form>
+
+      <form id="forgotForm" class="d-none" novalidate>
+        <div class="form-group"><label for="fgEmail">Email</label>
+          <input id="fgEmail" type="email" class="form-control" autocomplete="email" required></div>
+        <button class="btn btn-navy" type="submit">Send reset link</button>
+        <div class="mt-3"><button type="button" class="auth-link" id="backIn">Back to sign in</button></div>
+      </form>
+
+      <form id="resetForm" class="d-none" novalidate>
+        <div class="form-group"><label for="rsPass">New password</label>
+          <input id="rsPass" type="password" class="form-control" minlength="10" autocomplete="new-password" required></div>
+        <button class="btn btn-navy" type="submit">Save new password</button>
+      </form>
+
+      <div id="oauthBox">
+        <div class="auth-or"><span>or</span></div>
+        <button type="button" class="btn btn-outline-dark btn-block" data-provider="google">Continue with Google</button>
+        <small class="form-text text-muted mt-2">Team members: use your school Google account to get full access.</small>
+      </div>
+      <div id="captchaBox"></div>
+      <p class="text-muted mt-3 mb-0" style="font-size:.75rem">Protected by hCaptcha. Its
+        <a href="https://www.hcaptcha.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> and
+        <a href="https://www.hcaptcha.com/terms" target="_blank" rel="noopener">Terms</a> apply.</p>
+    </div>
+  </div>
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <a href="https://google.com" class="fa fa-google" target="_blank"></a>
+    <div class="container"><p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p></div>
+  </footer>
+
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
+  <script src="js/auth-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+  (function () {
+    var sb = RS.sb, $ = function (id) { return document.getElementById(id); };
+    var FORMS = ["signin", "signup", "forgot", "reset"];
+    var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
+    var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    var lastEmail = "";
+
+    function msg(type, text) {
+      var m = $("msg");
+      if (!text) { m.className = "alert d-none"; return; }
+      m.className = "alert alert-" + type;
+      m.textContent = text;
+    }
+    function show(name) {
+      FORMS.forEach(function (f) { $(f + "Form").classList.toggle("d-none", f !== name); });
+      $("tabIn").classList.toggle("active", name === "signin");
+      $("tabUp").classList.toggle("active", name === "signup");
+      $("oauthBox").classList.toggle("d-none", name === "forgot" || name === "reset");
+      msg();
+    }
+    function cooldown(btn, secs) {
+      btn.disabled = true;
+      var label = btn.textContent, left = secs;
+      var t = setInterval(function () {
+        btn.textContent = label + " (" + (--left) + "s)";
+        if (left <= 0) { clearInterval(t); btn.disabled = false; btn.textContent = label; }
+      }, 1000);
+    }
+    var SITEKEY = "35e84180-6c12-4882-8bf6-daec3d6cc80a"; // public by design
+    var capId = null;
+    function getToken() {
+      return new Promise(function (resolve, reject) {
+        var tries = 0;
+        (function go() {
+          if (!window.hcaptcha) { if (++tries > 80) return reject(new Error("captcha")); return setTimeout(go, 100); }
+          if (capId === null) capId = hcaptcha.render("captchaBox", { sitekey: SITEKEY, size: "invisible" });
+          hcaptcha.execute(capId, { async: true })
+            .then(function (r) { hcaptcha.reset(capId); resolve(r.response); }, reject);
+        })();
+      });
+    }
+    var CAPFAIL = "The robot check didn't complete. Please try again.";
+    function redirect(page) { return new URL(page, location.href).href; }
+
+    $("tabIn").onclick = function () { show("signin"); };
+    $("tabUp").onclick = function () { show("signup"); };
+    $("toForgot").onclick = function () { show("forgot"); };
+    $("backIn").onclick = function () { show("signin"); };
+
+    $("signinForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var email = $("inEmail").value.trim(), pass = $("inPass").value;
+      if (!EMAIL.test(email) || !pass) return msg("danger", "Enter your email and password.");
+      lastEmail = email;
+      var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
+      var r = await sb.auth.signInWithPassword({ email: email, password: pass, options: { captchaToken: tok } });
+      if (r.error) {
+        if (/captcha/i.test(r.error.message)) return msg("danger", CAPFAIL);
+        if (/not confirmed/i.test(r.error.message)) {
+          $("resendBtn").classList.remove("d-none");
+          return msg("warning", "Verify your email first. Check your inbox for our link, or resend it below.");
+        }
+        return msg("danger", "Incorrect email or password.");
+      }
+      location.href = "account.html";
+    });
+
+    $("signupForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      if ($("upWebsite").value) return; // honeypot tripped: silently drop
+      var name = $("upName").value.trim(), email = $("upEmail").value.trim(), p = $("upPass").value;
+      if (!name) return msg("danger", "Enter your name.");
+      if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
+      if (DISPOSABLE.test(email)) return msg("danger", "Please use a permanent email address, not a temporary one.");
+      if (p.length < 10) return msg("danger", "Password must be at least 10 characters.");
+      if (p !== $("upPass2").value) return msg("danger", "Passwords don't match.");
+      lastEmail = email;
+      var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
+      var r = await sb.auth.signUp({ email: email, password: p,
+        options: { emailRedirectTo: redirect("account.html"), data: { display_name: name }, captchaToken: tok } });
+      if (r.error) {
+        if (/captcha/i.test(r.error.message)) return msg("danger", CAPFAIL);
+        if (/permanent email/i.test(r.error.message)) return msg("danger", "Please use a permanent email address, not a temporary one.");
+        if (/rate limit/i.test(r.error.message)) return msg("danger", "Too many attempts. Wait a few minutes and try again.");
+        return msg("danger", "We couldn't create that account. Check your details and try again.");
+      }
+      // Same message whether or not the email already exists, so nobody can probe for registered emails.
+      show("signin");
+      $("resendBtn").classList.remove("d-none");
+      msg("success", "Check your inbox. Click the link we sent to verify your email, then sign in.");
+    });
+
+    $("resendBtn").onclick = async function () {
+      var email = lastEmail || $("inEmail").value.trim();
+      if (!EMAIL.test(email)) return msg("danger", "Enter your email above first.");
+      var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
+      await sb.auth.resend({ type: "signup", email: email, options: { emailRedirectTo: redirect("account.html"), captchaToken: tok } });
+      msg("success", "If that address has a pending account, we've sent a new link.");
+      cooldown($("resendBtn"), 60);
+    };
+
+    $("forgotForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var email = $("fgEmail").value.trim();
+      if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
+      var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
+      await sb.auth.resetPasswordForEmail(email, { redirectTo: redirect("signin.html"), captchaToken: tok });
+      msg("success", "If an account exists for that email, a reset link is on its way.");
+    });
+
+    $("resetForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var p = $("rsPass").value;
+      if (p.length < 10) return msg("danger", "Password must be at least 10 characters.");
+      var r = await sb.auth.updateUser({ password: p });
+      if (r.error) return msg("danger", "That link may have expired. Request a new reset link.");
+      location.href = "account.html";
+    });
+
+    document.querySelectorAll("[data-provider]").forEach(function (b) {
+      b.onclick = async function () {
+        var r = await sb.auth.signInWithOAuth({ provider: b.dataset.provider, options: { redirectTo: redirect("account.html") } });
+        if (r.error) msg("danger", "Couldn't start sign-in with " + b.dataset.provider + ". Try again.");
+      };
+    });
+
+    sb.auth.onAuthStateChange(function (ev) { if (ev === "PASSWORD_RECOVERY") show("reset"); });
+    sb.auth.getSession().then(function (r) {
+      if (r.data.session && !/type=recovery/.test(location.hash)) location.href = "account.html";
+    });
+  })();
+  </script>
+</body>
+</html>

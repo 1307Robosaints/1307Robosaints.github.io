@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>My Account</title>
+  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="css/main.css" rel="stylesheet">
+  <link href="css/auth.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="index.html"><img src="img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link" href="oursponsors.html">Our Sponsors</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right">
+              <a class="dropdown-item" href="about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+          <li class="nav-item"><a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a></li>
+          <li class="nav-item"><a class="nav-link" href="contact.html">Contact Us</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="auth-wrap wide">
+    <div class="auth-card">
+      <div class="d-flex justify-content-between align-items-start flex-wrap">
+        <div>
+          <h1>My account</h1>
+          <p class="sub"><span id="who"></span> <span id="role" class="role-badge"></span></p>
+        </div>
+        <button id="signOut" class="btn btn-outline-secondary btn-sm">Sign out</button>
+      </div>
+      <div id="msg" class="alert d-none" role="alert" aria-live="polite"></div>
+
+      <!-- Team members -->
+      <section id="memberView" class="d-none">
+        <h4 class="mt-3">Scouting data</h4>
+        <div class="form-row align-items-end mb-3">
+          <div class="col-md-5"><label for="eventSel">Event</label><select id="eventSel" class="form-control"></select></div>
+          <div class="col-md-5"><label for="newEvent">New event</label><input id="newEvent" class="form-control" maxlength="80" placeholder="e.g. Pine Tree District 2027"></div>
+          <div class="col-md-2"><button id="addEvent" class="btn btn-navy mt-2 mt-md-0" type="button">Add event</button></div>
+        </div>
+
+        <form id="entryForm" class="border rounded p-3 mb-3">
+          <div class="form-row">
+            <div class="form-group col-6 col-md-2"><label for="fTeam">Team #</label><input id="fTeam" type="number" min="1" max="99999" class="form-control" required></div>
+            <div class="form-group col-6 col-md-2"><label for="fMatch">Match #</label><input id="fMatch" type="number" min="1" max="500" class="form-control"></div>
+            <div class="form-group col-6 col-md-2"><label for="fAuto">Auto pts</label><input id="fAuto" type="number" min="0" max="500" value="0" class="form-control"></div>
+            <div class="form-group col-6 col-md-2"><label for="fTele">Teleop pts</label><input id="fTele" type="number" min="0" max="500" value="0" class="form-control"></div>
+            <div class="form-group col-12 col-md-4"><label for="fEnd">Endgame</label><input id="fEnd" maxlength="40" class="form-control" placeholder="e.g. Deep climb"></div>
+          </div>
+          <div class="form-group"><label for="fNotes">Notes</label><textarea id="fNotes" rows="2" maxlength="1000" class="form-control"></textarea></div>
+          <button class="btn btn-navy" type="submit" style="width:auto;padding:.5rem 1.5rem">Save entry</button>
+        </form>
+
+        <div class="table-responsive"><table class="table table-sm scout-table" id="memberTable"></table></div>
+
+        <h5 class="mt-4">Share this event</h5>
+        <div class="custom-control custom-switch mb-2">
+          <input type="checkbox" class="custom-control-input" id="shareToggle">
+          <label class="custom-control-label" for="shareToggle">Let signed-in guests view this event's data</label>
+        </div>
+        <div id="sharePanel" class="d-none">
+          <div id="qr" class="qr-box"></div>
+          <p class="mt-2 mb-0"><small>Guests scan this, sign in, and see the data read-only. Turn sharing off to cut off access.</small><br>
+          <input id="shareUrl" class="form-control form-control-sm mt-1" readonly></p>
+        </div>
+      </section>
+
+      <!-- Everyone else -->
+      <section id="guestView" class="d-none">
+        <h4 class="mt-3">View shared scouting data</h4>
+        <p>Scan the team's QR code, or enter the share code they gave you.</p>
+        <form id="codeForm" class="form-inline mb-3">
+          <label class="sr-only" for="codeIn">Share code</label>
+          <input id="codeIn" class="form-control mr-2" maxlength="24" placeholder="Share code" autocomplete="off">
+          <button class="btn btn-navy" type="submit" style="width:auto;padding:.5rem 1.5rem">View data</button>
+        </form>
+        <div class="table-responsive"><table class="table table-sm scout-table" id="guestTable"></table></div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <a href="https://google.com" class="fa fa-google" target="_blank"></a>
+    <div class="container"><p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p></div>
+  </footer>
+
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="js/auth-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb, $ = function (id) { return document.getElementById(id); };
+    var events = [], current = null;
+
+    function msg(type, text) {
+      var m = $("msg");
+      if (!text) { m.className = "alert d-none"; return; }
+      m.className = "alert alert-" + type; m.textContent = text;
+    }
+    // All data is written with textContent, never innerHTML, so entered text can't inject script.
+    function renderTable(tbl, cols, rows) {
+      tbl.textContent = "";
+      var thead = tbl.createTHead().insertRow();
+      cols.forEach(function (c) { var th = document.createElement("th"); th.textContent = c[0]; thead.appendChild(th); });
+      var body = tbl.createTBody();
+      if (!rows.length) { var r = body.insertRow(), td = r.insertCell(); td.colSpan = cols.length; td.textContent = "No entries yet."; return; }
+      rows.forEach(function (row) {
+        var tr = body.insertRow();
+        cols.forEach(function (c) { tr.insertCell().textContent = row[c[1]] == null ? "" : row[c[1]]; });
+      });
+    }
+    var COLS = [["Team","team_number"],["Match","match_number"],["Auto","auto_points"],["Teleop","teleop_points"],["Endgame","endgame"],["Notes","notes"]];
+
+    var s = (await sb.auth.getSession()).data.session;
+    var hashCode = new URLSearchParams(location.hash.slice(1)).get("code");
+    if (!s) {
+      if (hashCode) sessionStorage.setItem("rs_code", hashCode);
+      location.replace("signin.html"); return;
+    }
+    var user = s.user, member = RS.isMember(user);
+    $("who").textContent = ((user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name || user.user_metadata.name)) || "") + " (" + user.email + ")";
+    $("role").textContent = member ? "Team member" : "Guest";
+    $("role").classList.toggle("member", member);
+    $("signOut").onclick = async function () { await sb.auth.signOut(); location.href = "index.html"; };
+    if (location.hash) history.replaceState(null, "", location.pathname);
+
+    if (member) {
+      $("memberView").classList.remove("d-none");
+
+      async function loadEvents(selectId) {
+        var r = await sb.from("events").select("*").order("created_at", { ascending: false });
+        if (r.error) return msg("danger", "Couldn't load events.");
+        events = r.data;
+        var sel = $("eventSel"); sel.textContent = "";
+        events.forEach(function (ev) { var o = document.createElement("option"); o.value = ev.id; o.textContent = ev.name; sel.appendChild(o); });
+        if (selectId) sel.value = selectId;
+        await pick();
+      }
+      async function pick() {
+        current = events.find(function (e) { return e.id === $("eventSel").value; }) || null;
+        $("entryForm").classList.toggle("d-none", !current);
+        $("shareToggle").checked = !!(current && current.share_enabled);
+        updateShare();
+        if (!current) return renderTable($("memberTable"), COLS, []);
+        var r = await sb.from("scouting_entries").select("*").eq("event_id", current.id)
+          .order("created_at", { ascending: false }).limit(500);
+        if (r.error) return msg("danger", "Couldn't load entries.");
+        renderTable($("memberTable"), COLS, r.data);
+      }
+      function updateShare() {
+        var on = current && current.share_enabled;
+        $("sharePanel").classList.toggle("d-none", !on);
+        if (!on) return;
+        var url = new URL("account.html#code=" + current.share_code, location.href).href;
+        $("shareUrl").value = url; $("qr").textContent = "";
+        new QRCode($("qr"), { text: url, width: 160, height: 160 });
+      }
+
+      $("eventSel").onchange = pick;
+      $("addEvent").onclick = async function () {
+        var name = $("newEvent").value.trim(); if (!name) return;
+        var r = await sb.from("events").insert({ name: name }).select().single();
+        if (r.error) return msg("danger", "Couldn't add the event.");
+        $("newEvent").value = ""; msg(); loadEvents(r.data.id);
+      };
+      $("shareToggle").onchange = async function () {
+        if (!current) return;
+        var r = await sb.from("events").update({ share_enabled: $("shareToggle").checked }).eq("id", current.id).select().single();
+        if (r.error) return msg("danger", "Couldn't change sharing.");
+        current = r.data; events = events.map(function (e) { return e.id === current.id ? current : e; }); updateShare();
+      };
+      $("entryForm").addEventListener("submit", async function (e) {
+        e.preventDefault(); if (!current) return;
+        var r = await sb.from("scouting_entries").insert({
+          event_id: current.id,
+          team_number: parseInt($("fTeam").value, 10),
+          match_number: parseInt($("fMatch").value, 10) || null,
+          auto_points: parseInt($("fAuto").value, 10) || 0,
+          teleop_points: parseInt($("fTele").value, 10) || 0,
+          endgame: $("fEnd").value.trim() || null,
+          notes: $("fNotes").value.trim() || null
+        });
+        if (r.error) return msg("danger", "Couldn't save. Check that the team number is filled in.");
+        msg("success", "Entry saved.");
+        e.target.reset(); $("fAuto").value = 0; $("fTele").value = 0; pick();
+      });
+      loadEvents();
+    } else {
+      $("guestView").classList.remove("d-none");
+      if (!user.email_confirmed_at) msg("warning", "Verify your email to continue.");
+      async function loadShared(code) {
+        var r = await sb.rpc("get_shared_scouting", { code: code });
+        if (r.error) return msg("danger", "Something went wrong. Try again.");
+        if (!r.data.length) { renderTable($("guestTable"), COLS, []); return msg("warning", "No data for that code. It may be wrong, or sharing may be turned off."); }
+        msg(); renderTable($("guestTable"), COLS, r.data);
+      }
+      $("codeForm").addEventListener("submit", function (e) { e.preventDefault(); var c = $("codeIn").value.trim(); if (c) loadShared(c); });
+      var saved = hashCode || sessionStorage.getItem("rs_code");
+      if (saved) { sessionStorage.removeItem("rs_code"); $("codeIn").value = saved; loadShared(saved); }
+    }
+  })();
+  </script>
+</body>
+</html>

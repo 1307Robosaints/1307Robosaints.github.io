@@ -1,0 +1,23 @@
+:root { --navy:#002b5c; --charcoal:#3f3f3f; --gray:#9a9a9c; }
+.auth-wrap { max-width: 460px; margin: 32px auto 48px; padding: 0 16px; }
+.auth-wrap.wide { max-width: 980px; }
+.auth-card { background:#fff; border:1px solid #dfe3e8; border-top:4px solid var(--navy); border-radius:6px; padding:28px; }
+.auth-card h1 { color:var(--navy); font-size:1.7rem; margin-bottom:.25rem; }
+.auth-card .sub { color:var(--charcoal); margin-bottom:1.25rem; }
+.auth-tabs { display:flex; border-bottom:1px solid #dfe3e8; margin-bottom:1.25rem; }
+.auth-tabs button { flex:1; background:none; border:0; border-bottom:3px solid transparent; padding:.6rem; color:var(--charcoal); font-weight:600; cursor:pointer; }
+.auth-tabs button.active { color:var(--navy); border-bottom-color:var(--navy); }
+.auth-card .btn-navy { background:var(--navy); color:#fff; border:0; width:100%; padding:.6rem; font-weight:600; }
+.auth-card .btn-navy:hover:not(:disabled) { background:#003f85; }
+.auth-card .btn-navy:disabled { opacity:.6; }
+.auth-card .form-control:focus, .auth-tabs button:focus-visible { border-color:var(--navy); box-shadow:0 0 0 .2rem rgba(0,43,92,.25); outline:none; }
+.auth-link { background:none; border:0; padding:0; color:var(--navy); text-decoration:underline; cursor:pointer; font-size:.9rem; }
+.hp { position:absolute; left:-9999px; height:0; overflow:hidden; } /* honeypot: bots fill it, people never see it */
+.role-badge { display:inline-block; padding:.15rem .6rem; border-radius:99px; font-size:.85rem; background:var(--gray); color:#fff; }
+.role-badge.member { background:var(--navy); }
+.scout-table { font-size:.92rem; }
+.scout-table th { background:var(--navy); color:#fff; border:0; }
+.qr-box { background:#fff; display:inline-block; padding:8px; border:1px solid #dfe3e8; }
+.auth-or { display:flex; align-items:center; margin:1.25rem 0 1rem; color:var(--gray); font-size:.9rem; }
+.auth-or::before, .auth-or::after { content:""; flex:1; border-top:1px solid #dfe3e8; }
+.auth-or span { padding:0 .75rem; }
