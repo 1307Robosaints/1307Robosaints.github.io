@@ -66,7 +66,7 @@
       <h1 class="mt-4 mb-3">Contact
         <small></small>
       </h1>
-        <p>Feel free to contact us regarding sponsorships or about any questions you might have about the team. Any emails sent should be returned within 72 hours of being recieved. Thanks!</p>
+        <p>Feel free to contact us regarding sponsorships or about any questions you might have about the team. Any emails sent should be returned within 72 hours of being received. Thanks!</p>
 
       <ol class="breadcrumb">
         <li class="breadcrumb-item">
@@ -104,43 +104,48 @@
       <!-- /.row -->
 
       <!-- Contact Form -->
-      <!-- In order to set the email address and subject line for the contact form go to the bin/contact_me.php file. -->
-    <!--  
-    <div class="row">
+      <!-- Topics and the email addresses they go to are set in js/contact-config.js -->
+      <div class="row">
         <div class="col-lg-8 mb-4">
           <h3>Send us a Message</h3>
           <form name="sentMessage" id="contactForm" novalidate>
-            <div class="control-group form-group">
-              <div class="controls">
-                <label>Full Name:</label>
-                <input type="text" class="form-control" id="name" required data-validation-required-message="Please enter your name.">
-                <p class="help-block"></p>
-              </div>
+
+            <div class="form-group">
+              <label class="d-block">What is your message about? <small class="text-muted">(check all that apply)</small></label>
+              <div id="topicList"><!-- checkboxes are generated from js/contact-config.js --></div>
             </div>
-            <div class="control-group form-group">
-              <div class="controls">
-                <label>Phone Number:</label>
-                <input type="tel" class="form-control" id="phone" required data-validation-required-message="Please enter your phone number.">
-              </div>
+
+            <div class="form-group">
+              <label for="name">Full Name:</label>
+              <input type="text" class="form-control" id="name" required>
+              <div class="invalid-feedback">Please enter your name.</div>
             </div>
-            <div class="control-group form-group">
-              <div class="controls">
-                <label>Email Address:</label>
-                <input type="email" class="form-control" id="email" required data-validation-required-message="Please enter your email address.">
-              </div>
+            <div class="form-group">
+              <label for="phone">Phone Number <small class="text-muted">(optional)</small>:</label>
+              <input type="tel" class="form-control" id="phone">
             </div>
-            <div class="control-group form-group">
-              <div class="controls">
-                <label>Message:</label>
-                <textarea rows="10" cols="100" class="form-control" id="message" required data-validation-required-message="Please enter your message" maxlength="999" style="resize:none"></textarea>
-              </div>
+            <div class="form-group">
+              <label for="email">Email Address:</label>
+              <input type="email" class="form-control" id="email" required>
+              <div class="invalid-feedback">Please enter a valid email address.</div>
+            </div>
+            <div class="form-group">
+              <label for="message">Message:</label>
+              <textarea rows="8" class="form-control" id="message" required maxlength="999" style="resize:none"></textarea>
+              <div class="invalid-feedback">Please enter your message.</div>
+            </div>
+
+            <!-- Spam trap: hidden from people, bots fill it in -->
+            <div style="position:absolute;left:-9999px;" aria-hidden="true">
+              <label for="website">Leave this empty</label>
+              <input type="text" id="website" tabindex="-1" autocomplete="off">
             </div>
 
             <div id="success"></div>
             <button type="submit" class="btn btn-primary" id="sendMessageButton">Send Message</button>
           </form>
         </div>
-      </div> -->
+      </div>
       <!-- /.row -->
 
     </div> 
@@ -161,8 +166,8 @@
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 
     <!-- Contact form JavaScript -->
-    <!-- Do not edit these files! In order to set the email address and subject line for the contact form go to the bin/contact_me.php file. -->
-    <script src="js/jqBootstrapValidation.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js"></script>
+    <script src="js/contact-config.js"></script> <!-- EDIT THIS FILE to add topics/emails -->
     <script src="js/contact_me.js"></script>
     
     <!-- Supabase Authentication -->
