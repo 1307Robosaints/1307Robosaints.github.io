@@ -3983,7 +3983,7 @@ function fcamelCase( all, letter ) {
 
 // Convert dashed to camelCase; used by the css and data modules
 // Support: IE <=9 - 11, Edge 12 - 15
-// Microsoft forgot to hump their vendor prefix (#9572)
+// Microsoft forgot to hump their /vendor prefix (#9572)
 function camelCase( string ) {
 	return string.replace( rmsPrefix, "ms-" ).replace( rdashAlpha, fcamelCase );
 }
@@ -5593,7 +5593,7 @@ var
 	/* eslint-disable max-len */
 
 	// See https://github.com/eslint/eslint/issues/3229
-	rxhtmlTag = /<(?!area|br|col|embed|hr|img|input|link|meta|param)(([a-z][^\/\0>\x20\t\r\n\f]*)[^>]*)\/>/gi,
+	rxhtmlTag = /<(?!area|br|col|embed|hr|/img|input|link|meta|param)(([a-z][^\/\0>\x20\t\r\n\f]*)[^>]*)\/>/gi,
 
 	/* eslint-enable */
 
@@ -6239,15 +6239,15 @@ var
 	cssPrefixes = [ "Webkit", "Moz", "ms" ],
 	emptyStyle = document.createElement( "div" ).style;
 
-// Return a css property mapped to a potentially vendor prefixed property
-function vendorPropName( name ) {
+// Return a css property mapped to a potentially /vendor prefixed property
+function /vendorPropName( name ) {
 
-	// Shortcut for names that are not vendor prefixed
+	// Shortcut for names that are not /vendor prefixed
 	if ( name in emptyStyle ) {
 		return name;
 	}
 
-	// Check for vendor prefixed names
+	// Check for /vendor prefixed names
 	var capName = name[ 0 ].toUpperCase() + name.slice( 1 ),
 		i = cssPrefixes.length;
 
@@ -6260,11 +6260,11 @@ function vendorPropName( name ) {
 }
 
 // Return a property mapped along what jQuery.cssProps suggests or to
-// a vendor prefixed property.
+// a /vendor prefixed property.
 function finalPropName( name ) {
 	var ret = jQuery.cssProps[ name ];
 	if ( !ret ) {
-		ret = jQuery.cssProps[ name ] = vendorPropName( name ) || name;
+		ret = jQuery.cssProps[ name ] = /vendorPropName( name ) || name;
 	}
 	return ret;
 }
@@ -10319,7 +10319,7 @@ jQuery.isNumeric = function( obj ) {
 // Note that for maximum portability, libraries that are not jQuery should
 // declare themselves as anonymous modules, and avoid setting a global if an
 // AMD loader is present. jQuery is a special case. For more information, see
-// https://github.com/jrburke/requirejs/wiki/Updating-existing-libraries#wiki-anon
+// https://github.com/jrburke/require/js/wiki/Updating-existing-libraries#wiki-anon
 
 if ( typeof define === "function" && define.amd ) {
 	define( "jquery", [], function() {

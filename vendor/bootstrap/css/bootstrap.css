@@ -205,7 +205,7 @@ figure {
   margin: 0 0 1rem;
 }
 
-img {
+/img {
   vertical-align: middle;
   border-style: none;
 }
@@ -477,12 +477,12 @@ mark,
   content: "\2014 \00A0";
 }
 
-.img-fluid {
+./img-fluid {
   max-width: 100%;
   height: auto;
 }
 
-.img-thumbnail {
+./img-thumbnail {
   padding: 0.25rem;
   background-color: #fff;
   border: 1px solid #dee2e6;
@@ -495,7 +495,7 @@ mark,
   display: inline-block;
 }
 
-.figure-img {
+.figure-/img {
   margin-bottom: 0.5rem;
   line-height: 1;
 }
@@ -4423,7 +4423,7 @@ input[type="button"].btn-block {
   margin-left: -0.625rem;
 }
 
-.card-img-overlay {
+.card-/img-overlay {
   position: absolute;
   top: 0;
   right: 0;
@@ -4432,18 +4432,18 @@ input[type="button"].btn-block {
   padding: 1.25rem;
 }
 
-.card-img {
+.card-/img {
   width: 100%;
   border-radius: calc(0.25rem - 1px);
 }
 
-.card-img-top {
+.card-/img-top {
   width: 100%;
   border-top-left-radius: calc(0.25rem - 1px);
   border-top-right-radius: calc(0.25rem - 1px);
 }
 
-.card-img-bottom {
+.card-/img-bottom {
   width: 100%;
   border-bottom-right-radius: calc(0.25rem - 1px);
   border-bottom-left-radius: calc(0.25rem - 1px);
@@ -4509,11 +4509,11 @@ input[type="button"].btn-block {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
   }
-  .card-group > .card:first-child .card-img-top,
+  .card-group > .card:first-child .card-/img-top,
   .card-group > .card:first-child .card-header {
     border-top-right-radius: 0;
   }
-  .card-group > .card:first-child .card-img-bottom,
+  .card-group > .card:first-child .card-/img-bottom,
   .card-group > .card:first-child .card-footer {
     border-bottom-right-radius: 0;
   }
@@ -4521,23 +4521,23 @@ input[type="button"].btn-block {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
   }
-  .card-group > .card:last-child .card-img-top,
+  .card-group > .card:last-child .card-/img-top,
   .card-group > .card:last-child .card-header {
     border-top-left-radius: 0;
   }
-  .card-group > .card:last-child .card-img-bottom,
+  .card-group > .card:last-child .card-/img-bottom,
   .card-group > .card:last-child .card-footer {
     border-bottom-left-radius: 0;
   }
   .card-group > .card:only-child {
     border-radius: 0.25rem;
   }
-  .card-group > .card:only-child .card-img-top,
+  .card-group > .card:only-child .card-/img-top,
   .card-group > .card:only-child .card-header {
     border-top-left-radius: 0.25rem;
     border-top-right-radius: 0.25rem;
   }
-  .card-group > .card:only-child .card-img-bottom,
+  .card-group > .card:only-child .card-/img-bottom,
   .card-group > .card:only-child .card-footer {
     border-bottom-right-radius: 0.25rem;
     border-bottom-left-radius: 0.25rem;
@@ -4545,8 +4545,8 @@ input[type="button"].btn-block {
   .card-group > .card:not(:first-child):not(:last-child):not(:only-child) {
     border-radius: 0;
   }
-  .card-group > .card:not(:first-child):not(:last-child):not(:only-child) .card-img-top,
-  .card-group > .card:not(:first-child):not(:last-child):not(:only-child) .card-img-bottom,
+  .card-group > .card:not(:first-child):not(:last-child):not(:only-child) .card-/img-top,
+  .card-group > .card:not(:first-child):not(:last-child):not(:only-child) .card-/img-bottom,
   .card-group > .card:not(:first-child):not(:last-child):not(:only-child) .card-header,
   .card-group > .card:not(:first-child):not(:last-child):not(:only-child) .card-footer {
     border-radius: 0;
@@ -8925,7 +8925,7 @@ a.text-dark:hover, a.text-dark:focus {
     display: table-header-group;
   }
   tr,
-  img {
+  /img {
     page-break-inside: avoid;
   }
   p,

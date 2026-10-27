@@ -2358,7 +2358,7 @@
    * @method
    * @memberof Popper.Utils
    * @argument {String} property (camelCase)
-   * @returns {String} prefixed property (camelCase or PascalCase, depending on the vendor prefix)
+   * @returns {String} prefixed property (camelCase or PascalCase, depending on the /vendor prefix)
    */
   function getSupportedPropertyName(property) {
     var prefixes = [false, 'ms', 'Webkit', 'Moz', 'O'];
@@ -3414,7 +3414,7 @@
      * ```
      * > **NB**: If you desire to apply offsets to your poppers in a way that may make them overlap
      * > with their reference element, unfortunately, you will have to disable the `flip` modifier.
-     * > More on this [reading this issue](https://github.com/FezVrasta/popper.js/issues/373)
+     * > More on this [reading this issue](https://github.com/FezVrasta/popper./js/issues/373)
      *
      * @memberof modifiers
      * @inner

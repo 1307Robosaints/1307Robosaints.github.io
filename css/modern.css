@@ -222,7 +222,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
 .card-footer { background: transparent; border-top: 1px solid var(--line); }
 .card-title { font-size: 1.2rem; margin-bottom: .15rem; }
 .card-body { padding: 1.4rem; }
-.card-img-top { border-radius: 0; }
+.card-/img-top { border-radius: 0; }
 
 /* Team-leader cards get the blue top edge too */
 .card.text-center { border-top: 3px solid var(--blue); }
@@ -230,13 +230,13 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
 .card.text-center .card-footer a { font-size: .9rem; word-break: break-all; }
 
 /* ---------- Images ---------- */
-.row > [class*="col-md-7"] img.img-fluid,
-.row > [class*="col-lg-6"] img.img-fluid.rounded {
+.row > [class*="col-md-7"] /img./img-fluid,
+.row > [class*="col-lg-6"] /img./img-fluid.rounded {
   border-radius: 0 !important;
   clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 0 100%);
 }
 #sponsorphoto { max-height: 140px; width: auto; object-fit: contain; }
-img[src=""] { display: none; }   /* hides broken empty-src images */
+/img[src=""] { display: none; }   /* hides broken empty-src images */
 
 /* ---------- Footer ---------- */
 #bottomrow {
@@ -361,8 +361,8 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
 
 /* Robots page: until real photos replace the dead placehold.it images,
    hide the empty image column and let the text use the full width */
-.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
-.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
+.row > [class*="col-md-7"]:has(/img[src*="placehold.it"]) { display: none; }
+.row > [class*="col-md-7"]:has(/img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
 
 /* ==========================================================
    Fixes (round 3) – rules carried over from the old main.css

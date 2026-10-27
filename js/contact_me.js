@@ -1,4 +1,4 @@
-/* Contact form logic. Topics/emails are configured in js/contact-config.js */
+/* Contact form logic. Topics/emails are configured in /js/contact-config.js */
 $(function () {
   var cfg = window.CONTACT_CONFIG;
   var $form = $("#contactForm");
