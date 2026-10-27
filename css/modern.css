@@ -1,7 +1,8 @@
-/* =============================================================================================================
+/* ==========================================================
    Robosaints 1307 – modern.css
-   Load AFTER bootstrap, main.css and auth.css. See "Custom styles for this template" section of each HTML file.
-   ============================================================================================================= */
+   Load AFTER bootstrap, main.css and auth.css. No HTML rewrite needed.
+   Edit the tokens below to retune the whole site.
+   ========================================================== */
 
 :root {
   --navy:   #0A2352;   /* deep team blue: footer, headings, buttons hover */
@@ -362,3 +363,40 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
    hide the empty image column and let the text use the full width */
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
+
+/* ==========================================================
+   Fixes (round 3) – rules carried over from the old main.css
+   ========================================================== */
+
+/* Homepage carousel (this was the missing piece) */
+.carousel-item {
+  height: 70vh;
+  min-height: 300px;
+  background: no-repeat center center scroll;
+  background-size: cover;
+}
+header .carousel {
+  border-bottom: 4px solid var(--blue);
+  /* signature clipped corner, scaled up for the hero */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%);
+}
+.carousel-indicators li {
+  width: 36px;
+  height: 4px;
+  border: 0;
+  background: #fff;
+  opacity: .55;
+}
+.carousel-indicators li.active { opacity: 1; background: #fff; }
+.carousel-control-prev, .carousel-control-next { width: 8%; }
+.carousel-control-prev-icon, .carousel-control-next-icon {
+  background-color: rgba(10,35,82,.65);
+  background-size: 50% 50%;
+  width: 44px; height: 44px;
+}
+
+/* If main.css is still loaded on some pages, keep its old colour rules from fighting the new theme */
+#contactuspage { color: var(--ink); }
+#homepage-text { color: var(--ink); }
+#sponsorphoto { width: auto; max-width: 100%; }
+.dropdown-item { opacity: 1; }
