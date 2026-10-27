@@ -346,3 +346,20 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
   .navbar-collapse { padding: .5rem 0 1rem; }
   .navbar-brand { font-size: .95rem; max-width: 80%; white-space: normal; line-height: 1.2; }
 }
+
+/* ==========================================================
+   Fixes (round 2)
+   ========================================================== */
+
+/* Nav: keep each link on one line; let a long team name wrap instead */
+.navbar-dark .navbar-nav .nav-link { white-space: nowrap; }
+@media (min-width: 992px) {
+  .navbar-dark .navbar-brand { flex: 0 1 auto; max-width: 46%; white-space: normal; line-height: 1.2; font-size: .95rem; }
+  .navbar-dark .navbar-nav .nav-link { padding-left: .6rem; padding-right: .6rem; font-size: .92rem; }
+  .navbar-dark .navbar-nav .nav-link::after { left: .6rem; right: .6rem; }
+}
+
+/* Robots page: until real photos replace the dead placehold.it images,
+   hide the empty image column and let the text use the full width */
+.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
+.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
