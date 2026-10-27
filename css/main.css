@@ -15,7 +15,7 @@ body {
     padding-top: 54px;
 }
 
-@media{
+@media (min-width: 768px) {
   body {
     padding-top: 56px;
   }
@@ -50,7 +50,7 @@ body {
 }
 #bulletpoints{
     display:inline;
-    width=100%;
+    width: 100%;
 }
 /* #slideshowimage{
     color:white;
@@ -65,10 +65,10 @@ body {
     text-align: center;
 }
 .navbar-default{
-    background color: #002b5c
+    background-color: #002b5c;
 }
 .bg-default{
-    background color: #002b5c
+    background-color: #002b5c;
 }
 #sponsorphoto{
     width: 100vh;
