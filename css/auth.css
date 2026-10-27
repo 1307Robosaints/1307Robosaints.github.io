@@ -1,3 +1,9 @@
+/* =============================================================================================================
+   Robosaints 1307 – auth.css
+   Loading this style is wonky. It is only used on the member only pages and works alongside main.css.
+    Load AFTER bootstrap.
+   ============================================================================================================= */
+
 :root { --navy:#002b5c; --charcoal:#3f3f3f; --gray:#9a9a9c; }
 .auth-wrap { max-width: 460px; margin: 32px auto 48px; padding: 0 16px; }
 .auth-wrap.wide { max-width: 980px; }

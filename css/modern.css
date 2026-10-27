@@ -1,8 +1,7 @@
-/* ==========================================================
+/* =============================================================================================================
    Robosaints 1307 – modern.css
-   Load AFTER bootstrap, main.css and auth.css. No HTML rewrite needed.
-   Edit the tokens below to retune the whole site.
-   ========================================================== */
+   Load AFTER bootstrap, main.css and auth.css. See "Custom styles for this template" section of each HTML file.
+   ============================================================================================================= */
 
 :root {
   --navy:   #0A2352;   /* deep team blue: footer, headings, buttons hover */

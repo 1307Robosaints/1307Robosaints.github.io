@@ -4,6 +4,12 @@
  * Licensed under MIT (https://github.com/BlackrockDigital/startbootstrap-logomodern-business-nav/blob/master/LICENSE)
  */
 
+/* =============================================================================================================
+   Robosaints 1307 – main.css
+   Load AFTER bootstrap and auth.css. See "Custom styles for this template" section of each HTML file.
+   The old theme from the Phan era. Modern is now the active theme.
+   ============================================================================================================= */
+
 body {
     /* background-color:#002b5c; */
     padding-top: 54px;
@@ -49,7 +55,7 @@ body {
 /* #slideshowimage{
     color:white;
     background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,1), rgba(0,0,0,0)); */
-    
+
 #contactuspage{
     color: white;
 }
