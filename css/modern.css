@@ -238,6 +238,16 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
 #sponsorphoto { max-height: 140px; width: auto; object-fit: contain; }
 img[src=""] { display: none; }   /* hides broken empty-src images */
 .img-thumbnail { width: 100%; height: 220px; object-fit: cover; } /* ensures all gallery images have consistent size */
+.row > [class*="col-"] { min-width: 0; } /* Keep images inside their grid column, and let grid columns shrink below their content width */
+.row > [class*="col-"] > img,
+.row > [class*="col-"] > a > img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+@media (min-width: 992px) { /* Breathing room between side-by-side columns on desktop */
+  .row > .col-lg-6 + .col-lg-6 { padding-left: 2.5rem; }
+}
 
 /* ---------- Footer ---------- */
 #bottomrow {
