@@ -4,14 +4,14 @@
 
 ## Preview
 
-[![Thumbnail Gallery Preview](https://startbootstrap.com/assets//img/templates/thumbnail-gallery.jpg)](https://blackrockdigital.github.io/startbootstrap-thumbnail-gallery/)
+[![Thumbnail Gallery Preview](https://startbootstrap.com/assets/img/templates/thumbnail-gallery.jpg)](https://blackrockdigital.github.io/startbootstrap-thumbnail-gallery/)
 
 **[View Live Preview](https://blackrockdigital.github.io/startbootstrap-thumbnail-gallery/)**
 
 ## Status
 
-[![GitHub license](https:///img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/BlackrockDigital/startbootstrap-thumbnail-gallery/master/LICENSE)
-[![npm version](https:///img.shields.io/npm/v/startbootstrap-thumbnail-gallery.svg)](https://www.npmjs.com/package/startbootstrap-thumbnail-gallery)
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/BlackrockDigital/startbootstrap-thumbnail-gallery/master/LICENSE)
+[![npm version](https://img.shields.io/npm/v/startbootstrap-thumbnail-gallery.svg)](https://www.npmjs.com/package/startbootstrap-thumbnail-gallery)
 [![Build Status](https://travis-ci.org/BlackrockDigital/startbootstrap-thumbnail-gallery.svg?branch=master)](https://travis-ci.org/BlackrockDigital/startbootstrap-thumbnail-gallery)
 [![dependencies Status](https://david-dm.org/BlackrockDigital/startbootstrap-thumbnail-gallery/status.svg)](https://david-dm.org/BlackrockDigital/startbootstrap-thumbnail-gallery)
 [![devDependencies Status](https://david-dm.org/BlackrockDigital/startbootstrap-thumbnail-gallery/dev-status.svg)](https://david-dm.org/BlackrockDigital/startbootstrap-thumbnail-gallery?type=dev)
