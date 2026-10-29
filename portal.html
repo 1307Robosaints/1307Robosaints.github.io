@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Staff Portal – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .portal-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 2rem; }
+    .portal-tab {
+      background: none; border: 0; border-bottom: 3px solid transparent;
+      padding: .7rem 1.4rem; font-family: var(--display); font-weight: 600;
+      font-size: .95rem; color: var(--muted); cursor: pointer; margin-bottom: -2px;
+      transition: color .15s;
+    }
+    .portal-tab.active { color: var(--navy); border-bottom-color: var(--blue); }
+    .portal-tab:hover:not(.active) { color: var(--navy); }
+    .portal-section { display: none; }
+    .portal-section.active { display: block; }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 2fr 2fr 1fr 1fr auto;
+      gap: .5rem; align-items: center;
+      padding: .6rem .75rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .9rem;
+    }
+    .field-row:last-child { border-bottom: 0; }
+    .field-row.inactive { opacity: .45; }
+    .field-row-header {
+      display: grid;
+      grid-template-columns: 2fr 2fr 1fr 1fr auto;
+      gap: .5rem;
+      padding: .4rem .75rem;
+      background: var(--navy);
+      color: #fff;
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+
+    .event-row {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1fr auto;
+      gap: .5rem; align-items: center;
+      padding: .6rem .75rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .9rem;
+    }
+    .event-row:last-child { border-bottom: 0; }
+    .event-row-header {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1fr auto;
+      gap: .5rem;
+      padding: .4rem .75rem;
+      background: var(--navy);
+      color: #fff;
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+
+    .code-row {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1fr 1fr auto;
+      gap: .5rem; align-items: center;
+      padding: .6rem .75rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .9rem;
+    }
+    .code-row:last-child { border-bottom: 0; }
+    .code-row-header {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1fr 1fr auto;
+      gap: .5rem;
+      padding: .4rem .75rem;
+      background: var(--navy);
+      color: #fff;
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .code-row.revoked { opacity: .45; text-decoration: line-through; }
+
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--white);
+      overflow: hidden;
+    }
+
+    .form-panel {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .badge-active   { background: var(--blue); color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
+    .badge-inactive { background: var(--line); color: var(--muted); padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
+    .badge-revoked  { background: #c0392b; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
+
+    .btn-icon {
+      background: none; border: 1px solid var(--line); color: var(--muted);
+      padding: .2rem .5rem; font-size: .8rem; cursor: pointer; clip-path: none;
+      border-radius: 0;
+    }
+    .btn-icon:hover { background: var(--tint); color: var(--navy); }
+    .btn-icon.danger:hover { background: #fde8e8; color: #c0392b; border-color: #c0392b; }
+
+    .code-string {
+      font-family: monospace; font-size: .8rem;
+      background: var(--paper); padding: .1rem .4rem;
+      border: 1px solid var(--line); letter-spacing: .03em;
+    }
+
+    .empty-state {
+      padding: 2.5rem 1rem; text-align: center;
+      color: var(--muted); font-size: .95rem;
+    }
+
+    #toastWrap {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
+      display: flex; flex-direction: column; gap: .5rem;
+    }
+    .toast-msg {
+      background: var(--navy); color: #fff;
+      padding: .65rem 1.1rem; font-size: .875rem;
+      font-family: var(--display); border-left: 4px solid var(--blue);
+      box-shadow: 0 4px 16px rgba(0,0,0,.18);
+      animation: slideIn .2s ease;
+    }
+    .toast-msg.err { border-left-color: #c0392b; }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    /* Modal overrides */
+    .modal-content { border-radius: 0; border-top: 3px solid var(--blue); }
+    .modal-header { border-bottom: 1px solid var(--line); }
+    .modal-footer { border-top: 1px solid var(--line); }
+    .modal-title { font-family: var(--display); color: var(--navy); font-size: 1.1rem; }
+
+    @media (max-width: 767px) {
+      .field-row, .field-row-header,
+      .event-row, .event-row-header,
+      .code-row,  .code-row-header  { grid-template-columns: 1fr auto; }
+      .field-row > *:nth-child(n+3):not(:last-child),
+      .event-row > *:nth-child(n+3):not(:last-child),
+      .code-row  > *:nth-child(n+3):not(:last-child),
+      .field-row-header > *:nth-child(n+3),
+      .event-row-header > *:nth-child(n+3),
+      .code-row-header  > *:nth-child(n+3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link" href="/scout.html">Scout</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/portal.html">Staff Portal</a></li>
+          <li class="nav-item"><a class="nav-link" href="/account.html">My Account</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container" style="padding-top: 2rem;">
+    <h1 class="mt-4 mb-1">Staff Portal</h1>
+    <p class="text-muted mb-4" style="font-size:.95rem;">Configure events, scouting fields, and share codes.</p>
+
+    <div class="portal-tabs" role="tablist">
+      <button class="portal-tab active" data-tab="events">Events</button>
+      <button class="portal-tab" data-tab="fields">Form Fields</button>
+      <button class="portal-tab" data-tab="codes">Share Codes</button>
+    </div>
+
+    <!-- ===== EVENTS ===== -->
+    <div class="portal-section active" id="tab-events">
+      <div class="form-panel">
+        <h3 style="font-size:1.1rem; margin-bottom:1rem;" id="eventFormTitle">Add Event</h3>
+        <div class="form-row">
+          <div class="form-group col-md-4">
+            <label for="evName">Event name</label>
+            <input type="text" id="evName" class="form-control" maxlength="80" placeholder="e.g. Pine Tree District 2027">
+          </div>
+          <div class="form-group col-md-4">
+            <label for="evLocation">Location</label>
+            <input type="text" id="evLocation" class="form-control" maxlength="80" placeholder="e.g. Rockland, ME">
+          </div>
+          <div class="form-group col-md-2">
+            <label for="evDate">Date</label>
+            <input type="date" id="evDate" class="form-control">
+          </div>
+          <div class="form-group col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" id="evSave">Save Event</button>
+          </div>
+        </div>
+        <input type="hidden" id="evId">
+        <button class="btn btn-outline-secondary btn-sm d-none" id="evCancel">Cancel edit</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="event-row-header">
+          <span>Name</span><span>Location</span><span>Date</span><span></span>
+        </div>
+        <div id="eventList"><div class="empty-state">No events yet. Add one above.</div></div>
+      </div>
+    </div>
+
+    <!-- ===== FIELDS ===== -->
+    <div class="portal-section" id="tab-fields">
+      <div class="form-panel">
+        <h3 style="font-size:1.1rem; margin-bottom:1rem;" id="fieldFormTitle">Add Field</h3>
+        <div class="form-row">
+          <div class="form-group col-md-2">
+            <label for="fKey">Key <small class="text-muted">(unique, no spaces)</small></label>
+            <input type="text" id="fKey" class="form-control" maxlength="40" placeholder="e.g. climb_level"
+                   pattern="[a-z][a-z0-9_]{0,39}">
+          </div>
+          <div class="form-group col-md-3">
+            <label for="fLabel">Label</label>
+            <input type="text" id="fLabel" class="form-control" maxlength="60" placeholder="e.g. Climb Level">
+          </div>
+          <div class="form-group col-md-2">
+            <label for="fType">Type</label>
+            <select id="fType" class="form-control">
+              <option value="number">Number</option>
+              <option value="text">Text</option>
+              <option value="choice">Choice</option>
+              <option value="boolean">Yes / No</option>
+            </select>
+          </div>
+          <div class="form-group col-md-2">
+            <label for="fSection">Section</label>
+            <input type="text" id="fSection" class="form-control" maxlength="40" value="Match">
+          </div>
+          <div class="form-group col-md-1 d-flex align-items-center pt-3">
+            <div class="custom-control custom-checkbox mt-2">
+              <input type="checkbox" class="custom-control-input" id="fRequired">
+              <label class="custom-control-label" for="fRequired">Required</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row" id="numberOpts">
+          <div class="form-group col-md-2">
+            <label for="fMin">Min</label>
+            <input type="number" id="fMin" class="form-control" placeholder="optional">
+          </div>
+          <div class="form-group col-md-2">
+            <label for="fMax">Max</label>
+            <input type="number" id="fMax" class="form-control" placeholder="optional">
+          </div>
+          <div class="form-group col-md-2">
+            <label for="fSort">Order</label>
+            <input type="number" id="fSort" class="form-control" value="0">
+          </div>
+        </div>
+
+        <div class="form-group d-none" id="choiceOpts">
+          <label for="fOptions">Choices <small class="text-muted">(one per line)</small></label>
+          <textarea id="fOptions" class="form-control" rows="3" placeholder="None&#10;Low&#10;High&#10;Deep"></textarea>
+        </div>
+
+        <input type="hidden" id="fId">
+        <div class="d-flex gap-2" style="gap:.5rem;">
+          <button class="btn btn-primary" id="fSave">Save Field</button>
+          <button class="btn btn-outline-secondary btn-sm d-none ml-2" id="fCancel">Cancel edit</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="field-row-header">
+          <span>Key / Label</span><span>Section</span><span>Type</span><span>Status</span><span></span>
+        </div>
+        <div id="fieldList"><div class="empty-state">No fields yet. Add one above.</div></div>
+      </div>
+    </div>
+
+    <!-- ===== SHARE CODES ===== -->
+    <div class="portal-section" id="tab-codes">
+      <div class="form-panel">
+        <h3 style="font-size:1.1rem; margin-bottom:1rem;">Create Share Code</h3>
+        <div class="form-row">
+          <div class="form-group col-md-3">
+            <label for="cLabel">Label</label>
+            <input type="text" id="cLabel" class="form-control" maxlength="80" placeholder="e.g. Team 254 – Pine Tree">
+          </div>
+          <div class="form-group col-md-3">
+            <label for="cEvent">Event <small class="text-muted">(optional)</small></label>
+            <select id="cEvent" class="form-control">
+              <option value="">All events</option>
+            </select>
+          </div>
+          <div class="form-group col-md-2">
+            <label for="cTeam">Team # <small class="text-muted">(optional)</small></label>
+            <input type="number" id="cTeam" class="form-control" min="1" max="99999" placeholder="e.g. 254">
+          </div>
+          <div class="form-group col-md-2">
+            <label for="cExpiry">Expires <small class="text-muted">(optional)</small></label>
+            <input type="datetime-local" id="cExpiry" class="form-control">
+          </div>
+          <div class="form-group col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" id="cSave">Create Code</button>
+          </div>
+        </div>
+        <p class="text-muted mb-0" style="font-size:.82rem;">
+          A code scoped to neither an event nor a team returns all unshared data — use with care.
+          Set an expiry for codes you hand to outside teams.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <div class="code-row-header">
+          <span>Label</span><span>Scope</span><span>Expires</span><span>Status</span><span></span>
+        </div>
+        <div id="codeList"><div class="empty-state">No share codes yet.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR / link modal -->
+  <div class="modal fade" id="codeModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Share Code</h5>
+          <button type="button" class="close" data-dismiss="modal">&times;</button>
+        </div>
+        <div class="modal-body text-center">
+          <div id="modalQR" class="qr-box d-inline-block mb-3"></div>
+          <div>
+            <input id="modalUrl" class="form-control form-control-sm text-center" readonly style="font-size:.8rem;">
+          </div>
+          <p class="text-muted mt-2 mb-0" style="font-size:.82rem;">
+            Anyone with this link who is signed in can view the scoped data while the code is active.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="copyUrl">Copy link</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit event modal -->
+  <div class="modal fade" id="evModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit Event</h5>
+          <button type="button" class="close" data-dismiss="modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="mEvName">Name</label>
+            <input type="text" id="mEvName" class="form-control" maxlength="80">
+          </div>
+          <div class="form-group">
+            <label for="mEvLocation">Location</label>
+            <input type="text" id="mEvLocation" class="form-control" maxlength="80">
+          </div>
+          <div class="form-group">
+            <label for="mEvDate">Date</label>
+            <input type="date" id="mEvDate" class="form-control">
+          </div>
+          <input type="hidden" id="mEvId">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="mEvSave">Save</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastWrap"></div>
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+
+    // ── Access gate ──────────────────────────────────────────────────
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = (await sb.rpc("my_access_level")).data;
+    if (lvl !== "staff") { location.replace("account.html"); return; }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    function toast(msg, err) {
+      var d = document.createElement("div");
+      d.className = "toast-msg" + (err ? " err" : "");
+      d.textContent = msg;
+      document.getElementById("toastWrap").appendChild(d);
+      setTimeout(function () { d.remove(); }, 3000);
+    }
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    function fmt(date) {
+      if (!date) return "—";
+      return new Date(date).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+    }
+    function fmtDT(dt) {
+      if (!dt) return "—";
+      return new Date(dt).toLocaleString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" });
+    }
+
+    // ── Tabs ─────────────────────────────────────────────────────────
+    document.querySelectorAll(".portal-tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        document.querySelectorAll(".portal-tab").forEach(function (b) { b.classList.remove("active"); });
+        document.querySelectorAll(".portal-section").forEach(function (s) { s.classList.remove("active"); });
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+
+    // ══════════════════════════════════════════════════════════════════
+    // EVENTS
+    // ══════════════════════════════════════════════════════════════════
+    var events = [];
+    async function loadEvents() {
+      var r = await sb.from("events").select("*").order("event_date", { ascending: true });
+      if (r.error) { toast("Couldn't load events.", true); return; }
+      events = r.data;
+      renderEvents();
+      populateEventSelect();
+    }
+    function renderEvents() {
+      var el = document.getElementById("eventList");
+      if (!events.length) { el.innerHTML = '<div class="empty-state">No events yet. Add one above.</div>'; return; }
+      el.innerHTML = events.map(function (ev) {
+        return '<div class="event-row">' +
+          '<span><strong>' + esc(ev.name) + '</strong></span>' +
+          '<span>' + esc(ev.location || "—") + '</span>' +
+          '<span>' + fmt(ev.event_date) + '</span>' +
+          '<span style="display:flex;gap:.3rem;">' +
+            '<button class="btn-icon" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon danger" onclick="deleteEvent(\'' + ev.id + '\')"><i class="fa fa-trash"></i></button>' +
+          '</span>' +
+        '</div>';
+      }).join("");
+    }
+    function populateEventSelect() {
+      var sel = document.getElementById("cEvent");
+      sel.innerHTML = '<option value="">All events</option>';
+      events.forEach(function (ev) {
+        var o = document.createElement("option");
+        o.value = ev.id; o.textContent = ev.name; sel.appendChild(o);
+      });
+    }
+    document.getElementById("evSave").addEventListener("click", async function () {
+      var name = document.getElementById("evName").value.trim();
+      var loc  = document.getElementById("evLocation").value.trim();
+      var date = document.getElementById("evDate").value || null;
+      if (!name) { toast("Event name is required.", true); return; }
+      var r = await sb.from("events").insert({ name: name, location: loc || null, event_date: date });
+      if (r.error) { toast("Couldn't save event.", true); return; }
+      document.getElementById("evName").value = "";
+      document.getElementById("evLocation").value = "";
+      document.getElementById("evDate").value = "";
+      toast("Event saved.");
+      loadEvents();
+    });
+    window.editEvent = function (id) {
+      var ev = events.find(function (e) { return e.id === id; });
+      if (!ev) return;
+      document.getElementById("mEvId").value = ev.id;
+      document.getElementById("mEvName").value = ev.name;
+      document.getElementById("mEvLocation").value = ev.location || "";
+      document.getElementById("mEvDate").value = ev.event_date ? ev.event_date.slice(0,10) : "";
+      $("#evModal").modal("show");
+    };
+    document.getElementById("mEvSave").addEventListener("click", async function () {
+      var id   = document.getElementById("mEvId").value;
+      var name = document.getElementById("mEvName").value.trim();
+      var loc  = document.getElementById("mEvLocation").value.trim();
+      var date = document.getElementById("mEvDate").value || null;
+      if (!name) { toast("Event name is required.", true); return; }
+      var r = await sb.from("events").update({ name: name, location: loc || null, event_date: date }).eq("id", id);
+      if (r.error) { toast("Couldn't update event.", true); return; }
+      $("#evModal").modal("hide");
+      toast("Event updated.");
+      loadEvents();
+    });
+    window.deleteEvent = async function (id) {
+      if (!confirm("Delete this event? All entries for it will also be deleted.")) return;
+      var r = await sb.from("events").delete().eq("id", id);
+      if (r.error) { toast("Couldn't delete event.", true); return; }
+      toast("Event deleted.");
+      loadEvents();
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // FIELDS
+    // ══════════════════════════════════════════════════════════════════
+    var fields = [];
+    async function loadFields() {
+      var r = await sb.from("scout_fields").select("*").order("sort_order", { ascending: true });
+      if (r.error) { toast("Couldn't load fields.", true); return; }
+      fields = r.data;
+      renderFields();
+    }
+    function renderFields() {
+      var el = document.getElementById("fieldList");
+      if (!fields.length) { el.innerHTML = '<div class="empty-state">No fields yet. Add one above.</div>'; return; }
+      el.innerHTML = fields.map(function (f) {
+        var badge = f.active
+          ? '<span class="badge-active">Active</span>'
+          : '<span class="badge-inactive">Inactive</span>';
+        var typeLabel = { number:"Number", text:"Text", choice:"Choice", boolean:"Yes / No" }[f.field_type] || f.field_type;
+        return '<div class="field-row' + (f.active ? "" : " inactive") + '">' +
+          '<span><strong>' + esc(f.label) + '</strong><br><code style="font-size:.75rem;color:var(--muted);">' + esc(f.key) + '</code></span>' +
+          '<span>' + esc(f.section) + '</span>' +
+          '<span>' + typeLabel + '</span>' +
+          '<span>' + badge + '</span>' +
+          '<span style="display:flex;gap:.3rem;">' +
+            '<button class="btn-icon" onclick="editField(\'' + f.id + '\')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon" onclick="toggleField(\'' + f.id + '\',' + f.active + ')">' +
+              (f.active ? '<i class="fa fa-eye-slash"></i>' : '<i class="fa fa-eye"></i>') +
+            '</button>' +
+          '</span>' +
+        '</div>';
+      }).join("");
+    }
+
+    // Show/hide type-specific options
+    document.getElementById("fType").addEventListener("change", function () {
+      var t = this.value;
+      document.getElementById("numberOpts").style.display = t === "number" ? "" : "none";
+      document.getElementById("choiceOpts").classList.toggle("d-none", t !== "choice");
+    });
+
+    document.getElementById("fSave").addEventListener("click", async function () {
+      var id      = document.getElementById("fId").value;
+      var key     = document.getElementById("fKey").value.trim();
+      var label   = document.getElementById("fLabel").value.trim();
+      var type    = document.getElementById("fType").value;
+      var section = document.getElementById("fSection").value.trim() || "Match";
+      var req     = document.getElementById("fRequired").checked;
+      var sort    = parseInt(document.getElementById("fSort").value, 10) || 0;
+      var min     = document.getElementById("fMin").value !== "" ? parseFloat(document.getElementById("fMin").value) : null;
+      var max     = document.getElementById("fMax").value !== "" ? parseFloat(document.getElementById("fMax").value) : null;
+      var opts    = type === "choice"
+        ? document.getElementById("fOptions").value.split("\n").map(function(s){return s.trim();}).filter(Boolean)
+        : null;
+
+      if (!label) { toast("Label is required.", true); return; }
+      if (!id && !key) { toast("Key is required for new fields.", true); return; }
+      if (!id && !/^[a-z][a-z0-9_]{0,39}$/.test(key)) {
+        toast("Key must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.", true); return;
+      }
+      if (type === "choice" && (!opts || !opts.length)) { toast("Add at least one choice.", true); return; }
+
+      var payload = { label, field_type: type, section, required: req, sort_order: sort,
+                      min_value: min, max_value: max, options: opts };
+      var r;
+      if (id) {
+        r = await sb.from("scout_fields").update(payload).eq("id", id);
+      } else {
+        r = await sb.from("scout_fields").insert(Object.assign({ key }, payload));
+      }
+      if (r.error) { toast(r.error.message || "Couldn't save field.", true); return; }
+      resetFieldForm();
+      toast(id ? "Field updated." : "Field saved.");
+      loadFields();
+    });
+
+    function resetFieldForm() {
+      ["fId","fKey","fLabel","fMin","fMax"].forEach(function(id){ document.getElementById(id).value = ""; });
+      document.getElementById("fType").value = "number";
+      document.getElementById("fSection").value = "Match";
+      document.getElementById("fRequired").checked = false;
+      document.getElementById("fSort").value = "0";
+      document.getElementById("fOptions").value = "";
+      document.getElementById("fKey").disabled = false;
+      document.getElementById("choiceOpts").classList.add("d-none");
+      document.getElementById("numberOpts").style.display = "";
+      document.getElementById("fFormTitle") && (document.getElementById("fieldFormTitle").textContent = "Add Field");
+      document.getElementById("fCancel").classList.add("d-none");
+    }
+
+    window.editField = function (id) {
+      var f = fields.find(function(x){ return x.id === id; });
+      if (!f) return;
+      document.getElementById("fId").value = f.id;
+      document.getElementById("fKey").value = f.key;
+      document.getElementById("fKey").disabled = true; // key is immutable after creation
+      document.getElementById("fLabel").value = f.label;
+      document.getElementById("fType").value = f.field_type;
+      document.getElementById("fSection").value = f.section;
+      document.getElementById("fRequired").checked = f.required;
+      document.getElementById("fSort").value = f.sort_order;
+      document.getElementById("fMin").value = f.min_value != null ? f.min_value : "";
+      document.getElementById("fMax").value = f.max_value != null ? f.max_value : "";
+      document.getElementById("fOptions").value = f.options ? f.options.join("\n") : "";
+      document.getElementById("numberOpts").style.display = f.field_type === "number" ? "" : "none";
+      document.getElementById("choiceOpts").classList.toggle("d-none", f.field_type !== "choice");
+      document.getElementById("fieldFormTitle").textContent = "Edit Field";
+      document.getElementById("fCancel").classList.remove("d-none");
+      document.getElementById("tab-fields").scrollIntoView({ behavior: "smooth" });
+    };
+    document.getElementById("fCancel").addEventListener("click", resetFieldForm);
+
+    window.toggleField = async function (id, active) {
+      var r = await sb.from("scout_fields").update({ active: !active }).eq("id", id);
+      if (r.error) { toast("Couldn't update field.", true); return; }
+      toast(active ? "Field hidden from new entries." : "Field reactivated.");
+      loadFields();
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // SHARE CODES
+    // ══════════════════════════════════════════════════════════════════
+    var codes = [];
+    async function loadCodes() {
+      var r = await sb.from("share_codes").select("*").order("created_at", { ascending: false });
+      if (r.error) { toast("Couldn't load share codes.", true); return; }
+      codes = r.data;
+      renderCodes();
+    }
+    function scopeLabel(c) {
+      var ev = c.event_id ? (events.find(function(e){ return e.id === c.event_id; }) || {}).name || "event" : null;
+      if (ev && c.team_number) return "Team " + c.team_number + " @ " + ev;
+      if (ev) return ev;
+      if (c.team_number) return "Team " + c.team_number + " (all events)";
+      return "All data";
+    }
+    function renderCodes() {
+      var el = document.getElementById("codeList");
+      if (!codes.length) { el.innerHTML = '<div class="empty-state">No share codes yet.</div>'; return; }
+      var now = new Date();
+      el.innerHTML = codes.map(function (c) {
+        var expired = c.expires_at && new Date(c.expires_at) < now;
+        var revoked = c.revoked;
+        var badge = revoked
+          ? '<span class="badge-revoked">Revoked</span>'
+          : expired
+            ? '<span class="badge-inactive">Expired</span>'
+            : '<span class="badge-active">Active</span>';
+        return '<div class="code-row' + (revoked || expired ? " revoked" : "") + '">' +
+          '<span><strong>' + esc(c.label) + '</strong><br>' +
+            '<span class="code-string">' + esc(c.code) + '</span>' +
+          '</span>' +
+          '<span>' + esc(scopeLabel(c)) + '</span>' +
+          '<span>' + fmtDT(c.expires_at) + '</span>' +
+          '<span>' + badge + '</span>' +
+          '<span style="display:flex;gap:.3rem;">' +
+            (!revoked && !expired ? '<button class="btn-icon" onclick="showCode(\'' + c.id + '\')"><i class="fa fa-qrcode"></i></button>' : '') +
+            (!revoked ? '<button class="btn-icon danger" onclick="revokeCode(\'' + c.id + '\')"><i class="fa fa-ban"></i></button>' : '') +
+          '</span>' +
+        '</div>';
+      }).join("");
+    }
+
+    document.getElementById("cSave").addEventListener("click", async function () {
+      var label   = document.getElementById("cLabel").value.trim();
+      var eventId = document.getElementById("cEvent").value || null;
+      var team    = document.getElementById("cTeam").value ? parseInt(document.getElementById("cTeam").value, 10) : null;
+      var expiry  = document.getElementById("cExpiry").value || null;
+      if (!label) { toast("Label is required.", true); return; }
+      if (!eventId && !team) { toast("Scope at least one event or team number.", true); return; }
+      var r = await sb.from("share_codes").insert({
+        label, event_id: eventId, team_number: team,
+        expires_at: expiry ? new Date(expiry).toISOString() : null
+      }).select().single();
+      if (r.error) { toast(r.error.message || "Couldn't create code.", true); return; }
+      ["cLabel","cTeam","cExpiry"].forEach(function(id){ document.getElementById(id).value = ""; });
+      document.getElementById("cEvent").value = "";
+      toast("Share code created.");
+      await loadCodes();
+      showCode(r.data.id);
+    });
+
+    window.showCode = function (id) {
+      var c = codes.find(function(x){ return x.id === id; });
+      if (!c) return;
+      var url = new URL("/scout.html#code=" + c.code, location.href).href;
+      document.getElementById("modalUrl").value = url;
+      document.getElementById("modalQR").innerHTML = "";
+      new QRCode(document.getElementById("modalQR"), { text: url, width: 180, height: 180 });
+      $("#codeModal").modal("show");
+    };
+
+    document.getElementById("copyUrl").addEventListener("click", function () {
+      var inp = document.getElementById("modalUrl");
+      inp.select(); document.execCommand("copy");
+      toast("Link copied.");
+    });
+
+    window.revokeCode = async function (id) {
+      if (!confirm("Revoke this code? Anyone using it will immediately lose access.")) return;
+      var r = await sb.from("share_codes").update({ revoked: true }).eq("id", id);
+      if (r.error) { toast("Couldn't revoke code.", true); return; }
+      toast("Code revoked.");
+      loadCodes();
+    };
+
+    // ── Boot ─────────────────────────────────────────────────────────
+    await Promise.all([loadEvents(), loadFields(), loadCodes()]);
+  })();
+  </script>
+</body>
+</html>

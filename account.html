@@ -4,242 +4,213 @@
   <link rel="icon" href="/img/robosaintslogo.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>My Account</title>
-  
-  <!--Stylepack-->
+  <title>My Account – 1307scout</title>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-  <link href="css/main.css" rel="stylesheet">
-  <link href="css/auth.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .account-wrap { max-width: 520px; margin: 3rem auto; padding: 0 1rem; }
+    .account-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 2rem;
+    }
+    .account-card h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+    .account-card h1::after { display: none; }
+    .who { color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; }
+
+    .role-badge {
+      display: inline-block;
+      font-family: var(--display);
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .15rem .55rem;
+      background: var(--tint);
+      color: var(--muted);
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+      margin-left: .4rem;
+    }
+    .role-badge.staff   { background: var(--navy); color: #fff; }
+    .role-badge.student { background: var(--blue); color: #fff; }
+
+    .nav-tile {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 1.25rem;
+      border: 1px solid var(--line);
+      background: var(--white);
+      text-decoration: none;
+      color: var(--ink);
+      margin-bottom: .75rem;
+      transition: background .15s, border-color .15s;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    }
+    .nav-tile:hover { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--navy); }
+    .nav-tile .tile-icon {
+      width: 40px; height: 40px; flex-shrink: 0;
+      background: var(--tint); color: var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }
+    .nav-tile .tile-text strong { display: block; font-family: var(--display); font-size: .95rem; }
+    .nav-tile .tile-text small  { color: var(--muted); font-size: .82rem; }
+
+    .divider { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
+
+    .sign-out-btn {
+      background: none; border: 1px solid var(--line);
+      color: var(--muted); font-size: .85rem; padding: .35rem .9rem;
+      cursor: pointer; font-family: var(--display); font-weight: 600;
+      clip-path: none;
+    }
+    .sign-out-btn:hover { border-color: var(--navy); color: var(--navy); }
+
+    .loading { text-align: center; padding: 3rem 1rem; color: var(--muted); font-family: var(--display); }
+  </style>
 </head>
-
 <body>
+
   <!-- Navigation -->
-    <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
-      <div class="container">
-          <a class="navbar-brand" href="index.html"><img src="img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
-        <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarResponsive">
-          <ul class="navbar-nav ml-auto">
-              <li class="nav-item">
-                <a class="nav-link" href="index.html">Homepage</a>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Sponsors
-              </a>
-              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
-                  <a class="dropdown-item" href="oursponsors.html">Our Sponsors</a>
-                  <a class="dropdown-item" href="business-plan.html">Business Plan</a>
-                  
-              </div>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                About Us
-              </a>
-              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
-                  <a class="dropdown-item" href="about-the-students.html">The Students</a>
-                  <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
-                  <a class="dropdown-item" href="about-the-robot.html"> The Robots</a>
-              </div>
-            </li>
-             <li class="nav-item">
-                <a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="contact.html">Contact Us</a>
-            </li>
-          </ul>
-        </div>
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link" href="/scout.html">Scout</a></li>
+          <li class="nav-item" id="portalNavItem" style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/account.html">My Account</a></li>
+        </ul>
       </div>
-    </nav>
+    </div>
+  </nav>
 
-  <div class="auth-wrap wide">
-    <div class="auth-card">
-      <div class="d-flex justify-content-between align-items-start flex-wrap">
+  <div class="account-wrap">
+    <div class="loading" id="loadingState">Loading…</div>
+
+    <div class="account-card" id="accountCard" style="display:none;">
+      <div class="d-flex justify-content-between align-items-start">
         <div>
-          <h1>My account</h1>
-          <p class="sub"><span id="who"></span> <span id="role" class="role-badge"></span></p>
+          <h1>My account <span id="roleBadge" class="role-badge"></span></h1>
+          <p class="who" id="whoText"></p>
         </div>
-        <button id="signOut" class="btn btn-outline-secondary btn-sm">Sign out</button>
+        <button class="sign-out-btn" id="signOutBtn">Sign out</button>
       </div>
-      <div id="msg" class="alert d-none" role="alert" aria-live="polite"></div>
 
-      <!-- Team members -->
-      <section id="memberView" class="d-none">
-        <h4 class="mt-3">Scouting data</h4>
-        <div class="form-row align-items-end mb-3">
-          <div class="col-md-5"><label for="eventSel">Event</label><select id="eventSel" class="form-control"></select></div>
-          <div class="col-md-5"><label for="newEvent">New event</label><input id="newEvent" class="form-control" maxlength="80" placeholder="e.g. Pine Tree District 2027"></div>
-          <div class="col-md-2"><button id="addEvent" class="btn btn-navy mt-2 mt-md-0" type="button">Add event</button></div>
-        </div>
+      <div id="tileArea"></div>
 
-        <form id="entryForm" class="border rounded p-3 mb-3">
-          <div class="form-row">
-            <div class="form-group col-6 col-md-2"><label for="fTeam">Team #</label><input id="fTeam" type="number" min="1" max="99999" class="form-control" required></div>
-            <div class="form-group col-6 col-md-2"><label for="fMatch">Match #</label><input id="fMatch" type="number" min="1" max="500" class="form-control"></div>
-            <div class="form-group col-6 col-md-2"><label for="fAuto">Auto pts</label><input id="fAuto" type="number" min="0" max="500" value="0" class="form-control"></div>
-            <div class="form-group col-6 col-md-2"><label for="fTele">Teleop pts</label><input id="fTele" type="number" min="0" max="500" value="0" class="form-control"></div>
-            <div class="form-group col-12 col-md-4"><label for="fEnd">Endgame</label><input id="fEnd" maxlength="40" class="form-control" placeholder="e.g. Deep climb"></div>
-          </div>
-          <div class="form-group"><label for="fNotes">Notes</label><textarea id="fNotes" rows="2" maxlength="1000" class="form-control"></textarea></div>
-          <button class="btn btn-navy" type="submit" style="width:auto;padding:.5rem 1.5rem">Save entry</button>
-        </form>
+      <hr class="divider">
 
-        <div class="table-responsive"><table class="table table-sm scout-table" id="memberTable"></table></div>
-
-        <h5 class="mt-4">Share this event</h5>
-        <div class="custom-control custom-switch mb-2">
-          <input type="checkbox" class="custom-control-input" id="shareToggle">
-          <label class="custom-control-label" for="shareToggle">Let signed-in guests view this event's data</label>
-        </div>
-        <div id="sharePanel" class="d-none">
-          <div id="qr" class="qr-box"></div>
-          <p class="mt-2 mb-0"><small>Guests scan this, sign in, and see the data read-only. Turn sharing off to cut off access.</small><br>
-          <input id="shareUrl" class="form-control form-control-sm mt-1" readonly></p>
-        </div>
-      </section>
-
-      <!-- Everyone else -->
-      <section id="guestView" class="d-none">
-        <h4 class="mt-3">View shared scouting data</h4>
-        <p>Scan the team's QR code, or enter the share code they gave you.</p>
-        <form id="codeForm" class="form-inline mb-3">
-          <label class="sr-only" for="codeIn">Share code</label>
-          <input id="codeIn" class="form-control mr-2" maxlength="24" placeholder="Share code" autocomplete="off">
-          <button class="btn btn-navy" type="submit" style="width:auto;padding:.5rem 1.5rem">View data</button>
-        </form>
-        <div class="table-responsive"><table class="table table-sm scout-table" id="guestTable"></table></div>
-      </section>
+      <div>
+        <p class="text-muted mb-1" style="font-size:.82rem;">
+          Signed in as <strong id="emailDisplay"></strong>
+        </p>
+        <p class="text-muted mb-0" style="font-size:.82rem;" id="verifyMsg"></p>
+      </div>
     </div>
   </div>
 
   <footer class="py-5" id="bottomrow">
     <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
-    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank"></a>
-    <div class="container"><p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p></div>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+    </div>
   </footer>
 
   <script src="/vendor/jquery/jquery.min.js"></script>
-  <script src="/vendor/bootstrap//js/bootstrap.bundle.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/js/1.0.0/qrcode.min.js"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script>
   (async function () {
-    var sb = RS.sb, $ = function (id) { return document.getElementById(id); };
-    var events = [], current = null;
-
-    function msg(type, text) {
-      var m = $("msg");
-      if (!text) { m.className = "alert d-none"; return; }
-      m.className = "alert alert-" + type; m.textContent = text;
-    }
-    // All data is written with textContent, never innerHTML, so entered text can't inject script.
-    function renderTable(tbl, cols, rows) {
-      tbl.textContent = "";
-      var thead = tbl.createTHead().insertRow();
-      cols.forEach(function (c) { var th = document.createElement("th"); th.textContent = c[0]; thead.appendChild(th); });
-      var body = tbl.createTBody();
-      if (!rows.length) { var r = body.insertRow(), td = r.insertCell(); td.colSpan = cols.length; td.textContent = "No entries yet."; return; }
-      rows.forEach(function (row) {
-        var tr = body.insertRow();
-        cols.forEach(function (c) { tr.insertCell().textContent = row[c[1]] == null ? "" : row[c[1]]; });
-      });
-    }
-    var COLS = [["Team","team_number"],["Match","match_number"],["Auto","auto_points"],["Teleop","teleop_points"],["Endgame","endgame"],["Notes","notes"]];
+    var sb = RS.sb;
 
     var s = (await sb.auth.getSession()).data.session;
-    var hashCode = new URLSearchParams(location.hash.slice(1)).get("code");
-    if (!s) {
-      if (hashCode) sessionStorage.setItem("rs_code", hashCode);
-      location.replace("signin.html"); return;
+    if (!s) { location.replace("signin.html"); return; }
+
+    var user = s.user;
+    var lvl  = (await sb.rpc("my_access_level")).data || "guest";
+    var isStaff = lvl === "staff", isStudent = lvl === "student";
+
+    // ── Fill in account card ─────────────────────────────────────────
+    var badge = document.getElementById("roleBadge");
+    badge.textContent = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
+    badge.classList.add(isStaff ? "staff" : isStudent ? "student" : "");
+
+    var name = (user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name || user.user_metadata.name)) || "";
+    document.getElementById("whoText").textContent = name ? "Welcome back, " + name + "." : "Welcome back.";
+    document.getElementById("emailDisplay").textContent = user.email;
+
+    if (!user.email_confirmed_at) {
+      document.getElementById("verifyMsg").textContent = "Your email isn't verified yet. Check your inbox to unlock full access.";
     }
-    var user = s.user, member = RS.isMember(user);
-    $("who").textContent = ((user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name || user.user_metadata.name)) || "") + " (" + user.email + ")";
-    $("role").textContent = member ? "Team member" : "Guest";
-    $("role").classList.toggle("member", member);
-    $("signOut").onclick = async function () { await sb.auth.signOut(); location.href = "/index.html"; };
-    if (location.hash) history.replaceState(null, "", location.pathname);
 
-    if (member) {
-      $("memberView").classList.remove("d-none");
+    if (isStaff) document.getElementById("portalNavItem").style.display = "";
 
-      async function loadEvents(selectId) {
-        var r = await sb.from("events").select("*").order("created_at", { ascending: false });
-        if (r.error) return msg("danger", "Couldn't load events.");
-        events = r.data;
-        var sel = $("eventSel"); sel.textContent = "";
-        events.forEach(function (ev) { var o = document.createElement("option"); o.value = ev.id; o.textContent = ev.name; sel.appendChild(o); });
-        if (selectId) sel.value = selectId;
-        await pick();
-      }
-      async function pick() {
-        current = events.find(function (e) { return e.id === $("eventSel").value; }) || null;
-        $("entryForm").classList.toggle("d-none", !current);
-        $("shareToggle").checked = !!(current && current.share_enabled);
-        updateShare();
-        if (!current) return renderTable($("memberTable"), COLS, []);
-        var r = await sb.from("scouting_entries").select("*").eq("event_id", current.id)
-          .order("created_at", { ascending: false }).limit(500);
-        if (r.error) return msg("danger", "Couldn't load entries.");
-        renderTable($("memberTable"), COLS, r.data);
-      }
-      function updateShare() {
-        var on = current && current.share_enabled;
-        $("sharePanel").classList.toggle("d-none", !on);
-        if (!on) return;
-        var url = new URL("account.html#code=" + current.share_code, location.href).href;
-        $("shareUrl").value = url; $("qr").textContent = "";
-        new QRCode($("qr"), { text: url, width: 160, height: 160 });
-      }
+    // ── Navigation tiles ─────────────────────────────────────────────
+    var tiles = [];
 
-      $("eventSel").onchange = pick;
-      $("addEvent").onclick = async function () {
-        var name = $("newEvent").value.trim(); if (!name) return;
-        var r = await sb.from("events").insert({ name: name }).select().single();
-        if (r.error) return msg("danger", "Couldn't add the event.");
-        $("newEvent").value = ""; msg(); loadEvents(r.data.id);
-      };
-      $("shareToggle").onchange = async function () {
-        if (!current) return;
-        var r = await sb.from("events").update({ share_enabled: $("shareToggle").checked }).eq("id", current.id).select().single();
-        if (r.error) return msg("danger", "Couldn't change sharing.");
-        current = r.data; events = events.map(function (e) { return e.id === current.id ? current : e; }); updateShare();
-      };
-      $("entryForm").addEventListener("submit", async function (e) {
-        e.preventDefault(); if (!current) return;
-        var r = await sb.from("scouting_entries").insert({
-          event_id: current.id,
-          team_number: parseInt($("fTeam").value, 10),
-          match_number: parseInt($("fMatch").value, 10) || null,
-          auto_points: parseInt($("fAuto").value, 10) || 0,
-          teleop_points: parseInt($("fTele").value, 10) || 0,
-          endgame: $("fEnd").value.trim() || null,
-          notes: $("fNotes").value.trim() || null
-        });
-        if (r.error) return msg("danger", "Couldn't save. Check that the team number is filled in.");
-        msg("success", "Entry saved.");
-        e.target.reset(); $("fAuto").value = 0; $("fTele").value = 0; pick();
+    if (isStaff) {
+      tiles.push({
+        href: "/portal.html",
+        icon: "fa-cog",
+        cls: "staff-tile",
+        title: "Staff Portal",
+        desc: "Configure events, form fields, and share codes"
       });
-      loadEvents();
-    } else {
-      $("guestView").classList.remove("d-none");
-      if (!user.email_confirmed_at) msg("warning", "Verify your email to continue.");
-      async function loadShared(code) {
-        var r = await sb.rpc("get_shared_scouting", { code: code });
-        if (r.error) return msg("danger", "Something went wrong. Try again.");
-        if (!r.data.length) { renderTable($("guestTable"), COLS, []); return msg("warning", "No data for that code. It may be wrong, or sharing may be turned off."); }
-        msg(); renderTable($("guestTable"), COLS, r.data);
-      }
-      $("codeForm").addEventListener("submit", function (e) { e.preventDefault(); var c = $("codeIn").value.trim(); if (c) loadShared(c); });
-      var saved = hashCode || sessionStorage.getItem("rs_code");
-      if (saved) { sessionStorage.removeItem("rs_code"); $("codeIn").value = saved; loadShared(saved); }
     }
+
+    if (isStaff || isStudent) {
+      tiles.push({
+        href: "/scout.html",
+        icon: "fa-clipboard",
+        cls: "",
+        title: "Scout",
+        desc: "Record match data at a competition"
+      });
+    }
+
+    // Guest gets the scout page for share-code lookup
+    if (!isStaff && !isStudent) {
+      tiles.push({
+        href: "/scout.html",
+        icon: "fa-search",
+        cls: "",
+        title: "View Shared Data",
+        desc: "Enter a share code to view team scouting data"
+      });
+    }
+
+    var area = document.getElementById("tileArea");
+    if (!tiles.length) {
+      area.innerHTML = '<p class="text-muted" style="font-size:.9rem;">Your account is active but you don\'t have team access yet. Contact a staff member if this seems wrong.</p>';
+    } else {
+      area.innerHTML = tiles.map(function(t) {
+        return '<a href="' + t.href + '" class="nav-tile ' + t.cls + '">' +
+          '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
+          '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
+          '<i class="fa fa-chevron-right ml-auto text-muted" style="font-size:.75rem;"></i>' +
+        '</a>';
+      }).join("");
+    }
+
+    // ── Sign out ─────────────────────────────────────────────────────
+    document.getElementById("signOutBtn").addEventListener("click", async function () {
+      await sb.auth.signOut();
+      location.href = "/index.html";
+    });
+
+    // ── Show card ────────────────────────────────────────────────────
+    document.getElementById("loadingState").style.display = "none";
+    document.getElementById("accountCard").style.display  = "";
   })();
   </script>
 </body>

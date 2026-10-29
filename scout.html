@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Scout – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .scout-wrap { max-width: 720px; margin: 0 auto; }
+
+    .entry-form-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 1.75rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Section headings inside the dynamic form */
+    .field-section-heading {
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: var(--muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: .3rem;
+      margin: 1.25rem 0 .75rem;
+    }
+    .field-section-heading:first-child { margin-top: 0; }
+
+    /* Yes/No toggle */
+    .bool-toggle { display: flex; gap: .5rem; }
+    .bool-toggle label {
+      flex: 1; text-align: center; padding: .4rem;
+      border: 1px solid var(--line); cursor: pointer;
+      font-weight: 600; font-size: .9rem;
+      color: var(--muted); margin: 0;
+    }
+    .bool-toggle input { display: none; }
+    .bool-toggle input:checked + label { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+    /* Recent entries table */
+    .entries-section h3 { font-size: 1.1rem; margin-bottom: .75rem; }
+    .entry-table { font-size: .88rem; }
+    .entry-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; white-space: nowrap; }
+    .entry-table td { border-top: 1px solid var(--line); vertical-align: middle; }
+    .entry-table tbody tr:nth-child(even) { background: var(--paper); }
+    .entry-table tbody tr:hover { background: var(--tint); }
+
+    .btn-icon {
+      background: none; border: 1px solid var(--line); color: var(--muted);
+      padding: .2rem .45rem; font-size: .78rem; cursor: pointer; clip-path: none;
+      border-radius: 0;
+    }
+    .btn-icon:hover { background: var(--tint); color: var(--navy); }
+    .btn-icon.danger:hover { background: #fde8e8; color: #c0392b; border-color: #c0392b; }
+
+    .event-selector {
+      background: var(--white);
+      border: 1px solid var(--line);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;
+    }
+    .event-selector .form-group { margin-bottom: 0; flex: 1; min-width: 200px; }
+
+    /* Guest view */
+    .guest-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 2rem;
+      max-width: 460px; margin: 2rem auto;
+    }
+
+    #toastWrap {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
+      display: flex; flex-direction: column; gap: .5rem;
+    }
+    .toast-msg {
+      background: var(--navy); color: #fff;
+      padding: .65rem 1.1rem; font-size: .875rem;
+      font-family: var(--display); border-left: 4px solid var(--blue);
+      box-shadow: 0 4px 16px rgba(0,0,0,.18);
+      animation: slideIn .2s ease;
+    }
+    .toast-msg.err { border-left-color: #c0392b; }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    .draft-badge {
+      display: inline-block;
+      background: #f0ad4e; color: #fff;
+      font-size: .7rem; font-family: var(--display); font-weight: 700;
+      padding: .1rem .45rem; margin-left: .4rem;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/scout.html">Scout</a></li>
+          <li class="nav-item" id="portalLink" style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
+          <li class="nav-item"><a class="nav-link" href="/account.html">My Account</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── TEAM VIEW (staff + students) ── -->
+  <div class="container" id="teamView" style="display:none; padding-top:2rem;">
+    <div class="scout-wrap">
+      <h1 class="mt-4 mb-1">Scout</h1>
+      <p class="text-muted mb-3" style="font-size:.95rem;">Record match data for the current event.</p>
+
+      <div class="event-selector">
+        <div class="form-group">
+          <label for="eventSel">Event</label>
+          <select id="eventSel" class="form-control"></select>
+        </div>
+      </div>
+
+      <!-- Dynamic entry form -->
+      <div class="entry-form-card" id="entryFormCard" style="display:none;">
+        <h3 style="font-size:1.05rem; margin-bottom:1rem;" id="entryFormTitle">New Entry</h3>
+
+        <div class="form-row">
+          <div class="form-group col-6 col-md-4">
+            <label for="fTeam">Team #</label>
+            <input type="number" id="fTeam" class="form-control" min="1" max="99999" required>
+          </div>
+          <div class="form-group col-6 col-md-4">
+            <label for="fMatch">Match # <small class="text-muted">(optional)</small></label>
+            <input type="number" id="fMatch" class="form-control" min="1" max="500">
+          </div>
+        </div>
+
+        <div id="dynamicFields"><!-- built from scout_fields --></div>
+
+        <input type="hidden" id="entryId">
+        <div class="d-flex" style="gap:.5rem; margin-top:1.25rem;">
+          <button class="btn btn-primary" id="entrySave">Save Entry</button>
+          <button class="btn btn-outline-secondary btn-sm d-none" id="entryCancel">Cancel edit</button>
+          <span id="draftIndicator" style="display:none; align-self:center;">
+            <span class="draft-badge">DRAFT</span>
+            <small class="text-muted ml-1">Saved locally — will submit when online.</small>
+          </span>
+        </div>
+      </div>
+
+      <!-- Recent entries -->
+      <div class="entries-section" id="entriesSection" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h3 id="entriesHeading">Recent entries</h3>
+          <div>
+            <input type="text" id="entrySearch" class="form-control form-control-sm d-inline-block"
+                   style="width:160px;" placeholder="Filter by team #">
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table entry-table" id="entryTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── GUEST VIEW ── -->
+  <div class="container" id="guestView" style="display:none;">
+    <div class="guest-card mt-5">
+      <h1 style="font-size:1.5rem;">View Shared Data</h1>
+      <p class="text-muted">Enter the share code you received from Team 1307.</p>
+      <div class="form-group">
+        <label for="guestCode">Share code</label>
+        <input type="text" id="guestCode" class="form-control" maxlength="32" placeholder="Enter code">
+      </div>
+      <button class="btn btn-primary" id="guestLoad">View data</button>
+      <div id="guestResult" class="mt-3"></div>
+    </div>
+  </div>
+
+  <div id="toastWrap"></div>
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    function toast(msg, err) {
+      var d = document.createElement("div");
+      d.className = "toast-msg" + (err ? " err" : "");
+      d.textContent = msg;
+      document.getElementById("toastWrap").appendChild(d);
+      setTimeout(function () { d.remove(); }, 3200);
+    }
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    function get(id) { return document.getElementById(id); }
+
+    // ── Check hash for guest share code ──────────────────────────────
+    var hashCode = new URLSearchParams(location.hash.slice(1)).get("code");
+    if (hashCode) history.replaceState(null, "", location.pathname);
+
+    // ── Auth / access level ──────────────────────────────────────────
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) {
+      if (hashCode) sessionStorage.setItem("rs_code", hashCode);
+      location.replace("signin.html"); return;
+    }
+    var lvl = (await sb.rpc("my_access_level")).data || "guest";
+    var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
+
+    if (isStaff) get("portalLink").style.display = "";
+
+    // ── Offline draft queue ──────────────────────────────────────────
+    var DRAFT_KEY = "rs_drafts";
+    function getDrafts() {
+      try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "[]"); } catch(e) { return []; }
+    }
+    function saveDrafts(arr) {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(arr)); } catch(e) {}
+    }
+    async function flushDrafts() {
+      var drafts = getDrafts();
+      if (!drafts.length) return;
+      var sent = [];
+      for (var i = 0; i < drafts.length; i++) {
+        var r = await sb.from("scouting_entries").insert(drafts[i]);
+        if (!r.error) sent.push(i);
+      }
+      if (sent.length) {
+        saveDrafts(drafts.filter(function(_, i){ return !sent.includes(i); }));
+        toast(sent.length + " draft" + (sent.length > 1 ? "s" : "") + " submitted.");
+        loadEntries();
+      }
+    }
+
+    // ── GUEST VIEW ───────────────────────────────────────────────────
+    if (!isTeam) {
+      get("guestView").style.display = "";
+      var code = hashCode || sessionStorage.getItem("rs_code") || "";
+      if (code) { sessionStorage.removeItem("rs_code"); get("guestCode").value = code; loadGuest(code); }
+      get("guestLoad").addEventListener("click", function () {
+        loadGuest(get("guestCode").value.trim());
+      });
+      return;
+    }
+
+    async function loadGuest(code) {
+      if (!code) return;
+      var r = await sb.rpc("get_shared_scouting", { p_code: code });
+      var el = get("guestResult");
+      if (r.error || !r.data) { el.innerHTML = '<div class="alert alert-danger">Code not found or access has been revoked.</div>'; return; }
+      if (!r.data.length) { el.innerHTML = '<div class="alert alert-warning">No entries match this code yet.</div>'; return; }
+      // Build table from keys in first row's data object
+      var dataKeys = Object.keys(r.data[0].data || {});
+      var headers = ["Team", "Match", "Event"].concat(dataKeys.map(function(k){ return k.replace(/_/g," "); }));
+      var rows = r.data.map(function(row) {
+        var cells = [row.team_number, row.match_number || "—", esc(row.event_name)];
+        dataKeys.forEach(function(k){ cells.push(esc(row.data[k])); });
+        return "<tr>" + cells.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
+      });
+      el.innerHTML = '<div class="table-responsive"><table class="table entry-table"><thead><tr>' +
+        headers.map(function(h){ return "<th>" + esc(h) + "</th>"; }).join("") +
+        "</tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
+    }
+
+    // ── TEAM VIEW ────────────────────────────────────────────────────
+    get("teamView").style.display = "";
+
+    var events = [], fields = [], allEntries = [], currentEvent = null, editingId = null;
+
+    // Load events
+    async function loadEvents() {
+      var r = await sb.from("events").select("*").order("event_date", { ascending: false });
+      if (r.error) { toast("Couldn't load events.", true); return; }
+      events = r.data;
+      var sel = get("eventSel");
+      sel.innerHTML = '<option value="">— Select event —</option>';
+      events.forEach(function(ev) {
+        var o = document.createElement("option");
+        o.value = ev.id; o.textContent = ev.name + (ev.event_date ? " (" + ev.event_date.slice(0,7) + ")" : "");
+        sel.appendChild(o);
+      });
+      // Auto-select the most recent event
+      if (events.length) { sel.value = events[0].id; handleEventChange(); }
+    }
+
+    // Load fields and build the form
+    async function loadFields() {
+      var r = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
+      if (r.error) { toast("Couldn't load form fields.", true); return; }
+      fields = r.data;
+      buildForm();
+    }
+
+    function buildForm() {
+      var container = get("dynamicFields");
+      container.innerHTML = "";
+      var currentSection = null;
+      fields.forEach(function(f) {
+        if (f.section !== currentSection) {
+          currentSection = f.section;
+          var h = document.createElement("div");
+          h.className = "field-section-heading";
+          h.textContent = f.section;
+          container.appendChild(h);
+        }
+        var group = document.createElement("div");
+        group.className = "form-group";
+        var label = document.createElement("label");
+        label.htmlFor = "field_" + f.key;
+        label.textContent = f.label + (f.required ? " *" : "");
+        group.appendChild(label);
+
+        var input;
+        if (f.field_type === "number") {
+          input = document.createElement("input");
+          input.type = "number"; input.className = "form-control";
+          if (f.min_value != null) input.min = f.min_value;
+          if (f.max_value != null) input.max = f.max_value;
+        } else if (f.field_type === "text") {
+          input = document.createElement("input");
+          input.type = "text"; input.className = "form-control";
+          input.maxLength = 500;
+        } else if (f.field_type === "choice") {
+          input = document.createElement("select");
+          input.className = "form-control";
+          var blank = document.createElement("option");
+          blank.value = ""; blank.textContent = "— select —";
+          input.appendChild(blank);
+          (f.options || []).forEach(function(opt) {
+            var o = document.createElement("option");
+            o.value = opt; o.textContent = opt;
+            input.appendChild(o);
+          });
+        } else if (f.field_type === "boolean") {
+          var wrap = document.createElement("div");
+          wrap.className = "bool-toggle";
+          ["Yes","No"].forEach(function(val) {
+            var inp = document.createElement("input");
+            inp.type = "radio"; inp.name = "field_" + f.key;
+            inp.id = "field_" + f.key + "_" + val;
+            inp.value = val === "Yes" ? "true" : "false";
+            var lbl = document.createElement("label");
+            lbl.htmlFor = inp.id; lbl.textContent = val;
+            wrap.appendChild(inp); wrap.appendChild(lbl);
+          });
+          wrap.dataset.fieldKey = f.key;
+          wrap.dataset.fieldType = "boolean";
+          group.appendChild(wrap);
+          container.appendChild(group);
+          return; // boolean handled above
+        }
+        input.id = "field_" + f.key;
+        input.dataset.fieldKey = f.key;
+        input.dataset.fieldType = f.field_type;
+        group.appendChild(input);
+        container.appendChild(group);
+      });
+    }
+
+    function getFormValues() {
+      var data = {};
+      fields.forEach(function(f) {
+        if (f.field_type === "boolean") {
+          var checked = document.querySelector('input[name="field_' + f.key + '"]:checked');
+          if (checked) data[f.key] = checked.value === "true";
+        } else {
+          var el = get("field_" + f.key);
+          if (!el) return;
+          var val = el.value.trim();
+          if (val === "") return;
+          data[f.key] = f.field_type === "number" ? parseFloat(val) : val;
+        }
+      });
+      return data;
+    }
+
+    function setFormValues(data) {
+      fields.forEach(function(f) {
+        if (f.field_type === "boolean") {
+          var v = data[f.key];
+          if (v != null) {
+            var radio = document.querySelector('input[name="field_' + f.key + '"][value="' + v + '"]');
+            if (radio) radio.checked = true;
+          }
+        } else {
+          var el = get("field_" + f.key);
+          if (el && data[f.key] != null) el.value = data[f.key];
+        }
+      });
+    }
+
+    function resetEntryForm() {
+      get("fTeam").value = ""; get("fMatch").value = "";
+      fields.forEach(function(f) {
+        if (f.field_type === "boolean") {
+          document.querySelectorAll('input[name="field_' + f.key + '"]').forEach(function(r){ r.checked = false; });
+        } else {
+          var el = get("field_" + f.key);
+          if (el) el.value = "";
+        }
+      });
+      editingId = null;
+      get("entryId").value = "";
+      get("entryFormTitle").textContent = "New Entry";
+      get("entryCancel").classList.add("d-none");
+    }
+
+    get("entryCancel").addEventListener("click", resetEntryForm);
+
+    get("eventSel").addEventListener("change", handleEventChange);
+    function handleEventChange() {
+      var id = get("eventSel").value;
+      currentEvent = events.find(function(e){ return e.id === id; }) || null;
+      get("entryFormCard").style.display = currentEvent ? "" : "none";
+      get("entriesSection").style.display = currentEvent ? "" : "none";
+      if (currentEvent) loadEntries();
+      resetEntryForm();
+    }
+
+    // Load entries for current event
+    var entryQuery = isStaff
+      ? function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).order("created_at", { ascending: false }).limit(500); }
+      : function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).eq("scouted_by", s.user.id).order("created_at", { ascending: false }).limit(200); };
+
+    var filterVal = "";
+    get("entrySearch").addEventListener("input", function() {
+      filterVal = this.value.trim();
+      renderEntries();
+    });
+
+    async function loadEntries() {
+      if (!currentEvent) return;
+      var r = await entryQuery(currentEvent.id);
+      if (r.error) { toast("Couldn't load entries.", true); return; }
+      allEntries = r.data;
+      renderEntries();
+    }
+
+    function renderEntries() {
+      var filtered = filterVal
+        ? allEntries.filter(function(e){ return String(e.team_number).includes(filterVal); })
+        : allEntries;
+
+      var thead = document.querySelector("#entryTable thead");
+      var tbody = document.querySelector("#entryTable tbody");
+
+      if (!allEntries.length) {
+        thead.innerHTML = ""; tbody.innerHTML = '<tr><td class="text-muted text-center py-3">No entries yet for this event.</td></tr>';
+        get("entriesHeading").textContent = "Entries";
+        return;
+      }
+
+      // Build columns from fields
+      var cols = ["Team #", "Match #"].concat(fields.map(function(f){ return f.label; })).concat(["Actions"]);
+      thead.innerHTML = "<tr>" + cols.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr>";
+
+      var userId = s.user.id;
+      tbody.innerHTML = filtered.map(function(entry) {
+        var cells = [entry.team_number, entry.match_number || "—"];
+        fields.forEach(function(f) {
+          var v = entry.data[f.key];
+          if (v == null) { cells.push("—"); return; }
+          if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
+          else cells.push(esc(v));
+        });
+        var canEdit = isStaff || entry.scouted_by === userId;
+        var actions = canEdit
+          ? '<button class="btn-icon mr-1" onclick="editEntry(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon danger" onclick="deleteEntry(\'' + entry.id + '\')"><i class="fa fa-trash"></i></button>'
+          : '<span class="text-muted" style="font-size:.75rem;">—</span>';
+        cells.push(actions);
+        return "<tr>" + cells.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
+      }).join("") || '<tr><td colspan="' + cols.length + '" class="text-muted text-center py-3">No entries match that team number.</td></tr>';
+
+      get("entriesHeading").textContent = "Entries (" + allEntries.length + ")";
+    }
+
+    // Save entry
+    get("entrySave").addEventListener("click", async function () {
+      if (!currentEvent) return;
+      var team = parseInt(get("fTeam").value, 10);
+      var match = get("fMatch").value ? parseInt(get("fMatch").value, 10) : null;
+      if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
+
+      // Validate required fields
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i];
+        if (!f.required) continue;
+        if (f.field_type === "boolean") {
+          if (!document.querySelector('input[name="field_' + f.key + '"]:checked')) {
+            toast(f.label + " is required.", true); return;
+          }
+        } else {
+          var el = get("field_" + f.key);
+          if (!el || el.value.trim() === "") { toast(f.label + " is required.", true); return; }
+        }
+      }
+
+      var data = getFormValues();
+      var payload = { event_id: currentEvent.id, team_number: team, match_number: match,
+                      data: data, scouted_by: s.user.id };
+
+      var r;
+      if (editingId) {
+        r = await sb.from("scouting_entries").update({ team_number: team, match_number: match, data: data }).eq("id", editingId);
+      } else {
+        r = await sb.from("scouting_entries").insert(payload);
+      }
+
+      if (r.error) {
+        // Offline: save as draft
+        if (!navigator.onLine || r.error.message === "Failed to fetch") {
+          var drafts = getDrafts();
+          drafts.push(payload);
+          saveDrafts(drafts);
+          get("draftIndicator").style.display = "flex";
+          toast("No connection — saved as draft.");
+        } else {
+          toast(r.error.message || "Couldn't save entry.", true);
+        }
+        return;
+      }
+      toast(editingId ? "Entry updated." : "Entry saved.");
+      resetEntryForm();
+      loadEntries();
+    });
+
+    window.editEntry = function(id) {
+      var entry = allEntries.find(function(e){ return e.id === id; });
+      if (!entry) return;
+      get("fTeam").value = entry.team_number;
+      get("fMatch").value = entry.match_number || "";
+      setFormValues(entry.data);
+      editingId = id;
+      get("entryId").value = id;
+      get("entryFormTitle").textContent = "Edit Entry – Team " + entry.team_number;
+      get("entryCancel").classList.remove("d-none");
+      get("entryFormCard").scrollIntoView({ behavior: "smooth" });
+    };
+
+    window.deleteEntry = async function(id) {
+      if (!confirm("Delete this entry?")) return;
+      var r = await sb.from("scouting_entries").delete().eq("id", id);
+      if (r.error) { toast("Couldn't delete entry.", true); return; }
+      toast("Entry deleted.");
+      loadEntries();
+    };
+
+    // Flush drafts when coming back online
+    window.addEventListener("online", function() { flushDrafts(); });
+
+    // ── Boot ─────────────────────────────────────────────────────────
+    await Promise.all([loadEvents(), loadFields()]);
+    flushDrafts();
+  })();
+  </script>
+</body>
+</html>
