@@ -198,7 +198,7 @@
         }
         return msg("danger", "Incorrect email or password.");
       }
-      location.href = "subpages/account.html";
+      location.href = "account.html";
     });
 
     $("signupForm").addEventListener("submit", async function (e) {
@@ -213,7 +213,7 @@
       lastEmail = email;
       var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
       var r = await sb.auth.signUp({ email: email, password: p,
-        options: { emailRedirectTo: redirect("subpages/account.html"), data: { display_name: name }, captchaToken: tok } });
+        options: { emailRedirectTo: redirect("account.html"), data: { display_name: name }, captchaToken: tok } });
       if (r.error) {
         if (/captcha/i.test(r.error.message)) return msg("danger", CAPFAIL);
         if (/permanent email/i.test(r.error.message)) return msg("danger", "Please use a permanent email address, not a temporary one.");
@@ -240,7 +240,7 @@
       var email = $("fgEmail").value.trim();
       if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
       var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
-      await sb.auth.resetPasswordForEmail(email, { redirectTo: redirect("subpages/signin.html"), captchaToken: tok });
+      await sb.auth.resetPasswordForEmail(email, { redirectTo: redirect("signin.html"), captchaToken: tok });
       msg("success", "If an account exists for that email, a reset link is on its way.");
     });
 
@@ -250,19 +250,19 @@
       if (p.length < 10) return msg("danger", "Password must be at least 10 characters.");
       var r = await sb.auth.updateUser({ password: p });
       if (r.error) return msg("danger", "That link may have expired. Request a new reset link.");
-      location.href = "subpages/account.html";
+      location.href = "account.html";
     });
 
     document.querySelectorAll("[data-provider]").forEach(function (b) {
       b.onclick = async function () {
-        var r = await sb.auth.signInWithOAuth({ provider: b.dataset.provider, options: { redirectTo: redirect("subpages/account.html") } });
+        var r = await sb.auth.signInWithOAuth({ provider: b.dataset.provider, options: { redirectTo: redirect("account.html") } });
         if (r.error) msg("danger", "Couldn't start sign-in with " + b.dataset.provider + ". Try again.");
       };
     });
 
     sb.auth.onAuthStateChange(function (ev) { if (ev === "PASSWORD_RECOVERY") show("reset"); });
     sb.auth.getSession().then(function (r) {
-      if (r.data.session && !/type=recovery/.test(location.hash)) location.href = "subpages/account.html";
+      if (r.data.session && !/type=recovery/.test(location.hash)) location.href = "account.html";
     });
   })();
   </script>

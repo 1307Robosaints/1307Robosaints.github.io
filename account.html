@@ -157,7 +157,7 @@
     var hashCode = new URLSearchParams(location.hash.slice(1)).get("code");
     if (!s) {
       if (hashCode) sessionStorage.setItem("rs_code", hashCode);
-      location.replace("subpages/signin.html"); return;
+      location.replace("signin.html"); return;
     }
     var user = s.user, member = RS.isMember(user);
     $("who").textContent = ((user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name || user.user_metadata.name)) || "") + " (" + user.email + ")";
@@ -193,7 +193,7 @@
         var on = current && current.share_enabled;
         $("sharePanel").classList.toggle("d-none", !on);
         if (!on) return;
-        var url = new URL("subpages/account.html#code=" + current.share_code, location.href).href;
+        var url = new URL("account.html#code=" + current.share_code, location.href).href;
         $("shareUrl").value = url; $("qr").textContent = "";
         new QRCode($("qr"), { text: url, width: 160, height: 160 });
       }
