@@ -10,16 +10,21 @@
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
-    .account-wrap { max-width: 520px; margin: 3rem auto; padding: 0 1rem; }
+    .account-wrap { max-width: 640px; margin: 2.5rem auto; padding: 0 1rem; }
     .account-card {
       background: var(--white);
       border: 1px solid var(--line);
       border-top: 3px solid var(--blue);
       padding: 2rem;
+      margin-bottom: 1.5rem;
     }
     .account-card h1 { font-size: 1.6rem; margin-bottom: .2rem; }
     .account-card h1::after { display: none; }
-    .who { color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; }
+    .account-card h2 {
+      font-size: 1.15rem; margin: 0 0 .25rem;
+    }
+    .section-sub { color: var(--muted); font-size: .88rem; margin-bottom: 1.1rem; max-width: none; }
+    .who { color: var(--muted); font-size: .9rem; margin-bottom: 0; }
 
     .role-badge {
       display: inline-block;
@@ -31,6 +36,7 @@
       color: var(--muted);
       clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
       margin-left: .4rem;
+      vertical-align: middle;
     }
     .role-badge.staff   { background: var(--navy); color: #fff; }
     .role-badge.student { background: var(--blue); color: #fff; }
@@ -56,18 +62,28 @@
     .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }
     .nav-tile .tile-text strong { display: block; font-family: var(--display); font-size: .95rem; }
     .nav-tile .tile-text small  { color: var(--muted); font-size: .82rem; }
+    .nav-tile .fa { width: auto; height: auto; font-size: inherit; }
+    .nav-tile .tile-icon .fa { font-size: 1.1rem; }
 
-    .divider { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
-
-    .sign-out-btn {
+    .ghost-btn {
       background: none; border: 1px solid var(--line);
       color: var(--muted); font-size: .85rem; padding: .35rem .9rem;
       cursor: pointer; font-family: var(--display); font-weight: 600;
       clip-path: none;
     }
-    .sign-out-btn:hover { border-color: var(--navy); color: var(--navy); }
+    .ghost-btn:hover { border-color: var(--navy); color: var(--navy); }
+
+    .info-grid { display: grid; grid-template-columns: 9rem 1fr; gap: .5rem 1rem; font-size: .92rem; margin: 0; }
+    .info-grid dt { color: var(--muted); font-weight: 500; }
+    .info-grid dd { margin: 0; word-break: break-word; }
+    .ok   { color: #1a7f4b; }
+    .warn { color: #a15c00; }
 
     .loading { text-align: center; padding: 3rem 1rem; color: var(--muted); font-family: var(--display); }
+    .pw-meter { height: 4px; background: var(--line); margin-top: .4rem; }
+    .pw-meter span { display: block; height: 100%; width: 0; background: #c0392b; transition: width .2s, background .2s; }
+    .form-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .danger-zone { border-top-color: #c0392b; }
   </style>
 </head>
 <body>
@@ -78,12 +94,13 @@
       <a class="navbar-brand" href="/index.html">
         <img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307
       </a>
-      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive">
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
         <ul class="navbar-nav ml-auto">
           <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link" href="/1307scout.html">1307scout</a></li>
           <li class="nav-item"><a class="nav-link" href="/scout.html">Scout</a></li>
           <li class="nav-item" id="portalNavItem" style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
           <li class="nav-item"><a class="nav-link active" href="/account.html">My Account</a></li>
@@ -95,30 +112,101 @@
   <div class="account-wrap">
     <div class="loading" id="loadingState">Loading…</div>
 
-    <div class="account-card" id="accountCard" style="display:none;">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <h1>My account <span id="roleBadge" class="role-badge"></span></h1>
-          <p class="who" id="whoText"></p>
+    <div id="accountArea" style="display:none;">
+
+      <!-- Header + quick links -->
+      <div class="account-card">
+        <div class="d-flex justify-content-between align-items-start flex-wrap">
+          <div>
+            <h1>My account <span id="roleBadge" class="role-badge"></span></h1>
+            <p class="who" id="whoText"></p>
+          </div>
+          <button class="ghost-btn mt-2 mt-sm-0" id="signOutBtn" type="button">Sign out</button>
         </div>
-        <button class="sign-out-btn" id="signOutBtn">Sign out</button>
+        <div id="tileArea" class="mt-4"></div>
       </div>
 
-      <div id="tileArea"></div>
+      <div id="globalMsg" class="alert d-none" role="alert" aria-live="polite"></div>
 
-      <hr class="divider">
-
-      <div>
-        <p class="text-muted mb-1" style="font-size:.82rem;">
-          Signed in as <strong id="emailDisplay"></strong>
-        </p>
-        <p class="text-muted mb-0" style="font-size:.82rem;" id="verifyMsg"></p>
+      <!-- Profile -->
+      <div class="account-card">
+        <h2>Profile</h2>
+        <p class="section-sub">How your name and contact details appear to team staff.</p>
+        <form id="profileForm" novalidate>
+          <div class="form-group">
+            <label for="pfName">Display name</label>
+            <input id="pfName" type="text" class="form-control" maxlength="60" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="pfPhone">Phone number <small class="text-muted">(optional)</small></label>
+            <input id="pfPhone" type="tel" class="form-control" maxlength="25" autocomplete="tel" placeholder="(603) 555-0123">
+            <small class="form-text text-muted">Used only by team staff to reach you about scouting or events.</small>
+          </div>
+          <div class="form-group">
+            <label for="pfEmail">Email</label>
+            <input id="pfEmail" type="email" class="form-control" readonly>
+            <small class="form-text text-muted">Your email is your login, so it can't be changed here. Contact a staff member if it needs to change.</small>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="profileBtn">Save profile</button>
+            <span id="profileMsg" class="small" role="status" aria-live="polite"></span>
+          </div>
+        </form>
       </div>
+
+      <!-- Password -->
+      <div class="account-card">
+        <h2 id="pwTitle">Change password</h2>
+        <p class="section-sub" id="pwSub">Use at least 10 characters. A long phrase is stronger than a short, complicated one.</p>
+        <form id="pwForm" novalidate>
+          <div class="form-group">
+            <label for="pwNew">New password</label>
+            <input id="pwNew" type="password" class="form-control" minlength="10" autocomplete="new-password">
+            <div class="pw-meter" aria-hidden="true"><span id="pwBar"></span></div>
+          </div>
+          <div class="form-group">
+            <label for="pwNew2">Confirm new password</label>
+            <input id="pwNew2" type="password" class="form-control" autocomplete="new-password">
+          </div>
+          <div class="form-group d-none" id="nonceGroup">
+            <label for="pwNonce">Verification code</label>
+            <input id="pwNonce" type="text" class="form-control" inputmode="numeric" autocomplete="one-time-code">
+            <small class="form-text text-muted">For security we emailed you a code. Enter it to finish changing your password.</small>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="pwBtn">Update password</button>
+            <span id="pwMsg" class="small" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Account details -->
+      <div class="account-card">
+        <h2>Account details</h2>
+        <p class="section-sub">Read-only information about your account.</p>
+        <dl class="info-grid">
+          <dt>Access level</dt><dd id="dtLevel"></dd>
+          <dt>Email status</dt><dd id="dtVerified"></dd>
+          <dt>Sign-in method</dt><dd id="dtProvider"></dd>
+          <dt>Member since</dt><dd id="dtCreated"></dd>
+          <dt>Last sign-in</dt><dd id="dtLast"></dd>
+        </dl>
+        <p class="section-sub mt-3 mb-0" id="levelHelp"></p>
+      </div>
+
+      <!-- Sessions -->
+      <div class="account-card danger-zone">
+        <h2>Sessions</h2>
+        <p class="section-sub">Signed in on a shared or lost device? Sign out everywhere, then sign back in here.</p>
+        <button class="ghost-btn" id="signOutAllBtn" type="button">Sign out of all devices</button>
+      </div>
+
     </div>
   </div>
 
   <footer class="py-5" id="bottomrow">
     <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank"></a>
     <div class="container">
       <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
     </div>
@@ -132,6 +220,7 @@
   <script>
   (async function () {
     var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
 
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
@@ -140,77 +229,158 @@
     var lvl  = (await sb.rpc("my_access_level")).data || "guest";
     var isStaff = lvl === "staff", isStudent = lvl === "student";
 
-    // ── Fill in account card ─────────────────────────────────────────
-    var badge = document.getElementById("roleBadge");
-    badge.textContent = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
-    badge.classList.add(isStaff ? "staff" : isStudent ? "student" : "");
-
-    var name = (user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name || user.user_metadata.name)) || "";
-    document.getElementById("whoText").textContent = name ? "Welcome back, " + name + "." : "Welcome back.";
-    document.getElementById("emailDisplay").textContent = user.email;
-
-    if (!user.email_confirmed_at) {
-      document.getElementById("verifyMsg").textContent = "Your email isn't verified yet. Check your inbox to unlock full access.";
+    function flash(el, ok, text) {
+      el.className = "small " + (ok ? "ok" : "text-danger");
+      el.textContent = text;
+    }
+    function fmtDate(d, withTime) {
+      if (!d) return "—";
+      var dt = new Date(d);
+      return withTime ? dt.toLocaleString() : dt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
     }
 
-    if (isStaff) document.getElementById("portalNavItem").style.display = "";
+    // ── Header ───────────────────────────────────────────────────────
+    var levelLabel = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
+    var badge = $("roleBadge");
+    badge.textContent = levelLabel;
+    if (isStaff) badge.classList.add("staff"); else if (isStudent) badge.classList.add("student");
 
-    // ── Navigation tiles ─────────────────────────────────────────────
-    var tiles = [];
+    var meta = user.user_metadata || {};
+    var name = meta.display_name || meta.full_name || meta.name || "";
+    $("whoText").textContent = name ? "Welcome back, " + name + "." : "Welcome back.";
+    if (isStaff) $("portalNavItem").style.display = "";
 
-    if (isStaff) {
-      tiles.push({
-        href: "/portal.html",
-        icon: "fa-cog",
-        cls: "staff-tile",
-        title: "Staff Portal",
-        desc: "Configure events, form fields, and share codes"
-      });
+    // ── Tiles ────────────────────────────────────────────────────────
+    var tiles = [{
+      href: "/1307scout.html", icon: "fa-home", cls: "",
+      title: "1307scout Home", desc: "Overview of the scouting tool"
+    }];
+    if (isStaff) tiles.push({
+      href: "/portal.html", icon: "fa-cog", cls: "staff-tile",
+      title: "Staff Portal", desc: "Configure events, form fields, and share codes"
+    });
+    if (isStaff || isStudent) tiles.push({
+      href: "/scout.html", icon: "fa-clipboard", cls: "",
+      title: "Scout", desc: "Record match data at a competition"
+    }); else tiles.push({
+      href: "/scout.html", icon: "fa-search", cls: "",
+      title: "View Shared Data", desc: "Enter a share code to view team scouting data"
+    });
+    $("tileArea").innerHTML = tiles.map(function (t) {
+      return '<a href="' + t.href + '" class="nav-tile ' + t.cls + '">' +
+        '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
+        '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
+        '<i class="fa fa-chevron-right ml-auto text-muted" style="font-size:.75rem;"></i></a>';
+    }).join("");
+
+    // ── Profile form ─────────────────────────────────────────────────
+    $("pfName").value  = name;
+    $("pfPhone").value = meta.phone || "";
+    $("pfEmail").value = user.email || "";
+
+    $("profileForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var msg = $("profileMsg"), btn = $("profileBtn");
+      var n = $("pfName").value.trim(), p = $("pfPhone").value.trim();
+      if (!n) return flash(msg, false, "Please enter a display name.");
+      if (p) {
+        var digits = p.replace(/\D/g, "");
+        if (!/^[\d\s().+\-]+$/.test(p) || digits.length < 7 || digits.length > 15)
+          return flash(msg, false, "Enter a valid phone number, or leave it blank.");
+      }
+      btn.disabled = true; msg.textContent = "";
+      var r = await sb.auth.updateUser({ data: { display_name: n, phone: p } });
+      btn.disabled = false;
+      if (r.error) return flash(msg, false, "Couldn't save your profile. Please try again.");
+      $("whoText").textContent = "Welcome back, " + n + ".";
+      flash(msg, true, "Profile saved.");
+    });
+
+    // ── Password form ────────────────────────────────────────────────
+    var providers = (user.app_metadata && user.app_metadata.providers) || [];
+    var hasPassword = providers.indexOf("email") !== -1;
+    if (!hasPassword) {
+      $("pwTitle").textContent = "Set a password";
+      $("pwSub").textContent = "You signed in with Google. Optionally add a password so you can also sign in with your email.";
+      $("pwBtn").textContent = "Set password";
     }
 
-    if (isStaff || isStudent) {
-      tiles.push({
-        href: "/scout.html",
-        icon: "fa-clipboard",
-        cls: "",
-        title: "Scout",
-        desc: "Record match data at a competition"
-      });
-    }
+    $("pwNew").addEventListener("input", function () {
+      var v = this.value, score = 0;
+      if (v.length >= 10) score++;
+      if (v.length >= 14) score++;
+      if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
+      if (/\d/.test(v) || /[^A-Za-z0-9]/.test(v)) score++;
+      var bar = $("pwBar");
+      bar.style.width = (v ? Math.max(score, 1) * 25 : 0) + "%";
+      bar.style.background = score <= 1 ? "#c0392b" : score === 2 ? "#d68910" : "#1a7f4b";
+    });
 
-    // Guest gets the scout page for share-code lookup
-    if (!isStaff && !isStudent) {
-      tiles.push({
-        href: "/scout.html",
-        icon: "fa-search",
-        cls: "",
-        title: "View Shared Data",
-        desc: "Enter a share code to view team scouting data"
-      });
-    }
+    var needNonce = false;
+    $("pwForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var msg = $("pwMsg"), btn = $("pwBtn");
+      var p = $("pwNew").value;
+      if (p.length < 10) return flash(msg, false, "Password must be at least 10 characters.");
+      if (p !== $("pwNew2").value) return flash(msg, false, "Passwords don't match.");
+      var payload = { password: p };
+      if (needNonce) {
+        var code = $("pwNonce").value.trim();
+        if (!code) return flash(msg, false, "Enter the verification code from your email.");
+        payload.nonce = code;
+      }
+      btn.disabled = true; msg.textContent = "";
+      var r = await sb.auth.updateUser(payload);
+      btn.disabled = false;
+      if (r.error) {
+        if (/reauthenticat|nonce/i.test(r.error.message)) {
+          // Project requires a fresh email code before changing a password
+          if (!needNonce) {
+            needNonce = true;
+            $("nonceGroup").classList.remove("d-none");
+            await sb.auth.reauthenticate();
+            return flash(msg, true, "We emailed you a code. Enter it above and submit again.");
+          }
+          return flash(msg, false, "That code didn't work. Check it and try again.");
+        }
+        if (/same|different/i.test(r.error.message)) return flash(msg, false, "Choose a password you haven't used before.");
+        if (/weak|pwned|breach/i.test(r.error.message)) return flash(msg, false, "That password is too easy to guess. Try a longer one.");
+        return flash(msg, false, "Couldn't update your password. Please try again.");
+      }
+      $("pwForm").reset(); $("pwBar").style.width = "0";
+      $("nonceGroup").classList.add("d-none"); needNonce = false;
+      flash(msg, true, "Password updated.");
+    });
 
-    var area = document.getElementById("tileArea");
-    if (!tiles.length) {
-      area.innerHTML = '<p class="text-muted" style="font-size:.9rem;">Your account is active but you don\'t have team access yet. Contact a staff member if this seems wrong.</p>';
+    // ── Account details ──────────────────────────────────────────────
+    $("dtLevel").textContent = levelLabel;
+    if (user.email_confirmed_at) {
+      $("dtVerified").innerHTML = '<span class="ok"><i class="fa fa-check" style="font-size:inherit;width:auto;height:auto"></i> Verified</span>';
     } else {
-      area.innerHTML = tiles.map(function(t) {
-        return '<a href="' + t.href + '" class="nav-tile ' + t.cls + '">' +
-          '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
-          '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
-          '<i class="fa fa-chevron-right ml-auto text-muted" style="font-size:.75rem;"></i>' +
-        '</a>';
-      }).join("");
+      $("dtVerified").innerHTML = '<span class="warn">Not verified. Check your inbox for our link.</span>';
     }
+    var labels = { email: "Email & password", google: "Google" };
+    $("dtProvider").textContent = (providers.length ? providers : ["email"])
+      .map(function (p) { return labels[p] || p; }).join(", ");
+    $("dtCreated").textContent = fmtDate(user.created_at, false);
+    $("dtLast").textContent    = fmtDate(user.last_sign_in_at, true);
+    $("levelHelp").textContent = (isStaff || isStudent) ? "" :
+      "Team members get full access by signing in with their school Google account (stalux.org). If you should have team access, contact a staff member.";
 
     // ── Sign out ─────────────────────────────────────────────────────
-    document.getElementById("signOutBtn").addEventListener("click", async function () {
+    $("signOutBtn").addEventListener("click", async function () {
       await sb.auth.signOut();
       location.href = "/index.html";
     });
+    $("signOutAllBtn").addEventListener("click", async function () {
+      if (!confirm("Sign out of every device, including this one?")) return;
+      await sb.auth.signOut({ scope: "global" });
+      location.href = "/signin.html";
+    });
 
-    // ── Show card ────────────────────────────────────────────────────
-    document.getElementById("loadingState").style.display = "none";
-    document.getElementById("accountCard").style.display  = "";
+    // ── Show page ────────────────────────────────────────────────────
+    $("loadingState").style.display = "none";
+    $("accountArea").style.display  = "";
   })();
   </script>
 </body>

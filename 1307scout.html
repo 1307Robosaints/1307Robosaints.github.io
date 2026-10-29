@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    /* ── Page-level overrides ─────────────────────────────────── */
+    body { background: var(--paper); }
+    /* Suppress the global body::before grid on this page —
+       we replicate it inside the hero only */
+    body::before { display: none; }
+
+    /* ══════════════════════════════════════════════════════════
+       LOGGED-OUT VIEW
+    ══════════════════════════════════════════════════════════ */
+
+    /* Hero */
+    .scout-hero {
+      position: relative;
+      background: var(--navy);
+      overflow: hidden;
+      padding: 7rem 0 5rem;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 56px), calc(100% - 56px) 100%, 0 100%);
+    }
+    /* Engineering grid inside the hero */
+    .scout-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 32px 32px;
+      -webkit-mask-image: linear-gradient(#000 30%, transparent);
+              mask-image: linear-gradient(#000 30%, transparent);
+      pointer-events: none;
+    }
+    /* Accent stripe on the left edge */
+    .scout-hero::after {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--blue);
+    }
+
+    .hero-inner { position: relative; z-index: 1; }
+
+    .hero-wordmark {
+      font-family: var(--display);
+      font-size: clamp(3rem, 8vw, 5.5rem);
+      font-weight: 700;
+      color: #fff;
+      line-height: 1;
+      letter-spacing: -.02em;
+      margin-bottom: .6rem;
+    }
+    /* The "1307" is slightly dimmed so "scout" reads as the product name */
+    .hero-wordmark .team-num {
+      color: rgba(255,255,255,.55);
+      font-size: .72em;
+    }
+    .hero-tagline {
+      color: rgba(255,255,255,.78);
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      font-family: var(--body);
+      max-width: 46ch;
+      margin-bottom: 2.25rem;
+      line-height: 1.55;
+    }
+    .hero-cta {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 1rem;
+      padding: .75rem 2rem;
+      border: 0;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .hero-cta:hover { background: #2560d4; color: #fff; text-decoration: none; }
+
+    /* Features */
+    .features-section { padding: 4rem 0 3rem; }
+    .features-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: .35rem;
+    }
+    .features-section h2::after { display: none; }
+    .features-lead {
+      color: var(--muted);
+      max-width: 55ch;
+      margin-bottom: 2.5rem;
+      font-size: .97rem;
+    }
+
+    .feature-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      padding: 1.5rem;
+      height: 100%;
+      position: relative;
+    }
+    /* Clipped corner signature */
+    .feature-card::after {
+      content: "";
+      position: absolute;
+      top: -1px; right: -1px;
+      width: 18px; height: 18px;
+      background: linear-gradient(to bottom left,
+        var(--paper) 0 calc(50% - .5px),
+        var(--line) calc(50% - .5px) calc(50% + .5px),
+        transparent calc(50% + .5px));
+    }
+    .feature-icon {
+      width: 40px; height: 40px;
+      background: var(--tint);
+      color: var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 {
+      font-size: 1rem;
+      margin-bottom: .4rem;
+    }
+    .feature-card h3::after { display: none; }
+    .feature-card p {
+      color: var(--muted);
+      font-size: .9rem;
+      max-width: none;
+      margin: 0;
+      line-height: 1.55;
+    }
+
+    /* Who it's for */
+    .tiers-section {
+      background: var(--navy);
+      padding: 3.5rem 0;
+      margin-bottom: 0;
+      clip-path: polygon(0 40px, 40px 0, 100% 0, 100% 100%, 0 100%);
+    }
+    .tiers-section h2 { color: #fff; }
+    .tiers-section h2::after { background: rgba(255,255,255,.3); }
+    .tier-item {
+      border-left: 3px solid var(--blue);
+      padding: .75rem 1rem;
+      margin-bottom: 1rem;
+      background: rgba(255,255,255,.05);
+    }
+    .tier-item:last-child { margin-bottom: 0; }
+    .tier-item strong {
+      font-family: var(--display);
+      color: #fff;
+      font-size: .95rem;
+      display: block;
+      margin-bottom: .2rem;
+    }
+    .tier-item p {
+      color: rgba(255,255,255,.68);
+      font-size: .88rem;
+      margin: 0;
+      max-width: none;
+    }
+
+    /* Bottom CTA */
+    .bottom-cta {
+      padding: 4rem 0;
+      text-align: center;
+    }
+    .bottom-cta h2 { font-size: 1.6rem; margin-bottom: .5rem; }
+    .bottom-cta h2::after { margin: .5rem auto .9rem; }
+    .bottom-cta p { color: var(--muted); max-width: 44ch; margin: 0 auto 1.75rem; }
+
+    /* ══════════════════════════════════════════════════════════
+       LOGGED-IN HOME VIEW
+    ══════════════════════════════════════════════════════════ */
+    .home-wrap { max-width: 640px; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
+
+    .greeting-bar {
+      background: var(--navy);
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+    }
+    .greeting-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+    }
+    .greeting-bar h2 {
+      color: #fff;
+      font-size: 1.4rem;
+      margin: 0 0 .15rem;
+      position: relative;
+    }
+    .greeting-bar h2::after { display: none; }
+    .greeting-bar p {
+      color: rgba(255,255,255,.65);
+      margin: 0;
+      font-size: .88rem;
+      position: relative;
+      max-width: none;
+    }
+    .greeting-badge {
+      display: inline-block;
+      font-family: var(--display);
+      font-size: .7rem;
+      font-weight: 700;
+      padding: .1rem .5rem;
+      margin-left: .5rem;
+      vertical-align: middle;
+      clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
+    }
+    .greeting-badge.staff   { background: var(--blue); color: #fff; }
+    .greeting-badge.student { background: rgba(255,255,255,.2); color: #fff; }
+    .greeting-badge.guest   { background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); }
+
+    .home-section-label {
+      font-family: var(--display);
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      margin-bottom: .75rem;
+      padding-bottom: .3rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .nav-tile {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1.1rem 1.25rem;
+      border: 1px solid var(--line);
+      background: var(--white);
+      text-decoration: none;
+      color: var(--ink);
+      margin-bottom: .6rem;
+      transition: background .15s, border-color .15s;
+      position: relative;
+    }
+    .nav-tile::after {
+      content: "";
+      position: absolute;
+      top: -1px; right: -1px;
+      width: 14px; height: 14px;
+      background: linear-gradient(to bottom left,
+        var(--paper) 0 calc(50% - .5px),
+        var(--line) calc(50% - .5px) calc(50% + .5px),
+        transparent calc(50% + .5px));
+    }
+    .nav-tile:hover { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--navy); }
+    .tile-icon {
+      width: 44px; height: 44px; flex-shrink: 0;
+      background: var(--tint); color: var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem;
+    }
+    .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }
+    .tile-text strong { display: block; font-family: var(--display); font-size: 1rem; }
+    .tile-text small  { color: var(--muted); font-size: .83rem; }
+    .tile-chevron { margin-left: auto; color: var(--line); font-size: .75rem; flex-shrink: 0; }
+
+    .quick-signout {
+      background: none; border: 0; padding: 0;
+      color: var(--muted); font-size: .82rem; cursor: pointer;
+      font-family: var(--body); text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .quick-signout:hover { color: var(--navy); }
+
+    /* ── Shared ───────────────────────────────────────────────── */
+    #loggedOutView, #loggedInView { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler navbar-toggler-right" type="button"
+              data-toggle="collapse" data-target="#navbarResponsive">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/1307scout.html">1307scout</a></li>
+          <li class="nav-item" id="navScout"   style="display:none;"><a class="nav-link" href="/scout.html">Scout</a></li>
+          <li class="nav-item" id="navPortal"  style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
+          <li class="nav-item" id="navAccount" style="display:none;"><a class="nav-link" href="/account.html">My Account</a></li>
+          <li class="nav-item" id="navSignIn"  style="display:none;"><a class="nav-link" href="/signin.html">Sign In</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LOGGED-OUT VIEW
+  ══════════════════════════════════════════════════════════ -->
+  <div id="loggedOutView">
+
+    <!-- Hero -->
+    <section class="scout-hero">
+      <div class="container hero-inner">
+        <div class="hero-wordmark">
+          <span class="team-num">1307</span>scout
+        </div>
+        <p class="hero-tagline">
+          Competition scouting for Robosaints. Collect match data in the pits,
+          query it on the field, and share exactly what other teams need to see.
+        </p>
+        <a href="/signin.html" class="hero-cta">Sign in to get started</a>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features-section">
+      <div class="container">
+        <h2>Built for competition day</h2>
+        <p class="features-lead">
+          1307scout is designed around how scouting actually happens — fast data entry
+          between matches, instant team lookup at the strategy table, and controlled
+          sharing with alliance partners.
+        </p>
+        <div class="row">
+          <div class="col-md-4 mb-4">
+            <div class="feature-card">
+              <div class="feature-icon"><i class="fa fa-clipboard"></i></div>
+              <h3>Configurable match forms</h3>
+              <p>Staff define the fields — auto points, climb level, notes, whatever the season needs. The form updates immediately for every scout on the team.</p>
+            </div>
+          </div>
+          <div class="col-md-4 mb-4">
+            <div class="feature-card">
+              <div class="feature-icon"><i class="fa fa-wifi"></i></div>
+              <h3>Works offline</h3>
+              <p>Entries saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns.</p>
+            </div>
+          </div>
+          <div class="col-md-4 mb-4">
+            <div class="feature-card">
+              <div class="feature-icon"><i class="fa fa-qrcode"></i></div>
+              <h3>Scoped share codes</h3>
+              <p>Generate a QR code scoped to one team, one event, or both. Set an expiry, hand it to an alliance partner, and revoke it when the match is over.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Who it's for -->
+    <section class="tiers-section">
+      <div class="container">
+        <div class="row">
+          <div class="col-lg-5 mb-4 mb-lg-0">
+            <h2>Three levels of access</h2>
+            <p style="color:rgba(255,255,255,.65); font-size:.95rem; max-width:38ch; margin-top:.5rem;">
+              Everyone sees exactly what they need — nothing more.
+            </p>
+          </div>
+          <div class="col-lg-7">
+            <div class="tier-item">
+              <strong>Staff</strong>
+              <p>Set up events and form fields, manage share codes, and see all scouting data across the team. Access is granted by allowlist.</p>
+            </div>
+            <div class="tier-item">
+              <strong>Team members</strong>
+              <p>Sign in with a stalux.org school account to enter match data and view the full event dataset. No setup needed.</p>
+            </div>
+            <div class="tier-item">
+              <strong>Guests</strong>
+              <p>Alliance partners and other teams use a share code to view specific data — a single team's record, or a whole event — without seeing anything else.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom CTA -->
+    <section class="bottom-cta">
+      <div class="container">
+        <h2>Ready to scout?</h2>
+        <p>Team members sign in with their school Google account. Everyone else creates a free account or uses a share code.</p>
+        <a href="/signin.html" class="hero-cta">Sign in</a>
+      </div>
+    </section>
+
+  </div><!-- /loggedOutView -->
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       LOGGED-IN HOME VIEW
+  ══════════════════════════════════════════════════════════ -->
+  <div id="loggedInView">
+    <div class="container">
+      <div class="home-wrap">
+
+        <div class="greeting-bar mt-4">
+          <h2 id="greetingName">Welcome back <span id="greetingBadge"></span></h2>
+          <p id="greetingEmail"></p>
+        </div>
+
+        <!-- Primary actions -->
+        <div id="primaryTiles"></div>
+
+        <!-- Secondary: account -->
+        <div class="home-section-label mt-4">Account</div>
+        <a href="/account.html" class="nav-tile">
+          <div class="tile-icon"><i class="fa fa-user"></i></div>
+          <div class="tile-text">
+            <strong>My account</strong>
+            <small>Change your password, update contact info</small>
+          </div>
+          <i class="fa fa-chevron-right tile-chevron"></i>
+        </a>
+
+        <div class="mt-3">
+          <button class="quick-signout" id="quickSignOut">Sign out</button>
+        </div>
+
+      </div>
+    </div>
+  </div><!-- /loggedInView -->
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+
+    var session = (await sb.auth.getSession()).data.session;
+
+    if (!session) {
+      // ── Logged-out view ──────────────────────────────────────
+      document.getElementById("loggedOutView").style.display = "";
+      document.getElementById("navSignIn").style.display = "";
+      return;
+    }
+
+    // ── Logged-in view ───────────────────────────────────────────
+    var user = session.user;
+    var lvl  = (await sb.rpc("my_access_level")).data || "guest";
+    var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
+
+    // Nav items
+    if (isTeam)  document.getElementById("navScout").style.display   = "";
+    if (isStaff) document.getElementById("navPortal").style.display  = "";
+    document.getElementById("navAccount").style.display = "";
+
+    // Greeting
+    var meta = user.user_metadata || {};
+    var name = meta.display_name || meta.full_name || meta.name || "";
+    var greeting = name ? "Welcome back, " + name.split(" ")[0] + "." : "Welcome back.";
+    document.getElementById("greetingName").childNodes[0].textContent = greeting + " ";
+
+    var badge = document.getElementById("greetingBadge");
+    badge.textContent = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
+    badge.className = "greeting-badge " + (isStaff ? "staff" : isStudent ? "student" : "guest");
+
+    document.getElementById("greetingEmail").textContent = user.email;
+
+    // Primary tiles
+    var tiles = [];
+    if (isStaff) {
+      tiles.push({ href:"/portal.html",  icon:"fa-cog",      cls:"staff-tile",
+                   title:"Staff Portal", desc:"Configure events, fields, and share codes" });
+    }
+    if (isTeam) {
+      tiles.push({ href:"/scout.html",   icon:"fa-clipboard", cls:"",
+                   title:"Scout",        desc:"Enter match data for the current event" });
+    }
+    if (!isTeam) {
+      tiles.push({ href:"/scout.html",   icon:"fa-search",    cls:"",
+                   title:"View shared data", desc:"Enter a share code from Team 1307" });
+    }
+
+    var primaryLabel = document.createElement("div");
+    primaryLabel.className = "home-section-label";
+    primaryLabel.textContent = isStaff ? "Tools" : isTeam ? "Scouting" : "Data access";
+
+    var area = document.getElementById("primaryTiles");
+    area.appendChild(primaryLabel);
+    tiles.forEach(function(t) {
+      var a = document.createElement("a");
+      a.href = t.href;
+      a.className = "nav-tile " + t.cls;
+      a.innerHTML =
+        '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
+        '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
+        '<i class="fa fa-chevron-right tile-chevron"></i>';
+      area.appendChild(a);
+    });
+
+    document.getElementById("quickSignOut").addEventListener("click", async function () {
+      await sb.auth.signOut();
+      location.reload();
+    });
+
+    document.getElementById("loggedInView").style.display = "";
+  })();
+  </script>
+</body>
+</html>
