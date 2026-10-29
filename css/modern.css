@@ -237,6 +237,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
 }
 #sponsorphoto { max-height: 140px; width: auto; object-fit: contain; }
 img[src=""] { display: none; }   /* hides broken empty-src images */
+.img-thumbnail { width: 100%; height: 220px; object-fit: cover; } /* ensures all gallery images have consistent size */
 
 /* ---------- Footer ---------- */
 #bottomrow {
