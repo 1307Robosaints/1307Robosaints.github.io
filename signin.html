@@ -5,57 +5,70 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Sign In</title>
- 
+
   <!--Stylepack-->
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-  <link href="/css/main.css" rel="stylesheet">
-  <link href="/css/auth.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    /* Rules that only existed in auth.css, restyled to the modern theme */
+    .hp { position:absolute; left:-9999px; height:0; overflow:hidden; } /* honeypot: bots fill it, people never see it */
+    .auth-wrap { max-width: 460px; margin: 0 auto 3rem; }
+    .auth-card h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+    .auth-card .btn-navy { width: 100%; }
+    .auth-card .btn-navy:disabled { opacity: .6; }
+    .auth-or { display:flex; align-items:center; margin:1.25rem 0 1rem; color:var(--muted); font-size:.9rem; }
+    .auth-or::before, .auth-or::after { content:""; flex:1; border-top:1px solid var(--line); }
+    .auth-or span { padding:0 .75rem; }
+  </style>
 </head>
 
 <body>
   <!-- Navigation -->
-    <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
-      <div class="container">
-          <a class="navbar-brand" href="index.html"><img src="img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
-        <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarResponsive">
-          <ul class="navbar-nav ml-auto">
-              <li class="nav-item">
-                <a class="nav-link" href="index.html">Homepage</a>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Sponsors
-              </a>
-              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
-                  <a class="dropdown-item" href="oursponsors.html">Our Sponsors</a>
-                  <a class="dropdown-item" href="business-plan.html">Business Plan</a>
-                  
-              </div>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                About Us
-              </a>
-              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
-                  <a class="dropdown-item" href="about-the-students.html">The Students</a>
-                  <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
-                  <a class="dropdown-item" href="about-the-robot.html"> The Robots</a>
-              </div>
-            </li>
-             <li class="nav-item">
-                <a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="contact.html">Contact Us</a>
-            </li>
-          </ul>
-        </div>
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="index.html"><img src="img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="index.html">Homepage</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              Sponsors
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
+              <a class="dropdown-item" href="oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="business-plan.html">Business Plan</a>
+            </div>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About Us
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
+              <a class="dropdown-item" href="about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="about-the-robot.html"> The Robots</a>
+            </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="contact.html">Contact Us</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/1307scout.html">1307scout</a>
+          </li>
+        </ul>
       </div>
-    </nav>
+    </div>
+  </nav>
 
   <div class="auth-wrap">
     <div class="auth-card">
@@ -128,7 +141,7 @@
   </footer>
 
   <script src="/vendor/jquery/jquery.min.js"></script>
-  <script src="/vendor/bootstrap//js/bootstrap.bundle.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
   <script src="/js/auth-config.js"></script>
