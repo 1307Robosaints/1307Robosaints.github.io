@@ -402,3 +402,26 @@ header .carousel {
 #homepage-text { color: var(--ink); }
 #sponsorphoto { width: auto; max-width: 100%; }
 .dropdown-item { opacity: 1; }
+
+
+/* ==========================================================
+   Fixes (round 4) – nav links went white (invisible) on click
+   Bootstrap's dark navbar sets white text for these states;
+   our nav is white, so keep them blue instead.
+   ========================================================== */
+.navbar-dark .navbar-nav .nav-link:active,
+.navbar-dark .navbar-nav .nav-link.active,
+.navbar-dark .navbar-nav .nav-link.show,
+.navbar-dark .navbar-nav .show > .nav-link,
+.navbar-dark .navbar-nav .active > .nav-link {
+  color: var(--blue);
+}
+
+/* keep the underline visible on the current page and open dropdowns */
+@media (min-width: 992px) {
+  .navbar-dark .navbar-nav .nav-link.active::after,
+  .navbar-dark .navbar-nav .nav-link.show::after,
+  .navbar-dark .navbar-nav .show > .nav-link::after {
+    transform: scaleX(1);
+  }
+}
