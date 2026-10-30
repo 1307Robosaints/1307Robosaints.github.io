@@ -463,7 +463,7 @@
 
     if (!session) {
       // ── Logged-out view ──────────────────────────────────────
-      document.getElementById("loggedOutView").style.display = "";
+      document.getElementById("loggedOutView").style.display = "block";
       document.getElementById("navSignIn").style.display = "";
       return;
     }
@@ -527,7 +527,7 @@
       location.reload();
     });
 
-    document.getElementById("loggedInView").style.display = "";
+    document.getElementById("loggedInView").style.display = "block";
   })();
   </script>
 </body>
