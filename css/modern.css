@@ -1,9 +1,29 @@
 /* =========================================================================================================
    Robosaints 1307 – modern.css
-   Load AFTER bootstrap, main.css and auth.css. "Custom styles for this template" section of each HTML file.
+   The site theme. Load AFTER Bootstrap, in the <head> of every page.
    Edit the tokens below to retune the whole site.
+
+   CONTENTS
+     1. Tokens
+     2. Base (page, links, focus)
+     3. Typography
+     4. Navbar
+     5. Page heading, breadcrumb, divider
+     6. Buttons
+     7. Cards
+     8. Images
+     9. Homepage carousel
+    10. Footer
+    11. Contact page (map, social list)
+    12. Forms, alerts, badges, tables (sign-in, account, scouting pages)
+    13. Motion
+    14. Legacy compatibility (safe to delete once no page loads main.css)
    ========================================================================================================= */
 
+
+/* =========================================================================================================
+   1. TOKENS
+   ========================================================================================================= */
 :root {
   --navy:   #0A2352;   /* deep team blue: footer, headings, buttons hover */
   --blue:   #1B4DB1;   /* primary team blue: links, buttons, accents      */
@@ -19,11 +39,15 @@
   --body:    "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
 }
 
-/* ---------- Base ---------- */
+
+/* =========================================================================================================
+   2. BASE
+   ========================================================================================================= */
 html { scroll-behavior: smooth; }
+
 body {
   position: relative;
-  padding-top: 76px;
+  padding-top: 76px;               /* room for the fixed navbar */
   background: var(--paper);
   color: var(--ink);
   font-family: var(--body);
@@ -32,7 +56,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Faint engineering-grid that fades out below the page heading */
+/* Faint engineering grid that fades out below the page heading */
 body::before {
   content: "";
   position: absolute;
@@ -48,7 +72,7 @@ body::before {
   pointer-events: none;
 }
 
-p { max-width: 70ch; }
+p { max-width: 70ch; }                      /* comfortable reading width */
 .card p, .card-text { max-width: none; }
 
 a { color: var(--blue); text-decoration: none; }
@@ -59,7 +83,10 @@ a:hover { color: var(--navy); text-decoration: underline; text-underline-offset:
   outline-offset: 2px;
 }
 
-/* ---------- Type ---------- */
+
+/* =========================================================================================================
+   3. TYPOGRAPHY
+   ========================================================================================================= */
 h1, h2, h3, h4, h5, h6,
 .navbar-brand, .btn, .card-header, .auth-tabs button, th {
   font-family: var(--display);
@@ -67,6 +94,9 @@ h1, h2, h3, h4, h5, h6,
 h1, h2, h3, h4, h5, h6 { color: var(--navy); font-weight: 600; letter-spacing: -.01em; }
 
 h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.1; font-weight: 700; }
+h2 { font-size: 1.75rem; margin-bottom: 1rem; }
+h3 { font-size: 1.4rem; }
+
 h1 small {
   font-family: var(--body);
   font-weight: 400;
@@ -74,7 +104,8 @@ h1 small {
   color: var(--muted);
   margin-left: .35em;
 }
-/* short slanted blue bar under every page title */
+
+/* Short slanted blue bar under every page title */
 h1::after {
   content: "";
   display: block;
@@ -84,11 +115,15 @@ h1::after {
   background: var(--blue);
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
 }
-h2 { font-size: 1.75rem; margin-bottom: 1rem; }
-h3 { font-size: 1.4rem; }
+
 .text-muted, .card-subtitle { color: var(--muted) !important; }
 
-/* ---------- Navbar ---------- */
+
+/* =========================================================================================================
+   4. NAVBAR
+   The markup uses Bootstrap's dark navbar, but we restyle it as a white bar, so the "white text" states
+   Bootstrap applies on click/active are overridden back to blue.
+   ========================================================================================================= */
 .navbar.bg-dark {
   background: rgba(255,255,255,.92) !important;
   -webkit-backdrop-filter: blur(10px);
@@ -96,33 +131,76 @@ h3 { font-size: 1.4rem; }
   border-bottom: 1px solid var(--line);
   padding: .55rem 0;
 }
+
+/* Brand (logo + team name) */
 .navbar-dark .navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  max-width: 80%;                  /* long team name wraps instead of pushing the toggler off-screen */
+  white-space: normal;
+  line-height: 1.2;
   color: var(--navy);
   font-weight: 600;
   font-size: 1.05rem;
   letter-spacing: .01em;
-  display: flex;
-  align-items: center;
-  gap: .6rem;
 }
 .navbar-dark .navbar-brand:hover { color: var(--blue); text-decoration: none; }
 #navbarlogo { height: 38px; width: auto; margin: 0; }
 
+/* Links */
 .navbar-dark .navbar-nav .nav-link {
+  position: relative;
+  padding: .5rem .85rem;
   color: var(--ink);
   font-family: var(--display);
   font-weight: 500;
   font-size: .95rem;
-  padding: .5rem .85rem;
-  position: relative;
+  white-space: nowrap;             /* each link stays on one line */
 }
 .navbar-dark .navbar-nav .nav-link:hover,
-.navbar-dark .navbar-nav .nav-link:focus { color: var(--blue); text-decoration: none; }
+.navbar-dark .navbar-nav .nav-link:focus { text-decoration: none; }
+
+/* Hover, focus, pressed, current page, open dropdown: all blue */
+.navbar-dark .navbar-nav .nav-link:hover,
+.navbar-dark .navbar-nav .nav-link:focus,
+.navbar-dark .navbar-nav .nav-link:active,
+.navbar-dark .navbar-nav .nav-link.active,
+.navbar-dark .navbar-nav .nav-link.show,
+.navbar-dark .navbar-nav .show > .nav-link,
+.navbar-dark .navbar-nav .active > .nav-link { color: var(--blue); }
+
+/* Hamburger button (mobile) */
+.navbar-dark .navbar-toggler { border-color: var(--line); }
+.navbar-dark .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='%230A2352' stroke-width='2.5' stroke-linecap='round' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+}
+
+/* Dropdown menus */
+.dropdown-menu {
+  margin-top: .5rem;
+  padding: .35rem 0;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: 0 12px 28px rgba(10,35,82,.12);
+}
+.dropdown-item { padding: .5rem 1.1rem; color: var(--ink); font-family: var(--display); font-size: .92rem; }
+.dropdown-item:hover, .dropdown-item:focus { background: var(--tint); color: var(--blue); }
+
+/* Mobile: collapsed menu spacing */
+@media (max-width: 991px) {
+  .navbar-collapse { padding: .5rem 0 1rem; }
+}
+
+/* Desktop: tighter links, smaller brand, and a sliding underline on hover / current page */
 @media (min-width: 992px) {
+  .navbar-dark .navbar-brand { flex: 0 1 auto; max-width: 46%; font-size: .95rem; }
+  .navbar-dark .navbar-nav .nav-link { padding-left: .6rem; padding-right: .6rem; font-size: .92rem; }
+
   .navbar-dark .navbar-nav .nav-link::after {
     content: "";
     position: absolute;
-    left: .85rem; right: .85rem; bottom: .15rem;
+    left: .6rem; right: .6rem; bottom: .15rem;
     height: 2px;
     background: var(--blue);
     transform: scaleX(0);
@@ -130,27 +208,20 @@ h3 { font-size: 1.4rem; }
     transition: transform .2s ease;
   }
   .navbar-dark .navbar-nav .nav-link:hover::after,
-  .navbar-dark .navbar-nav .nav-link:focus::after { transform: scaleX(1); }
+  .navbar-dark .navbar-nav .nav-link:focus::after,
+  .navbar-dark .navbar-nav .nav-link.active::after,
+  .navbar-dark .navbar-nav .nav-link.show::after,
+  .navbar-dark .navbar-nav .show > .nav-link::after { transform: scaleX(1); }
 }
-.navbar-dark .navbar-toggler { border-color: var(--line); }
-.navbar-dark .navbar-toggler-icon {
-  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='%230A2352' stroke-width='2.5' stroke-linecap='round' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
-}
-.dropdown-menu {
-  border: 1px solid var(--line);
-  border-radius: 0;
-  box-shadow: 0 12px 28px rgba(10,35,82,.12);
-  padding: .35rem 0;
-  margin-top: .5rem;
-}
-.dropdown-item { font-family: var(--display); font-size: .92rem; padding: .5rem 1.1rem; color: var(--ink); }
-.dropdown-item:hover, .dropdown-item:focus { background: var(--tint); color: var(--blue); }
 
-/* ---------- Page heading + breadcrumb ---------- */
+
+/* =========================================================================================================
+   5. PAGE HEADING, BREADCRUMB, DIVIDER
+   ========================================================================================================= */
 .breadcrumb {
-  background: transparent;
-  padding: 0 0 1rem;
   margin-bottom: 2rem;
+  padding: 0 0 1rem;
+  background: transparent;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   font-size: .85rem;
@@ -158,40 +229,42 @@ h3 { font-size: 1.4rem; }
 .breadcrumb-item + .breadcrumb-item::before { color: var(--muted); }
 .breadcrumb-item.active { color: var(--muted); }
 
-hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
 
-/* ---------- Buttons: clipped-corner plates ---------- */
+
+/* =========================================================================================================
+   6. BUTTONS  (clipped-corner plates)
+   ========================================================================================================= */
 .btn {
-  border-radius: 0;
+  padding: .6rem 1.4rem;
   border: 0;
+  border-radius: 0;
   font-weight: 600;
   letter-spacing: .02em;
-  padding: .6rem 1.4rem;
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
   transition: background-color .15s ease, color .15s ease;
 }
-.btn-primary, .btn-navy {
-  background: var(--blue);
-  color: #fff;
-}
+.btn:focus-visible { outline-offset: 3px; }
+
+.btn-primary, .btn-navy { background: var(--blue); color: #fff; }
 .btn-primary:hover, .btn-primary:focus, .btn-primary:active,
 .btn-navy:hover,    .btn-navy:focus,    .btn-navy:active {
   background: var(--navy) !important;
   color: #fff;
   text-decoration: none;
 }
+
 .btn-outline-secondary, .btn-outline-dark {
   background: var(--white);
   color: var(--navy);
   box-shadow: inset 0 0 0 1.5px var(--navy);
 }
-.btn-outline-secondary:hover, .btn-outline-dark:hover {
-  background: var(--navy);
-  color: #fff;
-}
-.btn:focus-visible { outline-offset: 3px; }
+.btn-outline-secondary:hover, .btn-outline-dark:hover { background: var(--navy); color: #fff; }
 
-/* ---------- Cards: flat, hairline border, one clipped corner ---------- */
+
+/* =========================================================================================================
+   7. CARDS  (flat, hairline border, one clipped corner)
+   ========================================================================================================= */
 .card {
   position: relative;
   background: var(--white);
@@ -199,6 +272,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
   border-radius: 0;
   box-shadow: none;
 }
+/* The clipped top-right corner */
 .card::after {
   content: "";
   position: absolute;
@@ -211,41 +285,71 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
   pointer-events: none;
 }
 .card-header {
+  padding: 1rem 1.25rem;
   background: transparent;
-  border-bottom: 1px solid var(--line);
   border-top: 3px solid var(--blue);
+  border-bottom: 1px solid var(--line);
   color: var(--navy);
   font-weight: 600;
   font-size: 1.15rem;
-  padding: 1rem 1.25rem;
 }
-.card-footer { background: transparent; border-top: 1px solid var(--line); }
-.card-title { font-size: 1.2rem; margin-bottom: .15rem; }
 .card-body { padding: 1.4rem; }
+.card-footer { background: transparent; border-top: 1px solid var(--line); }
+.card-title { margin-bottom: .15rem; font-size: 1.2rem; }
 .card-img-top { border-radius: 0; }
 
-/* Team-leader cards get the blue top edge too */
+/* Team-leader cards (about-the-students) get the blue top edge too */
 .card.text-center { border-top: 3px solid var(--blue); }
 .card.text-center .card-text { text-align: left; font-size: .95rem; color: #26364f; }
 .card.text-center .card-footer a { font-size: .9rem; word-break: break-all; }
 
-/* ---------- Images ---------- */
+
+/* =========================================================================================================
+   8. IMAGES
+   ========================================================================================================= */
+/* Photos beside text get the clipped corner */
 .row > [class*="col-md-7"] img.img-fluid,
 .row > [class*="col-lg-6"] img.img-fluid.rounded {
   border-radius: 0 !important;
   clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 0 100%);
 }
-#sponsorphoto { max-height: 140px; width: auto; object-fit: contain; }
-img[src=""] { display: none; }   /* hides broken empty-src images */
-.img-thumbnail { width: 100%; height: 220px; object-fit: cover; } /* ensures all gallery images have consistent size */
+
+#sponsorphoto { width: auto; max-width: 100%; max-height: 140px; object-fit: contain; }
+.img-thumbnail { width: 100%; height: 220px; object-fit: cover; }   /* uniform gallery thumbnails */
+img[src=""] { display: none; }                                       /* hides images with an empty src */
 
 
-/* ---------- Footer ---------- */
+/* =========================================================================================================
+   9. HOMEPAGE CAROUSEL
+   ========================================================================================================= */
+.carousel-item {
+  height: 70vh;
+  min-height: 300px;
+  background: no-repeat center center scroll;
+  background-size: cover;
+}
+header .carousel {
+  border-bottom: 4px solid var(--blue);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%);   /* signature corner, scaled up */
+}
+.carousel-indicators li { width: 36px; height: 4px; border: 0; background: #fff; opacity: .55; }
+.carousel-indicators li.active { opacity: 1; }
+.carousel-control-prev, .carousel-control-next { width: 8%; }
+.carousel-control-prev-icon, .carousel-control-next-icon {
+  width: 44px; height: 44px;
+  background-color: rgba(10,35,82,.65);
+  background-size: 50% 50%;
+}
+
+
+/* =========================================================================================================
+   10. FOOTER  (same markup on every page: one <a class="fa ..."> per social link)
+   ========================================================================================================= */
 #bottomrow {
-  background: var(--navy);
   margin-top: 4rem;
-  text-align: center;
+  background: var(--navy);
   border-top: 4px solid var(--blue);
+  text-align: center;
 }
 #bottomrow .fa {
   display: inline-flex;
@@ -253,87 +357,141 @@ img[src=""] { display: none; }   /* hides broken empty-src images */
   justify-content: center;
   width: 40px; height: 40px;
   margin: 0 .35rem 1.25rem;
-  font-size: 1.15rem;
-  color: #fff;
   background: transparent;
   border: 1px solid rgba(255,255,255,.35);
   border-radius: 0;
+  color: #fff;
+  font-size: 1.15rem;
   text-decoration: none;
   transition: background-color .15s ease, border-color .15s ease;
 }
 #bottomrow .fa:hover { background: var(--blue); border-color: var(--blue); }
-#bottomrow p { font-size: .85rem; color: rgba(255,255,255,.75) !important; max-width: none; }
+#bottomrow .fa svg { display: block; width: 1.1rem; height: 1.1rem; }    /* the TikTok logo (inline SVG) */
+#bottomrow p { max-width: none; font-size: .85rem; color: rgba(255,255,255,.75) !important; }
 
-/* ---------- Contact page ---------- */
+
+/* =========================================================================================================
+   11. CONTACT PAGE
+   ========================================================================================================= */
 #contactuspage iframe { border: 1px solid var(--line) !important; filter: saturate(.85); }
 
-/* ---------- Auth + scouting pages ---------- */
+/* Social list: [icon box] Name, one row per network.
+   Every icon sits in the same fixed-size box, so the logos line up regardless of their own shape. */
+.social-list { margin: 0 0 1.25rem; padding: 0; list-style: none; }
+.social-list li + li { margin-top: .6rem; }
+
+.social-list a {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .5rem 1rem .5rem .5rem;
+  background: var(--white);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.social-list a:hover,
+.social-list a:focus-visible { background: var(--tint); border-color: var(--blue); color: var(--navy); }
+
+.social-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 48px;                  /* icon box size: change this and the width/height below together */
+  width: 48px; height: 48px;
+  background: var(--navy);
+  color: #fff;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  transition: background-color .15s ease;
+}
+.social-list a:hover .social-icon,
+.social-list a:focus-visible .social-icon { background: var(--blue); }
+
+.social-icon .fa  { font-size: 1.5rem; line-height: 1; }                  /* Font Awesome logos */
+.social-icon svg  { display: block; width: 1.35rem; height: 1.35rem; }    /* TikTok (inline SVG), sized to match */
+
+.social-name { font-family: var(--display); font-weight: 600; font-size: 1.15rem; }
+
+
+/* =========================================================================================================
+   12. FORMS, ALERTS, BADGES, TABLES  (sign-in, account, and scouting pages)
+   ========================================================================================================= */
+
+/* ----- Sign-in card ----- */
 .auth-wrap { padding: 2rem 1rem; }
 .auth-card {
+  position: relative;
+  padding: 2rem;
   background: var(--white);
   border: 1px solid var(--line);
   border-top: 3px solid var(--blue);
   border-radius: 0;
   box-shadow: none;
-  padding: 2rem;
-  position: relative;
 }
 .auth-card h1::after { display: none; }
 .auth-card .sub { color: var(--muted); }
-.auth-tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 1.25rem; }
+
+.auth-tabs { display: flex; margin-bottom: 1.25rem; border-bottom: 1px solid var(--line); }
 .auth-tabs button {
   flex: 1;
+  padding: .7rem;
   background: none;
   border: 0;
   border-bottom: 3px solid transparent;
-  padding: .7rem;
-  font-weight: 600;
   color: var(--muted);
+  font-weight: 600;
   cursor: pointer;
 }
 .auth-tabs button.active { color: var(--navy); border-bottom-color: var(--blue); }
-.auth-link { background: none; border: 0; padding: 0; color: var(--blue); font-size: .9rem; }
+
+.auth-link { padding: 0; background: none; border: 0; color: var(--blue); font-size: .9rem; }
 .auth-link:hover { color: var(--navy); text-decoration: underline; }
 
+/* ----- Form fields ----- */
 .form-control, .custom-select {
-  border-radius: 0;
-  border: 1px solid var(--line);
   background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 0;
   font-family: var(--body);
 }
-.form-control:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(27,77,177,.18);
-}
+.form-control:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(27,77,177,.18); }
 label { font-size: .88rem; font-weight: 500; color: var(--navy); }
+.custom-control-input:checked ~ .custom-control-label::before { background: var(--blue); border-color: var(--blue); }
 
+/* ----- Alerts and badges ----- */
 .alert { border-radius: 0; border-width: 0 0 0 4px; }
+
 .role-badge {
-  font-family: var(--display);
-  font-size: .75rem;
   padding: .15rem .55rem;
   background: var(--tint);
   color: var(--muted);
+  font-family: var(--display);
+  font-size: .75rem;
   clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
 }
 .role-badge.member { background: var(--blue); color: #fff; }
 
-.scout-table { font-variant-numeric: tabular-nums; background: var(--white); }
+/* ----- Tables and QR code ----- */
+.scout-table { background: var(--white); font-variant-numeric: tabular-nums; }
 .scout-table th {
   background: var(--navy);
+  border: 0;
   color: #fff;
   font-weight: 500;
   font-size: .85rem;
-  border: 0;
   white-space: nowrap;
 }
 .scout-table td { border-top: 1px solid var(--line); }
 .scout-table tbody tr:nth-child(even) { background: var(--paper); }
 .scout-table tbody tr:hover { background: var(--tint); }
-.qr-box { display: inline-block; padding: .75rem; background: #fff; border: 1px solid var(--line); }
-.custom-control-input:checked ~ .custom-control-label::before { background: var(--blue); border-color: var(--blue); }
 
-/* ---------- Motion: one small page-load reveal, respects user settings ---------- */
+.qr-box { display: inline-block; padding: .75rem; background: #fff; border: 1px solid var(--line); }
+
+
+/* =========================================================================================================
+   13. MOTION  (one small page-load reveal; respects the visitor's reduced-motion setting)
+   ========================================================================================================= */
 @media (prefers-reduced-motion: no-preference) {
   h1::after { animation: draw .6s .1s ease-out both; transform-origin: left; }
   @keyframes draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -343,167 +501,16 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
   * { transition: none !important; }
 }
 
-/* ---------- Small screens ---------- */
-@media (max-width: 991px) {
-  .navbar-collapse { padding: .5rem 0 1rem; }
-  .navbar-brand { font-size: .95rem; max-width: 80%; white-space: normal; line-height: 1.2; }
-}
 
-/* ==========================================================
-   Fixes
-   ========================================================== */
+/* =========================================================================================================
+   14. LEGACY COMPATIBILITY
+   Safe to delete once you confirm no page still loads css/main.css or uses placehold.it images.
+   ========================================================================================================= */
 
-/* Nav: keep each link on one line; let a long team name wrap instead */
-.navbar-dark .navbar-nav .nav-link { white-space: nowrap; }
-@media (min-width: 992px) {
-  .navbar-dark .navbar-brand { flex: 0 1 auto; max-width: 46%; white-space: normal; line-height: 1.2; font-size: .95rem; }
-  .navbar-dark .navbar-nav .nav-link { padding-left: .6rem; padding-right: .6rem; font-size: .92rem; }
-  .navbar-dark .navbar-nav .nav-link::after { left: .6rem; right: .6rem; }
-}
-
-/* Robots page: until real photos replace the dead placehold.it images,
-   hide the empty image column and let the text use the full width */
-.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
-.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
-
-/* ==========================================================
-   Fixes – rules carried over from the old main.css
-   ========================================================== */
-
-/* Homepage carousel (this was the missing piece) */
-.carousel-item {
-  height: 70vh;
-  min-height: 300px;
-  background: no-repeat center center scroll;
-  background-size: cover;
-}
-header .carousel {
-  border-bottom: 4px solid var(--blue);
-  /* signature clipped corner, scaled up for the hero */
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%);
-}
-.carousel-indicators li {
-  width: 36px;
-  height: 4px;
-  border: 0;
-  background: #fff;
-  opacity: .55;
-}
-.carousel-indicators li.active { opacity: 1; background: #fff; }
-.carousel-control-prev, .carousel-control-next { width: 8%; }
-.carousel-control-prev-icon, .carousel-control-next-icon {
-  background-color: rgba(10,35,82,.65);
-  background-size: 50% 50%;
-  width: 44px; height: 44px;
-}
-
-/* If main.css is still loaded on some pages, keep its old colour rules from fighting the new theme */
-#contactuspage { color: var(--ink); }
-#homepage-text { color: var(--ink); }
-#sponsorphoto { width: auto; max-width: 100%; }
+/* main.css (old theme) made these white / dim; keep them readable if it is ever loaded */
+#contactuspage, #homepage-text { color: var(--ink); }
 .dropdown-item { opacity: 1; }
 
-
-/* ==========================================================
-   Fixes – nav links went white (invisible) on click
-   Bootstrap's dark navbar sets white text for these states;
-   our nav is white, so keep them blue instead.
-   ========================================================== */
-.navbar-dark .navbar-nav .nav-link:active,
-.navbar-dark .navbar-nav .nav-link.active,
-.navbar-dark .navbar-nav .nav-link.show,
-.navbar-dark .navbar-nav .show > .nav-link,
-.navbar-dark .navbar-nav .active > .nav-link {
-  color: var(--blue);
-}
-
-/* keep the underline visible on the current page and open dropdowns */
-@media (min-width: 992px) {
-  .navbar-dark .navbar-nav .nav-link.active::after,
-  .navbar-dark .navbar-nav .nav-link.show::after,
-  .navbar-dark .navbar-nav .show > .nav-link::after {
-    transform: scaleX(1);
-  }
-}
-
-/* ---------- Social icon links (contact page) ---------- */
-.social-links {
-  display: flex;
-  gap: .6rem;
-  margin: .5rem 0 1.25rem;
-}
-.social-links a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: 1.5px solid var(--navy);
-  color: var(--navy);
-  font-size: 1.2rem;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
-  transition: background-color .15s ease, color .15s ease;
-}
-.social-links a:hover,
-.social-links a:focus-visible {
-  background: var(--blue);
-  color: #fff;
-  text-decoration: none;
-}
-
-/* ---------- Social list (contact page) ---------- */
-.social-list {
-  list-style: none;
-  padding: 0;
-  margin: .5rem 0 1.25rem;
-}
-.social-list li + li { margin-top: .5rem; }
-.social-list a {
-  display: flex;
-  align-items: center;
-  gap: .9rem;
-  padding: .45rem .6rem .45rem .45rem;
-  border: 1px solid var(--line);
-  background: var(--white);
-  color: var(--ink);
-  text-decoration: none;
-  transition: background-color .15s ease, border-color .15s ease;
-}
-.social-list a:hover,
-.social-list a:focus-visible {
-  background: var(--tint);
-  border-color: var(--blue);
-  color: var(--navy);
-  text-decoration: none;
-}
-.social-icon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--navy);
-  color: #fff;
-  font-size: 1.1rem;
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
-}
-.social-icon svg { width: 1rem; height: 1rem; }
-.social-name {
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: .95rem;
-}
-
-/* ---------- Contact form width ---------- */
-#contactFormCol {
-  flex: 0 0 100%;
-  max-width: 100%;
-}
-#contactForm {
-  width: 100%;
-  max-width: 640px;
-}
-#contactForm .form-control {
-  width: 100%;
-}
+/* Hide the image column when it holds a dead placehold.it image, and let the text use the full width */
+.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
+.row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
