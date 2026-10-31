@@ -450,3 +450,60 @@ header .carousel {
   color: #fff;
   text-decoration: none;
 }
+
+/* ---------- Social list (contact page) ---------- */
+.social-list {
+  list-style: none;
+  padding: 0;
+  margin: .5rem 0 1.25rem;
+}
+.social-list li + li { margin-top: .5rem; }
+.social-list a {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  padding: .45rem .6rem .45rem .45rem;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.social-list a:hover,
+.social-list a:focus-visible {
+  background: var(--tint);
+  border-color: var(--blue);
+  color: var(--navy);
+  text-decoration: none;
+}
+.social-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--navy);
+  color: #fff;
+  font-size: 1.1rem;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+.social-icon svg { width: 1rem; height: 1rem; }
+.social-name {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: .95rem;
+}
+
+/* ---------- Contact form width ---------- */
+#contactFormCol {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+#contactForm {
+  width: 100%;
+  max-width: 640px;
+}
+#contactForm .form-control {
+  width: 100%;
+}
