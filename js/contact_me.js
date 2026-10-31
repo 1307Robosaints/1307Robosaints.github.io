@@ -18,6 +18,11 @@ $(function () {
     emailjs.init({ publicKey: cfg.emailjs.publicKey });
   }
 
+  // Only allow phone-style characters while typing
+  $("#phone").on("input", function () {
+    this.value = this.value.replace(/[^\d\s().+\-]/g, "");
+  });
+
   // Escape user input so it can't inject HTML into the emails
   function esc(s) {
     return String(s)
@@ -30,6 +35,26 @@ $(function () {
     return [].concat(v).join(",").split(",")
       .map(function (s) { return s.trim().toLowerCase(); })
       .filter(Boolean);
+  }
+
+  /* Phone check. Blank is allowed (the field is optional).
+     Otherwise it must be a 10-digit US number, or 11 digits starting with 1.
+     Area code and exchange must start with 2-9, as US numbers do.
+     Returns { ok, value } where value is the formatted number. */
+  function checkPhone(raw) {
+    var v = raw.trim();
+    if (!v) return { ok: true, value: "(not provided)" };
+    if (!/^\+?[\d\s().\-]+$/.test(v)) return { ok: false };
+
+    var digits = v.replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") digits = digits.slice(1);
+    if (digits.length !== 10) return { ok: false };
+    if (!/[2-9]/.test(digits.charAt(0)) || !/[2-9]/.test(digits.charAt(3))) return { ok: false };
+
+    return {
+      ok: true,
+      value: "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6)
+    };
   }
 
   function showAlert(type, text) {
@@ -59,12 +84,19 @@ $(function () {
       return;
     }
 
+    var phone = checkPhone($("#phone").val());
+    if (!phone.ok) {
+      showAlert("warning", "Please enter a valid 10-digit phone number, or leave the phone field blank.");
+      $("#phone").focus();
+      return;
+    }
+
     var name  = $("#name").val().trim();
     var email = $("#email").val().trim();
+    var submitter = email.toLowerCase();
     var allTopics = chosen.map(function (t) { return t.label; }).join(", ");
 
-    // Build one list per unique staff address. Each address gets ONE email
-    // listing every topic routed to it, even if it appears under several topics.
+    // One list per unique staff address, covering every topic routed to it
     var byEmail = {};
     chosen.forEach(function (t) {
       splitEmails(t.email).forEach(function (addr) {
@@ -78,7 +110,7 @@ $(function () {
       from_name:  esc(name),
       from_email: esc(email),
       reply_to:   email,
-      phone:      esc($("#phone").val().trim() || "(not provided)"),
+      phone:      esc(phone.value),
       topics:     esc(allTopics),
       message:    esc($("#message").val().trim()).replace(/\n/g, "<br>")
     };
@@ -94,21 +126,25 @@ $(function () {
       return emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.templateId, params);
     });
 
-    // Copy to the person who submitted the form. A failure here doesn't fail the whole submit.
-    var copySend = emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.copyTemplateId, $.extend({}, base, {
-      to_email: email,
-      subject:  "Copy of your message to STA Robotics Team 1307"
-    })).then(function () { return true; }, function (err) {
-      console.error("Copy email failed:", err);
-      return false;
-    });
+    // Copy to the submitter only after every staff send succeeds,
+    // and skip it if they're already getting the staff email
+    var alreadyReceiving = !!byEmail[submitter];
 
-    // Staff sends must all succeed; the copy is reported separately.
-    Promise.all(sends).then(function () { return copySend; }).then(function (copied) {
+    function sendCopy() {
+      if (alreadyReceiving) return Promise.resolve(null);
+      return emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.copyTemplateId, $.extend({}, base, {
+        to_email: email,
+        subject:  "Copy of your message to STA Robotics Team 1307"
+      })).then(function () { return true; }, function (err) {
+        console.error("Copy email failed:", err);
+        return false;
+      });
+    }
+
+    Promise.all(sends).then(sendCopy).then(function (copied) {
       var text = "Your message has been sent. Thank you!";
-      text += copied
-        ? " A copy was sent to " + email + "."
-        : " We couldn't email you a copy, but your message was delivered.";
+      if (copied === true) text += " A copy was sent to " + email + ".";
+      else if (copied === false) text += " We couldn't email you a copy, but your message was delivered.";
       showAlert("success", text);
       $form[0].reset();
       $form.removeClass("was-validated");
