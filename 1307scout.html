@@ -1,10 +1,19 @@
 <!DOCTYPE html>
+<!-- =========================================================================================================
+     1307scout.html  –  landing page for the scouting tool.
+     Shows one of two views, chosen by the script at the bottom:
+       #loggedOutView  marketing page (hero, features, access tiers, call to action)
+       #loggedInView   greeting bar plus tiles linking to the tools the person's access level allows
+     Both start hidden (see "Shared" in the CSS); the script reveals the right one once it knows who's signed in.
+     ========================================================================================================= -->
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>1307scout</title>
+
+  <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -20,7 +29,7 @@
        LOGGED-OUT VIEW
     ══════════════════════════════════════════════════════════ */
 
-    /* Hero */
+    /* Hero: navy banner with a clipped bottom-right corner */
     .scout-hero {
       position: relative;
       background: var(--navy);
@@ -50,7 +59,7 @@
       background: var(--blue);
     }
 
-    .hero-inner { position: relative; z-index: 1; }
+    .hero-inner { position: relative; z-index: 1; }   /* sits above the grid and stripe */
 
     .hero-wordmark {
       font-family: var(--display);
@@ -74,6 +83,7 @@
       margin-bottom: 2.25rem;
       line-height: 1.55;
     }
+    /* Call-to-action button (used in the hero and at the bottom of the page) */
     .hero-cta {
       display: inline-block;
       background: var(--blue);
@@ -89,7 +99,7 @@
     }
     .hero-cta:hover { background: #2560d4; color: #fff; text-decoration: none; }
 
-    /* Features */
+    /* Features: three cards under the hero */
     .features-section { padding: 4rem 0 3rem; }
     .features-section h2 {
       font-size: 1.55rem;
@@ -142,7 +152,7 @@
       line-height: 1.55;
     }
 
-    /* Who it's for */
+    /* Who it's for: navy band describing the three access levels */
     .tiers-section {
       background: var(--navy);
       padding: 3.5rem 0;
@@ -186,6 +196,7 @@
     ══════════════════════════════════════════════════════════ */
     .home-wrap { max-width: 640px; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
 
+    /* Greeting bar: "Welcome back, Name" plus a role badge */
     .greeting-bar {
       background: var(--navy);
       padding: 1.5rem 1.75rem;
@@ -218,6 +229,7 @@
       position: relative;
       max-width: none;
     }
+    /* Role badge: the script adds one of .staff / .student / .guest */
     .greeting-badge {
       display: inline-block;
       font-family: var(--display);
@@ -232,6 +244,7 @@
     .greeting-badge.student { background: rgba(255,255,255,.2); color: #fff; }
     .greeting-badge.guest   { background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); }
 
+    /* Small uppercase label above a group of tiles */
     .home-section-label {
       font-family: var(--display);
       font-size: .78rem;
@@ -244,6 +257,7 @@
       border-bottom: 1px solid var(--line);
     }
 
+    /* Link tile: [icon] Title / description  > */
     .nav-tile {
       display: flex; align-items: center; gap: 1rem;
       padding: 1.1rem 1.25rem;
@@ -272,7 +286,7 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 1.15rem;
     }
-    .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }
+    .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }   /* Staff Portal tile stands out */
     .tile-text strong { display: block; font-family: var(--display); font-size: 1rem; }
     .tile-text small  { color: var(--muted); font-size: .83rem; }
     .tile-chevron { margin-left: auto; color: var(--line); font-size: .75rem; flex-shrink: 0; }
@@ -286,60 +300,60 @@
     .quick-signout:hover { color: var(--navy); }
 
     /* ── Shared ───────────────────────────────────────────────── */
+    /* Both views start hidden so the wrong one never flashes; the script reveals one */
     #loggedOutView, #loggedInView { display: none; }
   </style>
 </head>
 <body>
-    
-  <!-- Navigation -->
-    <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
-      <div class="container">
-          <a class="navbar-brand" href="/index.html"><img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
-        <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarResponsive">
-          <ul class="navbar-nav ml-auto">
-              <li class="nav-item">
-                <a class="nav-link" href="index.html">Homepage</a>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Sponsors
-              </a>
-              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
-                  <a class="dropdown-item" href="oursponsors.html">Our Sponsors</a>
-                  <a class="dropdown-item" href="business-plan.html">Business Plan</a>
-                  
-              </div>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                About Us
-              </a>
-              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
-                  <a class="dropdown-item" href="about-the-students.html">The Students</a>
-                  <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
-                  <a class="dropdown-item" href="about-the-robot.html"> The Robots</a>
-              </div>
-            </li>
-             <li class="nav-item">
-                <a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="contact.html">Contact Us</a>
-            <li class="nav-item">
-                <a class="nav-link" href="/1307scout.html">1307scout</a>
-            </li>
-            </li>
-            </li>
-          </ul>
-        </div>
+
+  <!-- ===== Navigation =====
+       auth.js appends the "Sign In" / "My Account" link to this list automatically. -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html"><img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="index.html">Homepage</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              Sponsors
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
+              <a class="dropdown-item" href="oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="business-plan.html">Business Plan</a>
+            </div>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPortfolio" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About Us
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPortfolio" id="minimenu">
+              <a class="dropdown-item" href="about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="about-the-robot.html"> The Robots</a>
+            </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="contact.html">Contact Us</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/1307scout.html">1307scout</a>
+          </li>
+        </ul>
       </div>
-    </nav>
+    </div>
+  </nav>
 
   <!-- ══════════════════════════════════════════════════════════
-       LOGGED-OUT VIEW
+       LOGGED-OUT VIEW  (shown when nobody is signed in)
   ══════════════════════════════════════════════════════════ -->
   <div id="loggedOutView">
 
@@ -392,7 +406,7 @@
       </div>
     </section>
 
-    <!-- Who it's for -->
+    <!-- Who it's for: the three access levels -->
     <section class="tiers-section">
       <div class="container">
         <div class="row">
@@ -433,18 +447,20 @@
 
 
   <!-- ══════════════════════════════════════════════════════════
-       LOGGED-IN HOME VIEW
+       LOGGED-IN HOME VIEW  (shown when someone is signed in)
+       The script fills in the greeting, badge, and tiles.
   ══════════════════════════════════════════════════════════ -->
   <div id="loggedInView">
     <div class="container">
       <div class="home-wrap">
 
+        <!-- Greeting: the text node before the span is replaced by the script; the span holds the role badge -->
         <div class="greeting-bar mt-4">
           <h2 id="greetingName">Welcome back <span id="greetingBadge"></span></h2>
           <p id="greetingEmail"></p>
         </div>
 
-        <!-- Primary actions -->
+        <!-- Primary actions (label + tiles are built by the script, depending on access level) -->
         <div id="primaryTiles"></div>
 
         <!-- Secondary: account -->
@@ -466,12 +482,13 @@
     </div>
   </div><!-- /loggedInView -->
 
-  <!-- Footer -->
+  <!-- ===== Footer (same on every page) ===== -->
   <footer class="py-5" id="bottomrow">
     <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
     <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
     <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
     <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <!-- Font Awesome 4.7 has no TikTok logo, so this one is an inline SVG -->
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
       </svg>
@@ -481,6 +498,7 @@
     </div>
   </footer>
 
+  <!-- ===== Scripts ===== -->
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -488,40 +506,43 @@
   <script src="/js/auth.js"></script>
   <script>
   (async function () {
-    var sb = RS.sb;
+    var sb = RS.sb;   // Supabase client created by auth.js
 
     var session = (await sb.auth.getSession()).data.session;
 
+    // ── Not signed in: show the marketing page ───────────────────
     if (!session) {
-      // ── Logged-out view ──────────────────────────────────────
       document.getElementById("loggedOutView").style.display = "block";
-      document.getElementById("navSignIn").style.display = "";
       return;
     }
 
-    // ── Logged-in view ───────────────────────────────────────────
+    // ── Signed in: work out the access level ─────────────────────
+    // my_access_level() is a database function that returns 'staff', 'student', or 'guest'.
     var user = session.user;
     var lvl  = (await sb.rpc("my_access_level")).data || "guest";
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
 
-    // Nav items
-    if (isTeam)  document.getElementById("navScout").style.display   = "";
-    if (isStaff) document.getElementById("navPortal").style.display  = "";
-    document.getElementById("navAccount").style.display = "";
+    // FIX: this script used to try to un-hide nav items (#navSignIn, #navScout, #navPortal, #navAccount).
+    // Those elements don't exist in this page's nav, so getElementById returned null, the next line threw a
+    // TypeError, and the script stopped before the last line below revealed #loggedInView. The result was a
+    // blank page for every signed-in visitor. The nav is static and auth.js already adds Sign In / My Account,
+    // so those lines are gone. If you add nav ids later, null-check them before touching .style.
 
-    // Greeting
+    // Greeting: first name if we have one, otherwise a plain welcome.
     var meta = user.user_metadata || {};
     var name = meta.display_name || meta.full_name || meta.name || "";
     var greeting = name ? "Welcome back, " + name.split(" ")[0] + "." : "Welcome back.";
+    // childNodes[0] is the text node before the badge <span>, so the badge itself is left alone
     document.getElementById("greetingName").childNodes[0].textContent = greeting + " ";
 
+    // Role badge (styles come from .greeting-badge.staff / .student / .guest)
     var badge = document.getElementById("greetingBadge");
     badge.textContent = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
     badge.className = "greeting-badge " + (isStaff ? "staff" : isStudent ? "student" : "guest");
 
     document.getElementById("greetingEmail").textContent = user.email;
 
-    // Primary tiles
+    // ── Primary tiles, depending on access level ─────────────────
     var tiles = [];
     if (isStaff) {
       tiles.push({ href:"/portal.html",  icon:"fa-cog",      cls:"staff-tile",
@@ -532,6 +553,7 @@
                    title:"Scout",        desc:"Enter match data for the current event" });
     }
     if (!isTeam) {
+      // Guests can only open a share code
       tiles.push({ href:"/scout.html",   icon:"fa-search",    cls:"",
                    title:"View shared data", desc:"Enter a share code from Team 1307" });
     }
@@ -553,11 +575,13 @@
       area.appendChild(a);
     });
 
+    // Sign out, then reload so the logged-out view appears
     document.getElementById("quickSignOut").addEventListener("click", async function () {
       await sb.auth.signOut();
       location.reload();
     });
 
+    // Last step: reveal the logged-in view (it starts hidden in the CSS)
     document.getElementById("loggedInView").style.display = "block";
   })();
   </script>

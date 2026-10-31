@@ -1,7 +1,6 @@
 /* =========================================================================================================
    Robosaints 1307 – modern.css
    The site theme. Load AFTER Bootstrap, in the <head> of every page.
-   Edit the tokens below to retune the whole site.
 
    CONTENTS
      1. Tokens
@@ -33,7 +32,7 @@
   --line:   #D3DEF0;   /* hairlines and borders                           */
   --ink:    #0C1A33;   /* body text                                       */
   --muted:  #5B6B85;   /* secondary text                                  */
-  --cut:    18px;      /* size of the signature clipped corner            */
+  --cut:    18px;        /* size of the signature clipped corner            */
 
   --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --body:    "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;

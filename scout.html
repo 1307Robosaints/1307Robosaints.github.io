@@ -1,10 +1,20 @@
 <!DOCTYPE html>
+<!-- =========================================================================================================
+     scout.html  –  where scouting data is entered.
+     Two views, chosen by the script at the bottom based on the person's access level:
+       #teamView   staff + students: pick an event, then enter Match or Pit data and see recent entries
+       #guestView  everyone else: type or scan a share code to read a limited slice of data
+     The form fields are not hard-coded. They come from the scout_fields table (staff edit them in the portal),
+     and each field has a "scope" of match or pit that decides which tab it appears on.
+     ========================================================================================================= -->
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Scout – 1307scout</title>
+
+  <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -12,6 +22,7 @@
   <style>
     .scout-wrap { max-width: 720px; margin: 0 auto; }
 
+    /* White card that holds the entry form */
     .entry-form-card {
       background: var(--white);
       border: 1px solid var(--line);
@@ -29,7 +40,7 @@
     }
     .scout-tab.active { color: var(--navy); border-bottom-color: var(--blue); }
 
-    /* Section headings inside the dynamic form */
+    /* Section headings inside the dynamic form (Auto, Teleop, Endgame, ...) */
     .field-section-heading {
       font-family: var(--display);
       font-size: .8rem;
@@ -51,6 +62,7 @@
     .entry-table tbody tr:nth-child(even) { background: var(--paper); }
     .entry-table tbody tr:hover { background: var(--tint); }
 
+    /* Small square edit / delete buttons in the table's Actions column */
     .btn-icon {
       background: none; border: 1px solid var(--line); color: var(--muted);
       padding: .2rem .45rem; font-size: .78rem; cursor: pointer; clip-path: none;
@@ -59,6 +71,7 @@
     .btn-icon:hover { background: var(--tint); color: var(--navy); }
     .btn-icon.danger:hover { background: #fde8e8; color: #c0392b; border-color: #c0392b; }
 
+    /* Event dropdown bar */
     .event-selector {
       background: var(--white);
       border: 1px solid var(--line);
@@ -77,6 +90,7 @@
       max-width: 460px; margin: 2rem auto;
     }
 
+    /* Toast notifications (bottom-right pop-ups created by toast() in the script) */
     #toastWrap {
       position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
       display: flex; flex-direction: column; gap: .5rem;
@@ -91,6 +105,7 @@
     .toast-msg.err { border-left-color: #c0392b; }
     @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+    /* "DRAFT" tag shown when an entry was saved offline */
     .draft-badge {
       display: inline-block;
       background: #f0ad4e; color: #fff;
@@ -102,7 +117,7 @@
 </head>
 <body>
 
-  <!-- Navigation -->
+  <!-- ===== Navigation (scouting pages use their own shorter menu) ===== -->
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
@@ -116,6 +131,7 @@
           <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
           <li class="nav-item"><a class="nav-link active" href="/scout.html">Scout</a></li>
           <li class="nav-item"><a class="nav-link" href="/query.html">Team Database</a></li>
+          <!-- Staff only: the script un-hides this for staff -->
           <li class="nav-item" id="portalLink" style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
           <li class="nav-item"><a class="nav-link" href="/account.html">My Account</a></li>
         </ul>
@@ -123,12 +139,15 @@
     </div>
   </nav>
 
-  <!-- ── TEAM VIEW (staff + students) ── -->
+  <!-- ══════════════════════════════════════════════════════════
+       TEAM VIEW (staff + students)
+  ══════════════════════════════════════════════════════════ -->
   <div class="container" id="teamView" style="display:none; padding-top:2rem;">
     <div class="scout-wrap">
       <h1 class="mt-4 mb-1">Scout</h1>
       <p class="text-muted mb-3" style="font-size:.95rem;">Record pit data and match data for the current event.</p>
 
+      <!-- Step 1: choose the event (filled from the events table) -->
       <div class="event-selector">
         <div class="form-group">
           <label for="eventSel">Event</label>
@@ -136,12 +155,13 @@
         </div>
       </div>
 
+      <!-- Step 2: choose what you're recording -->
       <div class="scout-tabs" role="tablist">
         <button type="button" class="scout-tab active" data-mode="match">Match Scouting</button>
         <button type="button" class="scout-tab" data-mode="pit">Pit Scouting</button>
       </div>
 
-      <!-- Dynamic entry form (fields depend on the active tab) -->
+      <!-- Step 3: the entry form. Team/match boxes are fixed; everything inside #dynamicFields is built from scout_fields. -->
       <div class="entry-form-card" id="entryFormCard" style="display:none;">
         <h3 style="font-size:1.05rem; margin-bottom:1rem;" id="entryFormTitle">New Match Entry</h3>
 
@@ -150,6 +170,7 @@
             <label for="fTeam">Team #</label>
             <input type="number" id="fTeam" class="form-control" min="1" max="99999" required>
           </div>
+          <!-- Match number only applies to match scouting; pit mode hides this group -->
           <div class="form-group col-6 col-md-4" id="matchGroup">
             <label for="fMatch">Match # <small class="text-muted">(optional)</small></label>
             <input type="number" id="fMatch" class="form-control" min="1" max="500">
@@ -158,10 +179,11 @@
 
         <div id="dynamicFields"><!-- built from scout_fields --></div>
 
-        <input type="hidden" id="entryId">
+        <input type="hidden" id="entryId"><!-- id of the entry being edited, empty for a new one -->
         <div class="d-flex" style="gap:.5rem; margin-top:1.25rem;">
           <button class="btn btn-primary" id="entrySave">Save Entry</button>
           <button class="btn btn-outline-secondary btn-sm d-none" id="entryCancel">Cancel edit</button>
+          <!-- Shown when a save failed because the device is offline -->
           <span id="draftIndicator" style="display:none; align-self:center;">
             <span class="draft-badge">DRAFT</span>
             <small class="text-muted ml-1">Saved locally — will submit when online.</small>
@@ -188,7 +210,9 @@
     </div>
   </div>
 
-  <!-- ── GUEST VIEW ── -->
+  <!-- ══════════════════════════════════════════════════════════
+       GUEST VIEW (signed in, but not staff or student)
+  ══════════════════════════════════════════════════════════ -->
   <div class="container" id="guestView" style="display:none;">
     <div class="guest-card mt-5">
       <h1 style="font-size:1.5rem;">View Shared Data</h1>
@@ -202,14 +226,16 @@
     </div>
   </div>
 
+  <!-- Container for toast pop-ups -->
   <div id="toastWrap"></div>
 
-  <!-- Footer -->
+  <!-- ===== Footer (same on every page) ===== -->
   <footer class="py-5" id="bottomrow">
     <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
     <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
     <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
     <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <!-- Font Awesome 4.7 has no TikTok logo, so this one is an inline SVG -->
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
       </svg>
@@ -219,6 +245,7 @@
     </div>
   </footer>
 
+  <!-- ===== Scripts ===== -->
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -226,9 +253,10 @@
   <script src="/js/auth.js"></script>
   <script>
   (async function () {
-    var sb = RS.sb;
+    var sb = RS.sb;   // Supabase client created by auth.js
 
     // ── Helpers ──────────────────────────────────────────────────────
+    // Pop a short message in the bottom-right corner (red when err is true)
     function toast(msg, err) {
       var d = document.createElement("div");
       d.className = "toast-msg" + (err ? " err" : "");
@@ -236,6 +264,7 @@
       document.getElementById("toastWrap").appendChild(d);
       setTimeout(function () { d.remove(); }, 3200);
     }
+    // Escape text before putting it into innerHTML so scouted text can't inject markup
     function esc(s) {
       return String(s == null ? "" : s)
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -243,21 +272,26 @@
     function get(id) { return document.getElementById(id); }
 
     // ── Check hash for guest share code ──────────────────────────────
+    // Share links look like /scout.html#code=XXXX. Grab the code, then clean the URL so it isn't left in history.
     var hashCode = new URLSearchParams(location.hash.slice(1)).get("code");
     if (hashCode) history.replaceState(null, "", location.pathname);
 
     // ── Auth / access level ──────────────────────────────────────────
     var s = (await sb.auth.getSession()).data.session;
     if (!s) {
+      // Not signed in: remember the code so it survives the trip through the sign-in page
       if (hashCode) sessionStorage.setItem("rs_code", hashCode);
       location.replace("signin.html"); return;
     }
+    // my_access_level() is a database function returning 'staff', 'student', or 'guest'
     var lvl = (await sb.rpc("my_access_level")).data || "guest";
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
 
     if (isStaff) get("portalLink").style.display = "";
 
     // ── Offline draft queue (match entries only) ─────────────────────
+    // If a save fails because the device is offline, the entry is stored in localStorage and
+    // re-sent by flushDrafts() when the connection comes back.
     var DRAFT_KEY = "rs_drafts";
     function getDrafts() {
       try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "[]"); } catch(e) { return []; }
@@ -265,6 +299,7 @@
     function saveDrafts(arr) {
       try { localStorage.setItem(DRAFT_KEY, JSON.stringify(arr)); } catch(e) {}
     }
+    // Try to send every stored draft; keep only the ones that still fail
     async function flushDrafts() {
       var drafts = getDrafts();
       if (!drafts.length) return;
@@ -283,14 +318,17 @@
     // ── GUEST VIEW ───────────────────────────────────────────────────
     if (!isTeam) {
       get("guestView").style.display = "";
+      // Use the code from the link (or one saved before sign-in) and load it right away
       var code = hashCode || sessionStorage.getItem("rs_code") || "";
       if (code) { sessionStorage.removeItem("rs_code"); get("guestCode").value = code; loadGuest(code); }
       get("guestLoad").addEventListener("click", function () {
         loadGuest(get("guestCode").value.trim());
       });
-      return;
+      return;   // guests never reach the team code below
     }
 
+    // Ask the database for the entries a share code allows, and draw them as a table.
+    // (A function declaration, so it's available above even though it's written here.)
     async function loadGuest(code) {
       if (!code) return;
       var r = await sb.rpc("get_shared_scouting", { p_code: code });
@@ -313,6 +351,13 @@
     // ── TEAM VIEW ────────────────────────────────────────────────────
     get("teamView").style.display = "";
 
+    // State for the page:
+    //   events / fields   rows from the events and scout_fields tables
+    //   allEntries        match entries for the selected event;  allPit  its pit entries
+    //   currentEvent      the selected event row
+    //   editingId         id of the entry being edited (null = creating a new one)
+    //   mode              "match" or "pit" (the active tab)
+    //   filterVal         text typed in the "Filter by team #" box
     var events = [], fields = [], allEntries = [], allPit = [];
     var currentEvent = null, editingId = null, mode = "match", filterVal = "";
 
@@ -321,6 +366,7 @@
       return fields.filter(function (f) { return (f.scope || "match") === mode; });
     }
 
+    // Fill the event dropdown, newest first, and select the most recent event
     async function loadEvents() {
       var r = await sb.from("events").select("*").order("event_date", { ascending: false });
       if (r.error) { toast("Couldn't load events.", true); return; }
@@ -336,6 +382,7 @@
       if (events.length) { sel.value = events[0].id; handleEventChange(); }
     }
 
+    // Load the form definition (only fields staff have left active), then build the form
     async function loadFields() {
       var r = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
       if (r.error) { toast("Couldn't load form fields.", true); return; }
@@ -349,6 +396,7 @@
       container.innerHTML = "";
       var currentSection = null;
       activeFields().forEach(function(f) {
+        // Start a new heading whenever the section name changes
         if (f.section !== currentSection) {
           currentSection = f.section;
           var h = document.createElement("div");
@@ -359,6 +407,7 @@
         var group = document.createElement("div");
         group.className = "form-group";
 
+        // Yes/No fields: a single checkbox
         if (f.field_type === "boolean") {
           var wrap = document.createElement("div");
           wrap.className = "custom-control custom-checkbox mb-2";
@@ -374,6 +423,7 @@
           return;
         }
 
+        // Everything else: a label plus a number box, text box, or dropdown
         var label = document.createElement("label");
         label.htmlFor = "field_" + f.key;
         label.textContent = f.label + (f.required ? " *" : "");
@@ -401,7 +451,7 @@
             input.appendChild(o);
           });
         }
-        input.id = "field_" + f.key;
+        input.id = "field_" + f.key;   // getFormValues / setFormValues find inputs by this id
         input.dataset.fieldKey = f.key;
         input.dataset.fieldType = f.field_type;
         group.appendChild(input);
@@ -409,6 +459,7 @@
       });
     }
 
+    // Read the form into a { key: value } object. Blank boxes are left out; unchecked boxes save as false.
     function getFormValues() {
       var data = {};
       activeFields().forEach(function(f) {
@@ -426,6 +477,7 @@
       return data;
     }
 
+    // The reverse: put a saved { key: value } object back into the form (used when editing)
     function setFormValues(data) {
       data = data || {};
       activeFields().forEach(function(f) {
@@ -439,6 +491,7 @@
       });
     }
 
+    // Clear the form and return it to "new entry" state
     function resetEntryForm() {
       get("fTeam").value = ""; get("fMatch").value = "";
       activeFields().forEach(function(f) {
@@ -458,6 +511,7 @@
     }
 
     // ── Tabs ─────────────────────────────────────────────────────────
+    // Switch between Match and Pit: rebuild the form for that scope and redraw the table
     function setMode(m) {
       mode = m;
       document.querySelectorAll(".scout-tab").forEach(function(b) {
@@ -476,10 +530,12 @@
 
     get("entryCancel").addEventListener("click", resetEntryForm);
 
+    // ── Event selection ──────────────────────────────────────────────
     get("eventSel").addEventListener("change", handleEventChange);
     function handleEventChange() {
       var id = get("eventSel").value;
       currentEvent = events.find(function(e){ return e.id === id; }) || null;
+      // Form and table only appear once an event is chosen
       get("entryFormCard").style.display = currentEvent ? "" : "none";
       get("entriesSection").style.display = currentEvent ? "" : "none";
       if (currentEvent) loadEntries();
@@ -500,7 +556,7 @@
       }
     });
 
-    // Load match and pit entries for the current event
+    // Match entry query: staff see everyone's entries; students only see their own
     var entryQuery = isStaff
       ? function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).order("created_at", { ascending: false }).limit(500); }
       : function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).eq("scouted_by", s.user.id).order("created_at", { ascending: false }).limit(200); };
@@ -510,6 +566,7 @@
       renderEntries();
     });
 
+    // Load match and pit entries for the current event (in parallel), then redraw
     async function loadEntries() {
       if (!currentEvent) return;
       var evId = currentEvent.id;
@@ -524,6 +581,7 @@
       renderEntries();
     }
 
+    // True if the entry's team number contains whatever is typed in the filter box
     function matchesFilter(entry) {
       return !filterVal || String(entry.team_number).includes(filterVal);
     }
@@ -532,6 +590,7 @@
       if (mode === "pit") renderPitTable(); else renderMatchTable();
     }
 
+    // Draw the match table: one column per active match field, plus team, match, and actions
     function renderMatchTable() {
       var thead = document.querySelector("#entryTable thead");
       var tbody = document.querySelector("#entryTable tbody");
@@ -556,6 +615,7 @@
           if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
           else cells.push(esc(v));
         });
+        // Staff can change any entry; students only the ones they scouted
         var canEdit = isStaff || entry.scouted_by === userId;
         var actions = canEdit
           ? '<button class="btn-icon mr-1" onclick="editEntry(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
@@ -568,6 +628,7 @@
       get("entriesHeading").textContent = "Entries (" + allEntries.length + ")";
     }
 
+    // Draw the pit table (same idea, one row per team, no match number)
     function renderPitTable() {
       var thead = document.querySelector("#entryTable thead");
       var tbody = document.querySelector("#entryTable tbody");
@@ -622,6 +683,7 @@
       var data = getFormValues();
       if (mode === "pit") { await savePit(team, data); return; }
 
+      // Match entry: update the existing row when editing, otherwise insert a new one
       var payload = { event_id: currentEvent.id, team_number: team, match_number: match,
                       data: data, scouted_by: s.user.id };
 
@@ -650,6 +712,7 @@
       loadEntries();
     });
 
+    // Pit entries have no draft queue: they're saved straight to the server
     async function savePit(team, data) {
       var payload = { event_id: currentEvent.id, team_number: team, data: data,
                       scouted_by: s.user.id, updated_at: new Date().toISOString() };
@@ -662,6 +725,7 @@
     }
 
     // ── Edit / delete ────────────────────────────────────────────────
+    // These are attached to window because the table buttons call them from inline onclick attributes.
     window.editEntry = function(id) {
       var entry = allEntries.find(function(e){ return e.id === id; });
       if (!entry) return;
@@ -710,6 +774,7 @@
     window.addEventListener("online", function() { flushDrafts(); });
 
     // ── Boot ─────────────────────────────────────────────────────────
+    // Fields first (the form needs them), then events (which triggers loading entries), then any waiting drafts
     await loadFields();
     await loadEvents();
     flushDrafts();

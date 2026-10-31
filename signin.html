@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- =========================================================================================================
+     signin.html  –  sign in, create account, forgot password, and reset password, all on one page.
+     One card holds four <form>s; only one is visible at a time (show() in the script toggles them):
+       #signinForm  #signupForm  #forgotForm  #resetForm
+     Every action that talks to Supabase is protected by an invisible hCaptcha check (getToken()).
+     ========================================================================================================= -->
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
@@ -6,7 +12,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Sign In</title>
 
-  <!--Stylepack-->
+  <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -18,6 +24,7 @@
     .auth-card h1 { font-size: 1.6rem; margin-bottom: .25rem; }
     .auth-card .btn-navy { width: 100%; }
     .auth-card .btn-navy:disabled { opacity: .6; }
+    /* "or" divider between the form and the Google button */
     .auth-or { display:flex; align-items:center; margin:1.25rem 0 1rem; color:var(--muted); font-size:.9rem; }
     .auth-or::before, .auth-or::after { content:""; flex:1; border-top:1px solid var(--line); }
     .auth-or span { padding:0 .75rem; }
@@ -25,7 +32,7 @@
 </head>
 
 <body>
-  <!-- Navigation -->
+  <!-- ===== Navigation (auth.js adds its own Sign In / My Account link) ===== -->
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="index.html"><img src="img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307</a>
@@ -70,18 +77,22 @@
     </div>
   </nav>
 
+  <!-- ===== Auth card ===== -->
   <div class="auth-wrap">
     <div class="auth-card">
       <h1>1307scout Login</h1>
       <p class="sub">Log in to access scouting data from 1307scout.</p>
 
+      <!-- Tabs switch between the sign-in and create-account forms -->
       <div class="auth-tabs" role="tablist">
         <button type="button" id="tabIn" class="active">Sign in</button>
         <button type="button" id="tabUp">Create account</button>
       </div>
 
+      <!-- Status message area (errors, success notes). msg() in the script fills it in. -->
       <div id="msg" class="alert d-none" role="alert" aria-live="polite"></div>
 
+      <!-- Form 1: sign in with email + password -->
       <form id="signinForm" novalidate>
         <div class="form-group"><label for="inEmail">Email</label>
           <input id="inEmail" type="email" class="form-control" autocomplete="email" required></div>
@@ -90,10 +101,12 @@
         <button class="btn btn-navy" type="submit">Sign in</button>
         <div class="mt-3 d-flex justify-content-between">
           <button type="button" class="auth-link" id="toForgot">Forgot password?</button>
+          <!-- Hidden until we know the account exists but isn't verified yet -->
           <button type="button" class="auth-link d-none" id="resendBtn">Resend verification email</button>
         </div>
       </form>
 
+      <!-- Form 2: create an account (hidden until the "Create account" tab is clicked) -->
       <form id="signupForm" class="d-none" novalidate>
         <div class="form-group"><label for="upName">Your name</label>
           <input id="upName" type="text" class="form-control" maxlength="60" autocomplete="name" required></div>
@@ -105,10 +118,12 @@
           <small class="form-text text-muted">At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.</small></div>
         <div class="form-group"><label for="upPass2">Confirm password</label>
           <input id="upPass2" type="password" class="form-control" autocomplete="new-password" required></div>
+        <!-- Spam trap: hidden from people, bots fill it in (checked in the signup handler) -->
         <div class="hp" aria-hidden="true"><label>Leave blank<input id="upWebsite" type="text" tabindex="-1" autocomplete="off"></label></div>
         <button class="btn btn-navy" type="submit">Create account</button>
       </form>
 
+      <!-- Form 3: "forgot password" asks for an email and sends a reset link -->
       <form id="forgotForm" class="d-none" novalidate>
         <div class="form-group"><label for="fgEmail">Email</label>
           <input id="fgEmail" type="email" class="form-control" autocomplete="email" required></div>
@@ -116,17 +131,20 @@
         <div class="mt-3"><button type="button" class="auth-link" id="backIn">Back to sign in</button></div>
       </form>
 
+      <!-- Form 4: choose a new password (only shown after clicking the reset link in the email) -->
       <form id="resetForm" class="d-none" novalidate>
         <div class="form-group"><label for="rsPass">New password</label>
           <input id="rsPass" type="password" class="form-control" minlength="8" autocomplete="new-password" required></div>
         <button class="btn btn-navy" type="submit">Save new password</button>
       </form>
 
+      <!-- Google sign-in (hidden on the forgot/reset forms) -->
       <div id="oauthBox">
         <div class="auth-or"><span>or</span></div>
         <button type="button" class="btn btn-outline-dark btn-block" data-provider="google">Continue with Google</button>
         <small class="form-text text-muted mt-2">Team 1307 members: use your school Google account (stalux.org) to get full access.</small>
       </div>
+      <!-- The invisible hCaptcha widget is rendered into this empty box -->
       <div id="captchaBox"></div>
       <p class="text-muted mt-3 mb-0" style="font-size:.75rem">Protected by hCaptcha. Its
         <a href="https://www.hcaptcha.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> and
@@ -134,12 +152,13 @@
     </div>
   </div>
 
-  <!-- Footer -->
+  <!-- ===== Footer (same on every page) ===== -->
   <footer class="py-5" id="bottomrow">
     <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
     <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
     <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
     <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <!-- Font Awesome 4.7 has no TikTok logo, so this one is an inline SVG -->
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
       </svg>
@@ -149,6 +168,7 @@
     </div>
   </footer>
 
+  <!-- ===== Scripts ===== -->
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -157,23 +177,29 @@
   <script src="/js/auth.js"></script>
   <script>
   (function () {
-    var sb = RS.sb, $ = function (id) { return document.getElementById(id); };
-    var FORMS = ["signin", "signup", "forgot", "reset"];
+    var sb = RS.sb, $ = function (id) { return document.getElementById(id); };   // sb = Supabase client from auth.js
+
+    // ── Constants and validation helpers ─────────────────────────────
+    var FORMS = ["signin", "signup", "forgot", "reset"];   // ids are these names + "Form"
+    // Throwaway-email domains we refuse at sign-up (Supabase also rejects them server-side)
     var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
-    var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;           // loose "looks like an email" check
     var PW_MIN = 8;
     var PW_RULES = "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol.";
     function pwOk(p) {
       return p.length >= PW_MIN && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
     }
-    var lastEmail = "";
+    var lastEmail = "";   // remembered so "Resend verification email" knows who to send to
 
+    // ── UI helpers ───────────────────────────────────────────────────
+    // Show a message in the alert box (type = Bootstrap alert color). Call msg() with no text to hide it.
     function msg(type, text) {
       var m = $("msg");
       if (!text) { m.className = "alert d-none"; return; }
       m.className = "alert alert-" + type;
       m.textContent = text;
     }
+    // Show one form (by name) and hide the others; also highlights the matching tab and clears any message.
     function show(name) {
       FORMS.forEach(function (f) { $(f + "Form").classList.toggle("d-none", f !== name); });
       $("tabIn").classList.toggle("active", name === "signin");
@@ -181,6 +207,7 @@
       $("oauthBox").classList.toggle("d-none", name === "forgot" || name === "reset");
       msg();
     }
+    // Disable a button and count down in its label (used to rate-limit "Resend")
     function cooldown(btn, secs) {
       btn.disabled = true;
       var label = btn.textContent, left = secs;
@@ -189,8 +216,11 @@
         if (left <= 0) { clearInterval(t); btn.disabled = false; btn.textContent = label; }
       }, 1000);
     }
+
+    // ── hCaptcha (invisible) ─────────────────────────────────────────
     var SITEKEY = "35e84180-6c12-4882-8bf6-daec3d6cc80a"; // public by design
-    var capId = null;
+    var capId = null;   // widget id, created on first use
+    // Returns a Promise for a fresh captcha token. Waits up to ~8s for the hCaptcha script to load.
     function getToken() {
       return new Promise(function (resolve, reject) {
         var tries = 0;
@@ -203,13 +233,16 @@
       });
     }
     var CAPFAIL = "The robot check didn't complete. Please try again.";
+    // Turn a page name into a full URL (used for the links inside Supabase emails)
     function redirect(page) { return new URL(page, location.href).href; }
 
+    // ── Tab and link buttons ─────────────────────────────────────────
     $("tabIn").onclick = function () { show("signin"); };
     $("tabUp").onclick = function () { show("signup"); };
     $("toForgot").onclick = function () { show("forgot"); };
     $("backIn").onclick = function () { show("signin"); };
 
+    // ── Sign in ──────────────────────────────────────────────────────
     $("signinForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       var email = $("inEmail").value.trim(), pass = $("inPass").value;
@@ -220,14 +253,16 @@
       if (r.error) {
         if (/captcha/i.test(r.error.message)) return msg("danger", CAPFAIL);
         if (/not confirmed/i.test(r.error.message)) {
+          // Right password, but the email link hasn't been clicked yet
           $("resendBtn").classList.remove("d-none");
           return msg("warning", "Verify your email first. Check your inbox for our link, or resend it below.");
         }
-        return msg("danger", "Incorrect email or password.");
+        return msg("danger", "Incorrect email or password.");   // deliberately vague: doesn't say which part was wrong
       }
       location.href = "account.html";
     });
 
+    // ── Create account ───────────────────────────────────────────────
     $("signupForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       if ($("upWebsite").value) return; // honeypot tripped: silently drop
@@ -253,6 +288,7 @@
       msg("success", "Check your inbox. Click the link we sent to verify your email, then sign in.");
     });
 
+    // ── Resend verification email ────────────────────────────────────
     $("resendBtn").onclick = async function () {
       var email = lastEmail || $("inEmail").value.trim();
       if (!EMAIL.test(email)) return msg("danger", "Enter your email above first.");
@@ -262,15 +298,17 @@
       cooldown($("resendBtn"), 60);
     };
 
+    // ── Forgot password: email a reset link ──────────────────────────
     $("forgotForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       var email = $("fgEmail").value.trim();
       if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
       var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
       await sb.auth.resetPasswordForEmail(email, { redirectTo: redirect("signin.html"), captchaToken: tok });
-      msg("success", "If an account exists for that email, a reset link is on its way.");
+      msg("success", "If an account exists for that email, a reset link is on its way.");   // same message either way
     });
 
+    // ── Reset password: runs after the person clicks the link in that email ──
     $("resetForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       var p = $("rsPass").value;
@@ -280,6 +318,7 @@
       location.href = "account.html";
     });
 
+    // ── Google sign-in ───────────────────────────────────────────────
     document.querySelectorAll("[data-provider]").forEach(function (b) {
       b.onclick = async function () {
         var r = await sb.auth.signInWithOAuth({ provider: b.dataset.provider, options: { redirectTo: redirect("account.html") } });
@@ -287,7 +326,10 @@
       };
     });
 
+    // ── On load ──────────────────────────────────────────────────────
+    // Arriving from a password-reset email: Supabase fires PASSWORD_RECOVERY, so show the "new password" form.
     sb.auth.onAuthStateChange(function (ev) { if (ev === "PASSWORD_RECOVERY") show("reset"); });
+    // Already signed in? Skip this page (unless this is a recovery link, which also carries a session).
     sb.auth.getSession().then(function (r) {
       if (r.data.session && !/type=recovery/.test(location.hash)) location.href = "account.html";
     });
