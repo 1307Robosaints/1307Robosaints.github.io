@@ -18,6 +18,13 @@ $(function () {
     emailjs.init({ publicKey: cfg.emailjs.publicKey });
   }
 
+  // Escape user input so it can't inject HTML into the emails
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function showAlert(type, text) {
     var $a = $('<div class="alert alert-dismissible"></div>').addClass("alert-" + type);
     $a.append($('<button type="button" class="close" data-dismiss="alert" aria-label="Close">&times;</button>'));
@@ -45,7 +52,11 @@ $(function () {
       return;
     }
 
-    // Group topics by recipient so each address gets one email
+    var name  = $("#name").val().trim();
+    var email = $("#email").val().trim();
+    var allTopics = chosen.map(function (t) { return t.label; }).join(", ");
+
+    // Group recipients so each address gets one email
     var byEmail = {};
     chosen.forEach(function (t) {
       [].concat(t.email).forEach(function (addr) {
@@ -53,12 +64,14 @@ $(function () {
       });
     });
 
+    // Fields shared by every email. Display values are escaped; reply_to is the raw address.
     var base = {
-      from_name:  $("#name").val().trim(),
-      from_email: $("#email").val().trim(),
-      reply_to:   $("#email").val().trim(),
-      phone:      $("#phone").val().trim() || "(not provided)",
-      message:    $("#message").val().trim()
+      from_name:  esc(name),
+      from_email: esc(email),
+      reply_to:   email,
+      phone:      esc($("#phone").val().trim() || "(not provided)"),
+      topics:     esc(allTopics),
+      message:    esc($("#message").val().trim()).replace(/\n/g, "<br>")
     };
 
     var $btn = $("#sendMessageButton").prop("disabled", true);
@@ -66,14 +79,23 @@ $(function () {
     var sends = Object.keys(byEmail).map(function (addr) {
       var params = $.extend({}, base, {
         to_email: addr,
-        topics:   byEmail[addr].join(", "),
         subject:  "Website contact: " + byEmail[addr].join(", ")
       });
       return emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.templateId, params);
     });
 
-    Promise.all(sends).then(function () {
-      showAlert("success", "Your message has been sent. Thank you!");
+    // Copy to the person who submitted the form. A failure here doesn't fail the whole submit.
+    var copySend = emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.copyTemplateId, $.extend({}, base, {
+      to_email: email,
+      subject:  "Copy of your message to STA Robotics Team 1307"
+    })).then(function () { return true; }, function () { return false; });
+    sends.push(copySend);
+
+    Promise.all(sends).then(function (results) {
+      var copied = results[results.length - 1];
+      var text = "Your message has been sent. Thank you!";
+      if (copied) text += " A copy was sent to " + email + ".";
+      showAlert("success", text);
       $form[0].reset();
       $form.removeClass("was-validated");
     }).catch(function () {

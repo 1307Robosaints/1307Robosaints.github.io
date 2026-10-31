@@ -8,9 +8,10 @@ window.CONTACT_CONFIG = {
   emailjs: {
     publicKey:  "Z9Esvx7YWvJ9GE_bg",
     serviceId:  "service_sjmfz5n",
-    templateId: "template_tmpii4j"
+    templateId:     "template_tmpii4j",     // staff notification
+    copyTemplateId: "template_kn9cdzg"   // copy sent to the person who submitted
   },
-
+  
   /* ---------- 2. CHECKBOXES + WHO GETS THE EMAIL ----------
      To add a new checkbox, copy one line and change it:
 
@@ -23,11 +24,11 @@ window.CONTACT_CONFIG = {
   ------------------------------------------------------------------ */
   topics: [
     // >>>>>>>>>>>>>>>>>>>>>>  EDIT BELOW THIS LINE  <<<<<<<<<<<<<<<<<<<<<<
-    { label: "Sponsorships",          email: "robotics@stalux.org" },
-    { label: "Joining the team",      email: "robotics@stalux.org" },
-    { label: "Mentoring / volunteering", email: "robotics@stalux.org" },
-    { label: "Outreach & demos",      email: "robotics@stalux.org" },
-    { label: "Something else",        email: "robotics@stalux.org" }
+    { label: "Sponsorships",          email: "robotics@stalux.org, ssenter28@stalux.org, cdemos@stalux.org" },
+    { label: "Joining the team",      email: "robotics@stalux.org, cdemos@stalux.org" },
+    { label: "Mentoring / volunteering", email: "robotics@stalux.org, cdemos@stalux.org" },
+    { label: "Outreach & demos",      email: "robotics@stalux.org, ssenter28@stalux.org, cdemos@stalux.org" },
+    { label: "Something else",        email: "robotics@stalux.org, ssenter28@stalux.org, cdemos@stalux.org" }
     // >>>>>>>>>>>>>>>>>>>>>>  EDIT ABOVE THIS LINE  <<<<<<<<<<<<<<<<<<<<<<
   ]
 };
