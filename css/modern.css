@@ -350,7 +350,7 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
 }
 
 /* ==========================================================
-   Fixes (round 2)
+   Fixes
    ========================================================== */
 
 /* Nav: keep each link on one line; let a long team name wrap instead */
@@ -367,7 +367,7 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
 
 /* ==========================================================
-   Fixes (round 3) – rules carried over from the old main.css
+   Fixes – rules carried over from the old main.css
    ========================================================== */
 
 /* Homepage carousel (this was the missing piece) */
@@ -405,7 +405,7 @@ header .carousel {
 
 
 /* ==========================================================
-   Fixes (round 4) – nav links went white (invisible) on click
+   Fixes – nav links went white (invisible) on click
    Bootstrap's dark navbar sets white text for these states;
    our nav is white, so keep them blue instead.
    ========================================================== */
@@ -424,4 +424,29 @@ header .carousel {
   .navbar-dark .navbar-nav .show > .nav-link::after {
     transform: scaleX(1);
   }
+}
+
+/* ---------- Social icon links (contact page) ---------- */
+.social-links {
+  display: flex;
+  gap: .6rem;
+  margin: .5rem 0 1.25rem;
+}
+.social-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--navy);
+  color: var(--navy);
+  font-size: 1.2rem;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  transition: background-color .15s ease, color .15s ease;
+}
+.social-links a:hover,
+.social-links a:focus-visible {
+  background: var(--blue);
+  color: #fff;
+  text-decoration: none;
 }
