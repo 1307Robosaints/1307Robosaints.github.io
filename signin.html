@@ -102,7 +102,7 @@
           <small class="form-text text-muted">We'll send a link to this address. Your account stays locked until you click it.</small></div>
         <div class="form-group"><label for="upPass">Password</label>
           <input id="upPass" type="password" class="form-control" minlength="8" autocomplete="new-password" required>
-          <small class="form-text text-muted">At least 8 characters.</small></div>
+          <small class="form-text text-muted">At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.</small></div>
         <div class="form-group"><label for="upPass2">Confirm password</label>
           <input id="upPass2" type="password" class="form-control" autocomplete="new-password" required></div>
         <div class="hp" aria-hidden="true"><label>Leave blank<input id="upWebsite" type="text" tabindex="-1" autocomplete="off"></label></div>
@@ -153,6 +153,10 @@
     var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
     var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     var PW_MIN = 8;
+    var PW_RULES = "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol.";
+    function pwOk(p) {
+      return p.length >= PW_MIN && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
+    }
     var lastEmail = "";
 
     function msg(type, text) {
@@ -222,7 +226,7 @@
       if (!name) return msg("danger", "Enter your name.");
       if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
       if (DISPOSABLE.test(email)) return msg("danger", "Please use a permanent email address, not a temporary one.");
-      if (p.length < PW_MIN) return msg("danger", "Password must be at least 8 characters.");
+      if (!pwOk(p)) return msg("danger", PW_RULES);
       if (p !== $("upPass2").value) return msg("danger", "Passwords don't match.");
       lastEmail = email;
       var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
@@ -261,7 +265,7 @@
     $("resetForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       var p = $("rsPass").value;
-      if (p.length < PW_MIN) return msg("danger", "Password must be at least 8 characters.");
+      if (!pwOk(p)) return msg("danger", PW_RULES);
       var r = await sb.auth.updateUser({ password: p });
       if (r.error) return msg("danger", "That link may have expired. Request a new reset link.");
       location.href = "account.html";

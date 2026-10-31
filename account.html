@@ -201,7 +201,7 @@
         <!-- Password: step 1 sends a code, step 2 needs that code to save -->
         <form id="pwForm" novalidate>
           <h3 id="pwTitle">Change password</h3>
-          <p class="section-sub" id="pwSub">For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords must be at least 8 characters.</p>
+          <p class="section-sub" id="pwSub">For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords need at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a symbol.</p>
 
           <div id="pwStep1">
             <button type="button" class="btn btn-outline-secondary" id="pwSendBtn">Email me a verification code</button>
@@ -295,7 +295,11 @@
     var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
     var PW_MIN = 8;
-    var PW_DEFAULT_SUB = "For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords must be at least 8 characters.";
+    var PW_RULES = "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol.";
+    function pwOk(p) {
+      return p.length >= PW_MIN && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
+    }
+    var PW_DEFAULT_SUB = "For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords need at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a symbol.";
 
     // auth.js injects its own "My Account" nav item; keep only the ones written in this page's HTML
     var navUl = document.querySelector("#navbarResponsive .navbar-nav");
@@ -421,7 +425,7 @@
     var hasPassword = providers.indexOf("email") !== -1;
     if (!hasPassword) {
       $("pwTitle").textContent = "Set a password";
-      $("pwSub").textContent = "You signed in with Google. Optionally add a password so you can also sign in with your email. We'll send a 6-digit verification code first. Passwords must be at least 8 characters.";
+      $("pwSub").textContent = "You signed in with Google. Optionally add a password so you can also sign in with your email. We'll send a 6-digit verification code first. Passwords need at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a symbol.";
     }
 
     $("pwNew").addEventListener("input", function () {
@@ -429,7 +433,7 @@
       if (v.length >= 8) score++;
       if (v.length >= 14) score++;
       if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
-      if (/\d/.test(v) || /[^A-Za-z0-9]/.test(v)) score++;
+      if (/\d/.test(v) && /[^A-Za-z0-9]/.test(v)) score++;
       var bar = $("pwBar");
       bar.style.width = (v ? Math.max(score, 1) * 25 : 0) + "%";
       bar.style.background = score <= 1 ? "#c0392b" : score === 2 ? "#d68910" : "#1a7f4b";
@@ -473,7 +477,7 @@
       var code = $("pwCode").value.trim();
       var p = $("pwNew").value;
       if (!/^\d{6}$/.test(code)) return flash(msg, false, "Enter the 6-digit code from your email.");
-      if (p.length < PW_MIN) return flash(msg, false, "Password must be at least 8 characters.");
+      if (!pwOk(p)) return flash(msg, false, PW_RULES);
       if (p !== $("pwNew2").value) return flash(msg, false, "Passwords don't match.");
 
       btn.disabled = true; msg.textContent = "";
