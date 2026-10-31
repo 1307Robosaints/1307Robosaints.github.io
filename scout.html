@@ -20,6 +20,15 @@
       margin-bottom: 2rem;
     }
 
+    /* Mode tabs: Match / Pit */
+    .scout-tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 1.25rem; }
+    .scout-tab {
+      flex: 1; background: none; border: 0; border-bottom: 3px solid transparent;
+      padding: .7rem; font-family: var(--display); font-weight: 600;
+      color: var(--muted); cursor: pointer;
+    }
+    .scout-tab.active { color: var(--navy); border-bottom-color: var(--blue); }
+
     /* Section headings inside the dynamic form */
     .field-section-heading {
       font-family: var(--display);
@@ -33,17 +42,6 @@
       margin: 1.25rem 0 .75rem;
     }
     .field-section-heading:first-child { margin-top: 0; }
-
-    /* Yes/No toggle */
-    .bool-toggle { display: flex; gap: .5rem; }
-    .bool-toggle label {
-      flex: 1; text-align: center; padding: .4rem;
-      border: 1px solid var(--line); cursor: pointer;
-      font-weight: 600; font-size: .9rem;
-      color: var(--muted); margin: 0;
-    }
-    .bool-toggle input { display: none; }
-    .bool-toggle input:checked + label { background: var(--blue); border-color: var(--blue); color: #fff; }
 
     /* Recent entries table */
     .entries-section h3 { font-size: 1.1rem; margin-bottom: .75rem; }
@@ -117,6 +115,7 @@
         <ul class="navbar-nav ml-auto">
           <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
           <li class="nav-item"><a class="nav-link active" href="/scout.html">Scout</a></li>
+          <li class="nav-item"><a class="nav-link" href="/query.html">Team Database</a></li>
           <li class="nav-item" id="portalLink" style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
           <li class="nav-item"><a class="nav-link" href="/account.html">My Account</a></li>
         </ul>
@@ -128,7 +127,7 @@
   <div class="container" id="teamView" style="display:none; padding-top:2rem;">
     <div class="scout-wrap">
       <h1 class="mt-4 mb-1">Scout</h1>
-      <p class="text-muted mb-3" style="font-size:.95rem;">Record match data for the current event.</p>
+      <p class="text-muted mb-3" style="font-size:.95rem;">Record pit data and match data for the current event.</p>
 
       <div class="event-selector">
         <div class="form-group">
@@ -137,16 +136,21 @@
         </div>
       </div>
 
-      <!-- Dynamic entry form -->
+      <div class="scout-tabs" role="tablist">
+        <button type="button" class="scout-tab active" data-mode="match">Match Scouting</button>
+        <button type="button" class="scout-tab" data-mode="pit">Pit Scouting</button>
+      </div>
+
+      <!-- Dynamic entry form (fields depend on the active tab) -->
       <div class="entry-form-card" id="entryFormCard" style="display:none;">
-        <h3 style="font-size:1.05rem; margin-bottom:1rem;" id="entryFormTitle">New Entry</h3>
+        <h3 style="font-size:1.05rem; margin-bottom:1rem;" id="entryFormTitle">New Match Entry</h3>
 
         <div class="form-row">
           <div class="form-group col-6 col-md-4">
             <label for="fTeam">Team #</label>
             <input type="number" id="fTeam" class="form-control" min="1" max="99999" required>
           </div>
-          <div class="form-group col-6 col-md-4">
+          <div class="form-group col-6 col-md-4" id="matchGroup">
             <label for="fMatch">Match # <small class="text-muted">(optional)</small></label>
             <input type="number" id="fMatch" class="form-control" min="1" max="500">
           </div>
@@ -165,7 +169,7 @@
         </div>
       </div>
 
-      <!-- Recent entries -->
+      <!-- Recent entries (match or pit, depending on the tab) -->
       <div class="entries-section" id="entriesSection" style="display:none;">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <h3 id="entriesHeading">Recent entries</h3>
@@ -246,7 +250,7 @@
 
     if (isStaff) get("portalLink").style.display = "";
 
-    // ── Offline draft queue ──────────────────────────────────────────
+    // ── Offline draft queue (match entries only) ─────────────────────
     var DRAFT_KEY = "rs_drafts";
     function getDrafts() {
       try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "[]"); } catch(e) { return []; }
@@ -288,7 +292,7 @@
       if (!r.data.length) { el.innerHTML = '<div class="alert alert-warning">No entries match this code yet.</div>'; return; }
       // Build table from keys in first row's data object
       var dataKeys = Object.keys(r.data[0].data || {});
-      var headers = ["Team", "Match", "Event"].concat(dataKeys.map(function(k){ return k.replace(/_/g," "); }));
+      var headers = ["Team","Match","Event"].concat(dataKeys.map(function(k){ return k.replace(/_/g," "); }));
       var rows = r.data.map(function(row) {
         var cells = [row.team_number, row.match_number || "—", esc(row.event_name)];
         dataKeys.forEach(function(k){ cells.push(esc(row.data[k])); });
@@ -302,9 +306,14 @@
     // ── TEAM VIEW ────────────────────────────────────────────────────
     get("teamView").style.display = "";
 
-    var events = [], fields = [], allEntries = [], currentEvent = null, editingId = null;
+    var events = [], fields = [], allEntries = [], allPit = [];
+    var currentEvent = null, editingId = null, mode = "match", filterVal = "";
 
-    // Load events
+    // Fields shown on the active tab. Fields with no scope count as match fields.
+    function activeFields() {
+      return fields.filter(function (f) { return (f.scope || "match") === mode; });
+    }
+
     async function loadEvents() {
       var r = await sb.from("events").select("*").order("event_date", { ascending: false });
       if (r.error) { toast("Couldn't load events.", true); return; }
@@ -320,7 +329,6 @@
       if (events.length) { sel.value = events[0].id; handleEventChange(); }
     }
 
-    // Load fields and build the form
     async function loadFields() {
       var r = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
       if (r.error) { toast("Couldn't load form fields.", true); return; }
@@ -328,11 +336,12 @@
       buildForm();
     }
 
+    // Build the form for the active tab. Booleans become checkboxes.
     function buildForm() {
       var container = get("dynamicFields");
       container.innerHTML = "";
       var currentSection = null;
-      fields.forEach(function(f) {
+      activeFields().forEach(function(f) {
         if (f.section !== currentSection) {
           currentSection = f.section;
           var h = document.createElement("div");
@@ -342,6 +351,22 @@
         }
         var group = document.createElement("div");
         group.className = "form-group";
+
+        if (f.field_type === "boolean") {
+          var wrap = document.createElement("div");
+          wrap.className = "custom-control custom-checkbox mb-2";
+          var cb = document.createElement("input");
+          cb.type = "checkbox"; cb.className = "custom-control-input";
+          cb.id = "field_" + f.key; cb.dataset.fieldKey = f.key;
+          var cbLabel = document.createElement("label");
+          cbLabel.className = "custom-control-label";
+          cbLabel.htmlFor = cb.id; cbLabel.textContent = f.label;
+          wrap.appendChild(cb); wrap.appendChild(cbLabel);
+          group.appendChild(wrap);
+          container.appendChild(group);
+          return;
+        }
+
         var label = document.createElement("label");
         label.htmlFor = "field_" + f.key;
         label.textContent = f.label + (f.required ? " *" : "");
@@ -350,7 +375,7 @@
         var input;
         if (f.field_type === "number") {
           input = document.createElement("input");
-          input.type = "number"; input.className = "form-control";
+          input.type = "number"; input.step = "any"; input.className = "form-control";
           if (f.min_value != null) input.min = f.min_value;
           if (f.max_value != null) input.max = f.max_value;
         } else if (f.field_type === "text") {
@@ -368,23 +393,6 @@
             o.value = opt; o.textContent = opt;
             input.appendChild(o);
           });
-        } else if (f.field_type === "boolean") {
-          var wrap = document.createElement("div");
-          wrap.className = "bool-toggle";
-          ["Yes","No"].forEach(function(val) {
-            var inp = document.createElement("input");
-            inp.type = "radio"; inp.name = "field_" + f.key;
-            inp.id = "field_" + f.key + "_" + val;
-            inp.value = val === "Yes" ? "true" : "false";
-            var lbl = document.createElement("label");
-            lbl.htmlFor = inp.id; lbl.textContent = val;
-            wrap.appendChild(inp); wrap.appendChild(lbl);
-          });
-          wrap.dataset.fieldKey = f.key;
-          wrap.dataset.fieldType = "boolean";
-          group.appendChild(wrap);
-          container.appendChild(group);
-          return; // boolean handled above
         }
         input.id = "field_" + f.key;
         input.dataset.fieldKey = f.key;
@@ -396,41 +404,40 @@
 
     function getFormValues() {
       var data = {};
-      fields.forEach(function(f) {
+      activeFields().forEach(function(f) {
         if (f.field_type === "boolean") {
-          var checked = document.querySelector('input[name="field_' + f.key + '"]:checked');
-          if (checked) data[f.key] = checked.value === "true";
-        } else {
-          var el = get("field_" + f.key);
-          if (!el) return;
-          var val = el.value.trim();
-          if (val === "") return;
-          data[f.key] = f.field_type === "number" ? parseFloat(val) : val;
+          var cb = get("field_" + f.key);
+          data[f.key] = !!(cb && cb.checked);   // unchecked is saved as false
+          return;
         }
+        var el = get("field_" + f.key);
+        if (!el) return;
+        var val = el.value.trim();
+        if (val === "") return;
+        data[f.key] = f.field_type === "number" ? parseFloat(val) : val;
       });
       return data;
     }
 
     function setFormValues(data) {
-      fields.forEach(function(f) {
+      data = data || {};
+      activeFields().forEach(function(f) {
         if (f.field_type === "boolean") {
-          var v = data[f.key];
-          if (v != null) {
-            var radio = document.querySelector('input[name="field_' + f.key + '"][value="' + v + '"]');
-            if (radio) radio.checked = true;
-          }
-        } else {
-          var el = get("field_" + f.key);
-          if (el && data[f.key] != null) el.value = data[f.key];
+          var cb = get("field_" + f.key);
+          if (cb) cb.checked = !!data[f.key];
+          return;
         }
+        var el = get("field_" + f.key);
+        if (el && data[f.key] != null) el.value = data[f.key];
       });
     }
 
     function resetEntryForm() {
       get("fTeam").value = ""; get("fMatch").value = "";
-      fields.forEach(function(f) {
+      activeFields().forEach(function(f) {
         if (f.field_type === "boolean") {
-          document.querySelectorAll('input[name="field_' + f.key + '"]').forEach(function(r){ r.checked = false; });
+          var cb = get("field_" + f.key);
+          if (cb) cb.checked = false;
         } else {
           var el = get("field_" + f.key);
           if (el) el.value = "";
@@ -438,9 +445,27 @@
       });
       editingId = null;
       get("entryId").value = "";
-      get("entryFormTitle").textContent = "New Entry";
+      get("entryFormTitle").textContent = mode === "pit" ? "New Pit Entry" : "New Match Entry";
+      get("entrySave").textContent = mode === "pit" ? "Save Pit Entry" : "Save Entry";
       get("entryCancel").classList.add("d-none");
     }
+
+    // ── Tabs ─────────────────────────────────────────────────────────
+    function setMode(m) {
+      mode = m;
+      document.querySelectorAll(".scout-tab").forEach(function(b) {
+        b.classList.toggle("active", b.dataset.mode === m);
+      });
+      get("matchGroup").style.display = m === "match" ? "" : "none";
+      get("draftIndicator").style.display = "none";
+      get("entriesHeading").textContent = m === "pit" ? "Pit entries" : "Entries";
+      buildForm();
+      resetEntryForm();
+      renderEntries();
+    }
+    document.querySelectorAll(".scout-tab").forEach(function(btn) {
+      btn.addEventListener("click", function () { setMode(btn.dataset.mode); });
+    });
 
     get("entryCancel").addEventListener("click", resetEntryForm);
 
@@ -454,12 +479,25 @@
       resetEntryForm();
     }
 
-    // Load entries for current event
+    // In pit mode, typing a team that already has a pit entry loads it for editing
+    get("fTeam").addEventListener("change", function () {
+      if (mode !== "pit") return;
+      var t = parseInt(this.value, 10);
+      var existing = allPit.find(function(e){ return e.team_number === t; });
+      editingId = existing ? existing.id : null;
+      if (existing) {
+        setFormValues(existing.data);
+        get("entryFormTitle").textContent = "Editing pit entry – Team " + t;
+        get("entryCancel").classList.remove("d-none");
+        toast("Loaded existing pit entry for team " + t + ".");
+      }
+    });
+
+    // Load match and pit entries for the current event
     var entryQuery = isStaff
       ? function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).order("created_at", { ascending: false }).limit(500); }
       : function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).eq("scouted_by", s.user.id).order("created_at", { ascending: false }).limit(200); };
 
-    var filterVal = "";
     get("entrySearch").addEventListener("input", function() {
       filterVal = this.value.trim();
       renderEntries();
@@ -467,35 +505,46 @@
 
     async function loadEntries() {
       if (!currentEvent) return;
-      var r = await entryQuery(currentEvent.id);
-      if (r.error) { toast("Couldn't load entries.", true); return; }
-      allEntries = r.data;
+      var evId = currentEvent.id;
+      var results = await Promise.all([
+        entryQuery(evId),
+        sb.from("pit_entries").select("*").eq("event_id", evId).order("team_number", { ascending: true })
+      ]);
+      if (results[0].error) toast("Couldn't load match entries.", true);
+      else allEntries = results[0].data;
+      if (results[1].error) toast("Couldn't load pit entries.", true);
+      else allPit = results[1].data;
       renderEntries();
     }
 
-    function renderEntries() {
-      var filtered = filterVal
-        ? allEntries.filter(function(e){ return String(e.team_number).includes(filterVal); })
-        : allEntries;
+    function matchesFilter(entry) {
+      return !filterVal || String(entry.team_number).includes(filterVal);
+    }
 
+    function renderEntries() {
+      if (mode === "pit") renderPitTable(); else renderMatchTable();
+    }
+
+    function renderMatchTable() {
       var thead = document.querySelector("#entryTable thead");
       var tbody = document.querySelector("#entryTable tbody");
+      var list = activeFields();
 
       if (!allEntries.length) {
-        thead.innerHTML = ""; tbody.innerHTML = '<tr><td class="text-muted text-center py-3">No entries yet for this event.</td></tr>';
+        thead.innerHTML = ""; tbody.innerHTML = '<tr><td class="text-muted text-center py-3">No match entries yet for this event.</td></tr>';
         get("entriesHeading").textContent = "Entries";
         return;
       }
 
-      // Build columns from fields
-      var cols = ["Team #", "Match #"].concat(fields.map(function(f){ return f.label; })).concat(["Actions"]);
+      var cols = ["Team #", "Match #"].concat(list.map(function(f){ return f.label; })).concat(["Actions"]);
       thead.innerHTML = "<tr>" + cols.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr>";
 
       var userId = s.user.id;
+      var filtered = allEntries.filter(matchesFilter);
       tbody.innerHTML = filtered.map(function(entry) {
         var cells = [entry.team_number, entry.match_number || "—"];
-        fields.forEach(function(f) {
-          var v = entry.data[f.key];
+        list.forEach(function(f) {
+          var v = entry.data ? entry.data[f.key] : null;
           if (v == null) { cells.push("—"); return; }
           if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
           else cells.push(esc(v));
@@ -512,28 +561,60 @@
       get("entriesHeading").textContent = "Entries (" + allEntries.length + ")";
     }
 
-    // Save entry
+    function renderPitTable() {
+      var thead = document.querySelector("#entryTable thead");
+      var tbody = document.querySelector("#entryTable tbody");
+      var list = activeFields();
+
+      if (!allPit.length) {
+        thead.innerHTML = ""; tbody.innerHTML = '<tr><td class="text-muted text-center py-3">No pit entries yet for this event.</td></tr>';
+        get("entriesHeading").textContent = "Pit entries";
+        return;
+      }
+
+      var cols = ["Team #"].concat(list.map(function(f){ return f.label; })).concat(["Actions"]);
+      thead.innerHTML = "<tr>" + cols.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr>";
+
+      var filtered = allPit.filter(matchesFilter);
+      tbody.innerHTML = filtered.map(function(entry) {
+        var cells = [entry.team_number];
+        list.forEach(function(f) {
+          var v = entry.data ? entry.data[f.key] : null;
+          if (v == null || v === "") { cells.push("—"); return; }
+          if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
+          else cells.push(esc(v));
+        });
+        // Pit data is shared by the team, so any member can edit it
+        cells.push(
+          '<button class="btn-icon mr-1" onclick="editPit(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
+          '<button class="btn-icon danger" onclick="deletePit(\'' + entry.id + '\')"><i class="fa fa-trash"></i></button>'
+        );
+        return "<tr>" + cells.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
+      }).join("") || '<tr><td colspan="' + cols.length + '" class="text-muted text-center py-3">No pit entries match that team number.</td></tr>';
+
+      get("entriesHeading").textContent = "Pit entries (" + allPit.length + ")";
+    }
+
+    // ── Save ─────────────────────────────────────────────────────────
     get("entrySave").addEventListener("click", async function () {
       if (!currentEvent) return;
       var team = parseInt(get("fTeam").value, 10);
-      var match = get("fMatch").value ? parseInt(get("fMatch").value, 10) : null;
       if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
+      var match = null;
+      if (mode === "match" && get("fMatch").value) match = parseInt(get("fMatch").value, 10);
 
-      // Validate required fields
-      for (var i = 0; i < fields.length; i++) {
-        var f = fields[i];
-        if (!f.required) continue;
-        if (f.field_type === "boolean") {
-          if (!document.querySelector('input[name="field_' + f.key + '"]:checked')) {
-            toast(f.label + " is required.", true); return;
-          }
-        } else {
-          var el = get("field_" + f.key);
-          if (!el || el.value.trim() === "") { toast(f.label + " is required.", true); return; }
-        }
+      // Validate required fields on the active tab (checkboxes are never "missing")
+      var list = activeFields();
+      for (var i = 0; i < list.length; i++) {
+        var f = list[i];
+        if (!f.required || f.field_type === "boolean") continue;
+        var el = get("field_" + f.key);
+        if (!el || el.value.trim() === "") { toast(f.label + " is required.", true); return; }
       }
 
       var data = getFormValues();
+      if (mode === "pit") { await savePit(team, data); return; }
+
       var payload = { event_id: currentEvent.id, team_number: team, match_number: match,
                       data: data, scouted_by: s.user.id };
 
@@ -562,15 +643,29 @@
       loadEntries();
     });
 
+    async function savePit(team, data) {
+      var payload = { event_id: currentEvent.id, team_number: team, data: data,
+                      scouted_by: s.user.id, updated_at: new Date().toISOString() };
+      // One pit entry per team per event: insert, or overwrite the existing one
+      var r = await sb.from("pit_entries").upsert(payload, { onConflict: "event_id,team_number" });
+      if (r.error) { toast(r.error.message || "Couldn't save pit entry.", true); return; }
+      toast("Pit entry saved.");
+      resetEntryForm();
+      loadEntries();
+    }
+
+    // ── Edit / delete ────────────────────────────────────────────────
     window.editEntry = function(id) {
       var entry = allEntries.find(function(e){ return e.id === id; });
       if (!entry) return;
+      if (mode !== "match") setMode("match");
       get("fTeam").value = entry.team_number;
       get("fMatch").value = entry.match_number || "";
       setFormValues(entry.data);
       editingId = id;
       get("entryId").value = id;
       get("entryFormTitle").textContent = "Edit Entry – Team " + entry.team_number;
+      get("entrySave").textContent = "Save Entry";
       get("entryCancel").classList.remove("d-none");
       get("entryFormCard").scrollIntoView({ behavior: "smooth" });
     };
@@ -583,11 +678,33 @@
       loadEntries();
     };
 
+    window.editPit = function(id) {
+      var entry = allPit.find(function(e){ return e.id === id; });
+      if (!entry) return;
+      if (mode !== "pit") setMode("pit");
+      get("fTeam").value = entry.team_number;
+      setFormValues(entry.data);
+      editingId = id;
+      get("entryFormTitle").textContent = "Editing pit entry – Team " + entry.team_number;
+      get("entrySave").textContent = "Save Pit Entry";
+      get("entryCancel").classList.remove("d-none");
+      get("entryFormCard").scrollIntoView({ behavior: "smooth" });
+    };
+
+    window.deletePit = async function(id) {
+      if (!confirm("Delete this pit entry?")) return;
+      var r = await sb.from("pit_entries").delete().eq("id", id);
+      if (r.error) { toast("Couldn't delete pit entry.", true); return; }
+      toast("Pit entry deleted.");
+      loadEntries();
+    };
+
     // Flush drafts when coming back online
     window.addEventListener("online", function() { flushDrafts(); });
 
     // ── Boot ─────────────────────────────────────────────────────────
-    await Promise.all([loadEvents(), loadFields()]);
+    await loadFields();
+    await loadEvents();
     flushDrafts();
   })();
   </script>

@@ -247,6 +247,13 @@
             </select>
           </div>
           <div class="form-group col-md-2">
+            <label for="fScope">Used in</label>
+            <select id="fScope" class="form-control">
+              <option value="match">Match scouting</option>
+              <option value="pit">Pit scouting</option>
+            </select>
+          </div>
+          <div class="form-group col-md-2">
             <label for="fSection">Section</label>
             <input type="text" id="fSection" class="form-control" maxlength="40" value="Match">
           </div>
@@ -270,6 +277,12 @@
           <div class="form-group col-md-2">
             <label for="fSort">Order</label>
             <input type="number" id="fSort" class="form-control" value="0">
+          </div>
+          <div class="form-group col-md-3 d-flex align-items-end pb-2">
+            <div class="custom-control custom-checkbox">
+              <input type="checkbox" class="custom-control-input" id="fPoints">
+              <label class="custom-control-label" for="fPoints">Counts toward points</label>
+            </div>
           </div>
         </div>
 
@@ -544,7 +557,7 @@
         var typeLabel = { number:"Number", text:"Text", choice:"Choice", boolean:"Yes / No" }[f.field_type] || f.field_type;
         return '<div class="field-row' + (f.active ? "" : " inactive") + '">' +
           '<span><strong>' + esc(f.label) + '</strong><br><code style="font-size:.75rem;color:var(--muted);">' + esc(f.key) + '</code></span>' +
-          '<span>' + esc(f.section) + '</span>' +
+          '<span>' + esc(f.section) + ' <small class="text-muted">· ' + (f.scope === "pit" ? "Pit" : "Match") + '</small></span>' +
           '<span>' + typeLabel + '</span>' +
           '<span>' + badge + '</span>' +
           '<span style="display:flex;gap:.3rem;">' +
@@ -585,8 +598,10 @@
       }
       if (type === "choice" && (!opts || !opts.length)) { toast("Add at least one choice.", true); return; }
 
+      var scope  = document.getElementById("fScope").value;
+      var points = type === "number" && document.getElementById("fPoints").checked;
       var payload = { label, field_type: type, section, required: req, sort_order: sort,
-                      min_value: min, max_value: max, options: opts };
+                      min_value: min, max_value: max, options: opts, scope: scope, is_points: points };
       var r;
       if (id) {
         r = await sb.from("scout_fields").update(payload).eq("id", id);
@@ -605,6 +620,8 @@
       document.getElementById("fSection").value = "Match";
       document.getElementById("fRequired").checked = false;
       document.getElementById("fSort").value = "0";
+      document.getElementById("fScope").value = "match";
+      document.getElementById("fPoints").checked = false;
       document.getElementById("fOptions").value = "";
       document.getElementById("fKey").disabled = false;
       document.getElementById("choiceOpts").classList.add("d-none");
@@ -623,6 +640,8 @@
       document.getElementById("fType").value = f.field_type;
       document.getElementById("fSection").value = f.section;
       document.getElementById("fRequired").checked = f.required;
+      document.getElementById("fScope").value = f.scope || "match";
+      document.getElementById("fPoints").checked = !!f.is_points;
       document.getElementById("fSort").value = f.sort_order;
       document.getElementById("fMin").value = f.min_value != null ? f.min_value : "";
       document.getElementById("fMax").value = f.max_value != null ? f.max_value : "";

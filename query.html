@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Team Database – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .q-wrap { max-width: 1200px; margin: 0 auto; }
+
+    .q-layout {
+      display: grid;
+      grid-template-columns: minmax(230px, 300px) 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 991px) { .q-layout { grid-template-columns: 1fr; } }
+
+    .q-panel {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 1rem;
+    }
+    .team-table { font-size: .92rem; margin-bottom: 0; }
+    .team-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; }
+    .team-table td { border-top: 1px solid var(--line); }
+    .team-table tbody tr { cursor: pointer; }
+    .team-table tbody tr:hover { background: var(--tint); }
+    .team-table tbody tr.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
+    .list-scroll { max-height: 70vh; overflow-y: auto; }
+
+    .detail-card {
+      position: relative;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 1.5rem;
+      min-height: 320px;
+    }
+    .detail-head { padding-right: 130px; }
+    .detail-head h2 { margin-bottom: .15rem; }
+
+    /* Rating box, top right of the card */
+    .rating-wrap {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      width: 104px;
+      text-align: center;
+    }
+    .rating-box {
+      height: 88px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+    }
+    .rating-letter {
+      font-family: var(--display);
+      font-size: 2.6rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .rating-caption {
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 600;
+    }
+    .rating-meta {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: .35rem;
+    }
+
+    .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: .6rem;
+      margin-top: 1rem;
+    }
+    .tile { border: 1px solid var(--line); padding: .6rem .75rem; background: var(--paper); }
+    .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--navy); font-weight: 700; line-height: 1.2; }
+    .tile .k { font-size: .75rem; color: var(--muted); line-height: 1.3; }
+
+    .info-grid { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; font-size: .92rem; margin: 0; }
+    .info-grid dt { color: var(--muted); font-weight: 500; }
+    .info-grid dd { margin: 0; word-break: break-word; }
+
+    .match-table { font-size: .86rem; }
+    .match-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; white-space: nowrap; }
+    .match-table td { border-top: 1px solid var(--line); white-space: nowrap; }
+    .match-table tbody tr:nth-child(even) { background: var(--paper); }
+
+    .empty-detail { color: var(--muted); text-align: center; padding: 3rem 1rem; }
+    .loading-msg { color: var(--muted); font-family: var(--display); padding: 2rem 0; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark fixed-top" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo">St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item"><a class="nav-link" href="/index.html">Homepage</a></li>
+          <li class="nav-item"><a class="nav-link" href="/scout.html">Scout</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/query.html">Team Database</a></li>
+          <li class="nav-item" id="portalLink" style="display:none;"><a class="nav-link" href="/portal.html">Staff Portal</a></li>
+          <li class="nav-item"><a class="nav-link" href="/account.html">My Account</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container" style="padding-top:2rem;">
+    <div class="q-wrap">
+      <h1 class="mt-4 mb-1">Team Database</h1>
+      <p class="text-muted mb-4" style="font-size:.95rem;">Select a team to see its match history, robot parameters, and rating.</p>
+
+      <div class="q-layout">
+        <!-- Team list -->
+        <div class="q-panel">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Filter by team #">
+          </div>
+          <div class="text-muted mb-2" style="font-size:.82rem;" id="teamCount"></div>
+          <div class="list-scroll">
+            <table class="table team-table">
+              <thead>
+                <tr><th>Team</th><th>Matches</th><th>Pit</th></tr>
+              </thead>
+              <tbody id="teamRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Team detail -->
+        <div class="detail-card" id="detail">
+          <div class="empty-detail">Select a team from the list.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank"></a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function fmtDate(d) {
+      if (!d) return "—";
+      return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    // ── Access gate (team members only) ──────────────────────────────
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = (await sb.rpc("my_access_level")).data || "guest";
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    if (lvl === "staff") $("portalLink").style.display = "";
+
+    // ── Rating config ────────────────────────────────────────────────
+    // Tiers come from a team's percentile among rated teams (teams with at least one match).
+    // Share of rated teams at or below this team's average points:
+    //   S: 90%+   A: 75–90%   B: 50–75%   C: 25–50%   D: 10–25%   F: under 10%
+    // NR (not rated) means the team has no matches yet, so there are no points to rate.
+    var TIERS = {
+      S:  { color: "#D4AF37", ink: "#2b2100" },
+      A:  { color: "#1a7f4b", ink: "#ffffff" },
+      B:  { color: "#1B4DB1", ink: "#ffffff" },
+      C:  { color: "#6c3fb5", ink: "#ffffff" },
+      D:  { color: "#e67e22", ink: "#ffffff" },
+      F:  { color: "#c0392b", ink: "#ffffff" },
+      NR: { color: "#9a9a9c", ink: "#ffffff" }
+    };
+    var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
+
+    var fields = [], eventsById = {}, summary = [], pitTeams = [];
+
+    function fieldsFor(scope) {
+      return fields.filter(function (f) { return (f.scope || "match") === scope; });
+    }
+    function evName(id) { var e = eventsById[id]; return e ? e.name : "—"; }
+    function evTime(id) { var e = eventsById[id]; return e && e.event_date ? new Date(e.event_date).getTime() : 0; }
+    function cell(v, f) {
+      if (v == null || v === "") return "—";
+      if (f.field_type === "boolean") return v ? "Yes" : "No";
+      return esc(v);
+    }
+
+    // ── Data ─────────────────────────────────────────────────────────
+    async function loadMeta() {
+      var rf = await sb.from("scout_fields").select("*").order("sort_order", { ascending: true });
+      fields = rf.data || [];
+      var re = await sb.from("events").select("id,name,event_date");
+      eventsById = {};
+      (re.data || []).forEach(function (e) { eventsById[e.id] = e; });
+    }
+    async function loadSummary() {
+      var r = await sb.rpc("team_points_summary");
+      summary = r.error ? [] : (r.data || []);
+    }
+    async function loadPitTeams() {
+      var r = await sb.from("pit_entries").select("team_number");
+      pitTeams = r.error ? [] : Array.from(new Set((r.data || []).map(function (x) { return x.team_number; })));
+    }
+
+    // ── Team list ────────────────────────────────────────────────────
+    function teamList() {
+      var byTeam = new Map();
+      summary.forEach(function (r) { byTeam.set(r.team_number, { team: r.team_number, matches: r.matches }); });
+      pitTeams.forEach(function (t) { if (!byTeam.has(t)) byTeam.set(t, { team: t, matches: 0 }); });
+      return Array.from(byTeam.values()).sort(function (a, b) { return a.team - b.team; });
+    }
+
+    var selected = null;
+    function renderList() {
+      var q = $("teamSearch").value.trim();
+      var pitSet = new Set(pitTeams);
+      var rows = teamList().filter(function (r) { return !q || String(r.team).indexOf(q) !== -1; });
+      $("teamRows").innerHTML = rows.length
+        ? rows.map(function (r) {
+            return '<tr data-team="' + r.team + '" class="' + (selected === r.team ? "selected" : "") + '">' +
+              "<td><strong>" + r.team + "</strong></td>" +
+              "<td>" + r.matches + "</td>" +
+              "<td>" + (pitSet.has(r.team) ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + "</td>" +
+              "</tr>";
+          }).join("")
+        : '<tr><td colspan="3" class="text-muted text-center py-3">No teams yet.</td></tr>';
+      $("teamCount").textContent = rows.length + (rows.length === 1 ? " team" : " teams");
+    }
+    $("teamSearch").addEventListener("input", renderList);
+    $("teamRows").addEventListener("click", function (e) {
+      var tr = e.target.closest("tr[data-team]");
+      if (tr) openTeam(parseInt(tr.dataset.team, 10));
+    });
+
+    // ── Rating (computed on click from the latest summary) ───────────
+    function gradeFor(team) {
+      var rated = summary.filter(function (r) { return r.matches > 0; });
+      var me = summary.find(function (r) { return r.team_number === team; });
+      if (!me || !me.matches) {
+        return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
+      }
+      var avg = Number(me.avg_points);
+      var atOrBelow = rated.filter(function (r) { return Number(r.avg_points) <= avg; }).length;
+      var pct = atOrBelow / rated.length;
+      var tier = "F";
+      for (var i = 0; i < CUTS.length; i++) {
+        if (pct >= CUTS[i][0]) { tier = CUTS[i][1]; break; }
+      }
+      return { tier: tier, matches: me.matches, avg: avg, n: rated.length, pct: pct };
+    }
+
+    function ratingBox(g) {
+      var c = TIERS[g.tier];
+      var caption = g.tier === "NR" ? "Not rated" : "Rating";
+      return '<div class="rating-wrap">' +
+        '<div class="rating-box" style="background:' + c.color + ';color:' + c.ink + ';">' +
+          '<span class="rating-letter">' + g.tier + '</span>' +
+          '<span class="rating-caption">' + caption + '</span>' +
+        '</div>' +
+        '<div class="rating-meta">' + g.matches + (g.matches === 1 ? " match" : " matches") + '</div>' +
+      '</div>';
+    }
+
+    // ── Team detail ──────────────────────────────────────────────────
+    async function openTeam(team) {
+      selected = team;
+      renderList();
+      $("detail").innerHTML = '<div class="loading-msg">Calculating rating…</div>';
+
+      // Fetch fresh numbers on every click so the rating uses current data
+      var results = await Promise.all([
+        sb.rpc("team_points_summary"),
+        sb.from("scouting_entries").select("*").eq("team_number", team)
+          .order("match_number", { ascending: true, nullsFirst: false }),
+        sb.from("pit_entries").select("*").eq("team_number", team)
+          .order("updated_at", { ascending: false }).limit(1)
+      ]);
+      summary = results[0].error ? [] : (results[0].data || []);
+      var matches = results[1].data || [];
+      var pit = (results[2].data || [])[0] || null;
+
+      renderDetail(team, gradeFor(team), matches, pit);
+    }
+
+    function renderDetail(team, g, matches, pit) {
+      var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
+
+      matches = matches.slice().sort(function (a, b) {
+        return (evTime(a.event_id) - evTime(b.event_id)) || ((a.match_number || 0) - (b.match_number || 0));
+      });
+
+      // Summary tiles: matches, average points, then a percentage for each yes/no field
+      var tiles = [["Matches", matches.length], ["Avg points / match", g.avg == null ? "—" : g.avg]];
+      mFields.filter(function (f) { return f.field_type === "boolean"; }).forEach(function (f) {
+        var known = matches.filter(function (m) { return m.data && m.data[f.key] != null; });
+        if (!known.length) return;
+        var yes = known.filter(function (m) { return m.data[f.key] === true; }).length;
+        tiles.push([f.label, Math.round(100 * yes / known.length) + "%"]);
+      });
+
+      var basis = g.tier === "NR"
+        ? "No match data yet, so there's nothing to rate."
+        : "Avg " + g.avg + " pts. At or above " + Math.round(g.pct * 100) + "% of " + g.n + " rated teams.";
+
+      // Robot parameters from the latest pit entry
+      var paramsHtml;
+      if (!pit) {
+        paramsHtml = '<p class="text-muted">No pit data yet.</p>';
+      } else {
+        var rows = pFields.map(function (f) {
+          var v = pit.data ? pit.data[f.key] : null;
+          if (v == null || v === "") return "";
+          return "<dt>" + esc(f.label) + "</dt><dd>" + cell(v, f) + "</dd>";
+        }).join("");
+        paramsHtml = (rows
+            ? '<dl class="info-grid">' + rows + "</dl>"
+            : '<p class="text-muted">Pit entry has no values filled in.</p>') +
+          '<p class="text-muted mt-2 mb-0" style="font-size:.8rem;">Last pit scouted at ' +
+          esc(evName(pit.event_id)) + " · " + fmtDate(pit.updated_at) + "</p>";
+      }
+
+      // Match history: one row per match, every match field as a column
+      var matchCols = ["Event", "Match"].concat(mFields.map(function (f) { return f.label; }));
+      var matchRows = matches.map(function (m) {
+        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + (m.match_number || "—") + "</td>" +
+          mFields.map(function (f) { return "<td>" + cell(m.data ? m.data[f.key] : null, f) + "</td>"; }).join("") +
+          "</tr>";
+      }).join("");
+
+      $("detail").innerHTML =
+        ratingBox(g) +
+        '<div class="detail-head">' +
+          "<h2>Team " + team + "</h2>" +
+          '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis) + "</p>" +
+        "</div>" +
+
+        '<div class="tile-grid">' +
+          tiles.map(function (t) {
+            return '<div class="tile"><div class="v">' + esc(t[1]) + '</div><div class="k">' + esc(t[0]) + "</div></div>";
+          }).join("") +
+        "</div>" +
+
+        '<h3 class="section-title">Robot parameters</h3>' + paramsHtml +
+
+        '<h3 class="section-title">Match history</h3>' +
+        (matches.length
+          ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+              matchCols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
+            "</tr></thead><tbody>" + matchRows + "</tbody></table></div>"
+          : '<p class="text-muted">No match data yet.</p>');
+    }
+
+    // ── Boot ─────────────────────────────────────────────────────────
+    await loadMeta();
+    await Promise.all([loadSummary(), loadPitTeams()]);
+    renderList();
+
+    /* ─────────────────────────────────────────────────────────────────
+       BLUE ALLIANCE IMPORT: NOT ACTIVE YET (kept here for later)
+
+       Plan:
+       - A Supabase Edge Function ("tba-sync") holds the TBA API key on the
+         server and fetches /api/v3/team/frc{number}/matches/{year}/simple.
+       - Only teams whose state_prov is in NE_STATES get imported.
+       - Imported matches are tagged source = 'tba' so the match table and the
+         rating can show which numbers came from scouting and which from TBA.
+       - Before enabling, add a `source` column to scouting_entries and make
+         team_points_summary() count TBA rows the same way as scouted rows.
+
+       To enable: uncomment this block, deploy the function, and call
+       loadTbaMatches() from openTeam().
+    ───────────────────────────────────────────────────────────────── */
+    // var CFG = window.AUTH_CONFIG;
+    // var NE_STATES = ["NH", "ME", "VT", "MA", "RI", "CT"];
+    //
+    // async function loadTbaMatches(team) {
+    //   var r = await fetch(CFG.url + "/functions/v1/tba-sync?team=" + team, {
+    //     headers: { Authorization: "Bearer " + CFG.anonKey }
+    //   });
+    //   if (!r.ok) return [];
+    //   // Expected shape: [{ event_id, match_number, data, source: "tba" }]
+    //   return r.json();
+    // }
+  })();
+  </script>
+</body>
+</html>
