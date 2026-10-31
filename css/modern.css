@@ -263,27 +263,55 @@ hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
 
 
 /* =========================================================================================================
-   7. CARDS  (flat, hairline border, one clipped corner)
+   7. CARDS  (flat, hairline border, one clipped corner with a complete outline)
+
+   How the outline is drawn: the card itself is transparent and clipped to the cut-corner shape. Two
+   stacked layers sit behind its content:
+     ::before  the full shape in the border color (--line)
+     ::after   the same shape in white, inset 1px, so the border color shows around every edge,
+               including the diagonal.
+   The .41px offsets keep the diagonal rim exactly 1px thick (1px x (sqrt(2) - 1) at 45 degrees).
+   To change the corner size, change --cut in the tokens, or set --c on a single card.
    ========================================================================================================= */
 .card {
+  --c: var(--cut);                 /* corner size for this card */
   position: relative;
-  background: var(--white);
-  border: 1px solid var(--line);
+  isolation: isolate;              /* keeps the two layers behind the card's own content */
+  background: transparent;
+  border: 0;
   border-radius: 0;
   box-shadow: none;
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%);
 }
-/* The clipped top-right corner */
+
+/* Outer shape in the border color: becomes the 1px outline, diagonal included */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: var(--line);
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+/* Inner white shape, inset 1px */
 .card::after {
   content: "";
   position: absolute;
-  top: -1px; right: -1px;
-  width: var(--cut); height: var(--cut);
-  background: linear-gradient(to bottom left,
-    var(--paper) 0 calc(50% - .5px),
-    var(--line) calc(50% - .5px) calc(50% + .5px),
-    transparent calc(50% + .5px));
+  inset: 0;
+  z-index: -1;
+  background: var(--white);
+  clip-path: polygon(
+    1px 1px,
+    calc(100% - var(--c) - .41px) 1px,
+    calc(100% - 1px) calc(var(--c) + .41px),
+    calc(100% - 1px) calc(100% - 1px),
+    1px calc(100% - 1px)
+  );
   pointer-events: none;
 }
+
 .card-header {
   padding: 1rem 1.25rem;
   background: transparent;
@@ -298,8 +326,14 @@ hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
 .card-title { margin-bottom: .15rem; font-size: 1.2rem; }
 .card-img-top { border-radius: 0; }
 
-/* Team-leader cards (about-the-students) get the blue top edge too */
-.card.text-center { border-top: 3px solid var(--blue); }
+/* Team-leader cards (about-the-students) get the blue top edge too.
+   They have no .card-header, so the bar is painted on the white layer instead of as a real border
+   (a real border would shift the outline layers). */
+.card.text-center::after {
+  background:
+    linear-gradient(var(--blue), var(--blue)) 0 0 / 100% 3px no-repeat,
+    var(--white);
+}
 .card.text-center .card-text { text-align: left; font-size: .95rem; color: #26364f; }
 .card.text-center .card-footer a { font-size: .9rem; word-break: break-all; }
 
