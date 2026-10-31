@@ -25,6 +25,13 @@ $(function () {
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // Turns "a@x.org, b@x.org" (or an array) into ["a@x.org", "b@x.org"]
+  function splitEmails(v) {
+    return [].concat(v).join(",").split(",")
+      .map(function (s) { return s.trim().toLowerCase(); })
+      .filter(Boolean);
+  }
+
   function showAlert(type, text) {
     var $a = $('<div class="alert alert-dismissible"></div>').addClass("alert-" + type);
     $a.append($('<button type="button" class="close" data-dismiss="alert" aria-label="Close">&times;</button>'));
@@ -56,11 +63,13 @@ $(function () {
     var email = $("#email").val().trim();
     var allTopics = chosen.map(function (t) { return t.label; }).join(", ");
 
-    // Group recipients so each address gets one email
+    // Build one list per unique staff address. Each address gets ONE email
+    // listing every topic routed to it, even if it appears under several topics.
     var byEmail = {};
     chosen.forEach(function (t) {
-      [].concat(t.email).forEach(function (addr) {
-        (byEmail[addr] = byEmail[addr] || []).push(t.label);
+      splitEmails(t.email).forEach(function (addr) {
+        var list = (byEmail[addr] = byEmail[addr] || []);
+        if (list.indexOf(t.label) === -1) list.push(t.label);
       });
     });
 
@@ -79,6 +88,7 @@ $(function () {
     var sends = Object.keys(byEmail).map(function (addr) {
       var params = $.extend({}, base, {
         to_email: addr,
+        topics:   esc(byEmail[addr].join(", ")),
         subject:  "Website contact: " + byEmail[addr].join(", ")
       });
       return emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.templateId, params);
@@ -88,17 +98,22 @@ $(function () {
     var copySend = emailjs.send(cfg.emailjs.serviceId, cfg.emailjs.copyTemplateId, $.extend({}, base, {
       to_email: email,
       subject:  "Copy of your message to STA Robotics Team 1307"
-    })).then(function () { return true; }, function () { return false; });
-    sends.push(copySend);
+    })).then(function () { return true; }, function (err) {
+      console.error("Copy email failed:", err);
+      return false;
+    });
 
-    Promise.all(sends).then(function (results) {
-      var copied = results[results.length - 1];
+    // Staff sends must all succeed; the copy is reported separately.
+    Promise.all(sends).then(function () { return copySend; }).then(function (copied) {
       var text = "Your message has been sent. Thank you!";
-      if (copied) text += " A copy was sent to " + email + ".";
+      text += copied
+        ? " A copy was sent to " + email + "."
+        : " We couldn't email you a copy, but your message was delivered.";
       showAlert("success", text);
       $form[0].reset();
       $form.removeClass("was-validated");
-    }).catch(function () {
+    }).catch(function (err) {
+      console.error("Staff email failed:", err);
       showAlert("danger", "Sorry, something went wrong sending your message. Please try again or email us directly.");
     }).then(function () {
       setTimeout(function () { $btn.prop("disabled", false); }, 1000);
