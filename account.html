@@ -421,6 +421,91 @@
     // ── Show page ────────────────────────────────────────────────────
     $("loadingState").style.display = "none";
     $("accountArea").style.display  = "";
+
+    // ── Staff: member management ─────────────────────────────────────
+    if (isStaff) {
+      var staffMsg = $("staffMsg");
+      function staffFlash(ok, text) {
+        staffMsg.className = "small " + (ok ? "ok" : "text-danger");
+        staffMsg.textContent = text;
+      }
+      async function fnError(err) {
+        try { return (await err.context.json()).error || "Action failed."; }
+        catch (e) { return "Action failed."; }
+      }
+      function cell(content) {
+        var td = document.createElement("td");
+        if (typeof content === "string") td.textContent = content; else td.appendChild(content);
+        return td;
+      }
+      function button(label, handler, disabled) {
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "ghost-btn mr-1 mb-1"; b.textContent = label;
+        b.disabled = !!disabled; b.onclick = handler; return b;
+      }
+
+      async function toggleStaff(m) {
+        var make = m.level !== "staff";
+        var q = make ? "Give " + m.email + " staff access?"
+                    : "Remove staff access from " + m.email + "?";
+        if (!confirm(q)) return;
+        var r = await sb.rpc("staff_set_role", { target: m.user_id, make_staff: make });
+        if (r.error) return staffFlash(false, r.error.message);
+        staffFlash(true, m.email + (make ? " is now staff." : " is no longer staff."));
+        loadMembers();
+      }
+
+      async function kick(m) {
+        if (!confirm("Sign " + m.email + " out of all devices?")) return;
+        var r = await sb.rpc("staff_kick", { target: m.user_id });
+        if (r.error) return staffFlash(false, r.error.message);
+        staffFlash(true, m.email + " was signed out everywhere.");
+      }
+
+      async function toggleBan(m) {
+        var unban = m.banned;
+        var q = unban ? "Unban " + m.email + "?"
+                      : "Ban " + m.email + "? They will be signed out and unable to sign in.";
+        if (!confirm(q)) return;
+        var r = await sb.functions.invoke("manage-member", {
+          body: { action: unban ? "unban" : "ban", target: m.user_id }
+        });
+        if (r.error) return staffFlash(false, await fnError(r.error));
+        staffFlash(true, m.email + (unban ? " was unbanned." : " was banned."));
+        loadMembers();
+      }
+
+      function memberRow(m) {
+        var self = m.user_id === user.id;
+        var actions = document.createElement("td");
+        actions.appendChild(button(m.level === "staff" ? "Remove staff" : "Make staff",
+                                  function () { toggleStaff(m); }, self));
+        actions.appendChild(button("Kick", function () { kick(m); }, self));
+        actions.appendChild(button(m.banned ? "Unban" : "Ban",
+                                  function () { toggleBan(m); }, self));
+
+        var tr = document.createElement("tr");
+        tr.appendChild(cell(m.display_name || "—"));
+        tr.appendChild(cell(m.email || "—"));
+        tr.appendChild(cell(m.level));
+        tr.appendChild(cell(m.banned ? "Banned" : "Active"));
+        tr.appendChild(actions);
+        return tr;
+      }
+
+      async function loadMembers() {
+        var r = await sb.rpc("staff_list_members");
+        if (r.error) return staffFlash(false, "Couldn't load members.");
+        var tbody = $("memberRows");
+        tbody.innerHTML = "";
+        r.data.forEach(function (m) { tbody.appendChild(memberRow(m)); });
+        $("memberCount").textContent = r.data.length + " accounts.";
+      }
+
+        $("refreshMembers").addEventListener("click", loadMembers);
+        $("staffSection").style.display = "";
+        loadMembers();
+}
   })();
   </script>
 </body>
