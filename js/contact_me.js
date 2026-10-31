@@ -96,8 +96,12 @@ $(function () {
     var submitter = email.toLowerCase();
     var allTopics = chosen.map(function (t) { return t.label; }).join(", ");
 
-    // One list per unique staff address, covering every topic routed to it
+    // One list per unique staff address, covering every topic routed to it.
+    // The "always" people get every message, listing all the topics chosen.
     var byEmail = {};
+    splitEmails(cfg.always || []).forEach(function (addr) {
+      byEmail[addr] = chosen.map(function (t) { return t.label; });
+    });
     chosen.forEach(function (t) {
       splitEmails(t.email).forEach(function (addr) {
         var list = (byEmail[addr] = byEmail[addr] || []);

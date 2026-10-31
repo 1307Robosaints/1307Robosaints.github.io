@@ -1,34 +1,39 @@
 /* =====================================================================
-   CONTACT FORM CONFIG  —  this is the only file you need to edit
+   CONTACT FORM CONFIG  -  this is the only file you need to edit
    ===================================================================== */
 
 window.CONTACT_CONFIG = {
 
-  /* ---------- 1. EmailJS settings (one-time setup, see instructions) ---------- */
+  /* ---------- 1. EmailJS settings ---------- */
   emailjs: {
     publicKey:  "Z9Esvx7YWvJ9GE_bg",
     serviceId:  "service_sjmfz5n",
-    templateId:     "template_tmpii4j",     // staff notification
-    copyTemplateId: "template_kn9cdzg"   // copy sent to the person who submitted
+    templateId:     "template_tmpii4j",   // Staff Side Email Template
+    copyTemplateId: "template_kn9cdzg"    // Submitter Side Email Template
   },
-  
-  /* ---------- 2. CHECKBOXES + WHO GETS THE EMAIL ----------
-     To add a new checkbox, copy one line and change it:
 
-       label : text people see next to the checkbox
-       email : who receives the message when it's checked
-               (use ["a@x.org", "b@x.org"] to send to several people)
+  /* ---------- 2. ALWAYS GETS EVERY MESSAGE ----------
+     These people get an email for EVERY submission, whatever boxes
+     are checked. Each person gets exactly one email.
+  ------------------------------------------------------------------ */
+  always: ["robotics@stalux.org", "cdemos@stalux.org"],
 
-     If someone checks several boxes, each address gets ONE email
-     that lists every topic they picked.
+  /* ---------- 3. EXTRA PEOPLE PER CHECKBOX ----------
+     label : text people see next to the checkbox
+     email : EXTRA people who also get the message when it is checked
+             (a list like ["a@x.org", "b@x.org"], or [] for nobody extra)
+
+     The "always" people above are added automatically, so don't repeat them.
+     If someone checks several boxes, each person still gets only ONE email
+     that lists the topics relevant to them.
   ------------------------------------------------------------------ */
   topics: [
     // >>>>>>>>>>>>>>>>>>>>>>  EDIT BELOW THIS LINE  <<<<<<<<<<<<<<<<<<<<<<
-    { label: "Sponsorships",          email: "robotics@stalux.org, ssenter28@stalux.org, cdemos@stalux.org" },
-    { label: "Joining the team",      email: "robotics@stalux.org, cdemos@stalux.org" },
-    { label: "Mentoring / volunteering", email: "robotics@stalux.org, cdemos@stalux.org" },
-    { label: "Outreach & demos",      email: "robotics@stalux.org, ssenter28@stalux.org, cdemos@stalux.org" },
-    { label: "Something else",        email: "robotics@stalux.org, ssenter28@stalux.org, cdemos@stalux.org" }
+    { label: "Sponsorships",             email: ["ssenter28@stalux.org"] },
+    { label: "Joining the team",         email: [] },
+    { label: "Mentoring / volunteering", email: [] },
+    { label: "Outreach & demos",         email: ["ssenter28@stalux.org"] },
+    { label: "Something else",           email: ["ssenter28@stalux.org"] }
     // >>>>>>>>>>>>>>>>>>>>>>  EDIT ABOVE THIS LINE  <<<<<<<<<<<<<<<<<<<<<<
   ]
 };
