@@ -174,7 +174,7 @@
           <div class="form-group">
             <label for="pfEmail">Email</label>
             <input id="pfEmail" type="email" class="form-control" readonly>
-            <small class="form-text text-muted">Your email is your login, so it can't be changed here. Contact a staff member if it needs to change.</small>
+            <small class="form-text text-muted">Your email is your login. Change it below.</small>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="profileBtn">Save profile</button>
@@ -351,6 +351,8 @@
     $("pfName").value  = name;
     $("pfPhone").value = meta.phone || "";
     $("pfEmail").value = user.email || "";
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
 
     $("profileForm").addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -368,6 +370,26 @@
       if (r.error) return flash(msg, false, "Couldn't save your profile. Please try again.");
       $("whoText").textContent = "Welcome back, " + n + ".";
       flash(msg, true, "Profile saved.");
+      
+      var msg = $("emailMsg"), btn = $("emailBtn");
+      var newEmail = $("emNew").value.trim().toLowerCase();
+
+      if (!EMAIL_RE.test(newEmail)) return flash(msg, false, "Enter a valid email address.");
+      if (newEmail === (user.email || "").toLowerCase()) return flash(msg, false, "That's already your email address.");
+      if (DISPOSABLE.test(newEmail)) return flash(msg, false, "Please use a permanent email address, not a temporary one.");
+
+      btn.disabled = true; msg.textContent = "";
+      var r = await sb.auth.updateUser({ email: newEmail });
+      btn.disabled = false;
+
+      if (r.error) {
+        if (/already|registered|exists/i.test(r.error.message)) return flash(msg, false, "That email is already in use.");
+        if (/rate limit/i.test(r.error.message)) return flash(msg, false, "Too many attempts. Wait a few minutes and try again.");
+        return flash(msg, false, "Couldn't send the confirmation link. Please try again.");
+      }
+      $("emNew").value = "";
+      flash(msg, true, "Check " + newEmail + " for a confirmation link.");
+    });
     });
 
     // ── Password form ────────────────────────────────────────────────
@@ -453,30 +475,9 @@
     });
 
     // ── Change email ─────────────────────────────────────────────────
-    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
+    
 
-    $("emailForm").addEventListener("submit", async function (e) {
-      e.preventDefault();
-      var msg = $("emailMsg"), btn = $("emailBtn");
-      var newEmail = $("emNew").value.trim().toLowerCase();
-
-      if (!EMAIL_RE.test(newEmail)) return flash(msg, false, "Enter a valid email address.");
-      if (newEmail === (user.email || "").toLowerCase()) return flash(msg, false, "That's already your email address.");
-      if (DISPOSABLE.test(newEmail)) return flash(msg, false, "Please use a permanent email address, not a temporary one.");
-
-      btn.disabled = true; msg.textContent = "";
-      var r = await sb.auth.updateUser({ email: newEmail });
-      btn.disabled = false;
-
-      if (r.error) {
-        if (/already|registered|exists/i.test(r.error.message)) return flash(msg, false, "That email is already in use.");
-        if (/rate limit/i.test(r.error.message)) return flash(msg, false, "Too many attempts. Wait a few minutes and try again.");
-        return flash(msg, false, "Couldn't send the confirmation link. Please try again.");
-      }
-      $("emNew").value = "";
-      flash(msg, true, "Check " + newEmail + " for a confirmation link.");
-    });
+    
 
     // ── Show page ────────────────────────────────────────────────────
     $("loadingState").style.display = "none";
