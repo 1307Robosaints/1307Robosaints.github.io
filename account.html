@@ -230,6 +230,24 @@
         <button class="ghost-btn" id="signOutAllBtn" type="button">Sign out of all devices</button>
       </div>
 
+      <!-- Staff only: member management -->
+      <div class="account-card" id="staffSection" style="display:none;">
+        <h2>Member management <span class="role-badge staff">Staff</span></h2>
+        <p class="section-sub"><span id="memberCount"></span> Set access levels, sign people out, or ban accounts.</p>
+        <div class="table-responsive">
+          <table class="table table-sm scout-table">
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Access</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="memberRows"></tbody>
+          </table>
+        </div>
+        <div class="form-actions">
+          <button class="ghost-btn" id="refreshMembers" type="button">Refresh</button>
+          <span id="staffMsg" class="small" role="status" aria-live="polite"></span>
+        </div>
+</div>
+
     </div>
   </div>
 
@@ -424,7 +442,9 @@
 
     // ── Staff: member management ─────────────────────────────────────
     if (isStaff) {
+      var LEVELS = ["staff", "mentor", "student", "guest"];
       var staffMsg = $("staffMsg");
+
       function staffFlash(ok, text) {
         staffMsg.className = "small " + (ok ? "ok" : "text-danger");
         staffMsg.textContent = text;
@@ -442,17 +462,6 @@
         var b = document.createElement("button");
         b.type = "button"; b.className = "ghost-btn mr-1 mb-1"; b.textContent = label;
         b.disabled = !!disabled; b.onclick = handler; return b;
-      }
-
-      async function toggleStaff(m) {
-        var make = m.level !== "staff";
-        var q = make ? "Give " + m.email + " staff access?"
-                    : "Remove staff access from " + m.email + "?";
-        if (!confirm(q)) return;
-        var r = await sb.rpc("staff_set_role", { target: m.user_id, make_staff: make });
-        if (r.error) return staffFlash(false, r.error.message);
-        staffFlash(true, m.email + (make ? " is now staff." : " is no longer staff."));
-        loadMembers();
       }
 
       async function kick(m) {
@@ -475,19 +484,37 @@
         loadMembers();
       }
 
+      function levelSelect(m, self) {
+        var sel = document.createElement("select");
+        sel.className = "custom-select custom-select-sm";
+        sel.disabled = self;
+        LEVELS.forEach(function (l) {
+          var o = document.createElement("option");
+          o.value = l;
+          o.textContent = l.charAt(0).toUpperCase() + l.slice(1);
+          o.selected = (l === m.level);
+          sel.appendChild(o);
+        });
+        sel.onchange = async function () {
+          var r = await sb.rpc("staff_set_level", { target: m.user_id, new_level: sel.value });
+          if (r.error) { staffFlash(false, r.error.message); sel.value = m.level; return; }
+          staffFlash(true, m.email + " is now " + sel.value + ".");
+          loadMembers();
+        };
+        return sel;
+      }
+
       function memberRow(m) {
         var self = m.user_id === user.id;
         var actions = document.createElement("td");
-        actions.appendChild(button(m.level === "staff" ? "Remove staff" : "Make staff",
-                                  function () { toggleStaff(m); }, self));
         actions.appendChild(button("Kick", function () { kick(m); }, self));
         actions.appendChild(button(m.banned ? "Unban" : "Ban",
-                                  function () { toggleBan(m); }, self));
+                                   function () { toggleBan(m); }, self));
 
         var tr = document.createElement("tr");
         tr.appendChild(cell(m.display_name || "—"));
         tr.appendChild(cell(m.email || "—"));
-        tr.appendChild(cell(m.level));
+        tr.appendChild(cell(levelSelect(m, self)));
         tr.appendChild(cell(m.banned ? "Banned" : "Active"));
         tr.appendChild(actions);
         return tr;
@@ -502,10 +529,10 @@
         $("memberCount").textContent = r.data.length + " accounts.";
       }
 
-        $("refreshMembers").addEventListener("click", loadMembers);
-        $("staffSection").style.display = "";
-        loadMembers();
-}
+      $("refreshMembers").addEventListener("click", loadMembers);
+      $("staffSection").style.display = "";
+      loadMembers();
+    }
   })();
   </script>
 </body>
