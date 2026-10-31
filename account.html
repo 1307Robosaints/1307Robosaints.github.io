@@ -20,11 +20,11 @@
     }
     .account-card h1 { font-size: 1.6rem; margin-bottom: .2rem; }
     .account-card h1::after { display: none; }
-    .account-card h2 {
-      font-size: 1.15rem; margin: 0 0 .25rem;
-    }
+    .account-card h2 { font-size: 1.15rem; margin: 0 0 .25rem; }
+    .account-card h3 { font-size: 1rem; margin: 0 0 .25rem; }
     .section-sub { color: var(--muted); font-size: .88rem; margin-bottom: 1.1rem; max-width: none; }
     .who { color: var(--muted); font-size: .9rem; margin-bottom: 0; }
+    .card-divider { border: 0; border-top: 1px solid var(--line); margin: 1.75rem 0; }
 
     .role-badge {
       display: inline-block;
@@ -157,11 +157,14 @@
 
       <div id="globalMsg" class="alert d-none" role="alert" aria-live="polite"></div>
 
-      <!-- Profile -->
+      <!-- Profile: details, email, and password all live here -->
       <div class="account-card">
         <h2>Profile</h2>
-        <p class="section-sub">How your name and contact details appear to team staff.</p>
+        <p class="section-sub">How you appear to team staff, and how you sign in.</p>
+
+        <!-- Details -->
         <form id="profileForm" novalidate>
+          <h3>Details</h3>
           <div class="form-group">
             <label for="pfName">Display name</label>
             <input id="pfName" type="text" class="form-control" maxlength="60" autocomplete="name">
@@ -171,57 +174,62 @@
             <input id="pfPhone" type="tel" class="form-control" maxlength="25" autocomplete="tel" placeholder="(603) 555-0123">
             <small class="form-text text-muted">Used only by team staff to reach you about scouting or events.</small>
           </div>
-          <div class="form-group">
-            <label for="pfEmail">Email</label>
-            <input id="pfEmail" type="email" class="form-control" readonly>
-            <small class="form-text text-muted">Your email is your login. Change it below.</small>
-          </div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="profileBtn">Save profile</button>
+            <button type="submit" class="btn btn-primary" id="profileBtn">Save details</button>
             <span id="profileMsg" class="small" role="status" aria-live="polite"></span>
           </div>
         </form>
-      </div>
 
-      <!-- Change email -->
-      <div class="account-card">
-        <h2>Change email</h2>
-        <p class="section-sub">We'll send a confirmation link to your new address. Your email changes once you click it.</p>
+        <hr class="card-divider">
+
+        <!-- Email -->
         <form id="emailForm" novalidate>
+          <h3>Email</h3>
+          <p class="section-sub">Current address: <strong id="curEmail"></strong>. For security, we'll send a confirmation link to both your current and new addresses. The change takes effect after you confirm from both.</p>
           <div class="form-group">
             <label for="emNew">New email address</label>
-            <input id="emNew" type="email" class="form-control" autocomplete="email" required>
+            <input id="emNew" type="email" class="form-control" autocomplete="email">
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="emailBtn">Send confirmation link</button>
             <span id="emailMsg" class="small" role="status" aria-live="polite"></span>
           </div>
         </form>
-      </div>
 
-      <!-- Password -->
-      <div class="account-card">
-        <h2 id="pwTitle">Change password</h2>
-        <p class="section-sub" id="pwSub">Use at least 10 characters. A long phrase is stronger than a short, complicated one.</p>
+        <hr class="card-divider">
+
+        <!-- Password: step 1 sends a code, step 2 needs that code to save -->
         <form id="pwForm" novalidate>
-          <div class="form-group">
-            <label for="pwNew">New password</label>
-            <input id="pwNew" type="password" class="form-control" minlength="10" autocomplete="new-password">
-            <div class="pw-meter" aria-hidden="true"><span id="pwBar"></span></div>
+          <h3 id="pwTitle">Change password</h3>
+          <p class="section-sub" id="pwSub">For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords must be at least 8 characters.</p>
+
+          <div id="pwStep1">
+            <button type="button" class="btn btn-outline-secondary" id="pwSendBtn">Email me a verification code</button>
           </div>
-          <div class="form-group">
-            <label for="pwNew2">Confirm new password</label>
-            <input id="pwNew2" type="password" class="form-control" autocomplete="new-password">
+
+          <div id="pwStep2" class="d-none">
+            <div class="form-group">
+              <label for="pwCode">Verification code</label>
+              <input id="pwCode" type="text" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="6-digit code">
+              <small class="form-text text-muted">Check your inbox at <span class="pwEmail"></span>. The code is 6 digits and expires after 1 hour.</small>
+            </div>
+            <div class="form-group">
+              <label for="pwNew">New password</label>
+              <input id="pwNew" type="password" class="form-control" minlength="8" autocomplete="new-password">
+              <div class="pw-meter" aria-hidden="true"><span id="pwBar"></span></div>
+            </div>
+            <div class="form-group">
+              <label for="pwNew2">Confirm new password</label>
+              <input id="pwNew2" type="password" class="form-control" autocomplete="new-password">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="pwBtn">Update password</button>
+              <button type="button" class="ghost-btn" id="pwResendBtn">Resend code</button>
+              <button type="button" class="ghost-btn" id="pwCancelBtn">Cancel</button>
+            </div>
           </div>
-          <div class="form-group d-none" id="nonceGroup">
-            <label for="pwNonce">Verification code</label>
-            <input id="pwNonce" type="text" class="form-control" inputmode="numeric" autocomplete="one-time-code">
-            <small class="form-text text-muted">For security we emailed you a code. Enter it to finish changing your password.</small>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="pwBtn">Update password</button>
-            <span id="pwMsg" class="small" role="status" aria-live="polite"></span>
-          </div>
+
+          <div class="mt-2"><span id="pwMsg" class="small" role="status" aria-live="polite"></span></div>
         </form>
       </div>
 
@@ -262,7 +270,7 @@
           <button class="ghost-btn" id="refreshMembers" type="button">Refresh</button>
           <span id="staffMsg" class="small" role="status" aria-live="polite"></span>
         </div>
-</div>
+      </div>
 
     </div>
   </div>
@@ -284,6 +292,10 @@
   (async function () {
     var sb = RS.sb;
     var $ = function (id) { return document.getElementById(id); };
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
+    var PW_MIN = 8;
+    var PW_DEFAULT_SUB = "For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords must be at least 8 characters.";
 
     // auth.js injects its own "My Account" nav item; keep only the ones written in this page's HTML
     var navUl = document.querySelector("#navbarResponsive .navbar-nav");
@@ -311,6 +323,18 @@
       var dt = new Date(d);
       return withTime ? dt.toLocaleString() : dt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
     }
+    function cooldown(btn, secs) {
+      btn.disabled = true;
+      var label = btn.dataset.label || btn.textContent;
+      btn.dataset.label = label;
+      var left = secs;
+      btn.textContent = label + " (" + left + "s)";
+      var t = setInterval(function () {
+        left--;
+        if (left <= 0) { clearInterval(t); btn.disabled = false; btn.textContent = label; return; }
+        btn.textContent = label + " (" + left + "s)";
+      }, 1000);
+    }
 
     // ── Header ───────────────────────────────────────────────────────
     var levelLabel = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
@@ -321,8 +345,6 @@
     var meta = user.user_metadata || {};
     var name = meta.display_name || meta.full_name || meta.name || "";
     $("whoText").textContent = name ? "Welcome back, " + name + "." : "Welcome back.";
-    var portalItem = $("portalNavItem");
-    if (isStaff && portalItem) portalItem.style.display = "";
 
     // ── Tiles ────────────────────────────────────────────────────────
     var tiles = [{
@@ -347,12 +369,11 @@
         '<i class="fa fa-chevron-right ml-auto text-muted" style="font-size:.75rem;"></i></a>';
     }).join("");
 
-    // ── Profile form ─────────────────────────────────────────────────
+    // ── Profile: details ─────────────────────────────────────────────
     $("pfName").value  = name;
     $("pfPhone").value = meta.phone || "";
-    $("pfEmail").value = user.email || "";
-    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
+    $("curEmail").textContent = user.email || "";
+    document.querySelectorAll(".pwEmail").forEach(function (el) { el.textContent = user.email || "your email"; });
 
     $("profileForm").addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -367,10 +388,14 @@
       btn.disabled = true; msg.textContent = "";
       var r = await sb.auth.updateUser({ data: { display_name: n, phone: p } });
       btn.disabled = false;
-      if (r.error) return flash(msg, false, "Couldn't save your profile. Please try again.");
+      if (r.error) return flash(msg, false, "Couldn't save your details. Please try again.");
       $("whoText").textContent = "Welcome back, " + n + ".";
-      flash(msg, true, "Profile saved.");
-      
+      flash(msg, true, "Details saved.");
+    });
+
+    // ── Profile: email ───────────────────────────────────────────────
+    $("emailForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
       var msg = $("emailMsg"), btn = $("emailBtn");
       var newEmail = $("emNew").value.trim().toLowerCase();
 
@@ -388,22 +413,20 @@
         return flash(msg, false, "Couldn't send the confirmation link. Please try again.");
       }
       $("emNew").value = "";
-      flash(msg, true, "Check " + newEmail + " for a confirmation link.");
-    });
+      flash(msg, true, "Confirmation links were sent to your current and new addresses. Click both to finish the change.");
     });
 
-    // ── Password form ────────────────────────────────────────────────
+    // ── Profile: password (code required) ────────────────────────────
     var providers = (user.app_metadata && user.app_metadata.providers) || [];
     var hasPassword = providers.indexOf("email") !== -1;
     if (!hasPassword) {
       $("pwTitle").textContent = "Set a password";
-      $("pwSub").textContent = "You signed in with Google. Optionally add a password so you can also sign in with your email.";
-      $("pwBtn").textContent = "Set password";
+      $("pwSub").textContent = "You signed in with Google. Optionally add a password so you can also sign in with your email. We'll send a 6-digit verification code first. Passwords must be at least 8 characters.";
     }
 
     $("pwNew").addEventListener("input", function () {
       var v = this.value, score = 0;
-      if (v.length >= 10) score++;
+      if (v.length >= 8) score++;
       if (v.length >= 14) score++;
       if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
       if (/\d/.test(v) || /[^A-Za-z0-9]/.test(v)) score++;
@@ -412,39 +435,63 @@
       bar.style.background = score <= 1 ? "#c0392b" : score === 2 ? "#d68910" : "#1a7f4b";
     });
 
-    var needNonce = false;
+    function showStep(step) {
+      $("pwStep1").classList.toggle("d-none", step !== 1);
+      $("pwStep2").classList.toggle("d-none", step !== 2);
+    }
+    function resetPwForm() {
+      $("pwCode").value = ""; $("pwNew").value = ""; $("pwNew2").value = "";
+      $("pwBar").style.width = "0";
+      $("pwMsg").textContent = "";
+      showStep(1);
+    }
+
+    async function sendCode(btn) {
+      var msg = $("pwMsg");
+      btn.disabled = true; msg.textContent = "";
+      var r = await sb.auth.reauthenticate();
+      if (r.error) {
+        btn.disabled = false;
+        if (/rate limit|seconds|too many/i.test(r.error.message)) return flash(msg, false, "Please wait a minute before requesting another code.");
+        return flash(msg, false, "Couldn't send a code. Please try again.");
+      }
+      showStep(2);
+      flash(msg, true, "We emailed a 6-digit verification code to " + user.email + ".");
+      cooldown(btn, 60);
+      $("pwCode").focus();
+    }
+
+    $("pwSendBtn").addEventListener("click", function () { sendCode(this); });
+    $("pwResendBtn").addEventListener("click", function () { sendCode(this); });
+    $("pwCancelBtn").addEventListener("click", resetPwForm);
+
     $("pwForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       var msg = $("pwMsg"), btn = $("pwBtn");
+      if ($("pwStep2").classList.contains("d-none")) return; // a code must be requested first
+
+      var code = $("pwCode").value.trim();
       var p = $("pwNew").value;
-      if (p.length < 10) return flash(msg, false, "Password must be at least 10 characters.");
+      if (!/^\d{6}$/.test(code)) return flash(msg, false, "Enter the 6-digit code from your email.");
+      if (p.length < PW_MIN) return flash(msg, false, "Password must be at least 8 characters.");
       if (p !== $("pwNew2").value) return flash(msg, false, "Passwords don't match.");
-      var payload = { password: p };
-      if (needNonce) {
-        var code = $("pwNonce").value.trim();
-        if (!code) return flash(msg, false, "Enter the verification code from your email.");
-        payload.nonce = code;
-      }
+
       btn.disabled = true; msg.textContent = "";
-      var r = await sb.auth.updateUser(payload);
+      var r = await sb.auth.updateUser({ password: p, nonce: code });
       btn.disabled = false;
+
       if (r.error) {
-        if (/reauthenticat|nonce/i.test(r.error.message)) {
-          // Project requires a fresh email code before changing a password
-          if (!needNonce) {
-            needNonce = true;
-            $("nonceGroup").classList.remove("d-none");
-            await sb.auth.reauthenticate();
-            return flash(msg, true, "We emailed you a code. Enter it above and submit again.");
-          }
-          return flash(msg, false, "That code didn't work. Check it and try again.");
-        }
+        if (/nonce|reauthenticat|expired|invalid.*(code|token)|otp/i.test(r.error.message))
+          return flash(msg, false, "That code is wrong or has expired. Check it, or resend a new one.");
         if (/same|different/i.test(r.error.message)) return flash(msg, false, "Choose a password you haven't used before.");
         if (/weak|pwned|breach/i.test(r.error.message)) return flash(msg, false, "That password is too easy to guess. Try a longer one.");
         return flash(msg, false, "Couldn't update your password. Please try again.");
       }
-      $("pwForm").reset(); $("pwBar").style.width = "0";
-      $("nonceGroup").classList.add("d-none"); needNonce = false;
+
+      hasPassword = true;
+      $("pwTitle").textContent = "Change password";
+      $("pwSub").textContent = PW_DEFAULT_SUB;
+      resetPwForm();
       flash(msg, true, "Password updated.");
     });
 
@@ -473,11 +520,6 @@
       await sb.auth.signOut({ scope: "global" });
       location.href = "/signin.html";
     });
-
-    // ── Change email ─────────────────────────────────────────────────
-    
-
-    
 
     // ── Show page ────────────────────────────────────────────────────
     $("loadingState").style.display = "none";

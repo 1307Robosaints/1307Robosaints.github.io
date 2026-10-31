@@ -101,8 +101,8 @@
           <input id="upEmail" type="email" class="form-control" autocomplete="email" required>
           <small class="form-text text-muted">We'll send a link to this address. Your account stays locked until you click it.</small></div>
         <div class="form-group"><label for="upPass">Password</label>
-          <input id="upPass" type="password" class="form-control" minlength="10" autocomplete="new-password" required>
-          <small class="form-text text-muted">At least 10 characters.</small></div>
+          <input id="upPass" type="password" class="form-control" minlength="8" autocomplete="new-password" required>
+          <small class="form-text text-muted">At least 8 characters.</small></div>
         <div class="form-group"><label for="upPass2">Confirm password</label>
           <input id="upPass2" type="password" class="form-control" autocomplete="new-password" required></div>
         <div class="hp" aria-hidden="true"><label>Leave blank<input id="upWebsite" type="text" tabindex="-1" autocomplete="off"></label></div>
@@ -118,7 +118,7 @@
 
       <form id="resetForm" class="d-none" novalidate>
         <div class="form-group"><label for="rsPass">New password</label>
-          <input id="rsPass" type="password" class="form-control" minlength="10" autocomplete="new-password" required></div>
+          <input id="rsPass" type="password" class="form-control" minlength="8" autocomplete="new-password" required></div>
         <button class="btn btn-navy" type="submit">Save new password</button>
       </form>
 
@@ -152,6 +152,7 @@
     var FORMS = ["signin", "signup", "forgot", "reset"];
     var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
     var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    var PW_MIN = 8;
     var lastEmail = "";
 
     function msg(type, text) {
@@ -221,7 +222,7 @@
       if (!name) return msg("danger", "Enter your name.");
       if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
       if (DISPOSABLE.test(email)) return msg("danger", "Please use a permanent email address, not a temporary one.");
-      if (p.length < 10) return msg("danger", "Password must be at least 10 characters.");
+      if (p.length < PW_MIN) return msg("danger", "Password must be at least 8 characters.");
       if (p !== $("upPass2").value) return msg("danger", "Passwords don't match.");
       lastEmail = email;
       var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
@@ -260,7 +261,7 @@
     $("resetForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       var p = $("rsPass").value;
-      if (p.length < 10) return msg("danger", "Password must be at least 10 characters.");
+      if (p.length < PW_MIN) return msg("danger", "Password must be at least 8 characters.");
       var r = await sb.auth.updateUser({ password: p });
       if (r.error) return msg("danger", "That link may have expired. Request a new reset link.");
       location.href = "account.html";
