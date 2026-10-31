@@ -183,6 +183,22 @@
         </form>
       </div>
 
+      <!-- Change email -->
+      <div class="account-card">
+        <h2>Change email</h2>
+        <p class="section-sub">We'll send a confirmation link to your new address. Your email changes once you click it.</p>
+        <form id="emailForm" novalidate>
+          <div class="form-group">
+            <label for="emNew">New email address</label>
+            <input id="emNew" type="email" class="form-control" autocomplete="email" required>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="emailBtn">Send confirmation link</button>
+            <span id="emailMsg" class="small" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </div>
+
       <!-- Password -->
       <div class="account-card">
         <h2 id="pwTitle">Change password</h2>
@@ -434,6 +450,32 @@
       if (!confirm("Sign out of every device, including this one?")) return;
       await sb.auth.signOut({ scope: "global" });
       location.href = "/signin.html";
+    });
+
+    // ── Change email ─────────────────────────────────────────────────
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    var DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|throwawaymail|dispostable|maildrop)\./i;
+
+    $("emailForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var msg = $("emailMsg"), btn = $("emailBtn");
+      var newEmail = $("emNew").value.trim().toLowerCase();
+
+      if (!EMAIL_RE.test(newEmail)) return flash(msg, false, "Enter a valid email address.");
+      if (newEmail === (user.email || "").toLowerCase()) return flash(msg, false, "That's already your email address.");
+      if (DISPOSABLE.test(newEmail)) return flash(msg, false, "Please use a permanent email address, not a temporary one.");
+
+      btn.disabled = true; msg.textContent = "";
+      var r = await sb.auth.updateUser({ email: newEmail });
+      btn.disabled = false;
+
+      if (r.error) {
+        if (/already|registered|exists/i.test(r.error.message)) return flash(msg, false, "That email is already in use.");
+        if (/rate limit/i.test(r.error.message)) return flash(msg, false, "Too many attempts. Wait a few minutes and try again.");
+        return flash(msg, false, "Couldn't send the confirmation link. Please try again.");
+      }
+      $("emNew").value = "";
+      flash(msg, true, "Check " + newEmail + " for a confirmation link.");
     });
 
     // ── Show page ────────────────────────────────────────────────────
