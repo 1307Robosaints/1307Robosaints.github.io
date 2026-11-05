@@ -263,7 +263,10 @@
       return fields.filter(function (f) { return (f.scope || "match") === scope; });
     }
     function evName(id) { var e = eventsById[id]; return e ? e.name : "—"; }
-    function evTime(id) { var e = eventsById[id]; return e && e.event_date ? new Date(e.event_date).getTime() : 0; }
+    function evTime(id) {
+    var e = eventsById[id];
+    return e && e.event_date ? new Date(String(e.event_date).slice(0, 10) + "T00:00:00Z").getTime() : 0;
+    }
     function cell(v, f) {
       if (v == null || v === "") return "—";
       if (f.field_type === "boolean") return v ? "Yes" : "No";
@@ -439,6 +442,13 @@
     await loadMeta();
     await Promise.all([loadSummary(), loadPitTeams()]);
     renderList();
+
+    // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
+    function fmtEventDate(d, opts) {
+     if (!d) return "—";
+     return new Date(String(d).slice(0, 10) + "T00:00:00Z")
+      .toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts));
+    }
 
     /* ─────────────────────────────────────────────────────────────────
        BLUE ALLIANCE IMPORT: NOT ACTIVE YET (kept here for later)

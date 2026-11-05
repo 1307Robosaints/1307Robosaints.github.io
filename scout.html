@@ -418,7 +418,8 @@
       sel.innerHTML = '<option value="">— Select event —</option>';
       events.forEach(function(ev) {
         var o = document.createElement("option");
-        o.value = ev.id; o.textContent = ev.name + (ev.event_date ? " (" + ev.event_date.slice(0,7) + ")" : "");
+        o.value = ev.id;
+        o.textContent = ev.name + (ev.event_date ? " (" + fmtEventDate(ev.event_date, { month: "short", day: "numeric" }) + ")" : "");
         sel.appendChild(o);
       });
       // Auto-select the most recent event
@@ -433,12 +434,22 @@
       buildForm();
     }
 
+    // Keep each section together, ordered by where it first appears in sort_order.
+    function groupedFields(list) {
+      var order = [], groups = {};
+      list.forEach(function (f) {
+        if (!groups[f.section]) { groups[f.section] = []; order.push(f.section); }
+        groups[f.section].push(f);
+      });
+      return order.reduce(function (out, sec) { return out.concat(groups[sec]); }, []);
+    }
+
     // Build the form for the active tab. Booleans become checkboxes.
     function buildForm() {
       var container = get("dynamicFields");
       container.innerHTML = "";
       var currentSection = null;
-      activeFields().forEach(function(f) {
+      groupedFields(activeFields()).forEach(function (f) {
         // Start a new heading whenever the section name changes
         if (f.section !== currentSection) {
           currentSection = f.section;
@@ -821,6 +832,13 @@
     await loadFields();
     await loadEvents();
     flushDrafts();
+
+    // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
+    function fmtEventDate(d, opts) {
+     if (!d) return "—";
+     return new Date(String(d).slice(0, 10) + "T00:00:00Z")
+      .toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts));
+    }
   })();
   </script>
 </body>

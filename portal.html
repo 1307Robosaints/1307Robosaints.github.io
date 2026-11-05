@@ -514,8 +514,7 @@
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     }
     function fmt(date) {
-      if (!date) return "—";
-      return new Date(date).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+    return fmtEventDate(date, { month: "short", day: "numeric", year: "numeric" });
     }
     function fmtDT(dt) {
       if (!dt) return "—";
@@ -697,7 +696,7 @@
       document.getElementById("fKey").disabled = false;
       document.getElementById("choiceOpts").classList.add("d-none");
       document.getElementById("numberOpts").style.display = "";
-      document.getElementById("fFormTitle") && (document.getElementById("fieldFormTitle").textContent = "Add Field");
+      document.getElementById("fieldFormTitle").textContent = "Add Field";
       document.getElementById("fCancel").classList.add("d-none");
     }
 
@@ -904,6 +903,14 @@
     // ── Boot ─────────────────────────────────────────────────────────
     await Promise.all([loadEvents(), loadFields(), loadCodes()]);
     loadMembers();
+
+    // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
+    function fmtEventDate(d, opts) {
+     if (!d) return "—";
+     return new Date(String(d).slice(0, 10) + "T00:00:00Z")
+      .toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts));
+    }
+
   })();
   </script>
 </body>
