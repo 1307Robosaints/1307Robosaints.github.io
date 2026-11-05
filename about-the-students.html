@@ -30,8 +30,7 @@
           <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
           St. Thomas Aquinas Robotics Team 1307
         </a>
-        <button class="navbar-toggler navbar-toggler-right" type="button"
-                data-toggle="collapse" data-target="#navbarResponsive"
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
                 aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -43,7 +42,7 @@
             </li>
 
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navSponsors"
+              <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
                 <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
@@ -52,10 +51,10 @@
             </li>
 
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navAbout"
+              <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
-                <a class="dropdown-item active" href="/about-the-students.html">The Students</a>
+                <a class="dropdown-item" href="/about-the-students.html">The Students</a>
                 <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
                 <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
               </div>
@@ -68,21 +67,18 @@
               <a class="nav-link" href="/contact.html">Contact Us</a>
             </li>
 
-            <!-- Scouting section. Items are hidden until the access script reveals them. -->
-            <li class="nav-item">
-              <a class="nav-link" href="/1307scout.html">1307scout</a>
-            </li>
-            <li class="nav-item" data-role="team" hidden>
-              <a class="nav-link" href="/scout.html">Scout</a>
-            </li>
-            <li class="nav-item" data-role="team" hidden>
-              <a class="nav-link" href="/query.html">Team Database</a>
-            </li>
-            <li class="nav-item" data-role="staff" hidden>
-              <a class="nav-link" href="/portal.html">Staff Portal</a>
+            <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+                <a class="dropdown-item" href="/1307scout.html">Command Center</a>
+                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+                <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+              </div>
             </li>
 
-            <!-- Filled by auth.js: "Sign In" when signed out, "My Account" when signed in -->
             <li class="nav-item" id="authNavItem">
               <a class="nav-link" href="/signin.html">Sign In</a>
             </li>

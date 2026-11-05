@@ -93,14 +93,13 @@
 <body>
 
   <!-- ===== Navigation ===== -->
-    <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
       <div class="container">
         <a class="navbar-brand" href="/index.html">
           <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
           St. Thomas Aquinas Robotics Team 1307
         </a>
-        <button class="navbar-toggler navbar-toggler-right" type="button"
-                data-toggle="collapse" data-target="#navbarResponsive"
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
                 aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -112,7 +111,7 @@
             </li>
 
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navSponsors"
+              <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
                 <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
@@ -121,7 +120,7 @@
             </li>
 
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navAbout"
+              <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
                 <a class="dropdown-item" href="/about-the-students.html">The Students</a>
@@ -137,21 +136,18 @@
               <a class="nav-link" href="/contact.html">Contact Us</a>
             </li>
 
-            <!-- Scouting section. Items are hidden until the access script reveals them. -->
-            <li class="nav-item">
-              <a class="nav-link" href="/1307scout.html">1307scout</a>
-            </li>
-            <li class="nav-item" data-role="team" hidden>
-              <a class="nav-link" href="/scout.html">Scout</a>
-            </li>
-            <li class="nav-item" data-role="team" hidden>
-              <a class="nav-link" href="/query.html">Team Database</a>
-            </li>
-            <li class="nav-item" data-role="staff" hidden>
-              <a class="nav-link" href="/portal.html">Staff Portal</a>
+            <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+                <a class="dropdown-item" href="/1307scout.html">Command Center</a>
+                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+                <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+              </div>
             </li>
 
-            <!-- Filled by auth.js: "Sign In" when signed out, "My Account" when signed in -->
             <li class="nav-item" id="authNavItem">
               <a class="nav-link" href="/signin.html">Sign In</a>
             </li>
@@ -174,7 +170,6 @@
           </div>
           <button class="ghost-btn mt-2 mt-sm-0" id="signOutBtn" type="button">Sign out</button>
         </div>
-        <div id="tileArea" class="mt-4"></div>
       </div>
 
       <div id="globalMsg" class="alert d-none" role="alert" aria-live="polite"></div>
@@ -275,25 +270,6 @@
         <p class="section-sub">Signed in on a shared or lost device? Sign out everywhere, then sign back in here.</p>
         <button class="ghost-btn" id="signOutAllBtn" type="button">Sign out of all devices</button>
       </div>
-
-      <!-- Staff only: member management -->
-      <div class="account-card" id="staffSection" style="display:none;">
-        <h2>Member management <span class="role-badge staff">Staff</span></h2>
-        <p class="section-sub"><span id="memberCount"></span> Set access levels, sign people out, or ban accounts.</p>
-        <div class="table-responsive">
-          <table class="table table-sm scout-table">
-            <thead>
-              <tr><th>Name</th><th>Email</th><th>Access</th><th>Status</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="memberRows"></tbody>
-          </table>
-        </div>
-        <div class="form-actions">
-          <button class="ghost-btn" id="refreshMembers" type="button">Refresh</button>
-          <span id="staffMsg" class="small" role="status" aria-live="polite"></span>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -329,16 +305,6 @@
       return p.length >= PW_MIN && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
     }
     var PW_DEFAULT_SUB = "For your security, we'll email you a 6-digit verification code first. Enter it with your new password to finish. Passwords need at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a symbol.";
-
-    // auth.js injects its own "My Account" nav item; keep only the ones written in this page's HTML
-    var navUl = document.querySelector("#navbarResponsive .navbar-nav");
-    function dedupeNav() {
-      Array.prototype.slice.call(navUl.children).forEach(function (li) {
-        if (!li.hasAttribute("data-static")) li.remove();
-      });
-    }
-    dedupeNav();
-    new MutationObserver(dedupeNav).observe(navUl, { childList: true });
 
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
@@ -557,100 +523,6 @@
     // ── Show page ────────────────────────────────────────────────────
     $("loadingState").style.display = "none";
     $("accountArea").style.display  = "";
-
-    // ── Staff: member management ─────────────────────────────────────
-    if (isStaff) {
-      var LEVELS = ["staff", "mentor", "student", "guest"];
-      var staffMsg = $("staffMsg");
-
-      function staffFlash(ok, text) {
-        staffMsg.className = "small " + (ok ? "ok" : "text-danger");
-        staffMsg.textContent = text;
-      }
-      async function fnError(err) {
-        try { return (await err.context.json()).error || "Action failed."; }
-        catch (e) { return "Action failed."; }
-      }
-      function cell(content) {
-        var td = document.createElement("td");
-        if (typeof content === "string") td.textContent = content; else td.appendChild(content);
-        return td;
-      }
-      function button(label, handler, disabled) {
-        var b = document.createElement("button");
-        b.type = "button"; b.className = "ghost-btn mr-1 mb-1"; b.textContent = label;
-        b.disabled = !!disabled; b.onclick = handler; return b;
-      }
-
-      async function kick(m) {
-        if (!confirm("Sign " + m.email + " out of all devices?")) return;
-        var r = await sb.rpc("staff_kick", { target: m.user_id });
-        if (r.error) return staffFlash(false, r.error.message);
-        staffFlash(true, m.email + " was signed out everywhere.");
-      }
-
-      async function toggleBan(m) {
-        var unban = m.banned;
-        var q = unban ? "Unban " + m.email + "?"
-                      : "Ban " + m.email + "? They will be signed out and unable to sign in.";
-        if (!confirm(q)) return;
-        var r = await sb.functions.invoke("manage-member", {
-          body: { action: unban ? "unban" : "ban", target: m.user_id }
-        });
-        if (r.error) return staffFlash(false, await fnError(r.error));
-        staffFlash(true, m.email + (unban ? " was unbanned." : " was banned."));
-        loadMembers();
-      }
-
-      function levelSelect(m, self) {
-        var sel = document.createElement("select");
-        sel.className = "custom-select custom-select-sm";
-        sel.disabled = self;
-        LEVELS.forEach(function (l) {
-          var o = document.createElement("option");
-          o.value = l;
-          o.textContent = l.charAt(0).toUpperCase() + l.slice(1);
-          o.selected = (l === m.level);
-          sel.appendChild(o);
-        });
-        sel.onchange = async function () {
-          var r = await sb.rpc("staff_set_level", { target: m.user_id, new_level: sel.value });
-          if (r.error) { staffFlash(false, r.error.message); sel.value = m.level; return; }
-          staffFlash(true, m.email + " is now " + sel.value + ".");
-          loadMembers();
-        };
-        return sel;
-      }
-
-      function memberRow(m) {
-        var self = m.user_id === user.id;
-        var actions = document.createElement("td");
-        actions.appendChild(button("Kick", function () { kick(m); }, self));
-        actions.appendChild(button(m.banned ? "Unban" : "Ban",
-                                   function () { toggleBan(m); }, self));
-
-        var tr = document.createElement("tr");
-        tr.appendChild(cell(m.display_name || "—"));
-        tr.appendChild(cell(m.email || "—"));
-        tr.appendChild(cell(levelSelect(m, self)));
-        tr.appendChild(cell(m.banned ? "Banned" : "Active"));
-        tr.appendChild(actions);
-        return tr;
-      }
-
-      async function loadMembers() {
-        var r = await sb.rpc("staff_list_members");
-        if (r.error) return staffFlash(false, "Couldn't load members.");
-        var tbody = $("memberRows");
-        tbody.innerHTML = "";
-        r.data.forEach(function (m) { tbody.appendChild(memberRow(m)); });
-        $("memberCount").textContent = r.data.length + " accounts.";
-      }
-
-      $("refreshMembers").addEventListener("click", loadMembers);
-      $("staffSection").style.display = "";
-      loadMembers();
-    }
   })();
   </script>
 </body>

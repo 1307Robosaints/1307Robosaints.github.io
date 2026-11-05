@@ -1,54 +1,48 @@
-// Shared by every page: creates the Supabase client, sets up the navbar's
-// login item and role-gated links, and marks the current page as active.
+// Shared by every page: creates the Supabase client, shows or hides role-gated
+// nav links, fills the login item, and marks the current page as active.
 (function () {
   var CFG = window.AUTH_CONFIG;
   var sb = window.supabase.createClient(CFG.url, CFG.anonKey);
+  window.RS = { sb: sb };
 
-  window.RS = {
-    sb: sb,
-    isMember: function (u) {
-      return !!u && !!u.email_confirmed_at &&
-             u.email.toLowerCase().endsWith("@" + CFG.memberDomain);
-    }
-  };
-
-  // Mark the link for the current page as active
+  // Highlight the current page's link. Dropdown toggles use href="#", so skip anything that isn't a real page.
   function markActive() {
     var here = location.pathname.replace(/\/+$/, "") || "/index.html";
-    document.querySelectorAll("#navbarResponsive .nav-link[href]").forEach(function (a) {
-      var target = new URL(a.getAttribute("href"), location.href).pathname;
-      if (target === here || (here === "/" && target === "/index.html")) {
-        a.classList.add("active");
-        var parentDropdown = a.closest(".dropdown");
-        if (parentDropdown) parentDropdown.querySelector(".dropdown-toggle").classList.add("active");
-      }
+    document.querySelectorAll("#navbarResponsive a[href]").forEach(function (a) {
+      var href = a.getAttribute("href");
+      if (!href || href.charAt(0) === "#") return;
+      var target = new URL(href, location.href).pathname.replace(/\/+$/, "") || "/index.html";
+      if (target !== here) return;
+      a.classList.add("active");
+      a.setAttribute("aria-current", "page");
+      var dd = a.closest(".dropdown");
+      if (dd) dd.querySelector(".dropdown-toggle").classList.add("active");
     });
   }
 
-  // Show/hide role-gated links and fill the login item
   function renderNav(session, level) {
-    var loggedIn = !!session;
     var authItem = document.getElementById("authNavItem");
     if (authItem) {
       var a = authItem.querySelector("a");
-      a.href = loggedIn ? "/account.html" : "/signin.html";
-      a.textContent = loggedIn ? "My Account" : "Sign In";
+      a.href = session ? "/account.html" : "/signin.html";
+      a.textContent = session ? "My Account" : "Sign In";
     }
-    document.querySelectorAll("[data-role]").forEach(function (li) {
-      var role = li.getAttribute("data-role");
+    document.querySelectorAll("[data-role]").forEach(function (el) {
+      var role = el.getAttribute("data-role");
       var show = role === "staff" ? level === "staff"
                : role === "team"  ? (level === "staff" || level === "student")
                : false;
-      li.hidden = !show;
+      el.hidden = !show;
     });
+    markActive();
   }
 
-  markActive();
+  renderNav(null, "guest");   // hide team and staff links until we know who is signed in
 
   sb.auth.getSession().then(function (r) {
     var session = r.data.session;
     if (!session) return renderNav(null, "guest");
-    sb.rpc("my_access_level").then(function (res) {
+    return sb.rpc("my_access_level").then(function (res) {
       renderNav(session, (res && res.data) || "guest");
     });
   });

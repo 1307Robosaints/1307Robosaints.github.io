@@ -306,71 +306,69 @@
 </head>
 <body>
 
-  <!-- ===== Navigation (identical on every page; set class "active" on the current page's link) ===== -->
+  <!-- ===== Navigation ===== -->
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
-    <div class="container">
-      <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
-        St. Thomas Aquinas Robotics Team 1307
-      </a>
-      <button class="navbar-toggler navbar-toggler-right" type="button"
-              data-toggle="collapse" data-target="#navbarResponsive"
-              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+      <div class="container">
+        <a class="navbar-brand" href="/index.html">
+          <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+          St. Thomas Aquinas Robotics Team 1307
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+                aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
 
-      <div class="collapse navbar-collapse" id="navbarResponsive">
-        <ul class="navbar-nav ml-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="/index.html">Home</a>
-          </li>
+        <div class="collapse navbar-collapse" id="navbarResponsive">
+          <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/index.html">Home</a>
+            </li>
 
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="navSponsors"
-              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
-            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
-              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
-              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
-            </div>
-          </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+                <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+                <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+              </div>
+            </li>
 
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="navAbout"
-              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
-            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
-              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
-              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
-              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
-            </div>
-          </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+                <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+                <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+                <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              </div>
+            </li>
 
-          <li class="nav-item">
-            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/contact.html">Contact Us</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link active" href="/1307scout.html">1307scout</a>
-          </li>
-          <li class="nav-item" data-role="team" hidden>
-            <a class="nav-link" href="/scout.html">Scout</a>
-          </li>
-          <li class="nav-item" data-role="team" hidden>
-            <a class="nav-link" href="/query.html">Team Database</a>
-          </li>
-          <li class="nav-item" data-role="staff" hidden>
-            <a class="nav-link" href="/portal.html">Staff Portal</a>
-          </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/contact.html">Contact Us</a>
+            </li>
 
-          <!-- Filled by auth.js: "Sign In" when signed out, "My Account" when signed in -->
-          <li class="nav-item" id="authNavItem">
-            <a class="nav-link" href="/signin.html">Sign In</a>
-          </li>
-        </ul>
+            <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+                <a class="dropdown-item" href="/1307scout.html">Command Center</a>
+                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+                <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+              </div>
+            </li>
+
+            <li class="nav-item" id="authNavItem">
+              <a class="nav-link" href="/signin.html">Sign In</a>
+            </li>
+          </ul>
+        </div>
       </div>
-    </div>
-  </nav>
+    </nav>
 
   <!-- ══════════════════════════════════════════════════════════
        LOGGED-OUT VIEW  (shown when nobody is signed in)
@@ -542,12 +540,6 @@
     var lvl  = (await sb.rpc("my_access_level")).data || "guest";
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
 
-    // FIX: this script used to try to un-hide nav items (#navSignIn, #navScout, #navPortal, #navAccount).
-    // Those elements don't exist in this page's nav, so getElementById returned null, the next line threw a
-    // TypeError, and the script stopped before the last line below revealed #loggedInView. The result was a
-    // blank page for every signed-in visitor. The nav is static and auth.js already adds Sign In / My Account,
-    // so those lines are gone. If you add nav ids later, null-check them before touching .style.
-
     // Greeting: first name if we have one, otherwise a plain welcome.
     var meta = user.user_metadata || {};
     var name = meta.display_name || meta.full_name || meta.name || "";
@@ -564,17 +556,15 @@
 
     // ── Primary tiles, depending on access level ─────────────────
     var tiles = [];
-    if (isStaff) {
-      tiles.push({ href:"/portal.html",  icon:"fa-cog",      cls:"staff-tile",
-                   title:"Staff Portal", desc:"Configure events, fields, and share codes" });
-    }
+    if (isStaff) tiles.push({ href:"/portal.html", icon:"fa-cog", cls:"staff-tile",
+                 title:"Staff Portal", desc:"Events, form fields, share codes, and members" });
     if (isTeam) {
-      tiles.push({ href:"/scout.html",   icon:"fa-clipboard", cls:"",
-                   title:"Scout",        desc:"Enter match data for the current event" });
-    }
-    if (!isTeam) {
-      // Guests can only open a share code
-      tiles.push({ href:"/scout.html",   icon:"fa-search",    cls:"",
+      tiles.push({ href:"/scout.html", icon:"fa-clipboard", cls:"",
+                   title:"Scout", desc:"Enter match and pit data for the current event" });
+      tiles.push({ href:"/query.html", icon:"fa-database", cls:"",
+                   title:"Team Database", desc:"Match history, robot parameters, and ratings" });
+    } else {
+      tiles.push({ href:"/scout.html", icon:"fa-search", cls:"",
                    title:"View shared data", desc:"Enter a share code from Team 1307" });
     }
 
