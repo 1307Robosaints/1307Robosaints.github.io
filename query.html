@@ -212,6 +212,11 @@
     </a>
     <div class="container">
       <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
     </div>
   </footer>
 
@@ -239,7 +244,6 @@
     if (!s) { location.replace("signin.html"); return; }
     var lvl = (await sb.rpc("my_access_level")).data || "guest";
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
-    if (lvl === "staff") $("portalLink").style.display = "";
 
     // ── Rating config ────────────────────────────────────────────────
     // Tiers come from a team's percentile among rated teams (teams with at least one match).
@@ -257,7 +261,7 @@
     };
     var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
 
-    var fields = [], eventsById = {}, summary = [], pitTeams = [];
+    var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [];
 
     function fieldsFor(scope) {
       return fields.filter(function (f) { return (f.scope || "match") === scope; });
@@ -291,10 +295,16 @@
     }
 
     // ── Team list ────────────────────────────────────────────────────
+    async function loadOfficial() {
+      var r = await sb.rpc("team_official_summary");
+      official = r.error ? [] : (r.data || []);
+    }
+
     function teamList() {
       var byTeam = new Map();
       summary.forEach(function (r) { byTeam.set(r.team_number, { team: r.team_number, matches: r.matches }); });
       pitTeams.forEach(function (t) { if (!byTeam.has(t)) byTeam.set(t, { team: t, matches: 0 }); });
+      official.forEach(function (r) { if (!byTeam.has(r.team_number)) byTeam.set(r.team_number, { team: r.team_number, matches: 0 }); });
       return Array.from(byTeam.values()).sort(function (a, b) { return a.team - b.team; });
     }
 
@@ -361,16 +371,56 @@
         sb.from("scouting_entries").select("*").eq("team_number", team)
           .order("match_number", { ascending: true, nullsFirst: false }),
         sb.from("pit_entries").select("*").eq("team_number", team)
-          .order("updated_at", { ascending: false }).limit(1)
+          .order("updated_at", { ascending: false }).limit(1),
+        sb.from("official_match_teams")
+          .select("event_id,match_key,comp_level,match_number,alliance,alliance_score,opponent_score,played_at")
+          .eq("team_number", team)
+          .order("played_at", { ascending: true, nullsFirst: false })
       ]);
       summary = results[0].error ? [] : (results[0].data || []);
       var matches = results[1].data || [];
       var pit = (results[2].data || [])[0] || null;
+      var officialRows = results[3].error ? [] : (results[3].data || []);
 
-      renderDetail(team, gradeFor(team), matches, pit);
+      renderDetail(team, gradeFor(team), matches, pit, officialRows);
     }
 
-    function renderDetail(team, g, matches, pit) {
+    function matchLabel(r) {
+      if (r.comp_level === "qm") return "Qual " + r.match_number;
+      if (r.comp_level === "sf") return "Playoff " + r.set_number_label;
+      return "Final " + r.match_number;
+    }
+    function officialHtml(rows) {
+      var head = '<h3 class="section-title">Official results</h3>';
+      if (!rows.length) {
+        return head + '<p class="text-muted">No official match data yet. Link this event to its FRC / TBA codes in the Staff Portal.</p>';
+      }
+      var wins = 0, losses = 0, ties = 0, total = 0, n = 0;
+      rows.forEach(function (r) {
+        r.set_number_label = (r.match_key.match(/^sf(\d+)/) || [])[1] || r.match_number;
+        if (r.alliance_score == null || r.opponent_score == null) return;
+        total += r.alliance_score; n++;
+        if (r.alliance_score > r.opponent_score) wins++;
+        else if (r.alliance_score < r.opponent_score) losses++;
+        else ties++;
+      });
+      var body = rows.map(function (r) {
+        var played = r.alliance_score != null && r.opponent_score != null;
+        var result = !played ? "—" : r.alliance_score > r.opponent_score ? "W" : r.alliance_score < r.opponent_score ? "L" : "T";
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + esc(matchLabel(r)) + "</td>" +
+          "<td>" + esc(r.alliance) + "</td>" +
+          "<td>" + (played ? r.alliance_score + " – " + r.opponent_score : "—") + "</td>" +
+          "<td>" + result + "</td></tr>";
+      }).join("");
+      return head +
+        '<p class="text-muted mb-2" style="font-size:.9rem;">Record ' + wins + "-" + losses + "-" + ties +
+        (n ? " · avg alliance score " + (total / n).toFixed(1) : "") + "</p>" +
+        '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+        "<th>Event</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>";
+    }
+
+    function renderDetail(team, g, matches, pit, officialRows) {
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
 
       matches = matches.slice().sort(function (a, b) {
@@ -430,6 +480,7 @@
 
         '<h3 class="section-title">Robot parameters</h3>' + paramsHtml +
 
+        officialHtml(officialRows || []) +
         '<h3 class="section-title">Match history</h3>' +
         (matches.length
           ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
@@ -440,7 +491,7 @@
 
     // ── Boot ─────────────────────────────────────────────────────────
     await loadMeta();
-    await Promise.all([loadSummary(), loadPitTeams()]);
+    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial()]);
     renderList();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.

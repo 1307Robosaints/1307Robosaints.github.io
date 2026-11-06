@@ -361,7 +361,8 @@
       href: "/scout.html", icon: "fa-search", cls: "",
       title: "View Shared Data", desc: "Enter a share code to view team scouting data"
     });
-    $("tileArea").innerHTML = tiles.map(function (t) {
+    var tileEl = $("tileArea");
+    if (tileEl) tileEl.innerHTML = tiles.map(function (t) {
       return '<a href="' + t.href + '" class="nav-tile ' + t.cls + '">' +
         '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
         '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +

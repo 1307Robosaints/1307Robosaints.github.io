@@ -44,9 +44,10 @@
       font-weight: 600;
     }
 
+    .sync-note { font-size: .78rem; color: var(--muted); line-height: 1.3; word-break: break-word; }
     .event-row {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr auto;
+      grid-template-columns: 2fr 1.5fr 1fr 1.6fr auto;
       gap: .5rem; align-items: center;
       padding: .6rem .75rem;
       border-bottom: 1px solid var(--line);
@@ -55,7 +56,7 @@
     .event-row:last-child { border-bottom: 0; }
     .event-row-header {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr auto;
+      grid-template-columns: 2fr 1.5fr 1fr 1.6fr auto;
       gap: .5rem;
       padding: .4rem .75rem;
       background: var(--navy);
@@ -252,6 +253,16 @@
             <label for="evDate">Date</label>
             <input type="date" id="evDate" class="form-control">
           </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group col-md-3">
+            <label for="evFrc">FRC event code <small class="text-muted">(optional)</small></label>
+            <input type="text" id="evFrc" class="form-control" maxlength="12" placeholder="e.g. NHDUR">
+          </div>
+          <div class="form-group col-md-3">
+            <label for="evTba">TBA event key <small class="text-muted">(optional)</small></label>
+            <input type="text" id="evTba" class="form-control" maxlength="30" placeholder="e.g. 2026nhdur">
+          </div>
           <div class="form-group col-md-2 d-flex align-items-end">
             <button class="btn btn-primary w-100" id="evSave">Save Event</button>
           </div>
@@ -262,7 +273,7 @@
 
       <div class="table-wrap">
         <div class="event-row-header">
-          <span>Name</span><span>Location</span><span>Date</span><span></span>
+          <span>Name</span><span>Location</span><span>Date</span><span>Official sync</span><span></span>
         </div>
         <div id="eventList"><div class="empty-state">No events yet. Add one above.</div></div>
       </div>
@@ -458,6 +469,14 @@
             <label for="mEvDate">Date</label>
             <input type="date" id="mEvDate" class="form-control">
           </div>
+          <div class="form-group">
+            <label for="mEvFrc">FRC event code <small class="text-muted">(optional)</small></label>
+            <input type="text" id="mEvFrc" class="form-control" maxlength="12">
+          </div>
+          <div class="form-group">
+            <label for="mEvTba">TBA event key <small class="text-muted">(optional)</small></label>
+            <input type="text" id="mEvTba" class="form-control" maxlength="30">
+          </div>
           <input type="hidden" id="mEvId">
         </div>
         <div class="modal-footer">
@@ -550,13 +569,39 @@
           '<span><strong>' + esc(ev.name) + '</strong></span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
           '<span>' + fmt(ev.event_date) + '</span>' +
+          '<span>' + syncCell(ev) + '</span>' +
           '<span style="display:flex;gap:.3rem;">' +
+            ((ev.frc_event_code || ev.tba_event_key)
+              ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>'
+              : '') +
             '<button class="btn-icon" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-pencil"></i></button>' +
             '<button class="btn-icon danger" onclick="deleteEvent(\'' + ev.id + '\')"><i class="fa fa-trash"></i></button>' +
           '</span>' +
         '</div>';
       }).join("");
     }
+    function syncCell(ev) {
+      if (!ev.frc_event_code && !ev.tba_event_key) return '<span class="sync-note">Not linked</span>';
+      var note = ev.official_sync_note || "Never synced";
+      return '<span class="sync-note" title="' + esc(note).replace(/"/g, "&quot;") + '">' +
+        esc(note.length > 90 ? note.slice(0, 90) + "…" : note) + '</span>';
+    }
+    // Reads and checks the two code inputs. Returns {frc, tba} or null (after showing a message).
+    function readCodes(frcId, tbaId) {
+      var frc = document.getElementById(frcId).value.trim().toUpperCase();
+      var tba = document.getElementById(tbaId).value.trim().toLowerCase();
+      if (frc && !/^[A-Z0-9]{2,12}$/.test(frc)) { toast("FRC event code should be letters and numbers only.", true); return null; }
+      if (tba && !/^\d{4}[a-z0-9]+$/.test(tba)) { toast("TBA key looks like 2026nhdur (year first).", true); return null; }
+      return { frc: frc || null, tba: tba || null };
+    }
+    window.syncEvent = async function (id, btn) {
+      btn.disabled = true;
+      var r = await sb.functions.invoke("official-sync", { body: { event_id: id, force: true } });
+      btn.disabled = false;
+      if (r.error) { toast("Sync failed. Check the function logs in Supabase.", true); return; }
+      toast("Sync finished.");
+      loadEvents();
+    };
     function populateEventSelect() {
       var sel = document.getElementById("cEvent");
       sel.innerHTML = '<option value="">All events</option>';
@@ -570,11 +615,18 @@
       var loc  = document.getElementById("evLocation").value.trim();
       var date = document.getElementById("evDate").value || null;
       if (!name) { toast("Event name is required.", true); return; }
-      var r = await sb.from("events").insert({ name: name, location: loc || null, event_date: date });
+      var codes = readCodes("evFrc", "evTba");
+      if (!codes) return;
+      var r = await sb.from("events").insert({
+        name: name, location: loc || null, event_date: date,
+        frc_event_code: codes.frc, tba_event_key: codes.tba
+      });
       if (r.error) { toast("Couldn't save event.", true); return; }
       document.getElementById("evName").value = "";
       document.getElementById("evLocation").value = "";
       document.getElementById("evDate").value = "";
+      document.getElementById("evFrc").value = "";
+      document.getElementById("evTba").value = "";
       toast("Event saved.");
       loadEvents();
     });
@@ -585,6 +637,8 @@
       document.getElementById("mEvName").value = ev.name;
       document.getElementById("mEvLocation").value = ev.location || "";
       document.getElementById("mEvDate").value = ev.event_date ? ev.event_date.slice(0,10) : "";
+      document.getElementById("mEvFrc").value = ev.frc_event_code || "";
+      document.getElementById("mEvTba").value = ev.tba_event_key || "";
       $("#evModal").modal("show");
     };
     document.getElementById("mEvSave").addEventListener("click", async function () {
@@ -593,7 +647,12 @@
       var loc  = document.getElementById("mEvLocation").value.trim();
       var date = document.getElementById("mEvDate").value || null;
       if (!name) { toast("Event name is required.", true); return; }
-      var r = await sb.from("events").update({ name: name, location: loc || null, event_date: date }).eq("id", id);
+      var codes = readCodes("mEvFrc", "mEvTba");
+      if (!codes) return;
+      var r = await sb.from("events").update({
+        name: name, location: loc || null, event_date: date,
+        frc_event_code: codes.frc, tba_event_key: codes.tba
+      }).eq("id", id);
       if (r.error) { toast("Couldn't update event.", true); return; }
       $("#evModal").modal("hide");
       toast("Event updated.");
