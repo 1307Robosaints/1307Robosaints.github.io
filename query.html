@@ -42,44 +42,55 @@
       padding: 1.5rem;
       min-height: 320px;
     }
-    .detail-head { padding-right: 130px; }
+    .detail-head { padding-right: 210px; }
     .detail-head h2 { margin-bottom: .15rem; }
 
-    /* Rating box, top right of the card */
-    .rating-wrap {
+    /* Rating boxes, top right of the card — one for scouting, one for official data */
+    .rating-group {
       position: absolute;
       top: 1.25rem;
       right: 1.25rem;
-      width: 104px;
+      display: flex;
+      gap: .5rem;
+    }
+    .rating-wrap {
+      width: 92px;
       text-align: center;
     }
     .rating-box {
-      height: 88px;
+      height: 80px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
     }
     .rating-letter {
       font-family: var(--display);
-      font-size: 2.6rem;
+      font-size: 2.3rem;
       font-weight: 700;
       line-height: 1;
     }
     .rating-caption {
-      font-size: .68rem;
+      font-size: .64rem;
       text-transform: uppercase;
-      letter-spacing: .08em;
+      letter-spacing: .06em;
       font-weight: 600;
     }
     .rating-meta {
-      font-size: .8rem;
+      font-size: .74rem;
       color: var(--muted);
       margin-top: .35rem;
     }
 
     .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
+    .src-badge {
+      font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
+      font-weight: 700; padding: .15rem .5rem; margin-left: .5rem;
+      border-radius: 3px; vertical-align: middle;
+    }
+    .src-badge.scout { background: #eaf0ff; color: #1B4DB1; }
+    .src-badge.api   { background: #e7f7ee; color: #1a7f4b; }
 
     .tile-grid {
       display: grid;
@@ -185,7 +196,7 @@
           <div class="list-scroll">
             <table class="table team-table">
               <thead>
-                <tr><th>Team</th><th>Matches</th><th>Pit</th></tr>
+                <tr><th>Team</th><th title="Human-scouted matches">Scouted</th><th title="Synced from FRC Events / TBA">API</th><th>Pit</th></tr>
               </thead>
               <tbody id="teamRows"></tbody>
             </table>
@@ -262,7 +273,7 @@
     var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
     var MIN_RATED_MATCHES = 3;
 
-    var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [];
+    var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [], officialRatings = [], dataCounts = [];
 
     function fieldsFor(scope) {
       return fields.filter(function (f) { return (f.scope || "match") === scope; });
@@ -302,18 +313,29 @@
       if (r.error) console.warn("Official match summary unavailable:", r.error.message);
       official = r.error ? [] : (r.data || []);
     }
+    async function loadOfficialRatings() {
+      var r = await sb.rpc("team_official_ratings");
+      if (r.error) console.warn("Official rating unavailable:", r.error.message);
+      officialRatings = r.error ? [] : (r.data || []);
+    }
+    async function loadDataCounts() {
+      var r = await sb.rpc("team_data_counts");
+      if (r.error) console.warn("Data-source counts unavailable:", r.error.message);
+      dataCounts = r.error ? [] : (r.data || []);
+    }
 
+    // Scouted and official counts are shown side by side, never merged into one number —
+    // that merge ("official replaces scouted wherever official data exists") used to be exactly
+    // why a team with a full official record but no scouting coverage looked like it had no data.
     function teamList() {
       var byTeam = new Map();
-      summary.forEach(function (r) { byTeam.set(r.team_number, { team: r.team_number, matches: r.matches }); });
-      pitTeams.forEach(function (t) { if (!byTeam.has(t)) byTeam.set(t, { team: t, matches: 0 }); });
-      official.forEach(function (r) { if (!byTeam.has(r.team_number)) byTeam.set(r.team_number, { team: r.team_number, matches: 0 }); });
-      // Official matches played replace the scouted count wherever official data exists.
-      var officialPlayed = {};
-      official.forEach(function (r) { officialPlayed[r.team_number] = r.matches; });
-      byTeam.forEach(function (v, k) {
-        if (officialPlayed[k] != null) { v.scouted = v.matches; v.matches = officialPlayed[k]; }
-      });
+      function ensure(t) {
+        if (!byTeam.has(t)) byTeam.set(t, { team: t, scouted: 0, official: 0 });
+        return byTeam.get(t);
+      }
+      summary.forEach(function (r) { ensure(r.team_number).scouted = r.matches; });
+      official.forEach(function (r) { ensure(r.team_number).official = r.matches; });
+      pitTeams.forEach(function (t) { ensure(t); });
       return Array.from(byTeam.values()).sort(function (a, b) { return a.team - b.team; });
     }
 
@@ -326,11 +348,12 @@
         ? rows.map(function (r) {
             return '<tr data-team="' + r.team + '" class="' + (selected === r.team ? "selected" : "") + '">' +
               "<td><strong>" + r.team + "</strong></td>" +
-              "<td>" + r.matches + "</td>" +
+              "<td>" + r.scouted + "</td>" +
+              "<td>" + r.official + "</td>" +
               "<td>" + (pitSet.has(r.team) ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + "</td>" +
               "</tr>";
           }).join("")
-        : '<tr><td colspan="3" class="text-muted text-center py-3">No teams yet.</td></tr>';
+        : '<tr><td colspan="4" class="text-muted text-center py-3">No teams yet.</td></tr>';
       $("teamCount").textContent = rows.length + (rows.length === 1 ? " team" : " teams");
     }
     $("teamSearch").addEventListener("input", renderList);
@@ -339,8 +362,10 @@
       if (tr) openTeam(parseInt(tr.dataset.team, 10));
     });
 
-    // ── Rating (computed on click from the latest summary) ───────────
-    function gradeFor(team) {
+    // ── Ratings (computed on click from the latest summary) ──────────
+    // Two independent grades. Each is blind to the other's data source, on purpose — see the
+    // comment on team_ratings() in rebuild_all.sql for why blending them was a problem.
+    function scoutGradeFor(team) {
       var rated = summary.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
       var me = summary.find(function (r) { return r.team_number === team; });
       if (!me || me.matches < MIN_RATED_MATCHES) {
@@ -356,16 +381,32 @@
       return { tier: tier, matches: me.matches, avg: avg, n: rated.length, pct: pct };
     }
 
-    function ratingBox(g) {
+    function officialGradeFor(team) {
+      var rated = officialRatings.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
+      var me = officialRatings.find(function (r) { return r.team_number === team; });
+      if (!me || me.matches < MIN_RATED_MATCHES) {
+        return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
+      }
+      return { tier: me.grade, matches: me.matches, avg: Number(me.avg_alliance_score), n: rated.length, pct: Number(me.percentile) };
+    }
+
+    function ratingBox(label, g) {
       var c = TIERS[g.tier];
-      var caption = g.tier === "NR" ? "Not rated" : "Rating";
+      var metaExtra = g.tier === "NR" ? " · not rated" : "";
       return '<div class="rating-wrap">' +
         '<div class="rating-box" style="background:' + c.color + ';color:' + c.ink + ';">' +
           '<span class="rating-letter">' + g.tier + '</span>' +
-          '<span class="rating-caption">' + caption + '</span>' +
+          '<span class="rating-caption">' + esc(label) + '</span>' +
         '</div>' +
-        '<div class="rating-meta">' + g.matches + (g.matches === 1 ? " match" : " matches") + '</div>' +
+        '<div class="rating-meta">' + g.matches + (g.matches === 1 ? " match" : " matches") + metaExtra + '</div>' +
       '</div>';
+    }
+
+    function basisText(label, unit, g) {
+      if (g.tier === "NR") {
+        return label + ": needs at least " + MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far).";
+      }
+      return label + ": avg " + g.avg + " " + unit + ". At or above " + Math.round(g.pct * 100) + "% of " + g.n + " rated teams.";
     }
 
     // ── Team detail ──────────────────────────────────────────────────
@@ -374,9 +415,11 @@
       renderList();
       $("detail").innerHTML = '<div class="loading-msg">Calculating rating…</div>';
 
-      // Fetch fresh numbers on every click so the rating uses current data
+      // Fetch fresh numbers on every click so the ratings use current data
       var results = await Promise.all([
         sb.rpc("team_points_summary"),
+        sb.rpc("team_official_ratings"),
+        sb.rpc("team_data_counts"),
         sb.from("scouting_entries").select("*").eq("team_number", team)
           .order("match_number", { ascending: true, nullsFirst: false }),
         sb.from("pit_entries").select("*").eq("team_number", team)
@@ -387,12 +430,14 @@
           .order("played_at", { ascending: true, nullsFirst: false })
       ]);
       summary = results[0].error ? [] : (results[0].data || []);
-      var matches = results[1].data || [];
-      var pit = (results[2].data || [])[0] || null;
-      var officialRows = results[3].error ? [] : (results[3].data || []);
-      var officialErr = results[3].error || null;
+      officialRatings = results[1].error ? [] : (results[1].data || []);
+      dataCounts = results[2].error ? [] : (results[2].data || []);
+      var matches = results[3].data || [];
+      var pit = (results[4].data || [])[0] || null;
+      var officialRows = results[5].error ? [] : (results[5].data || []);
+      var officialErr = results[5].error || null;
 
-      renderDetail(team, gradeFor(team), matches, pit, officialRows, officialErr);
+      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pit, officialRows, officialErr);
     }
 
     function matchLabel(r) {
@@ -413,7 +458,7 @@
     }
 
     function officialHtml(rows, err) {
-      var head = '<h3 class="section-title">Official results</h3>';
+      var head = '<h3 class="section-title">Official results<span class="src-badge api">API</span></h3>';
       if (err) return head + accessNotice(err, "official match data");
       if (!rows.length) {
         return head + '<p class="text-muted">No official match data yet. Link this event to its FRC / TBA codes in the Staff Portal.</p>';
@@ -444,15 +489,24 @@
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
 
-    function renderDetail(team, g, matches, pit, officialRows, officialErr) {
+    function renderDetail(team, gScout, gOff, matches, pit, officialRows, officialErr) {
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
 
       matches = matches.slice().sort(function (a, b) {
         return (evTime(a.event_id) - evTime(b.event_id)) || ((a.match_number || 0) - (b.match_number || 0));
       });
 
-      // Summary tiles: matches, average points, then a percentage for each yes/no field
-      var tiles = [["Matches", matches.length], ["Avg points / match", g.avg == null ? "—" : g.avg]];
+      // Data-coverage counters first, so it's obvious at a glance how much of each kind of data
+      // this team has, and that "overlap" (counted by both) isn't hiding inside either number.
+      var counts = dataCounts.find(function (r) { return r.team_number === team; }) ||
+        { scouted_matches: 0, official_matches: 0, overlap_matches: 0 };
+      var tiles = [
+        ["Scouted matches", counts.scouted_matches],
+        ["Official matches", counts.official_matches],
+        ["Overlap (both)", counts.overlap_matches],
+        ["Avg pts / match (scouted)", gScout.avg == null ? "—" : gScout.avg],
+        ["Avg alliance score (official)", gOff.avg == null ? "—" : gOff.avg]
+      ];
       mFields.filter(function (f) { return f.field_type === "boolean"; }).forEach(function (f) {
         var known = matches.filter(function (m) { return m.data && m.data[f.key] != null; });
         if (!known.length) return;
@@ -460,9 +514,8 @@
         tiles.push([f.label, Math.round(100 * yes / known.length) + "%"]);
       });
 
-      var basis = g.tier === "NR"
-        ? "Needs at least " + MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far)."
-        : "Avg " + g.avg + " pts. At or above " + Math.round(g.pct * 100) + "% of " + g.n + " rated teams.";
+      var basisScout = basisText("Scouting", "pts", gScout);
+      var basisOff = basisText("Official", "alliance pts", gOff);
 
       // Robot parameters from the latest pit entry
       var paramsHtml;
@@ -490,10 +543,11 @@
       }).join("");
 
       $("detail").innerHTML =
-        ratingBox(g) +
+        '<div class="rating-group">' + ratingBox("Scouting", gScout) + ratingBox("Official", gOff) + '</div>' +
         '<div class="detail-head">' +
           "<h2>Team " + team + "</h2>" +
-          '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis) + "</p>" +
+          '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisScout) + "</p>" +
+          '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisOff) + "</p>" +
         "</div>" +
 
         '<div class="tile-grid">' +
@@ -502,10 +556,10 @@
           }).join("") +
         "</div>" +
 
-        '<h3 class="section-title">Robot parameters</h3>' + paramsHtml +
+        '<h3 class="section-title">Robot parameters<span class="src-badge scout">Scouted</span></h3>' + paramsHtml +
 
         officialHtml(officialRows || [], officialErr) +
-        '<h3 class="section-title">Match history</h3>' +
+        '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
         (matches.length
           ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
               matchCols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
@@ -515,7 +569,7 @@
 
     // ── Boot ─────────────────────────────────────────────────────────
     await loadMeta();
-    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial()]);
+    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts()]);
     renderList();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.

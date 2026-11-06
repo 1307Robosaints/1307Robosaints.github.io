@@ -517,19 +517,35 @@ $$;
 -- =====================================================================
 -- 9. Team rating (the A-F grade)
 --
---    Only 2026 REBUILT entries count (older seasons are ignored). A team's
---    score is a 0-100 weighted blend of eight components. Components a team
---    has no data for are skipped and the remaining weights are rescaled,
---    so a team is never punished for missing pit or official data.
+--    TWO SEPARATE RANKINGS, never blended into one number:
+--      team_ratings() / team_points_summary()  — scouting rating, built
+--        only from what students/staff scouted by hand (match entries +
+--        the pit form). Has no idea official results even exist.
+--      team_official_ratings() / team_official_summary() — official
+--        rating, built only from FRC Events / TBA synced match results.
+--        Has no idea scouting entries even exist.
+--    Earlier versions blended a 12%-weighted "official" component into
+--    team_ratings(), which is what caused the confusing "0 matches / Not
+--    rated" badge next to a fully-played official record on the Team
+--    Database page (the official component could only count once a team
+--    ALSO had 3+ scouted matches, so a team with great official results
+--    but no scouting coverage looked unrated even though real results
+--    existed). Splitting them removes that overlap: a team now gets
+--    independently rated on whichever kind of data it actually has.
 --
---      28  FUEL scoring    avg FUEL points per scoring match, ranked against other teams
---      14  TOWER climb     avg TOWER points (auto + teleop), ranked
---       8  Autonomous      avg auto points (80%, ranked) + left-zone rate (20%)
---      10  Efficiency      FUEL per volley (ranked) + scouted accuracy, averaged
---      14  Reliability     1 - (disabled rate + 0.6 x broke-down rate + 0.4 x stuck rate)
---       4  Discipline      1 - foul/card rate
---      10  Robot capability  pit form: climb level, trench fit, intake, shooter, drivetrain, vision
---      12  Official results  alliance score (ranked, 60%) + win rate (40%) from FRC/TBA data
+--    team_ratings(): only 2026 REBUILT entries count (older seasons are
+--    ignored). A team's score is a 0-100 weighted blend of seven scouted
+--    components. Components a team has no data for are skipped and the
+--    remaining weights are rescaled, so a team is never punished for
+--    missing pit data.
+--
+--      32  FUEL scoring    avg FUEL points per scoring match, ranked against other teams
+--      16  TOWER climb     avg TOWER points (auto + teleop), ranked
+--       9  Autonomous      avg auto points (80%, ranked) + left-zone rate (20%)
+--      11  Efficiency      FUEL per volley (ranked) + scouted accuracy, averaged
+--      16  Reliability     1 - (disabled rate + 0.6 x broke-down rate + 0.4 x stuck rate)
+--       5  Discipline      1 - foul/card rate
+--      11  Robot capability  pit form: climb level, trench fit, intake, shooter, drivetrain, vision
 --
 --    Matches where the scout marked the role as Defense or Feeder are left out of
 --    the FUEL-scoring average, so a good defender isn't graded as a bad scorer.
@@ -537,6 +553,10 @@ $$;
 --      S top 10%, A next 15%, B next 25%, C next 25%, D next 15%, F bottom 10%.
 --    Not graded (informational only): main FUEL source, volley count, notes, robot photo.
 --    To change the weights, edit the numbers in the (w, c) list near the end of team_ratings().
+--
+--    team_official_ratings(): a single-metric ranking (no components to
+--    blend) from FRC Events / TBA results — 60% average alliance score
+--    (ranked against other teams), 40% win rate (a tie counts as half a win).
 -- =====================================================================
 create or replace function public.jnum(d jsonb, k text) returns numeric
 language sql immutable set search_path = '' as $$
@@ -623,23 +643,14 @@ language sql stable security definer set search_path = '' as $$
     where public.is_staff() or public.is_student()
     order by p.team_number, p.updated_at desc
   ),
-  off as (
-    select o.team_number,
-           avg(o.alliance_score) as avg_score,
-           avg(case when o.won then 1 when o.tied then .5 else 0 end) as win_rate
-    from public.official_team_matches o
-    group by o.team_number
-  ),
   base as (
-    select a.*, pit.cap, off.avg_score, off.win_rate,
+    select a.*, pit.cap,
       case when a.fuel_avg  is not null then (cume_dist() over (partition by (a.fuel_avg  is not null) order by a.fuel_avg))::numeric end as p_fuel,
       case when a.tower_avg is not null then (cume_dist() over (partition by (a.tower_avg is not null) order by a.tower_avg))::numeric end as p_tower,
       case when a.auto_avg  is not null then (cume_dist() over (partition by (a.auto_avg  is not null) order by a.auto_avg))::numeric end as p_auto,
-      case when a.fpv_avg   is not null then (cume_dist() over (partition by (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv,
-      case when off.avg_score is not null then (cume_dist() over (partition by (off.avg_score is not null) order by off.avg_score))::numeric end as p_off
+      case when a.fpv_avg   is not null then (cume_dist() over (partition by (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv
     from agg a
     left join pit on pit.team_number = a.team_number
-    left join off on off.team_number = a.team_number
   ),
   comp as (
     select b.*,
@@ -649,15 +660,14 @@ language sql stable security definer set search_path = '' as $$
       (select avg(x) from (values (b.p_fpv), ((b.accuracy_avg - 1) / 4)) v(x)) as c_eff,
       greatest(0, 1 - (b.dis_rate + 0.6 * b.broke_rate + 0.4 * b.stuck_rate)) as c_rel,
       greatest(0, 1 - b.foul_rate) as c_disc,
-      b.cap as c_pit,
-      case when b.p_off is not null then 0.6 * b.p_off + 0.4 * b.win_rate end as c_off
+      b.cap as c_pit
     from base b
   ),
   scored as (
     select c.*,
       100 * (select sum(w * x) / sum(w)
-               from (values (28, c.c_fuel), (14, c.c_climb), (8, c.c_auto), (10, c.c_eff),
-                            (14, c.c_rel), (4, c.c_disc), (10, c.c_pit), (12, c.c_off)) v(w, x)
+               from (values (32, c.c_fuel), (16, c.c_climb), (9, c.c_auto), (11, c.c_eff),
+                            (16, c.c_rel), (5, c.c_disc), (11, c.c_pit)) v(w, x)
               where x is not null) as raw_score
     from comp c
   ),
@@ -678,8 +688,7 @@ language sql stable security definer set search_path = '' as $$
            'efficiency',  round(100 * r.c_eff, 1),
            'reliability', round(100 * r.c_rel, 1),
            'discipline',  round(100 * r.c_disc, 1),
-           'pit',         round(100 * r.c_pit, 1),
-           'official',    round(100 * r.c_off, 1)))
+           'pit',         round(100 * r.c_pit, 1)))
   from ranked r;
 $$;
 
@@ -688,6 +697,83 @@ create or replace function public.team_points_summary()
 returns table (team_number int, matches int, disabled_matches int, avg_points numeric)
 language sql stable security definer set search_path = '' as $$
   select t.team_number, t.matches, t.disabled_matches, t.avg_points from public.team_ratings() t;
+$$;
+
+-- Official rating: the same shape and grading rule as team_ratings(), but scored purely from
+-- synced FRC Events / TBA results — 60% average alliance score (ranked against other teams)
+-- plus 40% win rate (a tie counts as half a win). Entirely independent of scouting data.
+create or replace function public.team_official_ratings()
+returns table (team_number int, matches int, wins int, losses int, ties int,
+               avg_alliance_score numeric, score numeric, grade text, percentile numeric)
+language sql stable security definer set search_path = '' as $$
+  with agg as (
+    select o.team_number,
+      count(*)::int as matches,
+      count(*) filter (where o.alliance_score > o.opponent_score)::int as wins,
+      count(*) filter (where o.alliance_score < o.opponent_score)::int as losses,
+      count(*) filter (where o.alliance_score = o.opponent_score)::int as ties,
+      avg(o.alliance_score) as avg_score,
+      avg(case when o.alliance_score > o.opponent_score then 1
+                when o.alliance_score = o.opponent_score then .5 else 0 end) as win_rate
+    from public.official_team_matches o
+    where public.is_staff() or public.is_student()
+    group by o.team_number
+  ),
+  ranked as (
+    select a.*, (cume_dist() over (order by a.avg_score))::numeric as p_score
+    from agg a
+  ),
+  scored as (
+    select r.*, 100 * (0.6 * r.p_score + 0.4 * r.win_rate) as raw_score
+    from ranked r
+  ),
+  pct as (
+    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    from scored s
+  )
+  select p.team_number, p.matches, p.wins, p.losses, p.ties,
+         round(p.avg_score, 2), round(p.raw_score, 1),
+         case when p.pct >= .90 then 'S' when p.pct >= .75 then 'A' when p.pct >= .50 then 'B'
+              when p.pct >= .25 then 'C' when p.pct >= .10 then 'D' else 'F' end,
+         round(p.pct, 3)
+  from pct p;
+$$;
+
+-- Per-team counters for the Team Database's data-source breakdown: how many matches came from
+-- scouting, how many from official sync, and how many matches have BOTH (so the page can show
+-- its numbers don't silently double anything). A match counts as overlapping only when a scouted
+-- entry and an official qualification-match result agree on the same event and match number.
+create or replace function public.team_data_counts()
+returns table (team_number int, scouted_matches int, official_matches int, overlap_matches int)
+language sql stable security definer set search_path = '' as $$
+  with scouted as (
+    select s.team_number, count(distinct s.match_number)::int as n
+    from public.scouting_entries s
+    where (public.is_staff() or public.is_student()) and s.match_number is not null
+    group by s.team_number
+  ),
+  officials as (
+    select o.team_number, count(*)::int as n
+    from public.official_team_matches o
+    where public.is_staff() or public.is_student()
+    group by o.team_number
+  ),
+  overlap as (
+    select s.team_number, count(distinct s.match_number)::int as n
+    from public.scouting_entries s
+    join public.official_team_matches o
+      on o.team_number = s.team_number
+     and o.event_id = s.event_id
+     and o.match_number = s.match_number
+     and o.comp_level = 'qm'
+    where (public.is_staff() or public.is_student()) and s.match_number is not null
+    group by s.team_number
+  )
+  select coalesce(sc.team_number, off.team_number, ov.team_number),
+         coalesce(sc.n, 0), coalesce(off.n, 0), coalesce(ov.n, 0)
+  from scouted sc
+  full join officials off on off.team_number = sc.team_number
+  full join overlap ov on ov.team_number = coalesce(sc.team_number, off.team_number);
 $$;
 
 
@@ -845,7 +931,9 @@ revoke all on function public.staff_set_level(uuid, text)  from public, anon;
 revoke all on function public.staff_kick(uuid)             from public, anon;
 revoke all on function public.team_ratings()               from public, anon;
 revoke all on function public.team_points_summary()        from public, anon;
+revoke all on function public.team_official_ratings()      from public, anon;
 revoke all on function public.team_official_summary()      from public, anon;
+revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
 
@@ -857,7 +945,9 @@ grant execute on function public.staff_set_level(uuid, text)  to authenticated;
 grant execute on function public.staff_kick(uuid)             to authenticated;
 grant execute on function public.team_points_summary()        to authenticated;
 grant execute on function public.team_ratings()               to authenticated;
+grant execute on function public.team_official_ratings()      to authenticated;
 grant execute on function public.team_official_summary()      to authenticated;
+grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
 grant execute on function public.validate_data(jsonb, text)   to authenticated;
 
@@ -1008,7 +1098,8 @@ with expected(kind, name) as (values
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
-  ('function','team_official_summary'), ('function','get_shared_scouting'),
+  ('function','team_official_ratings'), ('function','team_official_summary'),
+  ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('bucket','scouting-photos')
 )
 select e.kind, e.name,
