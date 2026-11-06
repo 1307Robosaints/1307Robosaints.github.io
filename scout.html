@@ -309,7 +309,7 @@
     // Escape text before putting it into innerHTML so scouted text can't inject markup
     function esc(s) {
       return String(s == null ? "" : s)
-        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
     function get(id) { return document.getElementById(id); }
 
@@ -477,6 +477,38 @@
           return;
         }
 
+        // Picture fields: a file input (camera-capable on mobile) plus a preview of what's picked /
+        // already saved. The actual upload happens on save, not here — see uploadImageFields().
+        if (f.field_type === "image") {
+          var label2 = document.createElement("label");
+          label2.htmlFor = "field_" + f.key;
+          label2.textContent = f.label + (f.required ? " *" : "");
+          group.appendChild(label2);
+
+          var preview = document.createElement("div");
+          preview.id = "preview_" + f.key;
+          preview.style.marginBottom = ".4rem";
+          group.appendChild(preview);
+
+          var fileInput = document.createElement("input");
+          fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.capture = "environment";
+          fileInput.className = "form-control-file";
+          fileInput.id = "field_" + f.key;
+          fileInput.dataset.fieldKey = f.key;
+          fileInput.dataset.fieldType = f.field_type;
+          fileInput.addEventListener("change", function () {
+            var key = this.dataset.fieldKey;
+            var p = get("preview_" + key);
+            if (this.files && this.files[0]) {
+              p.innerHTML = '<img src="' + URL.createObjectURL(this.files[0]) + '" style="height:70px;width:70px;object-fit:cover;border:1px solid var(--line);">' +
+                ' <small class="text-muted">New photo selected</small>';
+            }
+          });
+          group.appendChild(fileInput);
+          container.appendChild(group);
+          return;
+        }
+
         // Everything else: a label plus a number box, text box, or dropdown
         var label = document.createElement("label");
         label.htmlFor = "field_" + f.key;
@@ -514,9 +546,12 @@
     }
 
     // Read the form into a { key: value } object. Blank boxes are left out; unchecked boxes save as false.
+    // Image fields are skipped here — their value comes from uploadImageFields() instead, since picking
+    // a file doesn't give us a value to save until it's actually uploaded.
     function getFormValues() {
       var data = {};
       activeFields().forEach(function(f) {
+        if (f.field_type === "image") return;
         if (f.field_type === "boolean") {
           var cb = get("field_" + f.key);
           data[f.key] = !!(cb && cb.checked);   // unchecked is saved as false
@@ -531,10 +566,41 @@
       return data;
     }
 
+    // Upload any newly-picked photos for the active tab's image fields, and carry over the URL of
+    // any image field the scout didn't touch. existing is the data object being edited (or {} for new).
+    async function uploadImageFields(existing, team) {
+      var data = {};
+      var imageFields = activeFields().filter(function(f) { return f.field_type === "image"; });
+      for (var i = 0; i < imageFields.length; i++) {
+        var f = imageFields[i];
+        var el = get("field_" + f.key);
+        var file = el && el.files && el.files[0];
+        if (file) {
+          var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+          var path = currentEvent.id + "/" + mode + "/" + team + "/" + f.key + "-" + Date.now() + "." + ext;
+          var up = await sb.storage.from("scouting-photos").upload(path, file, { upsert: true, contentType: file.type });
+          if (up.error) { toast("Couldn't upload " + f.label + ": " + up.error.message, true); throw up.error; }
+          data[f.key] = sb.storage.from("scouting-photos").getPublicUrl(path).data.publicUrl;
+        } else if (existing && existing[f.key] != null) {
+          data[f.key] = existing[f.key];   // keep the photo that was already saved
+        }
+      }
+      return data;
+    }
+
     // The reverse: put a saved { key: value } object back into the form (used when editing)
     function setFormValues(data) {
       data = data || {};
       activeFields().forEach(function(f) {
+        if (f.field_type === "image") {
+          var p = get("preview_" + f.key);
+          if (p) {
+            p.innerHTML = data[f.key]
+              ? '<a href="' + esc(data[f.key]) + '" target="_blank"><img src="' + esc(data[f.key]) + '" style="height:70px;width:70px;object-fit:cover;border:1px solid var(--line);"></a>'
+              : '<small class="text-muted">No photo saved yet</small>';
+          }
+          return;
+        }
         if (f.field_type === "boolean") {
           var cb = get("field_" + f.key);
           if (cb) cb.checked = !!data[f.key];
@@ -549,12 +615,19 @@
     function resetEntryForm() {
       get("fTeam").value = ""; get("fMatch").value = "";
       activeFields().forEach(function(f) {
+        if (f.field_type === "image") {
+          var el = get("field_" + f.key);
+          if (el) el.value = "";
+          var p = get("preview_" + f.key);
+          if (p) p.innerHTML = "";
+          return;
+        }
         if (f.field_type === "boolean") {
           var cb = get("field_" + f.key);
           if (cb) cb.checked = false;
         } else {
-          var el = get("field_" + f.key);
-          if (el) el.value = "";
+          var el2 = get("field_" + f.key);
+          if (el2) el2.value = "";
         }
       });
       editingId = null;
@@ -667,6 +740,7 @@
           var v = entry.data ? entry.data[f.key] : null;
           if (v == null) { cells.push("—"); return; }
           if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
+          else if (f.field_type === "image") cells.push('<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:32px;width:32px;object-fit:cover;"></a>');
           else cells.push(esc(v));
         });
         // Staff can change any entry; students only the ones they scouted
@@ -704,6 +778,7 @@
           var v = entry.data ? entry.data[f.key] : null;
           if (v == null || v === "") { cells.push("—"); return; }
           if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
+          else if (f.field_type === "image") cells.push('<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:32px;width:32px;object-fit:cover;"></a>');
           else cells.push(esc(v));
         });
         // Pit data is shared by the team, so any member can edit it
@@ -725,16 +800,38 @@
       var match = null;
       if (mode === "match" && get("fMatch").value) match = parseInt(get("fMatch").value, 10);
 
+      // Existing saved data for the row being edited, so a required photo already on file
+      // doesn't get rejected just because no new file was picked this time.
+      var existingData = {};
+      if (mode === "pit") {
+        var existingPit = allPit.find(function(e){ return e.team_number === team; });
+        existingData = (existingPit && existingPit.data) || {};
+      } else if (editingId) {
+        var existingMatch = allEntries.find(function(e){ return e.id === editingId; });
+        existingData = (existingMatch && existingMatch.data) || {};
+      }
+
       // Validate required fields on the active tab (checkboxes are never "missing")
       var list = activeFields();
       for (var i = 0; i < list.length; i++) {
         var f = list[i];
+        if (f.required && f.field_type === "image") {
+          var fileEl = get("field_" + f.key);
+          var hasFile = fileEl && fileEl.files && fileEl.files[0];
+          if (!hasFile && !existingData[f.key]) { toast(f.label + " is required.", true); return; }
+          continue;
+        }
         if (!f.required || f.field_type === "boolean") continue;
         var el = get("field_" + f.key);
         if (!el || el.value.trim() === "") { toast(f.label + " is required.", true); return; }
       }
 
       var data = getFormValues();
+      var imageData;
+      try { imageData = await uploadImageFields(existingData, team); }
+      catch (e) { return; }   // uploadImageFields already showed a toast
+      Object.assign(data, imageData);
+
       if (mode === "pit") { await savePit(team, data); return; }
 
       // Match entry: update the existing row when editing, otherwise insert a new one

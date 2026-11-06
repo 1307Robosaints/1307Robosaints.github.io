@@ -300,6 +300,7 @@
               <option value="text">Text</option>
               <option value="choice">Choice</option>
               <option value="boolean">Yes / No</option>
+              <option value="image">Picture</option>
             </select>
           </div>
           <div class="form-group col-md-2">
@@ -688,7 +689,7 @@
         var badge = f.active
           ? '<span class="badge-active">Active</span>'
           : '<span class="badge-inactive">Inactive</span>';
-        var typeLabel = { number:"Number", text:"Text", choice:"Choice", boolean:"Yes / No" }[f.field_type] || f.field_type;
+        var typeLabel = { number:"Number", text:"Text", choice:"Choice", boolean:"Yes / No", image:"Picture" }[f.field_type] || f.field_type;
         return '<div class="field-row' + (f.active ? "" : " inactive") + '">' +
           '<span><strong>' + esc(f.label) + '</strong><br><code style="font-size:.75rem;color:var(--muted);">' + esc(f.key) + '</code></span>' +
           '<span>' + esc(f.section) + ' <small class="text-muted">· ' + (f.scope === "pit" ? "Pit" : "Match") + '</small></span>' +

@@ -275,6 +275,7 @@
     function cell(v, f) {
       if (v == null || v === "") return "—";
       if (f.field_type === "boolean") return v ? "Yes" : "No";
+      if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:40px;width:40px;object-fit:cover;"></a>';
       return esc(v);
     }
 
