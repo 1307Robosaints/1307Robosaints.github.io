@@ -260,6 +260,7 @@
       NR: { color: "#9a9a9c", ink: "#ffffff" }
     };
     var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
+    var MIN_RATED_MATCHES = 3;
 
     var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [];
 
@@ -297,6 +298,7 @@
     // ── Team list ────────────────────────────────────────────────────
     async function loadOfficial() {
       var r = await sb.rpc("team_official_summary");
+      if (r.error) console.warn("Official match summary unavailable:", r.error.message);
       official = r.error ? [] : (r.data || []);
     }
 
@@ -305,6 +307,12 @@
       summary.forEach(function (r) { byTeam.set(r.team_number, { team: r.team_number, matches: r.matches }); });
       pitTeams.forEach(function (t) { if (!byTeam.has(t)) byTeam.set(t, { team: t, matches: 0 }); });
       official.forEach(function (r) { if (!byTeam.has(r.team_number)) byTeam.set(r.team_number, { team: r.team_number, matches: 0 }); });
+      // Official matches played replace the scouted count wherever official data exists.
+      var officialPlayed = {};
+      official.forEach(function (r) { officialPlayed[r.team_number] = r.matches; });
+      byTeam.forEach(function (v, k) {
+        if (officialPlayed[k] != null) { v.scouted = v.matches; v.matches = officialPlayed[k]; }
+      });
       return Array.from(byTeam.values()).sort(function (a, b) { return a.team - b.team; });
     }
 
@@ -332,9 +340,9 @@
 
     // ── Rating (computed on click from the latest summary) ───────────
     function gradeFor(team) {
-      var rated = summary.filter(function (r) { return r.matches > 0; });
+      var rated = summary.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
       var me = summary.find(function (r) { return r.team_number === team; });
-      if (!me || !me.matches) {
+      if (!me || me.matches < MIN_RATED_MATCHES) {
         return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
       }
       var avg = Number(me.avg_points);
@@ -381,8 +389,9 @@
       var matches = results[1].data || [];
       var pit = (results[2].data || [])[0] || null;
       var officialRows = results[3].error ? [] : (results[3].data || []);
+      var officialErr = results[3].error || null;
 
-      renderDetail(team, gradeFor(team), matches, pit, officialRows);
+      renderDetail(team, gradeFor(team), matches, pit, officialRows, officialErr);
     }
 
     function matchLabel(r) {
@@ -390,8 +399,21 @@
       if (r.comp_level === "sf") return "Playoff " + r.set_number_label;
       return "Final " + r.match_number;
     }
-    function officialHtml(rows) {
+    // Turns a Supabase error into a visible, plain-language notice.
+    function accessNotice(err, what) {
+      var denied = err && (err.code === "42501" ||
+        /permission denied|forbidden|row-level security/i.test(err.message || ""));
+      var text = denied
+        ? "You don't have permission to view " + what + ". Ask a staff member to confirm your access level, " +
+          "or that the database permissions for this feature have been applied."
+        : "Couldn't load " + what + (err && err.message ? " (" + err.message + ")" : "") +
+          ". Try refreshing the page.";
+      return '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">' + esc(text) + '</div>';
+    }
+
+    function officialHtml(rows, err) {
       var head = '<h3 class="section-title">Official results</h3>';
+      if (err) return head + accessNotice(err, "official match data");
       if (!rows.length) {
         return head + '<p class="text-muted">No official match data yet. Link this event to its FRC / TBA codes in the Staff Portal.</p>';
       }
@@ -414,13 +436,14 @@
       }).join("");
       return head +
         '<p class="text-muted mb-2" style="font-size:.9rem;">Record ' + wins + "-" + losses + "-" + ties +
+        " · " + n + " matches played" +
         (n ? " · avg alliance score " + (total / n).toFixed(1) : "") + "</p>" +
         '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
 
-    function renderDetail(team, g, matches, pit, officialRows) {
+    function renderDetail(team, g, matches, pit, officialRows, officialErr) {
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
 
       matches = matches.slice().sort(function (a, b) {
@@ -437,7 +460,7 @@
       });
 
       var basis = g.tier === "NR"
-        ? "No match data yet, so there's nothing to rate."
+        ? "Needs at least " + MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far)."
         : "Avg " + g.avg + " pts. At or above " + Math.round(g.pct * 100) + "% of " + g.n + " rated teams.";
 
       // Robot parameters from the latest pit entry
@@ -480,7 +503,7 @@
 
         '<h3 class="section-title">Robot parameters</h3>' + paramsHtml +
 
-        officialHtml(officialRows || []) +
+        officialHtml(officialRows || [], officialErr) +
         '<h3 class="section-title">Match history</h3>' +
         (matches.length
           ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
