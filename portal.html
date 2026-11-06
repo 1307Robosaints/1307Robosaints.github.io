@@ -598,7 +598,12 @@
       btn.disabled = true;
       var r = await sb.functions.invoke("official-sync", { body: { event_id: id, force: true } });
       btn.disabled = false;
-      if (r.error) { toast("Sync failed. Check the function logs in Supabase.", true); return; }
+      if (r.error) {
+        var msg = r.error.message;
+        try { var b = await r.error.context.json(); msg = b.error || JSON.stringify(b); } catch (e) {}
+        toast("Sync failed: " + msg, true);
+        return;
+      }
       toast("Sync finished.");
       loadEvents();
     };
