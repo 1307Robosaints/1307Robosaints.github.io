@@ -355,7 +355,7 @@
               <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
-                <a class="dropdown-item" href="/1307scout.html">Command Center</a>
+                <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
@@ -399,21 +399,28 @@
           sharing with alliance partners.
         </p>
         <div class="row">
-          <div class="col-md-4 mb-4">
+          <div class="col-lg-3 col-md-6 mb-4">
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-clipboard"></i></div>
               <h3>Configurable match forms</h3>
               <p>Staff define the fields — auto points, climb level, notes, whatever the season needs. The form updates immediately for every scout on the team.</p>
             </div>
           </div>
-          <div class="col-md-4 mb-4">
+          <div class="col-lg-3 col-md-6 mb-4">
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-wifi"></i></div>
               <h3>Works offline</h3>
               <p>Entries saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns.</p>
             </div>
           </div>
-          <div class="col-md-4 mb-4">
+          <div class="col-lg-3 col-md-6 mb-4">
+            <div class="feature-card">
+              <div class="feature-icon"><i class="fa fa-refresh"></i></div>
+              <h3>Official results, synced</h3>
+              <p>Link an event to its FRC or TBA code and 1307scout pulls official match scores automatically — no re-typing results by hand.</p>
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6 mb-4">
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-qrcode"></i></div>
               <h3>Scoped share codes</h3>
@@ -441,7 +448,7 @@
             </div>
             <div class="tier-item">
               <strong>Team members</strong>
-              <p>Sign in with an account attached to your school's domain to enter match data and view the full event dataset. No setup needed.</p>
+              <p>Sign in with an account attached to your school's domain to enter match data and look up any team's history, robot parameters, official results, and letter-grade rating.</p>
             </div>
             <div class="tier-item">
               <strong>Guests</strong>
@@ -562,7 +569,7 @@
       tiles.push({ href:"/scout.html", icon:"fa-clipboard", cls:"",
                    title:"Scout", desc:"Enter match and pit data for the current event" });
       tiles.push({ href:"/query.html", icon:"fa-database", cls:"",
-                   title:"Team Database", desc:"Match history, robot parameters, and ratings" });
+                   title:"Team Database", desc:"Match history, robot parameters, official results, and ratings" });
     } else {
       tiles.push({ href:"/scout.html", icon:"fa-search", cls:"",
                    title:"View shared data", desc:"Enter a share code from Team 1307" });
