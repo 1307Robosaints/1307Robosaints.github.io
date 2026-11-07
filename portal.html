@@ -317,6 +317,20 @@
         <button class="btn btn-outline-secondary btn-sm d-none" id="evCancel">Cancel edit</button>
       </div>
 
+      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap" style="gap:.5rem;">
+        <input type="text" id="evSearch" class="form-control form-control-sm" style="max-width:260px;" placeholder="Search events">
+        <div class="d-flex align-items-center" style="gap:.5rem;">
+          <select id="evSort" class="form-control form-control-sm" style="width:auto;">
+            <option value="date">Sort: Date</option>
+            <option value="name">Sort: Name</option>
+            <option value="location">Sort: Location</option>
+            <option value="tier">Sort: Tier</option>
+            <option value="sync">Sort: Sync status</option>
+          </select>
+          <button class="btn btn-outline-secondary btn-sm" id="syncAllBtn" type="button">Resync All</button>
+        </div>
+      </div>
+
       <div class="table-wrap">
         <div class="event-row-header">
           <span>Name</span><span>Location</span><span>Date</span><span>Official sync</span><span></span>
@@ -660,10 +674,38 @@
       renderEvents();
       populateEventSelect();
     }
+    var TIER_SORT_ORDER = { championship: 0, district_championship: 1, qualifier: 2, offseason: 3 };
+    function visibleEvents() {
+      var q = document.getElementById("evSearch").value.trim().toLowerCase();
+      var sort = document.getElementById("evSort").value;
+      var list = !q ? events.slice() : events.filter(function (ev) {
+        return (ev.name || "").toLowerCase().indexOf(q) !== -1 ||
+               (ev.location || "").toLowerCase().indexOf(q) !== -1 ||
+               (ev.frc_event_code || "").toLowerCase().indexOf(q) !== -1 ||
+               (ev.tba_event_key || "").toLowerCase().indexOf(q) !== -1;
+      });
+      list.sort(function (a, b) {
+        if (sort === "name") return a.name.localeCompare(b.name);
+        if (sort === "location") return (a.location || "").localeCompare(b.location || "");
+        if (sort === "tier") {
+          var ta = TIER_SORT_ORDER[a.event_tier], tb = TIER_SORT_ORDER[b.event_tier];
+          return (ta == null ? 2 : ta) - (tb == null ? 2 : tb) || a.name.localeCompare(b.name);
+        }
+        if (sort === "sync") {
+          var la = !!(a.frc_event_code || a.tba_event_key), lb = !!(b.frc_event_code || b.tba_event_key);
+          if (la !== lb) return la ? -1 : 1;
+          return (b.official_synced_at || "").localeCompare(a.official_synced_at || "");
+        }
+        return (a.event_date || "9999-99-99").localeCompare(b.event_date || "9999-99-99");
+      });
+      return list;
+    }
     function renderEvents() {
       var el = document.getElementById("eventList");
+      var list = visibleEvents();
       if (!events.length) { el.innerHTML = '<div class="empty-state">No events yet. Add one above.</div>'; return; }
-      el.innerHTML = events.map(function (ev) {
+      if (!list.length) { el.innerHTML = '<div class="empty-state">No events match that search.</div>'; return; }
+      el.innerHTML = list.map(function (ev) {
         return '<div class="event-row">' +
           '<span><strong>' + esc(ev.name) + '</strong>' + tierBadge(ev.event_tier) + '</span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
@@ -679,6 +721,8 @@
         '</div>';
       }).join("");
     }
+    document.getElementById("evSearch").addEventListener("input", renderEvents);
+    document.getElementById("evSort").addEventListener("change", renderEvents);
     function tierBadge(tier) {
       if (tier === "district_championship") return ' <span class="badge-tier-dc">District Champs</span>';
       if (tier === "championship") return ' <span class="badge-tier-champ">Championship</span>';
@@ -699,19 +743,46 @@
       if (tba && !/^\d{4}[a-z0-9]+$/.test(tba)) { toast("TBA key looks like 2026nhdur (year first).", true); return null; }
       return { frc: frc || null, tba: tba || null };
     }
-    window.syncEvent = async function (id, btn) {
-      btn.disabled = true;
+    // Calls official-sync for one event and reports { ok, msg } without touching the UI,
+    // so both the per-row sync button and "Resync All" can share it.
+    async function syncOneEvent(id) {
       var r = await sb.functions.invoke("official-sync", { body: { event_id: id, force: true } });
-      btn.disabled = false;
       if (r.error) {
         var msg = r.error.message;
         try { var b = await r.error.context.json(); msg = b.error || JSON.stringify(b); } catch (e) {}
-        toast("Sync failed: " + msg, true);
-        return;
+        return { ok: false, msg: msg };
       }
+      return { ok: true };
+    }
+    window.syncEvent = async function (id, btn) {
+      btn.disabled = true;
+      var res = await syncOneEvent(id);
+      btn.disabled = false;
+      if (!res.ok) { toast("Sync failed: " + res.msg, true); return; }
       toast("Sync finished.");
       loadEvents();
     };
+
+    // Resyncs every event that has an FRC/TBA code, one at a time (not in parallel — the
+    // official-sync function calls the FRC Events / TBA APIs per event, and firing a burst of
+    // those at once risks tripping their rate limits).
+    document.getElementById("syncAllBtn").addEventListener("click", async function () {
+      var btn = this;
+      var linked = events.filter(function (ev) { return ev.frc_event_code || ev.tba_event_key; });
+      if (!linked.length) { toast("No events are linked to an FRC/TBA code yet.", true); return; }
+      btn.disabled = true;
+      var okCount = 0, failed = [];
+      for (var i = 0; i < linked.length; i++) {
+        btn.textContent = "Syncing " + (i + 1) + " / " + linked.length + "…";
+        var res = await syncOneEvent(linked[i].id);
+        if (res.ok) okCount++; else failed.push(linked[i].name + " (" + res.msg + ")");
+      }
+      btn.disabled = false;
+      btn.textContent = "Resync All";
+      toast(okCount + " of " + linked.length + " event" + (linked.length === 1 ? "" : "s") + " synced." +
+        (failed.length ? " Failed: " + failed.join("; ") : ""), failed.length > 0);
+      loadEvents();
+    });
     function populateEventSelect() {
       var sel = document.getElementById("cEvent");
       sel.innerHTML = '<option value="">All events</option>';
