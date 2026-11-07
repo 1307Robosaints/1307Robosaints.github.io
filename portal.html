@@ -46,6 +46,7 @@
 
     .sync-note { font-size: .78rem; color: var(--muted); line-height: 1.3; word-break: break-word; }
     .sync-note.warn { color: #a83228; }
+    .sync-note.upcoming { color: var(--blue); }
     .sync-info-box { font-size: .85rem; line-height: 1.7; }
     /* Name | Tier | Location | Date | Official sync | Actions. The Actions column is a fixed
        width (not auto) so it takes up the same space whether a row has one button or three —
@@ -858,7 +859,7 @@
             ((ev.frc_event_code || ev.tba_event_key)
               ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>'
               : '') +
-            '<button class="btn-icon" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon" title="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
             '<button class="btn-icon danger" onclick="deleteEvent(\'' + ev.id + '\')"><i class="fa fa-trash"></i></button>' +
           '</span>' +
         '</div>';
@@ -894,22 +895,41 @@
       var frc = syncPart(m[2]), tba = syncPart(m[3]);
       return { when: m[1], frc: frc, tba: tba, ok: frc.ok && tba.ok };
     }
+    // An event that hasn't happened yet will usually fail or come back empty when synced
+    // (no matches played, score breakdowns not published yet, etc.) — that's expected, not a
+    // real problem, so it's shown as "upcoming" rather than a red warning. A future event that
+    // DID sync cleanly (e.g. 0 matches reported back without error) still shows the normal
+    // green state, since there's nothing wrong to call out.
+    function isFutureEvent(ev) {
+      return !!ev.event_date && ev.event_date.slice(0, 10) > new Date().toISOString().slice(0, 10);
+    }
     function syncCell(ev) {
       if (!ev.frc_event_code && !ev.tba_event_key) return '<span class="sync-note">Not linked</span>';
       var note = ev.official_sync_note;
       if (!note) return '<span class="sync-note">Never synced</span>';
       var p = parseSyncNote(note);
       var titleAttr = ' title="' + esc(note).replace(/"/g, "&quot;") + '"';
-      if (p) {
+      if (p && p.ok) {
         var when = new Date(p.when);
         var whenStr = isNaN(when) ? p.when : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        var icon = p.ok
-          ? '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i>'
-          : '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i>';
-        var frcText = p.frc.ok ? ("FRC " + p.frc.text.replace(" matches", "")) : "FRC failed";
-        var tbaText = p.tba.ok ? ("TBA " + p.tba.text.replace(" matches", "")) : "TBA failed";
-        return '<span class="sync-note' + (p.ok ? "" : " warn") + '"' + titleAttr + '">' +
-          icon + ' ' + esc(whenStr) + ' &middot; ' + frcText + ' / ' + tbaText + '</span>';
+        var frcText = "FRC " + p.frc.text.replace(" matches", "");
+        var tbaText = "TBA " + p.tba.text.replace(" matches", "");
+        return '<span class="sync-note"' + titleAttr + '">' +
+          '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i> ' + esc(whenStr) +
+          ' &middot; ' + frcText + ' / ' + tbaText + '</span>';
+      }
+      if (isFutureEvent(ev)) {
+        return '<span class="sync-note upcoming"' + titleAttr + '">' +
+          '<i class="fa fa-clock-o"></i> Hasn\'t happened yet</span>';
+      }
+      if (p) {
+        var when2 = new Date(p.when);
+        var whenStr2 = isNaN(when2) ? p.when : when2.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        var frcText2 = p.frc.ok ? ("FRC " + p.frc.text.replace(" matches", "")) : "FRC failed";
+        var tbaText2 = p.tba.ok ? ("TBA " + p.tba.text.replace(" matches", "")) : "TBA failed";
+        return '<span class="sync-note warn"' + titleAttr + '">' +
+          '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' + esc(whenStr2) +
+          ' &middot; ' + frcText2 + ' / ' + tbaText2 + '</span>';
       }
       return '<span class="sync-note warn"' + titleAttr + '">' +
         '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' +
@@ -924,19 +944,24 @@
       var note = ev.official_sync_note;
       if (!note) return '<span class="text-muted">Never synced.</span>';
       var p = parseSyncNote(note);
+      var upcomingNote = isFutureEvent(ev) && !(p && p.ok)
+        ? '<div class="text-muted"><i class="fa fa-clock-o"></i> This event hasn\'t happened yet — ' +
+          'match data usually isn\'t available from FRC/TBA until it starts. The last sync attempt is shown below for reference.</div>'
+        : "";
       if (p) {
         var when = new Date(p.when);
         var whenStr = isNaN(when) ? p.when : when.toLocaleString("en-US",
           { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
         var line = function (ok, label, text) {
-          return '<div style="color:' + (ok ? "#1a7f4b" : "#a83228") + ';">' +
-            '<i class="fa ' + (ok ? "fa-check-circle" : "fa-exclamation-triangle") + '"></i> ' +
-            label + ': ' + esc(text) + '</div>';
+          var color = upcomingNote ? "inherit" : (ok ? "#1a7f4b" : "#a83228");
+          var icon = ok ? "fa-check-circle" : (upcomingNote ? "fa-clock-o" : "fa-exclamation-triangle");
+          return '<div style="color:' + color + ';"><i class="fa ' + icon + '"></i> ' + label + ': ' + esc(text) + '</div>';
         };
-        return '<div class="text-muted">Last attempt: ' + esc(whenStr) + '</div>' +
+        return upcomingNote + '<div class="text-muted">Last attempt: ' + esc(whenStr) + '</div>' +
           line(p.frc.ok, "FRC", p.frc.text) + line(p.tba.ok, "TBA", p.tba.text);
       }
-      return '<div style="color:#a83228;"><i class="fa fa-exclamation-triangle"></i> ' + esc(note) + '</div>';
+      return upcomingNote + '<div style="color:' + (upcomingNote ? "inherit" : "#a83228") + ';">' +
+        '<i class="fa ' + (upcomingNote ? "fa-clock-o" : "fa-exclamation-triangle") + '"></i> ' + esc(note) + '</div>';
     }
     // Reads and checks the two code inputs. Returns {frc, tba} or null (after showing a message).
     function readCodes(frcId, tbaId) {
