@@ -16,7 +16,7 @@
 
   <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
@@ -390,8 +390,8 @@
 
       <!-- Step 2: choose what you're recording -->
       <div class="scout-tabs" role="tablist">
-        <button type="button" class="scout-tab active" data-mode="match">Match Scouting</button>
-        <button type="button" class="scout-tab" data-mode="pit">Pit Scouting</button>
+        <button type="button" class="scout-tab active" role="tab" aria-selected="true" data-mode="match">Match Scouting</button>
+        <button type="button" class="scout-tab" role="tab" aria-selected="false" data-mode="pit">Pit Scouting</button>
       </div>
 
       <!-- Step 3: the entry form. Team/match boxes are fixed; everything inside #dynamicFields is built from scout_fields. -->
@@ -430,7 +430,7 @@
           <h3 id="entriesHeading">Recent entries</h3>
           <div>
             <input type="text" id="entrySearch" class="form-control form-control-sm d-inline-block"
-                   style="width:160px;" placeholder="Filter by team #">
+                   style="width:160px;" placeholder="Filter by team #" aria-label="Filter by team number">
           </div>
         </div>
         <div class="table-responsive">
@@ -463,7 +463,7 @@
            page, but scoped to only the events/teams the code allows. -->
       <div class="q-layout" id="guestData" style="display:none; margin-top:1.5rem;">
         <div class="q-panel">
-          <input type="text" id="gTeamSearch" class="form-control form-control-sm mb-2" placeholder="Search team # or name">
+          <input type="text" id="gTeamSearch" class="form-control form-control-sm mb-2" placeholder="Search team # or name" aria-label="Search teams">
           <div class="text-muted mb-2" id="gTeamCount" style="font-size:.82rem;"></div>
           <div class="list-scroll"><div class="team-list" id="gTeamRows"></div></div>
         </div>
@@ -497,7 +497,7 @@
   </div>
 
   <!-- Container for toast pop-ups -->
-  <div id="toastWrap"></div>
+  <div id="toastWrap" role="status" aria-live="polite"></div>
 
   <!-- ===== Footer (same on every page) ===== -->
   <footer class="py-5" id="bottomrow">
@@ -541,7 +541,7 @@
       d.className = "toast-msg" + (err ? " err" : "");
       d.textContent = msg;
       document.getElementById("toastWrap").appendChild(d);
-      setTimeout(function () { d.remove(); }, 3200);
+      setTimeout(function () { d.remove(); }, err ? 7000 : 3200);   // errors need time to read
     }
     // Escape text before putting it into innerHTML so scouted text can't inject markup
     function esc(s) {
@@ -549,6 +549,13 @@
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     }
     function get(id) { return document.getElementById(id); }
+    // A saved photo as a thumbnail link. validate_data() only stores our own https URLs, but a link
+    // is the one place a stored value could run script (javascript:), so check here as well.
+    function photoHtml(url, size, style) {
+      if (!/^https:\/\//i.test(String(url))) return "—";
+      return '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(url) +
+        '" alt="Scouted photo" style="height:' + size + 'px;width:' + size + 'px;object-fit:cover;' + (style || "") + '"></a>';
+    }
     // Digits only. parseInt alone would read "1e3" (valid in a number box) as team 1.
     function wholeNumber(v) { return /^\d+$/.test(String(v).trim()) ? parseInt(v, 10) : NaN; }
 
@@ -566,8 +573,9 @@
     // the site, then writes the captured frame into the matching file input (via a DataTransfer,
     // the same object a native file picker would produce) so the rest of the image-field code
     // — preview, upload on save — treats it exactly like a chosen file.
-    var cameraStream = null, cameraTargetKey = null;
+    var cameraStream = null, cameraTargetKey = null, cameraRequest = 0;
     async function openCamera(key) {
+      var request = ++cameraRequest;
       cameraTargetKey = key;
       var errEl = get("cameraError");
       errEl.style.display = "none";
@@ -575,14 +583,18 @@
       get("cameraCanvas").style.display = "none";
       $("#cameraModal").modal("show");
       try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        get("cameraVideo").srcObject = cameraStream;
+        var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        // Closed during the permission prompt: without this the camera stays on with nothing showing
+        if (request !== cameraRequest) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        cameraStream = stream;
+        get("cameraVideo").srcObject = stream;
       } catch (e) {
         errEl.textContent = "Couldn't open the camera (" + e.message + "). Use the file picker instead.";
         errEl.style.display = "";
       }
     }
     function stopCamera() {
+      cameraRequest++;
       if (cameraStream) { cameraStream.getTracks().forEach(function (t) { t.stop(); }); cameraStream = null; }
     }
     $("#cameraModal").on("hidden.bs.modal", stopCamera);
@@ -626,7 +638,8 @@
     var DRAFT_KEY = "rs_drafts_" + s.user.id;
 
     // my_access_level() is a database function returning 'staff', 'student', or 'guest'
-    var lvl = (await sb.rpc("my_access_level")).data || "guest";
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
 
     // ── Offline draft queue (match entries only) ─────────────────────
@@ -696,7 +709,8 @@
             " rejected by the server (" + reason + "). Discard? Cancel keeps a copy on this device.")) {
           removeDrafts(rejected);
         }
-        if (!getDrafts().length) get("draftIndicator").style.display = "none";
+        // Still shown after a reload, so a scout knows entries are waiting on this device
+        get("draftIndicator").style.display = getDrafts().length ? "flex" : "none";
       } finally {
         flushing = false;
       }
@@ -726,10 +740,22 @@
       get("guestLoad").addEventListener("click", function () {
         loadGuest(get("guestCode").value.trim());
       });
+      get("guestCode").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") loadGuest(this.value.trim());
+      });
       get("gTeamSearch").addEventListener("input", renderGuestList);
       get("gTeamRows").addEventListener("click", function (e) {
         var row = e.target.closest(".team-row[data-team]");
         if (row) openGuestTeam(parseInt(row.dataset.team, 10));
+      });
+      // Rows are divs, so Enter and Space need wiring up for keyboard users
+      get("gTeamRows").addEventListener("keydown", function (e) {
+        var row = e.target.closest(".team-row[data-team]");
+        if (!row || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
+        var team = row.dataset.team;
+        openGuestTeam(parseInt(team, 10));
+        get("gTeamRows").querySelector('[data-team="' + team + '"]').focus();   // the list was redrawn
       });
       return;   // guests never reach the team code below
     }
@@ -783,7 +809,7 @@
               '<span class="tier-dot" style="background:' + G_TIERS[gOff.tier].color + ';" title="Official: ' + gOff.tier + '"></span>';
             var logoImg = t.logo_url ? '<img class="team-logo-sm" src="' + esc(t.logo_url) + '" alt="">' : "";
             var nameSuffix = t.team_name ? ' <span class="team-name-sub">' + esc(t.team_name) + '</span>' : "";
-            return '<div data-team="' + t.team_number + '" class="team-row' + (gSelected === t.team_number ? " selected" : "") + '">' +
+            return '<div data-team="' + t.team_number + '" role="button" tabindex="0" class="team-row' + (gSelected === t.team_number ? " selected" : "") + '">' +
               '<div class="tr-name">' + dots + logoImg + "<strong>" + t.team_number + "</strong>" + nameSuffix + "</div>" +
               "</div>";
           }).join("")
@@ -796,7 +822,7 @@
       if (f.allow_unsure && data[f.key + "__unsure"]) return "Unsure";
       if (v == null || v === "") return "—";
       if (f.field_type === "boolean") return v ? "Yes" : "No";
-      if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:40px;width:40px;object-fit:cover;"></a>';
+      if (f.field_type === "image") return photoHtml(v, 40);
       var html = esc(v);
       if (f.field_type === "choice" && v === "Other" && data[f.key + "__other_note"]) {
         html += ' <span class="text-muted" style="font-size:.85em;">(' + esc(data[f.key + "__other_note"]) + ')</span>';
@@ -962,6 +988,7 @@
       var r = await sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false });
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
+      if (!events.length) get("eventSearch").placeholder = "No events yet. Staff can add one in the Staff Portal.";
       var def = events.find(function (ev) { return ev.is_default_event; });
       if (def || events.length) selectEvent(def || events[0]);
     }
@@ -1130,7 +1157,9 @@
           row.className = "photo-field-row file-field";
 
           var fileInput = document.createElement("input");
-          fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.capture = "environment";
+          // No capture attribute: on phones it skips the photo library and forces the camera.
+          // The Take Photo button below is the camera option.
+          fileInput.type = "file"; fileInput.accept = "image/*";
           fileInput.className = "visually-hidden-file";
           fileInput.id = "field_" + f.key;
           fileInput.dataset.fieldKey = f.key;
@@ -1152,7 +1181,7 @@
             var nameEl = get("filename_" + key);
             if (this.files && this.files[0]) {
               nameEl.textContent = this.files[0].name;
-              p.innerHTML = '<img src="' + URL.createObjectURL(this.files[0]) + '" style="height:70px;width:70px;object-fit:cover;border:1px solid var(--line);">' +
+              p.innerHTML = '<img src="' + URL.createObjectURL(this.files[0]) + '" alt="Selected photo" style="height:70px;width:70px;object-fit:cover;border:1px solid var(--line);">' +
                 ' <small class="text-muted">New photo selected</small>';
             } else {
               nameEl.textContent = "No file chosen";
@@ -1403,7 +1432,7 @@
           var p = get("preview_" + f.key);
           if (p) {
             p.innerHTML = data[f.key]
-              ? '<a href="' + esc(data[f.key]) + '" target="_blank"><img src="' + esc(data[f.key]) + '" style="height:70px;width:70px;object-fit:cover;border:1px solid var(--line);"></a>'
+              ? photoHtml(data[f.key], 70, "border:1px solid var(--line);")
               : '<small class="text-muted">No photo saved yet</small>';
           }
           return;
@@ -1435,10 +1464,9 @@
       });
     }
 
-    // Clear the form and return it to "new entry" state
-    function resetEntryForm() {
-      get("fTeam").value = ""; get("fMatch").value = "";
-      autoTotalManual = {};   // fresh entry: FUEL totals should autofill again once typed into
+    // Blank every dynamic field. Call this before setFormValues(), which only fills in the keys an
+    // entry has, so anything else left in the form would be saved onto the wrong entry.
+    function clearFields() {
       activeFields().forEach(function(f) {
         if (f.field_type === "image") {
           var el = get("field_" + f.key);
@@ -1473,6 +1501,13 @@
           }
         }
       });
+    }
+
+    // Clear the form and return it to "new entry" state
+    function resetEntryForm() {
+      get("fTeam").value = ""; get("fMatch").value = "";
+      autoTotalManual = {};   // fresh entry: FUEL totals should autofill again once typed into
+      clearFields();
       editingId = null;
       get("entryId").value = "";
       get("entryFormTitle").textContent = mode === "pit" ? "New Pit Entry" : "New Match Entry";
@@ -1486,6 +1521,7 @@
       mode = m;
       document.querySelectorAll(".scout-tab").forEach(function(b) {
         b.classList.toggle("active", b.dataset.mode === m);
+        b.setAttribute("aria-selected", b.dataset.mode === m ? "true" : "false");
       });
       get("matchGroup").style.display = m === "match" ? "" : "none";
       get("draftIndicator").style.display = "none";
@@ -1505,8 +1541,16 @@
       if (mode !== "pit") return;
       var t = wholeNumber(this.value);
       var existing = allPit.find(function(e){ return e.team_number === t; });
+      // Moved off a loaded entry: its answers must not carry over to a different team
+      if (editingId && !existing) {
+        var typed = this.value;
+        resetEntryForm();
+        this.value = typed;
+        return;
+      }
       editingId = existing ? existing.id : null;
       if (existing) {
+        clearFields();
         setFormValues(existing.data);
         get("entryFormTitle").textContent = "Editing pit entry – Team " + t;
         get("entryCancel").classList.remove("d-none");
@@ -1560,7 +1604,7 @@
       var v = d[f.key];
       if (v == null || v === "") return "—";
       if (f.field_type === "boolean") return v ? "Yes" : "No";
-      if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:32px;width:32px;object-fit:cover;"></a>';
+      if (f.field_type === "image") return photoHtml(v, 32);
       var html = esc(v);
       if (hasOtherOption(f) && v === "Other" && d[f.key + "__other_note"]) {
         html += ' <small class="text-muted">(' + esc(d[f.key + "__other_note"]) + ')</small>';
@@ -1591,8 +1635,8 @@
         // Staff can change any entry; students only the ones they scouted
         var canEdit = isStaff || entry.scouted_by === userId;
         var actions = canEdit
-          ? '<button class="btn-icon mr-1" onclick="editEntry(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
-            '<button class="btn-icon danger" onclick="deleteEntry(\'' + entry.id + '\')"><i class="fa fa-trash"></i></button>'
+          ? '<button class="btn-icon mr-1" title="Edit entry" aria-label="Edit entry" onclick="editEntry(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon danger" title="Delete entry" aria-label="Delete entry" onclick="deleteEntry(\'' + entry.id + '\')"><i class="fa fa-trash"></i></button>'
           : '<span class="text-muted" style="font-size:.75rem;">—</span>';
         cells.push(actions);
         return "<tr>" + cells.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
@@ -1622,8 +1666,8 @@
         list.forEach(function(f) { cells.push(cellHtml(entry, f)); });
         // Pit data is shared by the team, so any member can edit it
         cells.push(
-          '<button class="btn-icon mr-1" onclick="editPit(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
-          '<button class="btn-icon danger" onclick="deletePit(\'' + entry.id + '\')"><i class="fa fa-trash"></i></button>'
+          '<button class="btn-icon mr-1" title="Edit pit entry" aria-label="Edit pit entry" onclick="editPit(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
+          '<button class="btn-icon danger" title="Delete pit entry" aria-label="Delete pit entry" onclick="deletePit(\'' + entry.id + '\')"><i class="fa fa-trash"></i></button>'
         );
         return "<tr>" + cells.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
       }).join("") || '<tr><td colspan="' + cols.length + '" class="text-muted text-center py-3">No pit entries match that team number.</td></tr>';
@@ -1761,6 +1805,7 @@
       if (mode !== "match") setMode("match");
       get("fTeam").value = entry.team_number;
       get("fMatch").value = entry.match_number || "";
+      clearFields();
       setFormValues(entry.data);
       editingId = id;
       get("entryId").value = id;
@@ -1784,6 +1829,7 @@
       if (!entry) return;
       if (mode !== "pit") setMode("pit");
       get("fTeam").value = entry.team_number;
+      clearFields();
       setFormValues(entry.data);
       editingId = id;
       get("entryFormTitle").textContent = "Editing pit entry – Team " + entry.team_number;

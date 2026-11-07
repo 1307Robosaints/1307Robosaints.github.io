@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Staff Portal – 1307scout</title>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
-    .portal-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 2rem; }
+    .portal-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 2rem; }
     .portal-tab {
       background: none; border: 0; border-bottom: 3px solid transparent;
       padding: .7rem 1.4rem; font-family: var(--display); font-weight: 600;
@@ -401,13 +401,13 @@
     <p class="text-muted mb-4" style="font-size:.95rem;">Configure events, scouting fields, share codes, and review the audit log.</p>
 
     <div class="portal-tabs" role="tablist">
-      <button class="portal-tab active" data-tab="events">Events</button>
-      <button class="portal-tab" data-tab="fields">Form Fields</button>
-      <button class="portal-tab" data-tab="codes">Share Codes</button>
-      <button class="portal-tab" data-tab="testteams">Test Teams</button>
-      <button class="portal-tab" data-tab="teaminfo">Team Info</button>
-      <button class="portal-tab" data-tab="members">Members</button>
-      <button class="portal-tab" data-tab="audit">Audit Log</button>
+      <button class="portal-tab active" role="tab" aria-selected="true" data-tab="events">Events</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="fields">Form Fields</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="codes">Share Codes</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="testteams">Test Teams</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="teaminfo">Team Info</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="members">Members</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="audit">Audit Log</button>
     </div>
 
     <!-- ===== EVENTS ===== -->
@@ -455,9 +455,9 @@
       </div>
 
       <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap" style="gap:.5rem;">
-        <input type="text" id="evSearch" class="form-control form-control-sm" style="max-width:260px;" placeholder="Search events">
+        <input type="text" id="evSearch" class="form-control form-control-sm" style="max-width:260px;" placeholder="Search events" aria-label="Search events">
         <div class="d-flex align-items-center" style="gap:.5rem;">
-          <select id="evSort" class="form-control form-control-sm" style="width:auto;">
+          <select id="evSort" class="form-control form-control-sm" style="width:auto;" aria-label="Sort events">
             <option value="date">Sort: Date</option>
             <option value="name">Sort: Name</option>
             <option value="location">Sort: Location</option>
@@ -814,7 +814,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Share Code</h5>
-          <button type="button" class="close" data-dismiss="modal">&times;</button>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
         </div>
         <div class="modal-body text-center">
           <div id="modalQR" class="qr-box d-inline-block mb-3"></div>
@@ -839,7 +839,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Event Info</h5>
-          <button type="button" class="close" data-dismiss="modal">&times;</button>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
@@ -924,7 +924,8 @@
     // ── Access gate ──────────────────────────────────────────────────
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
-    var lvl = (await sb.rpc("my_access_level")).data;
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
     if (lvl !== "staff") { location.replace("account.html"); return; }
 
     // ── Helpers ──────────────────────────────────────────────────────
@@ -933,7 +934,7 @@
       d.className = "toast-msg" + (err ? " err" : "");
       d.textContent = msg;
       document.getElementById("toastWrap").appendChild(d);
-      setTimeout(function () { d.remove(); }, 3000);
+      setTimeout(function () { d.remove(); }, err ? 7000 : 3000);   // errors need time to read
     }
     // Quotes matter here: esc() output also lands inside src="" and title="" attributes
     function esc(s) {
@@ -971,9 +972,13 @@
     // ── Tabs ─────────────────────────────────────────────────────────
     document.querySelectorAll(".portal-tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        document.querySelectorAll(".portal-tab").forEach(function (b) { b.classList.remove("active"); });
+        document.querySelectorAll(".portal-tab").forEach(function (b) {
+          b.classList.remove("active");
+          b.setAttribute("aria-selected", "false");
+        });
         document.querySelectorAll(".portal-section").forEach(function (s) { s.classList.remove("active"); });
         btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
         document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
       });
     });
@@ -1036,13 +1041,13 @@
               'onclick="setDefaultEvent(\'' + ev.id + '\', ' + !!ev.is_default_event + ')">' +
               '<i class="fa ' + (ev.is_default_event ? "fa-star" : "fa-star-o") + '"></i></button>' +
             ((ev.frc_event_code || ev.tba_event_key)
-              ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>' +
+              ? '<button class="btn-icon" title="Sync official matches now" aria-label="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>' +
                 '<button class="btn-icon' + (ev.auto_sync ? ' auto-on' : '') + '" ' +
                   'title="' + (ev.auto_sync ? "Auto-syncing every 5 minutes — click to stop" : "Auto-sync this event every 5 minutes") + '" ' +
                   'onclick="setAutoSync(\'' + ev.id + '\', ' + !!ev.auto_sync + ')"><i class="fa fa-clock-o"></i></button>'
               : '') +
-            '<button class="btn-icon" title="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
-            '<button class="btn-icon danger" onclick="deleteEvent(\'' + ev.id + '\')"><i class="fa fa-trash"></i></button>' +
+            '<button class="btn-icon" title="Event info" aria-label="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
+            '<button class="btn-icon danger" title="Delete event" aria-label="Delete event" onclick="deleteEvent(\'' + ev.id + '\')"><i class="fa fa-trash"></i></button>' +
           '</span>' +
         '</div>';
       }).join("");
@@ -1278,7 +1283,7 @@
       document.getElementById("mEvSyncInfo").innerHTML = syncInfoHTML(ev);
       $("#evModal").modal("show");
     };
-    document.getElementById("mEvSave").addEventListener("click", async function () {
+    document.getElementById("mEvSave").addEventListener("click", guarded(async function () {
       var id   = document.getElementById("mEvId").value;
       var name = document.getElementById("mEvName").value.trim();
       var loc  = document.getElementById("mEvLocation").value.trim();
@@ -1295,7 +1300,7 @@
       $("#evModal").modal("hide");
       toast("Event updated.");
       loadEvents();
-    });
+    }));
     // Deleting an event cascades to everything recorded there, so show what's at stake and make
     // staff type the name: a stray click on the trash icon shouldn't be able to cost a season.
     window.deleteEvent = async function (id) {
@@ -1341,8 +1346,8 @@
           '<span>' + typeLabel + '</span>' +
           '<span>' + badge + '</span>' +
           '<span style="display:flex;gap:.3rem;">' +
-            '<button class="btn-icon" onclick="editField(\'' + f.id + '\')"><i class="fa fa-pencil"></i></button>' +
-            '<button class="btn-icon" onclick="toggleField(\'' + f.id + '\',' + f.active + ')">' +
+            '<button class="btn-icon" title="Edit field" aria-label="Edit field" onclick="editField(\'' + f.id + '\')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon" title="' + (f.active ? "Hide field" : "Show field") + '" aria-label="' + (f.active ? "Hide field" : "Show field") + '" onclick="toggleField(\'' + f.id + '\',' + f.active + ')">' +
               (f.active ? '<i class="fa fa-eye-slash"></i>' : '<i class="fa fa-eye"></i>') +
             '</button>' +
           '</span>' +
@@ -1360,7 +1365,7 @@
       document.getElementById("choiceOpts").classList.toggle("d-none", t !== "choice");
     });
 
-    document.getElementById("fSave").addEventListener("click", async function () {
+    document.getElementById("fSave").addEventListener("click", guarded(async function () {
       var id      = document.getElementById("fId").value;
       var key     = document.getElementById("fKey").value.trim();
       var label   = document.getElementById("fLabel").value.trim();
@@ -1400,7 +1405,7 @@
       resetFieldForm();
       toast(id ? "Field updated." : "Field saved.");
       loadFields();
-    });
+    }));
 
     function resetFieldForm() {
       ["fId","fKey","fLabel","fMin","fMax","fRegLimit"].forEach(function(id){ document.getElementById(id).value = ""; });
@@ -1498,8 +1503,8 @@
           '<span title="' + (c.last_used_at ? "Last used " + esc(fmtDT(c.last_used_at)) : "Never used") + '">' + (c.use_count || 0) + '</span>' +
           '<span>' + badge + '</span>' +
           '<span class="row-actions">' +
-            (!revoked && !expired ? '<button class="btn-icon" onclick="showCode(\'' + c.id + '\')"><i class="fa fa-qrcode"></i></button>' : '') +
-            (!revoked ? '<button class="btn-icon danger" onclick="revokeCode(\'' + c.id + '\')"><i class="fa fa-ban"></i></button>' : '') +
+            (!revoked && !expired ? '<button class="btn-icon" title="Show link and QR code" aria-label="Show link and QR code" onclick="showCode(\'' + c.id + '\')"><i class="fa fa-qrcode"></i></button>' : '') +
+            (!revoked ? '<button class="btn-icon danger" title="Revoke code" aria-label="Revoke code" onclick="revokeCode(\'' + c.id + '\')"><i class="fa fa-ban"></i></button>' : '') +
           '</span>' +
         '</div>';
       }).join("");
@@ -1511,7 +1516,7 @@
     function renderTeamChips() {
       var el = document.getElementById("cTeamChips");
       el.innerHTML = cTeamNumbers.map(function (t) {
-        return '<span class="team-chip">' + t + '<button type="button" data-team="' + t + '">&times;</button></span>';
+        return '<span class="team-chip">' + t + '<button type="button" aria-label="Remove team ' + t + '" data-team="' + t + '">&times;</button></span>';
       }).join("");
       el.querySelectorAll("button").forEach(function (btn) {
         btn.addEventListener("click", function () {
@@ -1600,12 +1605,12 @@
           '<span><strong>' + t.team_number + '</strong></span>' +
           '<span>' + esc(t.note || "—") + '</span>' +
           '<span>' + fmt(t.added_at) + '</span>' +
-          '<span><button class="btn-icon danger" onclick="untagTeam(' + t.team_number + ')"><i class="fa fa-trash"></i></button></span>' +
+          '<span><button class="btn-icon danger" title="Remove test tag" aria-label="Remove test tag" onclick="untagTeam(' + t.team_number + ')"><i class="fa fa-trash"></i></button></span>' +
         '</div>';
       }).join("");
     }
 
-    document.getElementById("ttSave").addEventListener("click", async function () {
+    document.getElementById("ttSave").addEventListener("click", guarded(async function () {
       var team = parseInt(document.getElementById("ttTeam").value, 10);
       var note = document.getElementById("ttNote").value.trim();
       if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
@@ -1615,7 +1620,7 @@
       document.getElementById("ttNote").value = "";
       toast("Team " + team + " tagged as a test team.");
       loadTestTeams();
-    });
+    }));
 
     window.untagTeam = async function (team) {
       if (!confirm("Remove the test-team tag from team " + team + "? Its scouted data stays, but it will start counting toward real team ratings again.")) return;
@@ -1647,8 +1652,8 @@
           '<span><strong>' + t.team_number + '</strong></span>' +
           '<span>' + esc(t.team_name || "—") + '</span>' +
           '<span class="row-actions">' +
-            '<button class="btn-icon" onclick="editTeamInfo(' + t.team_number + ')"><i class="fa fa-pencil"></i></button>' +
-            '<button class="btn-icon danger" onclick="deleteTeamInfo(' + t.team_number + ')"><i class="fa fa-trash"></i></button>' +
+            '<button class="btn-icon" title="Edit team info" aria-label="Edit team info" onclick="editTeamInfo(' + t.team_number + ')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon danger" title="Remove team info" aria-label="Remove team info" onclick="deleteTeamInfo(' + t.team_number + ')"><i class="fa fa-trash"></i></button>' +
           '</span>' +
         '</div>';
       }).join("");

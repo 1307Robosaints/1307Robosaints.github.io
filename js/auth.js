@@ -3,17 +3,22 @@
 (function () {
   var CFG = window.AUTH_CONFIG;
 
+  // A banner for problems that stop an app page from working
+  function showNote(text) {
+    var note = document.createElement("div");
+    note.className = "alert alert-danger";
+    note.style.cssText = "margin:6rem 1rem 1rem;";
+    note.setAttribute("role", "alert");
+    note.textContent = text;
+    document.body.insertBefore(note, document.body.firstChild);
+  }
+
   // Supabase comes from a CDN that ad blockers and school filters can block. Public pages work
   // without it; the app pages would otherwise hang, so tell the person what happened.
   if (!window.supabase) {
     if (/\/(1307scout|account|alliance|portal|query|scout|signin)(\.html)?$/.test(location.pathname)) {
-      var note = document.createElement("div");
-      note.className = "alert alert-danger";
-      note.style.cssText = "margin:6rem 1rem 1rem;";
-      note.setAttribute("role", "alert");
-      note.textContent = "1307scout couldn't load its sign-in service. Check your connection, " +
-        "turn off any ad blocker for this site, or try a different network, then refresh.";
-      document.body.insertBefore(note, document.body.firstChild);
+      showNote("1307scout couldn't load its sign-in service. Check your connection, " +
+        "turn off any ad blocker for this site, or try a different network, then refresh.");
     }
     return;
   }
@@ -33,7 +38,18 @@
     });
   }
 
-  window.RS = { sb: sb, recovery: recovery, signOut: signOut };
+  // The access level, or null after showing a banner if the server can't be reached. Pages must
+  // stop on null: treating it as "guest" would send a scout on a bad connection to the wrong page.
+  async function accessLevel() {
+    var r = await sb.rpc("my_access_level");
+    if (r.error) {
+      showNote("Couldn't reach 1307scout to check your access. Check your connection, then refresh.");
+      return null;
+    }
+    return r.data || "guest";
+  }
+
+  window.RS = { sb: sb, recovery: recovery, signOut: signOut, accessLevel: accessLevel };
 
   // Highlight the current page's link. Dropdown toggles use href="#", so skip anything that isn't a real page.
   function markActive() {

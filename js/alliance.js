@@ -21,6 +21,7 @@
   }
 
   window.Alliance = {
+    KEY: KEY,
     MAX: MAX,
     get: read,
     colorOf: function (team) {

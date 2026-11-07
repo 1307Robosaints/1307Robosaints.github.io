@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Alliance View – 1307scout</title>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
@@ -270,7 +270,8 @@
     // ── Access gate (team members only, same as the Team Database) ───
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
-    var lvl = (await sb.rpc("my_access_level")).data || "guest";
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
 
     // ── Grades: same tiers and rules as query.html ───────────────────
@@ -696,7 +697,11 @@
       render();
     });
     // Picks made in a Team Database tab show up here without a manual refresh
-    window.addEventListener("storage", load);
+    // Only those: Supabase writes here on every token refresh, and each load refetches everything.
+    // A null key means storage was cleared.
+    window.addEventListener("storage", function (e) {
+      if (e.key === Alliance.KEY || e.key === null) load();
+    });
 
     await load();
   })();

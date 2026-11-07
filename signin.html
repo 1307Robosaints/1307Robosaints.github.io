@@ -14,7 +14,7 @@
 
   <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
@@ -105,8 +105,8 @@
 
       <!-- Tabs switch between the sign-in and create-account forms -->
       <div class="auth-tabs" role="tablist">
-        <button type="button" id="tabIn" class="active">Sign in</button>
-        <button type="button" id="tabUp">Create account</button>
+        <button type="button" id="tabIn" class="active" role="tab" aria-selected="true">Sign in</button>
+        <button type="button" id="tabUp" role="tab" aria-selected="false">Create account</button>
       </div>
 
       <!-- Status message area (errors, success notes). msg() in the script fills it in. -->
@@ -154,7 +154,10 @@
       <!-- Form 4: choose a new password (only shown after clicking the reset link in the email) -->
       <form id="resetForm" class="d-none" novalidate>
         <div class="form-group"><label for="rsPass">New password</label>
-          <input id="rsPass" type="password" class="form-control" minlength="8" autocomplete="new-password" required></div>
+          <input id="rsPass" type="password" class="form-control" minlength="8" autocomplete="new-password" required>
+          <small class="form-text text-muted">At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.</small></div>
+        <div class="form-group"><label for="rsPass2">Confirm new password</label>
+          <input id="rsPass2" type="password" class="form-control" autocomplete="new-password" required></div>
         <button class="btn btn-navy" type="submit">Save new password</button>
       </form>
 
@@ -233,6 +236,8 @@
       FORMS.forEach(function (f) { $(f + "Form").classList.toggle("d-none", f !== name); });
       $("tabIn").classList.toggle("active", name === "signin");
       $("tabUp").classList.toggle("active", name === "signup");
+      $("tabIn").setAttribute("aria-selected", name === "signin" ? "true" : "false");
+      $("tabUp").setAttribute("aria-selected", name === "signup" ? "true" : "false");
       $("oauthBox").classList.toggle("d-none", name === "forgot" || name === "reset");
       msg();
     }
@@ -244,6 +249,17 @@
         btn.textContent = label + " (" + (--left) + "s)";
         if (left <= 0) { clearInterval(t); btn.disabled = false; btn.textContent = label; }
       }, 1000);
+    }
+
+    // Runs a form's handler with its button disabled, so a double-click can't submit it twice
+    function onSubmit(id, handler) {
+      var form = $(id), btn = form.querySelector("[type=submit]");
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try { await handler(); } finally { btn.disabled = false; }
+      });
     }
 
     // ── hCaptcha (invisible) ─────────────────────────────────────────
@@ -272,8 +288,7 @@
     $("backIn").onclick = function () { show("signin"); };
 
     // ── Sign in ──────────────────────────────────────────────────────
-    $("signinForm").addEventListener("submit", async function (e) {
-      e.preventDefault();
+    onSubmit("signinForm", async function () {
       var email = $("inEmail").value.trim(), pass = $("inPass").value;
       if (!EMAIL.test(email) || !pass) return msg("danger", "Enter your email and password.");
       lastEmail = email;
@@ -286,14 +301,16 @@
           $("resendBtn").classList.remove("d-none");
           return msg("warning", "Verify your email first. Check your inbox for our link, or resend it below.");
         }
+        if (r.error.status === 429) return msg("danger", "Too many attempts. Wait a few minutes and try again.");
+        // No status (or a 5xx) means the request never got an answer, so the password wasn't checked
+        if (!r.error.status || r.error.status >= 500) return msg("danger", "Couldn't reach the sign-in service. Check your connection and try again.");
         return msg("danger", "Incorrect email or password.");   // deliberately vague: doesn't say which part was wrong
       }
       location.href = "account.html";
     });
 
     // ── Create account ───────────────────────────────────────────────
-    $("signupForm").addEventListener("submit", async function (e) {
-      e.preventDefault();
+    onSubmit("signupForm", async function () {
       if ($("upWebsite").value) return; // honeypot tripped: silently drop
       var name = $("upName").value.trim(), email = $("upEmail").value.trim(), p = $("upPass").value;
       if (!name) return msg("danger", "Enter your name.");
@@ -328,8 +345,7 @@
     };
 
     // ── Forgot password: email a reset link ──────────────────────────
-    $("forgotForm").addEventListener("submit", async function (e) {
-      e.preventDefault();
+    onSubmit("forgotForm", async function () {
       var email = $("fgEmail").value.trim();
       if (!EMAIL.test(email)) return msg("danger", "Enter a valid email address.");
       var tok; try { tok = await getToken(); } catch (x) { return msg("danger", CAPFAIL); }
@@ -338,10 +354,10 @@
     });
 
     // ── Reset password: runs after the person clicks the link in that email ──
-    $("resetForm").addEventListener("submit", async function (e) {
-      e.preventDefault();
+    onSubmit("resetForm", async function () {
       var p = $("rsPass").value;
       if (!pwOk(p)) return msg("danger", PW_RULES);
+      if (p !== $("rsPass2").value) return msg("danger", "Passwords don't match.");
       var r = await sb.auth.updateUser({ password: p });
       if (r.error) return msg("danger", "That link may have expired. Request a new reset link.");
       location.href = "account.html";

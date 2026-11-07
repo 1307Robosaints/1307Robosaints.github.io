@@ -33,8 +33,10 @@ Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 (`@supabase/supabase-js` UMD), then `/js/auth-config.js`, then `/js/auth.js`. `auth.js` builds
 `window.RS = { sb: <supabase client> }` — every page's inline script calls Supabase through
 `RS.sb` (aliased locally as `sb`), e.g. `sb.from("scouting_entries").select(...)`,
-`sb.rpc("my_access_level")`, `sb.storage.from("scouting-photos").upload(...)`. CDN `<script>`
-tags carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
+`sb.rpc("my_access_level")`, `sb.storage.from("scouting-photos").upload(...)`. Gated pages get the
+level from `RS.accessLevel()`, which returns null after showing a banner if the server can't be
+reached, so a bad connection isn't mistaken for guest access. CDN `<script>`
+tags and the Font Awesome stylesheet carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
 drives the shared nav: it hides/shows `[data-role="staff"]` / `[data-role="team"]` elements and
 highlights the active nav link — this is cosmetic only, not the real access control.
 

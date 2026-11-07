@@ -50,6 +50,9 @@
 -- entries stamp their own editor and time. If this project is ever moved to a new Supabase
 -- ref, update the URL pattern in validate_data() (section 6).
 --
+-- Second hardening update: an "Unsure" answer must really be blank; retired photo fields keep the
+-- URL rule; banned accounts can't redeem share codes; guesses from one account run one at a time.
+--
 -- Photo cleanup update: deleting an entry or replacing its photo now queues the old file for
 -- removal, and the Scout page and Staff Portal delete it through the Storage API (section 9b).
 --
@@ -280,7 +283,7 @@ create unique index if not exists events_one_default_idx
 -- so the Staff Portal's star button never has to do the clear-then-set as two separate requests
 -- racing the unique index above. Pass null to clear the default entirely.
 create or replace function public.set_default_event(p_event_id uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   if not public.is_staff() then
     raise exception 'Only staff can set the default event.';
@@ -302,7 +305,7 @@ create unique index if not exists events_one_auto_sync_idx
 
 -- Moves the auto-sync flag to p_event_id in one request. Pass null to turn auto-sync off.
 create or replace function public.set_auto_sync_event(p_event_id uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   if not public.is_staff() then
     raise exception 'Only staff can set the auto-sync event.';
@@ -370,7 +373,7 @@ alter table public.scouting_entries add column if not exists data jsonb not null
 -- random(), which is predictable. Short codes are only safe alongside the guess limit in
 -- get_shared_scouting() (section 10).
 create or replace function public.gen_share_code() returns text
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 declare
   c text;
 begin
@@ -529,7 +532,12 @@ create trigger stamp_pit_entry before insert or update on public.pit_entries
 --                         allow_unsure on that field and the scout checked "Unsure".
 create or replace function public.validate_data(p_data jsonb, p_scope text) returns void
 language plpgsql set search_path = '' as $$
-declare f record; v jsonb; txt text; k text; base_key text;
+declare
+  f record; v jsonb; txt text; k text; base_key text;
+  -- The project ref is pinned (any Supabase project would otherwise pass) and the path allows
+  -- only the characters uploadImageFields() in scout.html generates. Each path segment must
+  -- start with a letter, digit, or underscore, which rules out "..".
+  c_photo_url constant text := '^https://nyanwljgsazwuzmnlrcz\.supabase\.co/storage/v1/object/public/scouting-photos(/[A-Za-z0-9_][A-Za-z0-9_.-]*)+$';
 begin
   if jsonb_typeof(p_data) <> 'object' then
     raise exception 'Entry data must be an object';
@@ -544,6 +552,12 @@ begin
       -- Active fields get full checks below. Retired ones skip those, so bound them here.
       if not exists (select 1 from public.scout_fields sf where sf.key = k and sf.scope = p_scope and sf.active)
          and (jsonb_typeof(p_data -> k) in ('object','array') or char_length(p_data ->> k) > 2000) then
+        raise exception 'Entry contains an invalid value for a retired field';
+      end if;
+      -- A retired photo field still renders as a link, so it keeps the URL rule from the loop below
+      if exists (select 1 from public.scout_fields sf where sf.key = k and sf.scope = p_scope and not sf.active and sf.field_type = 'image')
+         and jsonb_typeof(p_data -> k) <> 'null'
+         and (jsonb_typeof(p_data -> k) <> 'string' or p_data ->> k !~ c_photo_url) then
         raise exception 'Entry contains an invalid value for a retired field';
       end if;
       continue;
@@ -570,10 +584,14 @@ begin
   end loop;
 
   for f in select * from public.scout_fields where scope = p_scope and active loop
-    -- A field marked "Unsure" via its __unsure companion key is deliberately left blank —
-    -- skip the usual required/type checks on the number itself.
+    -- A field marked "Unsure" via its __unsure companion key is deliberately left blank, so it
+    -- skips the usual required/type checks. It must really be blank, or this skip would let any
+    -- value past them.
     if f.field_type in ('number','slider') and f.allow_unsure
        and coalesce((p_data ->> (f.key || '__unsure'))::boolean, false) then
+      if jsonb_typeof(p_data -> f.key) <> 'null' then
+        raise exception '% can''t be both Unsure and answered', f.label;
+      end if;
       continue;
     end if;
 
@@ -599,11 +617,7 @@ begin
       -- string. This is the gate that keeps a crafted data payload (e.g. sent straight to the
       -- REST API, bypassing the site's own upload flow) from ever storing attacker-controlled
       -- text in a field that scout.html/query.html later render into an <img src="..."> / <a href="...">.
-      -- The project ref is pinned (any Supabase project would otherwise pass) and the path allows
-      -- only the characters uploadImageFields() in scout.html generates. Each path segment must
-      -- start with a letter, digit, or underscore, which rules out "..".
-      if jsonb_typeof(v) <> 'string' or char_length(txt) > 2000
-         or txt !~ '^https://nyanwljgsazwuzmnlrcz\.supabase\.co/storage/v1/object/public/scouting-photos(/[A-Za-z0-9_][A-Za-z0-9_.-]*)+$'
+      if jsonb_typeof(v) <> 'string' or char_length(txt) > 2000 or txt !~ c_photo_url
       then raise exception '% must be a photo uploaded through the scouting-photos bucket', f.label; end if;
     end if;
   end loop;
@@ -1376,10 +1390,18 @@ declare
   v_result jsonb;
   v_uid uuid := auth.uid();
 begin
-  -- A session staff signed out stays valid by signature until it expires, so check it here too
-  if v_uid is null or not public.session_live() then
+  -- A session staff signed out stays valid by signature until it expires, so check it here too.
+  -- is_staff()/is_student() check for a ban, but guests never go through those.
+  if v_uid is null or not public.session_live() or not exists (
+    select 1 from auth.users u
+    where u.id = v_uid and u.email_confirmed_at is not null
+      and (u.banned_until is null or u.banned_until <= now())
+  ) then
     return null;
   end if;
+
+  -- One lookup at a time per account, or parallel requests could all pass the guess count below
+  perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 0));
 
   delete from public.share_code_attempts where attempted_at < now() - interval '10 minutes';
   if (select count(*) from public.share_code_attempts where user_id = v_uid) >= 10 then
@@ -1764,6 +1786,8 @@ revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
 revoke all on function public.staff_list_share_codes()     from public, anon;
+revoke all on function public.validate_data(jsonb, text)    from public, anon;
+revoke all on function public.gen_share_code()              from public, anon;
 
 grant execute on function public.session_live()                to authenticated;
 grant execute on function public.is_staff()                   to authenticated;
@@ -1781,6 +1805,7 @@ grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
 grant execute on function public.staff_list_share_codes()     to authenticated;
 grant execute on function public.validate_data(jsonb, text)   to authenticated;
+grant execute on function public.gen_share_code()             to authenticated;
 
 -- 12b. The Edge Functions (official-sync, manage-member) connect as service_role.
 --      It skips row security but still needs table privileges. Without these

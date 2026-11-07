@@ -12,7 +12,7 @@
 
     <!-- Styles: Bootstrap, Font Awesome 4.7 icons, site fonts, then the site theme (modern.css loads last so it wins) -->
     <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="/css/modern.css" rel="stylesheet">
     <style>
@@ -128,7 +128,8 @@
             a copy is sent back to the email address you gave us.
           </li>
           <li>
-            <strong>1307scout account:</strong> if you sign in to Scout, the Team Database, or the
+            <strong>1307scout account:</strong> your name, plus a phone number if you add one on the
+            My Account page, which staff can use to reach you. If you sign in to Scout, the Team Database, or the
             Staff Portal, your email address and authentication info are stored by our database
             provider, Supabase. Students generally sign in with their school (<code>@stalux.org</code>)
             email; mentors and approved guests can be granted access with another email address by
@@ -187,9 +188,11 @@
         <ul>
           <li><strong>Supabase</strong> — hosts our database, accounts, and uploaded photos.</li>
           <li><strong>EmailJS</strong> — delivers contact-form emails from your browser to our team.</li>
+          <li><strong>hCaptcha</strong> — checks that sign-in and account forms are used by a person. It receives technical information about your browser and device when you use those forms.</li>
+          <li><strong>Google</strong> — handles sign-in if you choose "Continue with Google", and shows the map on the Contact page, which loads from Google when you open that page.</li>
           <li><strong>FIRST FRC Events API</strong> and <strong>The Blue Alliance</strong> — public competition results we display; we don't send them any of your personal information.</li>
           <li><strong>GitHub Pages</strong> — hosts this website.</li>
-          <li>Google Fonts, Font Awesome, and the Bootstrap/jQuery/QRCode libraries we load from cdnjs.cloudflare.com and cdn.jsdelivr.net — these serve static font and script files and, as far as we configure them, don't track you.</li>
+          <li>Google Fonts, Font Awesome, and the Supabase, EmailJS, and QR code libraries we load from cdnjs.cloudflare.com and cdn.jsdelivr.net — these serve static font and script files and, as far as we configure them, don't track you.</li>
         </ul>
 
         <h2>Children's privacy</h2>

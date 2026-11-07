@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Team Database – 1307scout</title>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
@@ -286,7 +286,7 @@
         <!-- Team list -->
         <div class="q-panel">
           <div class="list-controls">
-            <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Search team # or name">
+            <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Search team # or name" aria-label="Search teams">
             <div class="row-2">
               <select id="teamSort" class="form-control form-control-sm" aria-label="Sort by">
                 <option value="team">Sort: Team #</option>
@@ -297,7 +297,7 @@
                 <option value="offGrade">Sort: Official grade</option>
                 <option value="pit">Sort: Pit data</option>
               </select>
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="sortDir" title="Reverse sort order">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="sortDir" title="Reverse sort order" aria-label="Reverse sort order">
                 <i class="fa fa-sort-amount-asc" id="sortDirIcon" aria-hidden="true"></i>
               </button>
             </div>
@@ -313,7 +313,7 @@
               <label class="custom-control-label" for="showTestTeams" style="font-size:.82rem;">Show test teams</label>
             </div>
           </div>
-          <div class="text-muted mb-2" style="font-size:.82rem;" id="teamCount"></div>
+          <div class="text-muted mb-2" style="font-size:.82rem;" id="teamCount">Loading teams…</div>
           <div class="list-scroll">
             <div class="team-list" id="teamRows"></div>
           </div>
@@ -379,7 +379,8 @@
     // ── Access gate (team members only) ──────────────────────────────
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
-    var lvl = (await sb.rpc("my_access_level")).data || "guest";
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
 
     // ── Rating config ────────────────────────────────────────────────
@@ -420,7 +421,13 @@
       if (f.allow_unsure && data[f.key + "__unsure"]) return "Unsure";
       if (v == null || v === "") return "—";
       if (f.field_type === "boolean") return v ? "Yes" : "No";
-      if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:40px;width:40px;object-fit:cover;"></a>';
+      if (f.field_type === "image") {
+        // validate_data() only stores our own https URLs, but check here too: a link is the one
+        // place a stored value could run script (javascript:)
+        if (!/^https:\/\//i.test(String(v))) return "—";
+        return '<a href="' + esc(v) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(v) +
+          '" alt="Scouted photo" style="height:40px;width:40px;object-fit:cover;"></a>';
+      }
       var html = esc(v);
       if (f.field_type === "choice" && v === "Other" && data[f.key + "__other_note"]) {
         html += ' <span class="text-muted" style="font-size:.85em;">(' + esc(data[f.key + "__other_note"]) + ')</span>';
@@ -565,7 +572,7 @@
               '<span class="tier-dot" style="background:' + TIERS[r.gOff.tier].color + ';" title="Official: ' + r.gOff.tier + '"></span>';
             var logoImg = r.logo ? '<img class="team-logo-sm" src="' + esc(r.logo) + '" alt="">' : "";
             var nameSuffix = r.name ? ' <span class="team-name-sub">' + esc(r.name) + '</span>' : "";
-            return '<div data-team="' + r.team + '" class="team-row' + (selected === r.team ? " selected" : "") + '">' +
+            return '<div data-team="' + r.team + '" role="button" tabindex="0" class="team-row' + (selected === r.team ? " selected" : "") + '">' +
               '<div class="tr-name">' + dots + logoImg + "<strong>" + r.team + "</strong>" + nameSuffix + "</div>" +
               '<div class="tr-stats-line">' +
                 '<div class="tr-stat" title="Human-scouted matches"><span class="stat-v">' + r.scouted + '</span><span class="stat-k">Scouted</span></div>' +
@@ -596,6 +603,15 @@
     $("teamRows").addEventListener("click", function (e) {
       var row = e.target.closest(".team-row[data-team]");
       if (row) openTeam(parseInt(row.dataset.team, 10));
+    });
+    // Rows are divs, so Enter and Space need wiring up for keyboard users
+    $("teamRows").addEventListener("keydown", function (e) {
+      var row = e.target.closest(".team-row[data-team]");
+      if (!row || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      var team = row.dataset.team;
+      openTeam(parseInt(team, 10));
+      $("teamRows").querySelector('[data-team="' + team + '"]').focus();   // the list was redrawn
     });
 
     // ── Ratings (computed on click from the latest summary) ──────────
@@ -710,7 +726,9 @@
       var lineups = {};
       (results[6].data || []).forEach(function (m) { lineups[m.event_id + "|" + m.match_key] = m; });
 
-      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pits, officialRows, officialErr, lineups);
+      // A failed request would otherwise read as a team with no data or no rating
+      var failed = results.slice(0, 5).some(function (r) { return r.error; });
+      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pits, officialRows, officialErr, lineups, failed);
     }
 
     function matchLabel(r) {
@@ -1110,7 +1128,7 @@
       $("allianceActions").innerHTML = allianceActionsHtml(selected);
     });
 
-    function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups) {
+    function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups, failed) {
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
       var pit = pits[0] || null;   // newest first
 
@@ -1171,6 +1189,9 @@
       var scoutedTiles = scoutedInsightTiles(matches);
 
       $("detail").innerHTML =
+        (failed
+          ? '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some of this team\'s data couldn\'t be loaded, so blank stats and grades may be wrong. Try refreshing the page.</div>'
+          : "") +
         '<div class="rating-group">' + ratingBox("Scouting", gScout) + ratingBox("Official", gOff) + '</div>' +
         '<div class="detail-head">' +
           logoHtml +

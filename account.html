@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>My Account – 1307scout</title>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
@@ -551,9 +551,11 @@
       var typed = prompt('This permanently deletes your account and everything tied to it. ' +
         'This can\'t be undone. Type DELETE to confirm.');
       if (typed !== "DELETE") return;
-      var msg = $("deleteMsg");
+      var msg = $("deleteMsg"), btn = this;
+      btn.disabled = true;
       flash(msg, true, "Deleting…");
       var r = await sb.functions.invoke("delete-account", {});
+      btn.disabled = false;
       if (r.error) { flash(msg, false, await (async function () {
         try { return (await r.error.context.json()).error || "Couldn't delete your account."; }
         catch (e) { return "Couldn't delete your account."; }
