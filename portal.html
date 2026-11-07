@@ -45,9 +45,13 @@
     }
 
     .sync-note { font-size: .78rem; color: var(--muted); line-height: 1.3; word-break: break-word; }
+    /* Name | Tier | Location | Date | Official sync | Actions. The Actions column is a fixed
+       width (not auto) so it takes up the same space whether a row has one button or three —
+       otherwise the other columns' widths shift row to row and no longer line up with the
+       header above them. */
     .event-row {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1.6fr auto;
+      grid-template-columns: 1.8fr .95fr 1.3fr .95fr 1.5fr 92px;
       gap: .5rem; align-items: center;
       padding: .6rem .75rem;
       border-bottom: 1px solid var(--line);
@@ -56,19 +60,24 @@
     .event-row:last-child { border-bottom: 0; }
     .event-row-header {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1.6fr auto;
-      gap: .5rem;
-      padding: .4rem .75rem;
+      grid-template-columns: 1.8fr .95fr 1.3fr .95fr 1.5fr 92px;
+      gap: .5rem; align-items: center;
+      padding: .5rem .75rem;
       background: var(--navy);
       color: #fff;
       font-family: var(--display);
       font-size: .8rem;
       font-weight: 600;
     }
+    .event-row .row-actions, .event-row-header .row-actions {
+      display: flex; gap: .3rem; justify-content: flex-end;
+    }
 
+    /* Label | Scope | Created by | Expires | Uses | Status | Actions. Actions is a fixed
+       width for the same reason as .event-row above — some codes get one button, some two. */
     .code-row {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1fr auto;
+      grid-template-columns: 1.7fr 1.3fr 1.1fr .85fr .6fr .85fr 68px;
       gap: .5rem; align-items: center;
       padding: .6rem .75rem;
       border-bottom: 1px solid var(--line);
@@ -77,14 +86,17 @@
     .code-row:last-child { border-bottom: 0; }
     .code-row-header {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1fr auto;
-      gap: .5rem;
-      padding: .4rem .75rem;
+      grid-template-columns: 1.7fr 1.3fr 1.1fr .85fr .6fr .85fr 68px;
+      gap: .5rem; align-items: center;
+      padding: .5rem .75rem;
       background: var(--navy);
       color: #fff;
       font-family: var(--display);
       font-size: .8rem;
       font-weight: 600;
+    }
+    .code-row .row-actions, .code-row-header .row-actions {
+      display: flex; gap: .3rem; justify-content: flex-end;
     }
     .code-row.revoked { opacity: .45; text-decoration: line-through; }
 
@@ -111,6 +123,7 @@
     .badge-test { background: #e67e22; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
 
     /* Event-tier badges — how much an event's results count toward a team's official rating */
+    .badge-tier-qual  { background: var(--tint); color: var(--blue); padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
     .badge-tier-off   { background: var(--line); color: var(--muted); padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
     .badge-tier-dc    { background: #6c3fb5; color: #fff; padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
     .badge-tier-champ { background: #D4AF37; color: #2b2100; padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
@@ -154,6 +167,30 @@
       border: 1px solid var(--line); letter-spacing: .03em;
     }
 
+    /* Multi-select event checklist and team-number chips on the Share Codes form */
+    .check-list {
+      border: 1px solid var(--line); background: var(--white);
+      max-height: 140px; overflow-y: auto; padding: .4rem .6rem;
+    }
+    .check-list .custom-checkbox { margin-bottom: .15rem; }
+    .check-list .empty-state { padding: .6rem 0; font-size: .82rem; }
+    .team-chips {
+      display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem;
+    }
+    .team-chip {
+      display: inline-flex; align-items: center; gap: .3rem;
+      background: var(--tint); border: 1px solid var(--line);
+      font-size: .8rem; padding: .1rem .3rem .1rem .55rem;
+    }
+    .team-chip button {
+      background: none; border: 0; color: var(--muted); cursor: pointer;
+      font-size: .9rem; line-height: 1; padding: 0 .15rem;
+    }
+    .team-chip button:hover { color: #c0392b; }
+    .field-hint {
+      color: var(--muted); cursor: help; font-size: .85rem; margin-left: .25rem;
+    }
+
     .empty-state {
       padding: 2.5rem 1rem; text-align: center;
       color: var(--muted); font-size: .95rem;
@@ -181,17 +218,21 @@
 
     @media (max-width: 767px) {
       .field-row, .field-row-header,
-      .event-row, .event-row-header,
-      .code-row,  .code-row-header,
       .tt-row,    .tt-row-header    { grid-template-columns: 1fr auto; }
       .field-row > *:nth-child(n+3):not(:last-child),
-      .event-row > *:nth-child(n+3):not(:last-child),
-      .code-row  > *:nth-child(n+3):not(:last-child),
       .tt-row    > *:nth-child(n+3):not(:last-child),
       .field-row-header > *:nth-child(n+3),
-      .event-row-header > *:nth-child(n+3),
-      .code-row-header  > *:nth-child(n+3),
       .tt-row-header    > *:nth-child(n+3) { display: none; }
+
+      /* Events: keep Name + Tier badge + Actions, hide Location/Date/Sync */
+      .event-row, .event-row-header { grid-template-columns: 1fr auto 70px; }
+      .event-row > :nth-child(3), .event-row > :nth-child(4), .event-row > :nth-child(5),
+      .event-row-header > :nth-child(3), .event-row-header > :nth-child(4), .event-row-header > :nth-child(5) { display: none; }
+
+      /* Share codes: keep Label + Status + Actions, hide Scope/Created By/Expires/Uses */
+      .code-row, .code-row-header { grid-template-columns: 1fr auto 70px; }
+      .code-row > :nth-child(2), .code-row > :nth-child(3), .code-row > :nth-child(4), .code-row > :nth-child(5),
+      .code-row-header > :nth-child(2), .code-row-header > :nth-child(3), .code-row-header > :nth-child(4), .code-row-header > :nth-child(5) { display: none; }
     }
   </style>
 </head>
@@ -333,7 +374,7 @@
 
       <div class="table-wrap">
         <div class="event-row-header">
-          <span>Name</span><span>Location</span><span>Date</span><span>Official sync</span><span></span>
+          <span>Name</span><span>Tier</span><span>Location</span><span>Date</span><span>Official sync</span><span></span>
         </div>
         <div id="eventList"><div class="empty-state">No events yet. Add one above.</div></div>
       </div>
@@ -428,37 +469,48 @@
       <div class="form-panel">
         <h3 style="font-size:1.1rem; margin-bottom:1rem;">Create Share Code</h3>
         <div class="form-row">
-          <div class="form-group col-md-3">
+          <div class="form-group col-md-5">
             <label for="cLabel">Label</label>
             <input type="text" id="cLabel" class="form-control" maxlength="80" placeholder="e.g. Team 254 – Pine Tree">
           </div>
           <div class="form-group col-md-3">
-            <label for="cEvent">Event <small class="text-muted">(optional)</small></label>
-            <select id="cEvent" class="form-control">
-              <option value="">All events</option>
-            </select>
-          </div>
-          <div class="form-group col-md-2">
-            <label for="cTeam">Team # <small class="text-muted">(optional)</small></label>
-            <input type="number" id="cTeam" class="form-control" min="1" max="99999" placeholder="e.g. 254">
-          </div>
-          <div class="form-group col-md-2">
-            <label for="cExpiry">Expires <small class="text-muted">(optional, through end of day)</small></label>
+            <label for="cExpiry">Expires
+              <i class="fa fa-info-circle field-hint" title="Optional. Valid through the end of the chosen day."></i>
+            </label>
             <input type="date" id="cExpiry" class="form-control">
           </div>
-          <div class="form-group col-md-2 d-flex align-items-end">
+          <div class="form-group col-md-4 d-flex align-items-end">
             <button class="btn btn-primary w-100" id="cSave">Create Code</button>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group col-md-6">
+            <label>Events
+              <i class="fa fa-info-circle field-hint" title="Check any events this code should cover."></i>
+            </label>
+            <div class="check-list" id="cEventList"><div class="empty-state">No events yet.</div></div>
+          </div>
+          <div class="form-group col-md-6">
+            <label for="cTeamInput">Teams
+              <i class="fa fa-info-circle field-hint" title="Add one or more team numbers this code should cover."></i>
+            </label>
+            <div class="d-flex" style="gap:.4rem;">
+              <input type="number" id="cTeamInput" class="form-control" min="1" max="99999" placeholder="e.g. 254">
+              <button class="btn btn-outline-secondary" id="cTeamAdd" type="button">Add</button>
+            </div>
+            <div class="team-chips" id="cTeamChips"></div>
+          </div>
+        </div>
         <p class="text-muted mb-0" style="font-size:.82rem;">
-          A code scoped to neither an event nor a team returns all unshared data — use with care.
-          Set an expiry for codes you hand to outside teams.
+          Check at least one event or add at least one team — a code can't be scoped to nothing.
+          Combine both to cover, say, one team across several events. Set an expiry for codes
+          you hand to outside teams.
         </p>
       </div>
 
       <div class="table-wrap">
         <div class="code-row-header">
-          <span>Label</span><span>Scope</span><span>Expires</span><span>Status</span><span></span>
+          <span>Label</span><span>Scope</span><span>Created by</span><span>Expires</span><span>Uses</span><span>Status</span><span></span>
         </div>
         <div id="codeList"><div class="empty-state">No share codes yet.</div></div>
       </div>
@@ -707,11 +759,12 @@
       if (!list.length) { el.innerHTML = '<div class="empty-state">No events match that search.</div>'; return; }
       el.innerHTML = list.map(function (ev) {
         return '<div class="event-row">' +
-          '<span><strong>' + esc(ev.name) + '</strong>' + tierBadge(ev.event_tier) + '</span>' +
+          '<span><strong>' + esc(ev.name) + '</strong></span>' +
+          '<span>' + tierBadge(ev.event_tier) + '</span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
           '<span>' + fmt(ev.event_date) + '</span>' +
           '<span>' + syncCell(ev) + '</span>' +
-          '<span style="display:flex;gap:.3rem;">' +
+          '<span class="row-actions">' +
             ((ev.frc_event_code || ev.tba_event_key)
               ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>'
               : '') +
@@ -724,16 +777,30 @@
     document.getElementById("evSearch").addEventListener("input", renderEvents);
     document.getElementById("evSort").addEventListener("change", renderEvents);
     function tierBadge(tier) {
-      if (tier === "district_championship") return ' <span class="badge-tier-dc">District Champs</span>';
-      if (tier === "championship") return ' <span class="badge-tier-champ">Championship</span>';
-      if (tier === "offseason") return ' <span class="badge-tier-off">Off-season</span>';
-      return "";   // 'qualifier' is the common case — no badge needed
+      if (tier === "district_championship") return '<span class="badge-tier-dc">District Champs</span>';
+      if (tier === "championship") return '<span class="badge-tier-champ">Championship</span>';
+      if (tier === "offseason") return '<span class="badge-tier-off">Off-season</span>';
+      return '<span class="badge-tier-qual">Qualifier</span>';
     }
+    // The raw official_sync_note from the official-sync Edge Function looks like
+    // "2026-11-07T02:31:20.523Z | FRC: 56 matches | TBA: 55 matches" — parse that into a
+    // compact one-line summary instead of showing the raw timestamp + full sentence, which is
+    // what made this column busy and prone to wrapping across two lines. Anything that
+    // doesn't match the expected shape (an error message, "Never synced", etc.) is shown as-is.
+    var SYNC_NOTE_RE = /^(\S+)\s*\|\s*FRC:\s*(\d+)\s*matches?\s*\|\s*TBA:\s*(\d+)\s*matches?$/i;
     function syncCell(ev) {
       if (!ev.frc_event_code && !ev.tba_event_key) return '<span class="sync-note">Not linked</span>';
       var note = ev.official_sync_note || "Never synced";
+      var m = note.match(SYNC_NOTE_RE);
+      if (m) {
+        var when = new Date(m[1]);
+        var whenStr = isNaN(when) ? m[1] : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        return '<span class="sync-note" title="' + esc(note).replace(/"/g, "&quot;") + '">' +
+          '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i> ' + esc(whenStr) +
+          ' &middot; FRC ' + m[2] + ' / TBA ' + m[3] + '</span>';
+      }
       return '<span class="sync-note" title="' + esc(note).replace(/"/g, "&quot;") + '">' +
-        esc(note.length > 90 ? note.slice(0, 90) + "…" : note) + '</span>';
+        esc(note.length > 60 ? note.slice(0, 60) + "…" : note) + '</span>';
     }
     // Reads and checks the two code inputs. Returns {frc, tba} or null (after showing a message).
     function readCodes(frcId, tbaId) {
@@ -784,12 +851,19 @@
       loadEvents();
     });
     function populateEventSelect() {
-      var sel = document.getElementById("cEvent");
-      sel.innerHTML = '<option value="">All events</option>';
-      events.forEach(function (ev) {
-        var o = document.createElement("option");
-        o.value = ev.id; o.textContent = ev.name; sel.appendChild(o);
-      });
+      var el = document.getElementById("cEventList");
+      if (!events.length) { el.innerHTML = '<div class="empty-state">No events yet.</div>'; return; }
+      // Keep whatever was already checked (e.g. after loadEvents() refreshes the list).
+      var checked = {};
+      el.querySelectorAll("input[type=checkbox]:checked").forEach(function (cb) { checked[cb.value] = true; });
+      el.innerHTML = events.map(function (ev) {
+        var id = "cEv_" + ev.id;
+        return '<div class="custom-control custom-checkbox">' +
+          '<input type="checkbox" class="custom-control-input" id="' + id + '" value="' + ev.id + '"' +
+            (checked[ev.id] ? ' checked' : '') + '>' +
+          '<label class="custom-control-label" for="' + id + '">' + esc(ev.name) + '</label>' +
+        '</div>';
+      }).join("");
     }
     document.getElementById("evSave").addEventListener("click", async function () {
       var name = document.getElementById("evName").value.trim();
@@ -979,17 +1053,22 @@
     // SHARE CODES
     // ══════════════════════════════════════════════════════════════════
     var codes = [];
+    // staff_list_share_codes() (not a plain table select) so each row also comes back with
+    // who created it — that needs a join into auth.users, which a client-side select can't do.
     async function loadCodes() {
-      var r = await sb.from("share_codes").select("*").order("created_at", { ascending: false });
+      var r = await sb.rpc("staff_list_share_codes");
       if (r.error) { toast("Couldn't load share codes.", true); return; }
       codes = r.data;
       renderCodes();
     }
     function scopeLabel(c) {
-      var ev = c.event_id ? (events.find(function(e){ return e.id === c.event_id; }) || {}).name || "event" : null;
-      if (ev && c.team_number) return "Team " + c.team_number + " @ " + ev;
-      if (ev) return ev;
-      if (c.team_number) return "Team " + c.team_number + " (all events)";
+      var evNames = (c.event_ids || []).map(function (id) {
+        return (events.find(function (e) { return e.id === id; }) || {}).name || "event";
+      });
+      var teams = (c.team_numbers || []).map(function (t) { return "Team " + t; });
+      if (evNames.length && teams.length) return teams.join(", ") + " @ " + evNames.join(", ");
+      if (evNames.length) return evNames.join(", ");
+      if (teams.length) return teams.join(", ") + " (all events)";
       return "All data";
     }
     function renderCodes() {
@@ -1009,9 +1088,11 @@
             '<span class="code-string">' + esc(c.code) + '</span>' +
           '</span>' +
           '<span>' + esc(scopeLabel(c)) + '</span>' +
+          '<span>' + esc(c.created_by_name || "—") + '</span>' +
           '<span>' + fmtDT(c.expires_at) + '</span>' +
+          '<span title="' + (c.last_used_at ? "Last used " + esc(fmtDT(c.last_used_at)) : "Never used") + '">' + (c.use_count || 0) + '</span>' +
           '<span>' + badge + '</span>' +
-          '<span style="display:flex;gap:.3rem;">' +
+          '<span class="row-actions">' +
             (!revoked && !expired ? '<button class="btn-icon" onclick="showCode(\'' + c.id + '\')"><i class="fa fa-qrcode"></i></button>' : '') +
             (!revoked ? '<button class="btn-icon danger" onclick="revokeCode(\'' + c.id + '\')"><i class="fa fa-ban"></i></button>' : '') +
           '</span>' +
@@ -1019,24 +1100,54 @@
       }).join("");
     }
 
+    // Team-number chips for the Create Share Code form: a running list of numbers, each
+    // removable, since a code's team scope can cover more than one team at once.
+    var cTeamNumbers = [];
+    function renderTeamChips() {
+      var el = document.getElementById("cTeamChips");
+      el.innerHTML = cTeamNumbers.map(function (t) {
+        return '<span class="team-chip">' + t + '<button type="button" data-team="' + t + '">&times;</button></span>';
+      }).join("");
+      el.querySelectorAll("button").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var t = parseInt(btn.dataset.team, 10);
+          cTeamNumbers = cTeamNumbers.filter(function (n) { return n !== t; });
+          renderTeamChips();
+        });
+      });
+    }
+    function addTeamChip() {
+      var input = document.getElementById("cTeamInput");
+      var t = parseInt(input.value, 10);
+      if (!t || t < 1 || t > 99999) { toast("Enter a valid team number first.", true); return; }
+      if (cTeamNumbers.indexOf(t) === -1) { cTeamNumbers.push(t); renderTeamChips(); }
+      input.value = "";
+      input.focus();
+    }
+    document.getElementById("cTeamAdd").addEventListener("click", addTeamChip);
+    document.getElementById("cTeamInput").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); addTeamChip(); }
+    });
+
     document.getElementById("cSave").addEventListener("click", async function () {
-      var label   = document.getElementById("cLabel").value.trim();
-      var eventId = document.getElementById("cEvent").value || null;
-      var team    = document.getElementById("cTeam").value ? parseInt(document.getElementById("cTeam").value, 10) : null;
-      var expiry  = document.getElementById("cExpiry").value || null;
+      var label    = document.getElementById("cLabel").value.trim();
+      var eventIds = Array.from(document.querySelectorAll("#cEventList input[type=checkbox]:checked")).map(function (cb) { return cb.value; });
+      var expiry   = document.getElementById("cExpiry").value || null;
       if (!label) { toast("Label is required.", true); return; }
-      if (!eventId && !team) { toast("Scope at least one event or team number.", true); return; }
+      if (!eventIds.length && !cTeamNumbers.length) { toast("Check at least one event or add at least one team.", true); return; }
       // The date picker only gives a day ("2027-03-06"), not a time. A code that "expires 3/6"
       // should still work all day on 3/6 — treat the chosen day as valid through its last
       // moment (local time), not its first. Picking midnight of that day was the bug: it made
       // the code expire right as the day started, which looked like it expired a day early.
       var r = await sb.from("share_codes").insert({
-        label, event_id: eventId, team_number: team,
+        label, event_ids: eventIds, team_numbers: cTeamNumbers,
         expires_at: expiry ? new Date(expiry + "T23:59:59").toISOString() : null
       }).select().single();
       if (r.error) { toast(r.error.message || "Couldn't create code.", true); return; }
-      ["cLabel","cTeam","cExpiry"].forEach(function(id){ document.getElementById(id).value = ""; });
-      document.getElementById("cEvent").value = "";
+      document.getElementById("cLabel").value = "";
+      document.getElementById("cExpiry").value = "";
+      document.querySelectorAll("#cEventList input[type=checkbox]:checked").forEach(function (cb) { cb.checked = false; });
+      cTeamNumbers = []; renderTeamChips();
       toast("Share code created.");
       await loadCodes();
       showCode(r.data.id);

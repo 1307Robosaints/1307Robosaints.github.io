@@ -231,17 +231,24 @@ update public.events set event_tier = 'championship'
 
 alter table public.scouting_entries add column if not exists data jsonb not null default '{}'::jsonb;
 
--- Share codes: many per team or event, each revocable, optional expiry
+-- Share codes: each can scope to several events and/or several teams at once (arrays, so a
+-- code for a whole alliance or a multi-event invite doesn't need to be recreated per
+-- event/team), revocable, optional expiry. created_by ties the code to the staff account that
+-- made it; use_count/last_used_at track how many times it's actually been redeemed (bumped by
+-- get_shared_scouting() in section 10, which is how a QR scan or pasted code shows up here).
 create table if not exists public.share_codes (
   id uuid primary key default gen_random_uuid(),
   code text not null unique default substr(replace(gen_random_uuid()::text,'-','') || replace(gen_random_uuid()::text,'-',''), 1, 24),
   label text not null check (char_length(label) between 1 and 80),
-  event_id uuid references public.events(id) on delete cascade,
-  team_number int check (team_number between 1 and 99999),
+  event_ids uuid[] not null default '{}',
+  team_numbers int[] not null default '{}',
   expires_at timestamptz,
   revoked boolean not null default false,
   created_at timestamptz not null default now(),
-  check (event_id is not null or team_number is not null)
+  created_by uuid references auth.users(id) on delete set null default auth.uid(),
+  use_count int not null default 0,
+  last_used_at timestamptz,
+  check (cardinality(event_ids) > 0 or cardinality(team_numbers) > 0)
 );
 alter table public.share_codes enable row level security;
 drop policy if exists "staff manages share codes" on public.share_codes;
@@ -254,8 +261,8 @@ do $$
 begin
   if exists (select 1 from information_schema.columns
              where table_schema = 'public' and table_name = 'events' and column_name = 'share_code') then
-    insert into public.share_codes (code, label, event_id)
-    select share_code, 'Migrated: ' || name, id
+    insert into public.share_codes (code, label, event_ids)
+    select share_code, 'Migrated: ' || name, array[id]
     from public.events
     where share_enabled and share_code is not null
     on conflict (code) do nothing;
@@ -263,6 +270,39 @@ begin
     alter table public.events drop column share_code, drop column share_enabled;
   end if;
 end $$;
+
+-- Upgrade a share_codes table from before multi-event/team codes existed: fold the old
+-- single event_id/team_number columns into the new arrays, then drop them. Also backfills
+-- created_by/use_count/last_used_at for a table that predates those columns.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'share_codes' and column_name = 'event_id') then
+    alter table public.share_codes add column if not exists event_ids uuid[] not null default '{}';
+    alter table public.share_codes add column if not exists team_numbers int[] not null default '{}';
+    update public.share_codes
+       set event_ids    = case when event_id    is not null then array[event_id]    else '{}' end,
+           team_numbers = case when team_number is not null then array[team_number] else '{}' end
+     where cardinality(event_ids) = 0 and cardinality(team_numbers) = 0;
+    alter table public.share_codes drop constraint if exists share_codes_check;
+    alter table public.share_codes drop column event_id, drop column team_number;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'share_codes' and column_name = 'created_by') then
+    alter table public.share_codes add column created_by uuid references auth.users(id) on delete set null default auth.uid();
+  end if;
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'share_codes' and column_name = 'use_count') then
+    alter table public.share_codes add column use_count int not null default 0;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'share_codes' and column_name = 'last_used_at') then
+    alter table public.share_codes add column last_used_at timestamptz;
+  end if;
+end $$;
+alter table public.share_codes drop constraint if exists share_codes_check;
+alter table public.share_codes add constraint share_codes_check
+  check (cardinality(event_ids) > 0 or cardinality(team_numbers) > 0);
 
 
 -- =====================================================================
@@ -901,18 +941,60 @@ drop function if exists public.get_shared_scouting(text);
 create or replace function public.get_shared_scouting(p_code text)
 returns table (event_name text, event_date date, team_number int, match_number int,
                data jsonb, created_at timestamptz)
-language sql stable security definer set search_path = '' as $$
-  select e.name, e.event_date, s.team_number, s.match_number, s.data, s.created_at
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_id uuid;
+begin
+  select c.id into v_id
   from public.share_codes c
-  join public.scouting_entries s
-    on (c.event_id is null or s.event_id = c.event_id)
-   and (c.team_number is null or s.team_number = c.team_number)
-  join public.events e on e.id = s.event_id
   where c.code = p_code
     and not c.revoked
     and (c.expires_at is null or c.expires_at > now())
-  order by e.event_date nulls last, s.team_number, s.match_number nulls last
-  limit 1000;
+  limit 1;
+
+  if v_id is null then
+    return;
+  end if;
+
+  -- Every successful lookup counts as one "use" of the code, whether it came from a pasted
+  -- code or a scanned QR (both go through this same function) — this is the scan counter
+  -- shown on the Share Codes tab.
+  update public.share_codes
+     set use_count = use_count + 1, last_used_at = now()
+   where id = v_id;
+
+  return query
+    select e.name, e.event_date, s.team_number, s.match_number, s.data, s.created_at
+    from public.share_codes c
+    join public.scouting_entries s
+      on (cardinality(c.event_ids) = 0 or s.event_id = any(c.event_ids))
+     and (cardinality(c.team_numbers) = 0 or s.team_number = any(c.team_numbers))
+    join public.events e on e.id = s.event_id
+    where c.id = v_id
+    order by e.event_date nulls last, s.team_number, s.match_number nulls last
+    limit 1000;
+end;
+$$;
+
+-- Staff Portal's Share Codes tab: same rows as a direct select on share_codes, plus who
+-- created each code (needs a join into auth.users, which a plain client select can't do).
+drop function if exists public.staff_list_share_codes();
+create or replace function public.staff_list_share_codes()
+returns table (
+  id uuid, code text, label text, event_ids uuid[], team_numbers int[],
+  expires_at timestamptz, revoked boolean, created_at timestamptz,
+  use_count int, last_used_at timestamptz,
+  created_by uuid, created_by_name text
+)
+language sql stable security definer set search_path = '' as $$
+  select c.id, c.code, c.label, c.event_ids, c.team_numbers,
+         c.expires_at, c.revoked, c.created_at, c.use_count, c.last_used_at,
+         c.created_by,
+         coalesce(nullif(u.raw_user_meta_data ->> 'display_name', ''), u.email::text)
+  from public.share_codes c
+  left join auth.users u on u.id = c.created_by
+  where public.is_staff()
+  order by c.created_at desc;
 $$;
 
 
@@ -1015,6 +1097,7 @@ revoke all on function public.team_official_summary()      from public, anon;
 revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
+revoke all on function public.staff_list_share_codes()     from public, anon;
 
 grant execute on function public.is_staff()                   to authenticated;
 grant execute on function public.is_student()                 to authenticated;
@@ -1029,6 +1112,7 @@ grant execute on function public.event_tier_weight(text)      to authenticated;
 grant execute on function public.team_official_summary()      to authenticated;
 grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
+grant execute on function public.staff_list_share_codes()     to authenticated;
 grant execute on function public.validate_data(jsonb, text)   to authenticated;
 
 -- 12b. The Edge Functions (official-sync, manage-member) connect as service_role.
@@ -1180,6 +1264,7 @@ with expected(kind, name) as (values
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
+  ('function','staff_list_share_codes'),
   ('bucket','scouting-photos')
 )
 select e.kind, e.name,
