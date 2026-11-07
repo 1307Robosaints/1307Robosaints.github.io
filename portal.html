@@ -193,6 +193,54 @@
     select.level-student { background: #e7f7ee; border-color: #1a7f4b; color: #1a7f4b; font-weight: 600; }
     select.level-guest   { background: #f2f2f2; border-color: #9a9a9c; color: #6c6c6e; font-weight: 600; }
 
+    /* Audit Log tab — role badges reuse the same color family as the Members tab's level
+       select above, so "staff" reads the same way in both places. */
+    .badge-role {
+      display: inline-block; padding: .15rem .5rem; font-size: .72rem;
+      font-family: var(--display); font-weight: 600; border-radius: 0; white-space: nowrap;
+    }
+    .badge-role.staff   { background: #eaf0ff; color: #1B4DB1; }
+    .badge-role.mentor  { background: #f3ecff; color: #6c3fb5; }
+    .badge-role.student { background: #e7f7ee; color: #1a7f4b; }
+    .badge-role.guest   { background: #f2f2f2; color: #6c6c6e; }
+    .badge-role.system  { background: #fdeee0; color: #a0522d; }
+
+    .badge-op           { padding: .1rem .5rem; font-size: .7rem; font-family: var(--display); }
+    .badge-op.insert    { background: #e7f7ee; color: #1a7f4b; }
+    .badge-op.update    { background: var(--tint); color: var(--blue); }
+    .badge-op.delete    { background: #fde8e8; color: #c0392b; }
+    .badge-op.kick, .badge-op.ban, .badge-op.unban { background: #f2f2f2; color: #6c6c6e; }
+
+    .al-row {
+      display: grid;
+      grid-template-columns: 1.1fr 1.5fr .8fr .8fr 3fr;
+      gap: .5rem; align-items: start;
+      padding: .55rem .75rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .85rem;
+    }
+    .al-row:last-child { border-bottom: 0; }
+    .al-row-header {
+      display: grid;
+      grid-template-columns: 1.1fr 1.5fr .8fr .8fr 3fr;
+      gap: .5rem;
+      padding: .5rem .75rem;
+      background: var(--navy);
+      color: #fff;
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .al-when { color: var(--muted); white-space: nowrap; font-size: .8rem; }
+    .al-summary { word-break: break-word; }
+    .al-table { color: var(--muted); font-size: .76rem; display: block; margin-top: .1rem; }
+
+    @media (max-width: 767px) {
+      .al-row, .al-row-header { grid-template-columns: 1fr auto; }
+      .al-row > :nth-child(1), .al-row > :nth-child(3), .al-row > :nth-child(4),
+      .al-row-header > :nth-child(1), .al-row-header > :nth-child(3), .al-row-header > :nth-child(4) { display: none; }
+    }
+
     .btn-icon {
       background: none; border: 1px solid var(--line); color: var(--muted);
       padding: .2rem .5rem; font-size: .8rem; cursor: pointer; clip-path: none;
@@ -348,7 +396,7 @@
 
   <div class="container" style="padding-top: 2rem;">
     <h1 class="mt-4 mb-1">Staff Portal</h1>
-    <p class="text-muted mb-4" style="font-size:.95rem;">Configure events, scouting fields, and share codes.</p>
+    <p class="text-muted mb-4" style="font-size:.95rem;">Configure events, scouting fields, share codes, and review the audit log.</p>
 
     <div class="portal-tabs" role="tablist">
       <button class="portal-tab active" data-tab="events">Events</button>
@@ -357,6 +405,7 @@
       <button class="portal-tab" data-tab="testteams">Test Teams</button>
       <button class="portal-tab" data-tab="teaminfo">Team Info</button>
       <button class="portal-tab" data-tab="members">Members</button>
+      <button class="portal-tab" data-tab="audit">Audit Log</button>
     </div>
 
     <!-- ===== EVENTS ===== -->
@@ -676,6 +725,81 @@
     <div class="d-flex align-items-center" style="gap:.5rem;">
       <button class="btn btn-outline-secondary btn-sm" id="refreshMembers" type="button">Refresh</button>
       <span id="memberMsg" class="small" role="status" aria-live="polite"></span>
+    </div>
+  </div>
+</div>
+
+  <!-- ===== AUDIT LOG ===== -->
+  <div class="portal-section" id="tab-audit">
+  <div class="form-panel">
+    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Audit log</h3>
+    <p class="text-muted" style="font-size:.9rem;">
+      Every change made through the portal, scouting pages, and member management — who did
+      it, what role they were acting as, and when.
+    </p>
+    <div class="form-row" style="gap:.6rem;">
+      <div class="form-group col-md-4">
+        <label for="alSearch">Search</label>
+        <input type="text" id="alSearch" class="form-control form-control-sm"
+               placeholder="Name, email, team #, event, field, table...">
+      </div>
+      <div class="form-group col-md-2">
+        <label for="alRole">Role</label>
+        <select id="alRole" class="custom-select custom-select-sm">
+          <option value="">Any</option>
+          <option value="staff">Staff</option>
+          <option value="mentor">Mentor</option>
+          <option value="student">Student</option>
+          <option value="guest">Guest</option>
+          <option value="system">System</option>
+        </select>
+      </div>
+      <div class="form-group col-md-2">
+        <label for="alAction">Action</label>
+        <select id="alAction" class="custom-select custom-select-sm">
+          <option value="">Any</option>
+          <option value="insert">Created</option>
+          <option value="update">Updated</option>
+          <option value="delete">Deleted</option>
+          <option value="kick">Signed out</option>
+          <option value="ban">Banned</option>
+          <option value="unban">Unbanned</option>
+        </select>
+      </div>
+      <div class="form-group col-md-2">
+        <label for="alTable">Area</label>
+        <select id="alTable" class="custom-select custom-select-sm">
+          <option value="">Any</option>
+          <option value="events">Events</option>
+          <option value="scouting_entries">Scouting entries</option>
+          <option value="pit_entries">Pit entries</option>
+          <option value="scout_fields">Form fields</option>
+          <option value="share_codes">Share codes</option>
+          <option value="team_info">Team info</option>
+          <option value="staff_members">Staff members</option>
+          <option value="member_grants">Access grants</option>
+          <option value="auth.sessions">Sign-outs</option>
+          <option value="auth.users">Bans</option>
+        </select>
+      </div>
+      <div class="form-group col-md-2">
+        <label for="alSince">Since</label>
+        <input type="date" id="alSince" class="form-control form-control-sm">
+      </div>
+    </div>
+    <div class="d-flex align-items-center mb-2" style="gap:.5rem;">
+      <button class="btn btn-primary btn-sm" id="alGo" type="button">Search</button>
+      <button class="btn btn-outline-secondary btn-sm" id="alClear" type="button">Clear filters</button>
+      <span id="alMsg" class="small text-muted" role="status" aria-live="polite"></span>
+    </div>
+    <div class="table-wrap">
+      <div class="al-row-header">
+        <span>When</span><span>Who</span><span>Role</span><span>Action</span><span>Details</span>
+      </div>
+      <div id="alRows"><div class="empty-state">No matching audit log entries.</div></div>
+    </div>
+    <div class="d-flex align-items-center mt-2" style="gap:.5rem;">
+      <button class="btn btn-outline-secondary btn-sm" id="alMore" type="button" hidden>Load more</button>
     </div>
   </div>
 </div>
@@ -1622,9 +1746,119 @@
     }
     document.getElementById("refreshMembers").addEventListener("click", loadMembers);
 
+    // ══════════════════════════════════════════════════════════════════
+    // AUDIT LOG
+    // ══════════════════════════════════════════════════════════════════
+    var AL_PAGE = 50;
+    var alOffset = 0;
+    var alRows = [];
+
+    function alParams() {
+      var since = document.getElementById("alSince").value;
+      return {
+        p_search: document.getElementById("alSearch").value.trim() || null,
+        p_role:   document.getElementById("alRole").value || null,
+        p_action: document.getElementById("alAction").value || null,
+        p_table:  document.getElementById("alTable").value || null,
+        p_since:  since ? new Date(since + "T00:00:00").toISOString() : null,
+        p_until:  null,
+        p_limit:  AL_PAGE,
+        p_offset: 0
+      };
+    }
+
+    var AL_ACTION_LABEL = {
+      insert: "Created", update: "Updated", delete: "Deleted",
+      kick: "Signed out", ban: "Banned", unban: "Unbanned"
+    };
+
+    function alRowEl(row) {
+      var el = document.createElement("div");
+      el.className = "al-row";
+
+      var when = document.createElement("span");
+      when.className = "al-when";
+      when.textContent = new Date(row.created_at).toLocaleString("en-US", {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+      });
+      el.appendChild(when);
+
+      var who = document.createElement("span");
+      who.textContent = row.actor_email || (row.actor_role === "system" ? "System" : "—");
+      el.appendChild(who);
+
+      var role = document.createElement("span");
+      var rb = document.createElement("span");
+      rb.className = "badge-role " + row.actor_role;
+      rb.textContent = row.actor_role.charAt(0).toUpperCase() + row.actor_role.slice(1);
+      role.appendChild(rb);
+      el.appendChild(role);
+
+      var action = document.createElement("span");
+      var ab = document.createElement("span");
+      ab.className = "badge-op " + row.action;
+      ab.textContent = AL_ACTION_LABEL[row.action] || row.action;
+      action.appendChild(ab);
+      el.appendChild(action);
+
+      var details = document.createElement("span");
+      var summary = document.createElement("span");
+      summary.className = "al-summary";
+      summary.textContent = row.summary;
+      details.appendChild(summary);
+      if (row.table_name) {
+        var tbl = document.createElement("span");
+        tbl.className = "al-table";
+        tbl.textContent = row.table_name + (row.record_id ? " · " + row.record_id : "");
+        details.appendChild(tbl);
+      }
+      el.appendChild(details);
+
+      return el;
+    }
+
+    function renderAuditBatch(batch, append) {
+      var wrap = document.getElementById("alRows");
+      if (!append) wrap.innerHTML = "";
+      if (!batch.length && !append) {
+        wrap.innerHTML = '<div class="empty-state">No matching audit log entries.</div>';
+        return;
+      }
+      batch.forEach(function (r) { wrap.appendChild(alRowEl(r)); });
+    }
+
+    async function loadAuditLog(append) {
+      var msg = document.getElementById("alMsg");
+      msg.textContent = "Loading…";
+      var params = alParams();
+      params.p_offset = append ? alOffset : 0;
+      var r = await sb.rpc("staff_search_audit_log", params);
+      if (r.error) { msg.textContent = "Couldn't load the audit log: " + r.error.message; return; }
+      alRows = append ? alRows.concat(r.data) : r.data;
+      alOffset = alRows.length;
+      renderAuditBatch(r.data, append);
+      document.getElementById("alMore").hidden = r.data.length < AL_PAGE;
+      msg.textContent = alRows.length + (alRows.length === 1 ? " entry" : " entries") +
+        (r.data.length === AL_PAGE ? " (more available)" : "");
+    }
+    document.getElementById("alGo").addEventListener("click", function () { loadAuditLog(false); });
+    document.getElementById("alMore").addEventListener("click", function () { loadAuditLog(true); });
+    document.getElementById("alSearch").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") loadAuditLog(false);
+    });
+    document.getElementById("alClear").addEventListener("click", function () {
+      document.getElementById("alSearch").value = "";
+      document.getElementById("alRole").value = "";
+      document.getElementById("alAction").value = "";
+      document.getElementById("alTable").value = "";
+      document.getElementById("alSince").value = "";
+      loadAuditLog(false);
+    });
+
     // ── Boot ─────────────────────────────────────────────────────────
     await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams(), loadTeamInfo()]);
     loadMembers();
+    loadAuditLog(false);
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
     function fmtEventDate(d, opts) {

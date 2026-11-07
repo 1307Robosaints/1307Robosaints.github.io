@@ -444,7 +444,7 @@
           <div class="col-12 col-lg-7">
             <div class="tier-item">
               <strong>Staff</strong>
-              <p>Set up events and form fields, manage share codes, and see all scouting data across the team. Access is granted by allowlist.</p>
+              <p>Set up events and form fields, manage share codes, see all scouting data across the team, and review an audit log of who changed what. Access is granted by allowlist.</p>
             </div>
             <div class="tier-item">
               <strong>Team members</strong>
@@ -573,7 +573,7 @@
     // ── Primary tiles, depending on access level ─────────────────
     var tiles = [];
     if (isStaff) tiles.push({ href:"/portal.html", icon:"fa-cog", cls:"staff-tile",
-                 title:"Staff Portal", desc:"Events, form fields, share codes, and members" });
+                 title:"Staff Portal", desc:"Events, form fields, share codes, members, and the audit log" });
     if (isTeam) {
       tiles.push({ href:"/scout.html", icon:"fa-clipboard", cls:"",
                    title:"Scout", desc:"Enter match and pit data for the current event" });

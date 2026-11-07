@@ -20,7 +20,8 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).
   A team's card also shows its name and logo if staff have set one on the Team Info tab.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
-  team names/logos, and member access levels.
+  team names/logos, member access levels, and an audit log of who changed what and when (staff,
+  mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list).
 
 Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
 row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.

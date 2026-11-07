@@ -21,10 +21,18 @@
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
 --  12  Permissions   13  Form field seed data   14  First staff member
---  15  Optional: schedule the automatic sync    16  Check query
+--  15  Optional: schedule the automatic sync    16  Audit log
+--  17  Check query
 --
 -- After running, the Edge Function (official-sync) still needs its own
 -- secrets and deploy; see the notes in section 15.
+--
+-- 2026 REBUILT update: section 16 adds an audit log (public.audit_log) that the
+-- Staff Portal's "Audit Log" tab searches via staff_search_audit_log(). Most rows
+-- are written automatically by a generic trigger on the tables staff/students
+-- change (events, scouting/pit entries, form fields, share codes, team info,
+-- staff/member grants); a couple of actions that aren't a table write (staff_kick,
+-- and manage-member's ban/unban) call public.log_action() directly.
 --
 -- 2026 REBUILT update: scout_fields.field_type now also accepts 'image',
 -- so staff can add a field ("Robot photo", scope = pit) that lets scouts
@@ -1204,10 +1212,14 @@ end $$;
 -- Sign someone out everywhere
 create or replace function public.staff_kick(target uuid)
 returns void language plpgsql security definer set search_path = '' as $$
+declare v_email text;
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
   if target = auth.uid() then raise exception 'You cannot kick yourself.'; end if;
   delete from auth.sessions where user_id = target;
+  select email into v_email from auth.users where id = target;
+  perform public.log_action('kick', 'auth.sessions', target::text,
+    format('Signed out %s everywhere', coalesce(v_email, target::text)));
 end $$;
 
 
@@ -1405,7 +1417,181 @@ on conflict (user_id) do nothing;
 
 
 -- =====================================================================
--- 16. Check query. Run this last (or any time). The result lists every
+-- 16. Audit log: who did what, when, and whether they were acting as
+--     staff, a mentor/student, a guest, or the system (Edge Functions).
+--
+--     Most rows are written automatically by audit_row_change(), a
+--     generic trigger attached below to every table whose changes are
+--     worth a record (events, scouting/pit entries, form fields, share
+--     codes, staff/member grants, team info). A couple of actions that
+--     don't correspond to a table write (signing someone out) call
+--     public.log_action() directly instead — see staff_kick() in
+--     section 11, above. The manage-member Edge Function (ban/unban,
+--     not in this repo) should do the same on success: call
+--     `select public.log_action('ban'|'unban', 'auth.users', target,
+--     '<summary>')` over its service-role connection, which already has
+--     execute on every function per section 12b.
+--
+--     Only staff can read the log (policy below); everyone else can
+--     write to it only indirectly, through the security definer
+--     functions here, never through a direct insert.
+-- =====================================================================
+create table if not exists public.audit_log (
+  id          bigint generated always as identity primary key,
+  created_at  timestamptz not null default now(),
+  actor_id    uuid references auth.users(id) on delete set null,
+  actor_email text,
+  actor_role  text not null check (actor_role in ('staff','mentor','student','guest','system')),
+  action      text not null check (action in ('insert','update','delete','kick','ban','unban')),
+  table_name  text,
+  record_id   text,
+  summary     text not null check (char_length(summary) <= 300),
+  details     jsonb
+);
+alter table public.audit_log enable row level security;
+revoke all on public.audit_log from anon, authenticated;
+
+create index if not exists audit_log_created_idx on public.audit_log (created_at desc);
+create index if not exists audit_log_actor_idx   on public.audit_log (actor_id);
+create index if not exists audit_log_role_idx    on public.audit_log (actor_role);
+
+drop policy if exists "staff read audit log" on public.audit_log;
+create policy "staff read audit log" on public.audit_log for select to authenticated
+  using (public.is_staff());
+
+-- Central write helper. Every writer below (the generic trigger, staff_kick(), the
+-- manage-member Edge Function) calls this rather than inserting into audit_log
+-- directly, so actor_role is always worked out the same way.
+create or replace function public.log_action(
+  p_action text, p_table text, p_record_id text, p_summary text, p_details jsonb default null
+) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_role  text;
+  v_email text;
+begin
+  if auth.uid() is null then
+    v_role := 'system'; -- Edge Functions call this connected as service_role, no auth.uid()
+  else
+    v_role := coalesce(public.my_access_level(), 'guest');
+    if v_role = 'student' and exists (
+      select 1 from public.member_grants where user_id = auth.uid() and level = 'mentor'
+    ) then
+      v_role := 'mentor';
+    end if;
+    select email into v_email from auth.users where id = auth.uid();
+  end if;
+  insert into public.audit_log (actor_id, actor_email, actor_role, action, table_name, record_id, summary, details)
+  values (auth.uid(), v_email, v_role, p_action, p_table, p_record_id, left(p_summary, 300), p_details);
+end $$;
+
+-- Generic row-change logger, attached as an AFTER trigger to every audited table.
+-- Builds a readable summary per table from the changed row's own jsonb shape, so one
+-- function covers every table without a column list to keep in sync. Record id falls
+-- back through every primary key shape used in this schema (id, user_id, team_number).
+create or replace function public.audit_row_change() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_row     jsonb;
+  v_id      text;
+  v_summary text;
+  v_verb    text;
+begin
+  v_row  := to_jsonb(case when TG_OP = 'DELETE' then OLD else NEW end);
+  v_id   := coalesce(v_row ->> 'id', v_row ->> 'user_id', v_row ->> 'team_number', '');
+  v_verb := initcap(lower(TG_OP));
+  v_summary := case TG_TABLE_NAME
+    when 'events' then
+      format('%s event "%s"', v_verb, v_row ->> 'name')
+    when 'scouting_entries' then
+      format('%s scouting entry: team %s, match %s', v_verb, v_row ->> 'team_number', coalesce(v_row ->> 'match_number', '?'))
+    when 'pit_entries' then
+      format('%s pit entry: team %s', v_verb, v_row ->> 'team_number')
+    when 'scout_fields' then
+      format('%s form field "%s"', v_verb, v_row ->> 'label')
+    when 'share_codes' then
+      format('%s share code "%s"', v_verb, v_row ->> 'label')
+    when 'team_info' then
+      format('%s team info: team %s', v_verb, v_row ->> 'team_number')
+    when 'staff_members' then
+      format('%s staff member %s', v_verb,
+        coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'))
+    when 'member_grants' then
+      format('%s access grant: %s -> %s', v_verb,
+        coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'),
+        v_row ->> 'level')
+    else
+      format('%s %s', v_verb, TG_TABLE_NAME)
+  end;
+  perform public.log_action(lower(TG_OP), TG_TABLE_NAME, v_id, v_summary,
+    jsonb_build_object('old', to_jsonb(OLD), 'new', to_jsonb(NEW)));
+  return case when TG_OP = 'DELETE' then OLD else NEW end;
+end $$;
+
+drop trigger if exists audit_events         on public.events;
+drop trigger if exists audit_scouting       on public.scouting_entries;
+drop trigger if exists audit_pit            on public.pit_entries;
+drop trigger if exists audit_fields         on public.scout_fields;
+drop trigger if exists audit_codes          on public.share_codes;
+drop trigger if exists audit_team_info      on public.team_info;
+drop trigger if exists audit_staff_members  on public.staff_members;
+drop trigger if exists audit_member_grants  on public.member_grants;
+create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
+create trigger audit_scouting      after insert or update or delete on public.scouting_entries for each row execute function public.audit_row_change();
+create trigger audit_pit           after insert or update or delete on public.pit_entries      for each row execute function public.audit_row_change();
+create trigger audit_fields        after insert or update or delete on public.scout_fields     for each row execute function public.audit_row_change();
+create trigger audit_codes         after insert or update or delete on public.share_codes      for each row execute function public.audit_row_change();
+create trigger audit_team_info     after insert or update or delete on public.team_info        for each row execute function public.audit_row_change();
+create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
+create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
+
+-- Powerful search for the Staff Portal's Audit Log tab: free-text search plus filters,
+-- all optional and combinable. p_search matches the summary, actor email, table name,
+-- record id, and the raw before/after details.
+create or replace function public.staff_search_audit_log(
+  p_search text default null,
+  p_role   text default null,
+  p_action text default null,
+  p_table  text default null,
+  p_since  timestamptz default null,
+  p_until  timestamptz default null,
+  p_limit  int default 200,
+  p_offset int default 0
+) returns table (
+  id bigint, created_at timestamptz, actor_email text, actor_role text,
+  action text, table_name text, record_id text, summary text, details jsonb
+)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  return query
+    select a.id, a.created_at, a.actor_email, a.actor_role, a.action, a.table_name, a.record_id, a.summary, a.details
+    from public.audit_log a
+    where (p_role   is null or a.actor_role = p_role)
+      and (p_action is null or a.action = p_action)
+      and (p_table  is null or a.table_name = p_table)
+      and (p_since  is null or a.created_at >= p_since)
+      and (p_until  is null or a.created_at <= p_until)
+      and (
+        p_search is null or p_search = '' or
+        a.summary     ilike '%' || p_search || '%' or
+        a.actor_email ilike '%' || p_search || '%' or
+        a.table_name  ilike '%' || p_search || '%' or
+        a.record_id   ilike '%' || p_search || '%' or
+        a.details::text ilike '%' || p_search || '%'
+      )
+    order by a.created_at desc
+    limit least(coalesce(p_limit, 200), 500) offset greatest(coalesce(p_offset, 0), 0);
+end $$;
+
+revoke all on function public.log_action(text, text, text, text, jsonb) from public, anon;
+revoke all on function public.staff_search_audit_log(text, text, text, text, timestamptz, timestamptz, int, int) from public, anon;
+grant execute on function public.log_action(text, text, text, text, jsonb) to authenticated;
+grant execute on function public.staff_search_audit_log(text, text, text, text, timestamptz, timestamptz, int, int) to authenticated;
+
+
+-- =====================================================================
+-- 17. Check query. Run this last (or any time). The result lists every
 --     expected table, view, function, and the photo storage bucket;
 --     "present" should be true on every row. Rows that are false sort
 --     to the top.
@@ -1414,7 +1600,7 @@ with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
-  ('table','team_info'),
+  ('table','team_info'), ('table','audit_log'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
@@ -1424,6 +1610,7 @@ with expected(kind, name) as (values
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
+  ('function','log_action'), ('function','staff_search_audit_log'),
   ('bucket','scouting-photos'), ('bucket','team-logos')
 )
 select e.kind, e.name,
