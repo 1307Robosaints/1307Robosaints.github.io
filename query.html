@@ -38,22 +38,22 @@
        reflow to a stacked card layout on narrow screens without horizontal scrolling. */
     .team-list { border-top: 1px solid var(--line); }
     .team-row {
-      display: grid;
-      grid-template-columns: 1fr auto auto auto;
+      display: flex;
       align-items: center;
-      column-gap: .75rem;
-      padding: .55rem .35rem;
+      gap: .75rem;
+      padding: .5rem .35rem;
       border-bottom: 1px solid var(--line);
       cursor: pointer;
       font-size: .9rem;
     }
     .team-row:hover { background: var(--tint); }
     .team-row.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
-    .team-row .tr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .team-row .tr-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .team-row .tr-name .team-name-sub { color: var(--muted); font-size: .85em; }
-    .team-row .tr-stat { text-align: center; min-width: 2.4rem; }
-    .team-row .tr-stat .stat-v { display: block; font-weight: 600; line-height: 1.1; }
-    .team-row .tr-stat .stat-k { display: block; font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+    .team-row .tr-stats-line { flex: none; display: flex; gap: .85rem; }
+    .team-row .tr-stat { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 2.2rem; }
+    .team-row .tr-stat .stat-v { font-weight: 600; line-height: 1.1; }
+    .team-row .tr-stat .stat-k { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
     .tier-dot {
       display: inline-block; width: 8px; height: 8px; border-radius: 50%;
       margin-right: 3px; vertical-align: middle;
@@ -61,14 +61,13 @@
     }
     .list-scroll { max-height: 70vh; overflow-y: auto; }
 
-    /* Narrow phones: drop the per-column stats onto a second line instead of squeezing them
-       into tiny grid columns next to the team name. */
+    /* Narrow phones: stack the name above the stats, and lay the stats out as
+       "value label" pairs in a row instead of three stacked mini-columns. */
     @media (max-width: 420px) {
-      .team-row { grid-template-columns: 1fr; row-gap: .3rem; }
-      .team-row .tr-stats-line { grid-column: 1; display: flex; gap: 1rem; }
-      .team-row .tr-stat { text-align: left; min-width: 0; }
-      .team-row .tr-stat .stat-v, .team-row .tr-stat .stat-k { display: inline; }
-      .team-row .tr-stat .stat-k { margin-left: .2rem; }
+      .team-row { flex-wrap: wrap; row-gap: .3rem; }
+      .team-row .tr-name { flex-basis: 100%; }
+      .team-row .tr-stats-line { gap: 1rem; }
+      .team-row .tr-stat { flex-direction: row; align-items: baseline; gap: .25rem; min-width: 0; }
     }
 
     .detail-card {

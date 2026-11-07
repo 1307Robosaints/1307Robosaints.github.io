@@ -54,7 +54,7 @@
        header above them. */
     .event-row {
       display: grid;
-      grid-template-columns: 1.8fr .95fr 1.3fr .95fr 1.5fr 92px;
+      grid-template-columns: 1.8fr .95fr 1.3fr .95fr 1.5fr 120px;
       gap: .5rem; align-items: center;
       padding: .6rem .75rem;
       border-bottom: 1px solid var(--line);
@@ -63,7 +63,7 @@
     .event-row:last-child { border-bottom: 0; }
     .event-row-header {
       display: grid;
-      grid-template-columns: 1.8fr .95fr 1.3fr .95fr 1.5fr 92px;
+      grid-template-columns: 1.8fr .95fr 1.3fr .95fr 1.5fr 120px;
       gap: .5rem; align-items: center;
       padding: .5rem .75rem;
       background: var(--navy);
@@ -124,6 +124,11 @@
       font-weight: 600;
     }
     .badge-test { background: #e67e22; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
+    .badge-default {
+      background: var(--blue); color: #fff; padding: .1rem .5rem; margin-left: .4rem;
+      font-size: .68rem; font-family: var(--display); font-weight: 600; vertical-align: middle;
+    }
+    .btn-icon.star-on { color: #d4af37; border-color: #d4af37; }
 
     .ti-row {
       display: grid;
@@ -260,7 +265,7 @@
       .tt-row-header    > *:nth-child(n+3) { display: none; }
 
       /* Events: keep Name + Tier badge + Actions, hide Location/Date/Sync */
-      .event-row, .event-row-header { grid-template-columns: 1fr auto 70px; }
+      .event-row, .event-row-header { grid-template-columns: 1fr auto 96px; }
       .event-row > :nth-child(3), .event-row > :nth-child(4), .event-row > :nth-child(5),
       .event-row-header > :nth-child(3), .event-row-header > :nth-child(4), .event-row-header > :nth-child(5) { display: none; }
 
@@ -850,12 +855,17 @@
       if (!list.length) { el.innerHTML = '<div class="empty-state">No events match that search.</div>'; return; }
       el.innerHTML = list.map(function (ev) {
         return '<div class="event-row">' +
-          '<span><strong>' + esc(ev.name) + '</strong></span>' +
+          '<span><strong>' + esc(ev.name) + '</strong>' +
+            (ev.is_default_event ? '<span class="badge-default">Default</span>' : '') + '</span>' +
           '<span>' + tierBadge(ev.event_tier) + '</span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
           '<span>' + fmt(ev.event_date) + '</span>' +
           '<span>' + syncCell(ev) + '</span>' +
           '<span class="row-actions">' +
+            '<button class="btn-icon' + (ev.is_default_event ? ' star-on' : '') + '" ' +
+              'title="' + (ev.is_default_event ? "Default event for the Scout page — click to clear" : "Make this the default event on the Scout page") + '" ' +
+              'onclick="setDefaultEvent(\'' + ev.id + '\', ' + !!ev.is_default_event + ')">' +
+              '<i class="fa ' + (ev.is_default_event ? "fa-star" : "fa-star-o") + '"></i></button>' +
             ((ev.frc_event_code || ev.tba_event_key)
               ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>'
               : '') +
@@ -988,6 +998,17 @@
       btn.disabled = false;
       if (!res.ok) { toast("Sync failed: " + res.msg, true); return; }
       toast("Sync finished.");
+      loadEvents();
+    };
+
+    // Default event: what the Scout page auto-selects instead of scouts having to find the
+    // current event in a long dropdown. set_default_event() clears the old default and sets the
+    // new one in one request, so the one-default-at-a-time rule (a unique index in the DB) can't
+    // be tripped by two separate update calls racing each other.
+    window.setDefaultEvent = async function (id, wasDefault) {
+      var r = await sb.rpc("set_default_event", { p_event_id: wasDefault ? null : id });
+      if (r.error) { toast("Couldn't update the default event: " + r.error.message, true); return; }
+      toast(wasDefault ? "Cleared the default event." : "Set as the default event for the Scout page.");
       loadEvents();
     };
 

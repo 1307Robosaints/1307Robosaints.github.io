@@ -71,7 +71,7 @@
     .btn-icon:hover { background: var(--tint); color: var(--navy); }
     .btn-icon.danger:hover { background: #fde8e8; color: #c0392b; border-color: #c0392b; }
 
-    /* Event dropdown bar */
+    /* Event search bar */
     .event-selector {
       background: var(--white);
       border: 1px solid var(--line);
@@ -79,7 +79,38 @@
       margin-bottom: 1.5rem;
       display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;
     }
-    .event-selector .form-group { margin-bottom: 0; flex: 1; min-width: 200px; }
+    .event-selector .form-group { margin-bottom: 0; flex: 1; min-width: 200px; position: relative; }
+
+    /* Searchable event picker: a plain text input with a filtered dropdown of matches below it,
+       so finding the right event doesn't mean scrolling a <select> of every event the team has
+       ever attended. */
+    .event-search-results {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      z-index: 20;
+      margin-top: 2px;
+      max-height: 320px;
+      overflow-y: auto;
+      background: var(--white);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 28px rgba(10,35,82,.12);
+    }
+    .event-option {
+      padding: .5rem .75rem;
+      cursor: pointer;
+      border-bottom: 1px solid var(--line);
+    }
+    .event-option:last-child { border-bottom: 0; }
+    .event-option:hover, .event-option.active { background: var(--tint); }
+    .event-option .eo-name { font-weight: 500; }
+    .event-option .eo-name small { color: var(--muted); font-weight: 400; }
+    .event-option .eo-loc { font-size: .8rem; color: var(--muted); }
+    .event-option.eo-default .eo-name::after {
+      content: "Default"; margin-left: .5rem;
+      background: var(--blue); color: #fff; font-size: .62rem; font-family: var(--display);
+      font-weight: 600; padding: .1rem .4rem; vertical-align: middle;
+    }
+    .event-search-empty { padding: .6rem .75rem; color: var(--muted); font-size: .88rem; }
 
     /* Guest view */
     .guest-card {
@@ -197,11 +228,15 @@
       <h1 class="mt-4 mb-1">Scout</h1>
       <p class="text-muted mb-3" style="font-size:.95rem;">Record pit data and match data for the current event.</p>
 
-      <!-- Step 1: choose the event (filled from the events table) -->
+      <!-- Step 1: choose the event. A searchable picker instead of a plain dropdown — the
+           events table only grows, so scrolling a <select> of every event ever attended
+           doesn't hold up. Starts on the event staff marked as default in the Staff Portal
+           (falls back to the most recent event if none is set). -->
       <div class="event-selector">
         <div class="form-group">
-          <label for="eventSel">Event</label>
-          <select id="eventSel" class="form-control"></select>
+          <label for="eventSearch">Event</label>
+          <input type="text" id="eventSearch" class="form-control" placeholder="Search events by name, location, or year" autocomplete="off">
+          <div id="eventSearchResults" class="event-search-results" style="display:none;"></div>
         </div>
       </div>
 
@@ -492,22 +527,87 @@
       return fields.filter(function (f) { return (f.scope || "match") === mode; });
     }
 
-    // Fill the event dropdown, newest first, and select the most recent event
+    // Load events (newest first), then auto-select the one staff marked as default in the
+    // Staff Portal — or, if none is set, the most recent event.
     async function loadEvents() {
       var r = await sb.from("events").select("*").order("event_date", { ascending: false });
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
-      var sel = get("eventSel");
-      sel.innerHTML = '<option value="">— Select event —</option>';
-      events.forEach(function(ev) {
-        var o = document.createElement("option");
-        o.value = ev.id;
-        o.textContent = ev.name + (ev.event_date ? " (" + fmtEventDate(ev.event_date, { month: "short", day: "numeric" }) + ")" : "");
-        sel.appendChild(o);
-      });
-      // Auto-select the most recent event
-      if (events.length) { sel.value = events[0].id; handleEventChange(); }
+      var def = events.find(function (ev) { return ev.is_default_event; });
+      if (def || events.length) selectEvent(def || events[0]);
     }
+
+    // ── Searchable event picker ─────────────────────────────────────
+    // A text input + filtered dropdown stand in for a <select>, which stops being usable once
+    // the events table has a few seasons' worth of rows in it.
+    function eventLabel(ev) {
+      return ev.name + (ev.event_date ? " (" + fmtEventDate(ev.event_date, { month: "short", day: "numeric", year: "numeric" }) + ")" : "");
+    }
+    var eventActiveIdx = -1;
+    function matchingEvents(q) {
+      q = q.trim().toLowerCase();
+      if (!q) return events;
+      return events.filter(function (ev) {
+        var hay = (ev.name + " " + (ev.location || "") + " " + (ev.event_date || "")).toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+    }
+    function renderEventResults(showAll) {
+      var q = showAll ? "" : get("eventSearch").value;
+      var list = matchingEvents(q);
+      var box = get("eventSearchResults");
+      if (!list.length) {
+        box.innerHTML = '<div class="event-search-empty">No events match.</div>';
+      } else {
+        box.innerHTML = list.map(function (ev, i) {
+          return '<div class="event-option' + (ev.is_default_event ? " eo-default" : "") + (i === eventActiveIdx ? " active" : "") + '" data-idx="' + i + '">' +
+            '<div class="eo-name">' + esc(ev.name) + (ev.event_date ? " <small>(" + esc(fmtEventDate(ev.event_date, { month: "short", day: "numeric", year: "numeric" })) + ")</small>" : "") + '</div>' +
+            (ev.location ? '<div class="eo-loc">' + esc(ev.location) + '</div>' : "") +
+          '</div>';
+        }).join("");
+      }
+      box.dataset.list = JSON.stringify(list.map(function (ev) { return ev.id; }));
+      box.style.display = "";
+    }
+    function closeEventResults() { get("eventSearchResults").style.display = "none"; eventActiveIdx = -1; }
+    function selectEvent(ev) {
+      currentEvent = ev;
+      get("eventSearch").value = eventLabel(ev);
+      closeEventResults();
+      get("entryFormCard").style.display = "";
+      get("entriesSection").style.display = "";
+      loadEntries();
+      resetEntryForm();
+    }
+    // Focusing the box selects its text and shows every event, not just ones matching the
+    // currently-selected event's own label — otherwise the first click would show almost nothing.
+    get("eventSearch").addEventListener("focus", function () { this.select(); eventActiveIdx = -1; renderEventResults(true); });
+    get("eventSearch").addEventListener("input", function () { eventActiveIdx = -1; renderEventResults(); });
+    get("eventSearch").addEventListener("keydown", function (e) {
+      var ids = JSON.parse(get("eventSearchResults").dataset.list || "[]");
+      if (!ids.length && e.key !== "Escape") return;
+      if (e.key === "ArrowDown") { e.preventDefault(); eventActiveIdx = Math.min(eventActiveIdx + 1, ids.length - 1); renderEventResults(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); eventActiveIdx = Math.max(eventActiveIdx - 1, 0); renderEventResults(); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        var id = ids[eventActiveIdx >= 0 ? eventActiveIdx : 0];
+        var ev = events.find(function (x) { return x.id === id; });
+        if (ev) selectEvent(ev);
+      } else if (e.key === "Escape") {
+        closeEventResults();
+        get("eventSearch").value = currentEvent ? eventLabel(currentEvent) : "";
+      }
+    });
+    get("eventSearchResults").addEventListener("click", function (e) {
+      var opt = e.target.closest(".event-option[data-idx]");
+      if (!opt) return;
+      var ids = JSON.parse(get("eventSearchResults").dataset.list || "[]");
+      var ev = events.find(function (x) { return x.id === ids[parseInt(opt.dataset.idx, 10)]; });
+      if (ev) selectEvent(ev);
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".event-selector .form-group")) closeEventResults();
+    });
 
     // Load the form definition (only fields staff have left active), then build the form
     async function loadFields() {
@@ -751,18 +851,6 @@
     });
 
     get("entryCancel").addEventListener("click", resetEntryForm);
-
-    // ── Event selection ──────────────────────────────────────────────
-    get("eventSel").addEventListener("change", handleEventChange);
-    function handleEventChange() {
-      var id = get("eventSel").value;
-      currentEvent = events.find(function(e){ return e.id === id; }) || null;
-      // Form and table only appear once an event is chosen
-      get("entryFormCard").style.display = currentEvent ? "" : "none";
-      get("entriesSection").style.display = currentEvent ? "" : "none";
-      if (currentEvent) loadEntries();
-      resetEntryForm();
-    }
 
     // In pit mode, typing a team that already has a pit entry loads it for editing
     get("fTeam").addEventListener("change", function () {

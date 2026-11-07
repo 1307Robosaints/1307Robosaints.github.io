@@ -220,6 +220,33 @@ alter table public.events add column if not exists official_sync_note   text;
 alter table public.events add column if not exists event_tier text not null default 'qualifier'
   check (event_tier in ('offseason','qualifier','district_championship','championship'));
 
+-- The event the Scout page auto-selects, set by staff in the Staff Portal (the "star" button
+-- on an event row) instead of scouts having to find the current event in a dropdown of every
+-- event the team has ever attended. At most one event can be the default — enforced by the
+-- partial unique index below rather than app logic, so a stale UI state can't leave two events
+-- both marked default. Setting a new default must first clear the old one in the same request
+-- (see set_default_event() below) or the insert/update violates that index.
+alter table public.events add column if not exists is_default_event boolean not null default false;
+create unique index if not exists events_one_default_idx
+  on public.events ((is_default_event)) where is_default_event;
+
+-- Atomically moves the default-event flag to p_event_id (clearing it from wherever it was),
+-- so the Staff Portal's star button never has to do the clear-then-set as two separate requests
+-- racing the unique index above. Pass null to clear the default entirely.
+create or replace function public.set_default_event(p_event_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_staff() then
+    raise exception 'Only staff can set the default event.';
+  end if;
+  update public.events set is_default_event = false where is_default_event;
+  if p_event_id is not null then
+    update public.events set is_default_event = true where id = p_event_id;
+  end if;
+end $$;
+revoke all on function public.set_default_event(uuid) from public, anon;
+grant execute on function public.set_default_event(uuid) to authenticated;
+
 -- Backfill the tier of events already in the table from earlier imports (safe to re-run;
 -- only touches rows that already exist, and only sets non-default tiers).
 update public.events set event_tier = 'offseason'
@@ -1325,7 +1352,7 @@ with expected(kind, name) as (values
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
-  ('function','staff_list_share_codes'),
+  ('function','staff_list_share_codes'), ('function','set_default_event'),
   ('bucket','scouting-photos'), ('bucket','team-logos')
 )
 select e.kind, e.name,
