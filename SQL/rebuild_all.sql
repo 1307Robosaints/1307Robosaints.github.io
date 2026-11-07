@@ -20,7 +20,8 @@
 --   6  Pit entries + validation             10  Guest access via share codes
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
---  12  Permissions   13  Form field seed data   14  First staff member
+--  8h  Playoff picks (alliance selection)
+--  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 --  17  Check query
 --
@@ -300,6 +301,8 @@ grant execute on function public.set_default_event(uuid) to authenticated;
 -- staff with the clock button on an event row. Same one-at-a-time index as the default event.
 -- The schedule itself is a pg_cron job calling run_auto_sync() (see section 15).
 alter table public.events add column if not exists auto_sync boolean not null default false;
+-- The pg_net request the last auto-sync run sent, so auto_sync_health() can read its response.
+alter table public.events add column if not exists auto_sync_request bigint;
 create unique index if not exists events_one_auto_sync_idx
   on public.events ((auto_sync)) where auto_sync;
 
@@ -316,6 +319,13 @@ begin
   ) then
     raise exception 'Link this event to an FRC or TBA code before turning on auto-sync.';
   end if;
+  -- run_auto_sync() would clear the flag on its next run without ever syncing
+  if exists (
+    select 1 from public.events
+    where id = p_event_id and event_date < (now() at time zone 'America/New_York')::date - 4
+  ) then
+    raise exception 'This event ended more than 4 days ago, so auto-sync won''t run for it. Use the sync button instead.';
+  end if;
   update public.events set auto_sync = false where auto_sync;
   if p_event_id is not null then
     update public.events set auto_sync = true where id = p_event_id;
@@ -331,8 +341,9 @@ grant execute on function public.set_auto_sync_event(uuid) to authenticated;
 create or replace function public.run_auto_sync() returns void
 language plpgsql set search_path = '' as $$
 declare
-  v_event  uuid;
-  v_secret text;
+  v_event   uuid;
+  v_secret  text;
+  v_request bigint;
 begin
   update public.events set auto_sync = false
     where auto_sync and event_date < (now() at time zone 'America/New_York')::date - 4;
@@ -346,13 +357,64 @@ begin
     raise exception 'Vault secret sync_secret is missing (see section 15).';
   end if;
 
-  perform net.http_post(
+  v_request := net.http_post(
     url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/official-sync',
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
     body    := jsonb_build_object('event_id', v_event, 'force', true),
     timeout_milliseconds := 60000);
+  update public.events set auto_sync_request = v_request where id = v_event;
 end $$;
 revoke all on function public.run_auto_sync() from public, anon, authenticated;
+
+-- Every part of auto-sync that can fail without anyone seeing it: the cron job, the vault secret,
+-- the job's last run, and the Edge Function's last reply. The Staff Portal shows this next to the
+-- auto-sync status. A null means this function couldn't look. Staff only, plus the SQL Editor
+-- and the check query in section 17, which run with no signed-in user.
+create or replace function public.auto_sync_health() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  r       jsonb := '{}'::jsonb;
+  v_job   bigint;
+  v_req   bigint;
+  v_row   record;
+begin
+  if auth.uid() is not null and not public.is_staff() then raise exception 'Staff only.'; end if;
+
+  begin
+    select jobid into v_job from cron.job where jobname = 'auto-sync-event' and active;
+    r := r || jsonb_build_object('cron_job', v_job is not null);
+    if v_job is not null then
+      select status, return_message, start_time into v_row from cron.job_run_details
+       where jobid = v_job order by start_time desc limit 1;
+      r := r || jsonb_build_object('last_run_at', v_row.start_time, 'last_run_status', v_row.status,
+                                   'last_run_message', left(v_row.return_message, 300));
+    end if;
+  exception
+    when undefined_table or invalid_schema_name then r := r || jsonb_build_object('cron_job', false);
+    when others then r := r || jsonb_build_object('cron_job', null);
+  end;
+
+  begin
+    r := r || jsonb_build_object('vault_secret',
+      exists (select 1 from vault.decrypted_secrets where name = 'sync_secret'));
+  exception
+    when undefined_table or invalid_schema_name then r := r || jsonb_build_object('vault_secret', false);
+    when others then r := r || jsonb_build_object('vault_secret', null);
+  end;
+
+  -- pg_net only keeps responses for a few hours, so no row here isn't a failure
+  select auto_sync_request into v_req from public.events where auto_sync;
+  if v_req is not null then
+    begin
+      select status_code, error_msg into v_row from net._http_response where id = v_req;
+      r := r || jsonb_build_object('http_status', v_row.status_code, 'http_error', left(v_row.error_msg, 300));
+    exception when others then null;
+    end;
+  end if;
+  return r;
+end $$;
+revoke all on function public.auto_sync_health() from public, anon;
+grant execute on function public.auto_sync_health() to authenticated;
 
 -- Backfill the tier of events already in the table from earlier imports (safe to re-run;
 -- only touches rows that already exist, and only sets non-default tiers).
@@ -915,6 +977,33 @@ create policy "staff lists team logos" on storage.objects for select to authenti
   using (bucket_id = 'team-logos' and (select public.is_staff()));
 create policy "staff deletes team logos" on storage.objects for delete to authenticated
   using (bucket_id = 'team-logos' and (select public.is_staff()));
+
+
+-- =====================================================================
+-- 8h. Playoff picks
+--
+--    The alliances entered on the Playoff Selection page (playoffs.html) as
+--    they form at an event. One row per filled spot, so a pick or removal is
+--    a single-row write. Slot 1 is the captain, then 1st, 2nd and 3rd pick.
+--    Staff write and the whole team reads. The unique key means a team can't
+--    be on two alliances, even if two people pick it at the same moment.
+-- =====================================================================
+create table if not exists public.playoff_picks (
+  event_id        uuid not null references public.events(id) on delete cascade,
+  alliance_number int  not null check (alliance_number between 1 and 8),
+  slot            int  not null check (slot between 1 and 4),
+  team_number     int  not null check (team_number between 1 and 99999),
+  primary key (event_id, alliance_number, slot),
+  unique (event_id, team_number)
+);
+alter table public.playoff_picks enable row level security;
+
+drop policy if exists "team reads playoff picks"    on public.playoff_picks;
+drop policy if exists "staff manages playoff picks" on public.playoff_picks;
+create policy "team reads playoff picks" on public.playoff_picks for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "staff manages playoff picks" on public.playoff_picks for all to authenticated
+  using ((select public.is_staff())) with check ((select public.is_staff()));
 
 
 -- =====================================================================
@@ -1765,6 +1854,7 @@ grant select, insert, update, delete on public.share_codes      to authenticated
 grant select, insert, update, delete on public.pit_entries      to authenticated;
 grant select, insert, update, delete on public.test_teams       to authenticated;
 grant select, insert, update, delete on public.team_info        to authenticated;
+grant select, insert, update, delete on public.playoff_picks    to authenticated;
 grant select on public.official_matches          to authenticated;
 grant select on public.official_matches_combined to authenticated;
 grant select on public.official_team_matches     to authenticated;
@@ -1948,12 +2038,26 @@ on conflict (user_id) do nothing;
 --     Competition-day auto-sync: refreshes the one event staff picked with the
 --     clock button in the Staff Portal, at every 5-minute mark of the clock
 --     (9:35, 9:40, 9:45...). It does nothing while no event is picked, so it
---     can stay scheduled all season. Needs steps 1 and 2 above, then run once:
---
--- select cron.schedule('auto-sync-event', '*/5 * * * *', 'select public.run_auto_sync()');
+--     can stay scheduled all season. The block below turns on pg_cron and pg_net
+--     and schedules it every time this file runs. Only step 2's vault secret is
+--     left to do by hand, because a secret can't live in this file. The check
+--     query in section 17 shows whether both are in place.
 --
 --     To stop it:  select cron.unschedule('auto-sync-event');
 -- =====================================================================
+do $$
+begin
+  begin
+    create extension if not exists pg_cron with schema pg_catalog;
+    create extension if not exists pg_net with schema extensions;
+  exception when others then
+    raise warning 'Could not enable pg_cron/pg_net: %. Enable them in Dashboard > Database > Extensions.', sqlerrm;
+  end;
+  if to_regnamespace('cron') is not null then
+    -- Same job name replaces the old schedule, so this is safe to re-run
+    perform cron.schedule('auto-sync-event', '*/5 * * * *', 'select public.run_auto_sync()');
+  end if;
+end $$;
 
 
 -- =====================================================================
@@ -2050,7 +2154,7 @@ declare
   v_summary text;
   v_verb    text;
   v_sync_cols constant text[] := array['official_synced_at', 'tba_etag', 'frc_last_modified',
-                                       'official_sync_status', 'official_sync_note'];
+                                       'official_sync_status', 'official_sync_note', 'auto_sync_request'];
 begin
   -- A share-code redemption only bumps its counters. Logging that would add a row per use.
   if TG_TABLE_NAME = 'share_codes' and TG_OP = 'UPDATE'
@@ -2080,6 +2184,8 @@ begin
       format('%s share code "%s"', v_verb, v_row ->> 'label')
     when 'team_info' then
       format('%s team info: team %s', v_verb, v_row ->> 'team_number')
+    when 'playoff_picks' then
+      format('%s playoff pick: team %s, alliance %s', v_verb, v_row ->> 'team_number', v_row ->> 'alliance_number')
     when 'staff_members' then
       format('%s staff member %s', v_verb,
         coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'))
@@ -2101,6 +2207,7 @@ drop trigger if exists audit_pit            on public.pit_entries;
 drop trigger if exists audit_fields         on public.scout_fields;
 drop trigger if exists audit_codes          on public.share_codes;
 drop trigger if exists audit_team_info      on public.team_info;
+drop trigger if exists audit_playoff_picks  on public.playoff_picks;
 drop trigger if exists audit_staff_members  on public.staff_members;
 drop trigger if exists audit_member_grants  on public.member_grants;
 create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
@@ -2109,6 +2216,7 @@ create trigger audit_pit           after insert or update or delete on public.pi
 create trigger audit_fields        after insert or update or delete on public.scout_fields     for each row execute function public.audit_row_change();
 create trigger audit_codes         after insert or update or delete on public.share_codes      for each row execute function public.audit_row_change();
 create trigger audit_team_info     after insert or update or delete on public.team_info        for each row execute function public.audit_row_change();
+create trigger audit_playoff_picks after insert or update or delete on public.playoff_picks    for each row execute function public.audit_row_change();
 create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
 create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
 
@@ -2205,7 +2313,7 @@ with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
-  ('table','team_info'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
+  ('table','team_info'), ('table','playoff_picks'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
@@ -2215,7 +2323,8 @@ with expected(kind, name) as (values
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
-  ('function','set_auto_sync_event'), ('function','run_auto_sync'),
+  ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
+  ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),
   ('function','photo_cleanup_paths'), ('function','photo_is_orphaned'), ('function','photo_in_use'),
   ('function','log_action'), ('function','purge_old_audit_log'), ('function','staff_search_audit_log'),
   ('bucket','scouting-photos'), ('bucket','team-logos')
@@ -2224,6 +2333,7 @@ select e.kind, e.name,
        case e.kind
          when 'function' then exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = e.name)
          when 'bucket'   then exists (select 1 from storage.buckets where id = e.name)
+         when 'auto-sync setup' then coalesce((public.auto_sync_health() ->> e.name)::boolean, false)
          else to_regclass('public.' || e.name) is not null
        end as present
 from expected e

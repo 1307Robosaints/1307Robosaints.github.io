@@ -384,6 +384,7 @@
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -780,6 +781,7 @@
           <option value="scout_fields">Form fields</option>
           <option value="share_codes">Share codes</option>
           <option value="team_info">Team info</option>
+          <option value="playoff_picks">Playoff picks</option>
           <option value="staff_members">Staff members</option>
           <option value="member_grants">Access grants</option>
           <option value="auth.sessions">Sign-outs</option>
@@ -992,7 +994,7 @@
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
       renderEvents();
-      renderAutoSyncStatus();
+      await renderAutoSyncStatus();
       populateEventSelect();
     }
     var TIER_SORT_ORDER = { championship: 0, district_championship: 1, qualifier: 2, offseason: 3 };
@@ -1066,21 +1068,30 @@
     // timeout, bad code, etc. — the other side can still have synced fine). Parse either shape
     // into a compact one-line summary instead of showing the raw timestamp + full sentence,
     // which is what made this column busy and prone to wrapping across two lines.
-    var SYNC_NOTE_RE = /^(\S+)\s*\|\s*FRC:?\s*(\d+\s*matches?|failed:?\s*.*?)\s*\|\s*TBA:?\s*(\d+\s*matches?|failed:?\s*.*)$/i;
-    function syncPart(raw) {
-      raw = raw.trim();
+    // Other parts can sit between those two, such as "FRC playoff: nothing published yet" during
+    // a live event, and an event linked to one source only has that one source's part.
+    var SYNC_PART_RE = /^(FRC|TBA)(:| failed:?)\s*(.*)$/i;
+    function syncPart(raw, failed) {
       var okM = /^(\d+)\s*matches?$/i.exec(raw);
-      if (okM) return { ok: true, text: okM[1] + " matches" };
-      var failM = /^failed:?\s*(.*)$/i.exec(raw);
-      return { ok: false, text: failM ? failM[1] : raw };
+      if (okM && !failed) return { ok: true, text: okM[1] + " matches" };
+      if (/^no changes$/i.test(raw) && !failed) return { ok: true, text: "no changes" };
+      return { ok: false, text: raw };
     }
-    // Returns { when, frc, tba, ok } for a note matching SYNC_NOTE_RE, or null if the note is
-    // some other shape (a raw error from a failed function invocation, "Never synced", etc.).
+    // Returns { when, frc, tba, ok }, or null if the note is some other shape (a raw error from a
+    // failed function invocation, etc.). A source the event isn't linked to reads as ok.
     function parseSyncNote(note) {
-      var m = note.match(SYNC_NOTE_RE);
-      if (!m) return null;
-      var frc = syncPart(m[2]), tba = syncPart(m[3]);
-      return { when: m[1], frc: frc, tba: tba, ok: frc.ok && tba.ok };
+      var parts = note.split("|").map(function (s) { return s.trim(); });
+      var when = parts.shift();
+      if (isNaN(Date.parse(when))) return null;
+      var found = {};
+      parts.forEach(function (part) {
+        var m = SYNC_PART_RE.exec(part);
+        if (m) found[m[1].toUpperCase()] = syncPart(m[3], /failed/i.test(m[2]));
+      });
+      if (!found.FRC && !found.TBA) return null;
+      var unlinked = { ok: true, text: "—" };
+      var frc = found.FRC || unlinked, tba = found.TBA || unlinked;
+      return { when: when, frc: frc, tba: tba, ok: frc.ok && tba.ok };
     }
     // An event that hasn't happened yet will usually fail or come back empty when synced
     // (no matches played, score breakdowns not published yet, etc.) — that's expected, not a
@@ -1197,7 +1208,18 @@
       toast(wasOn ? "Auto-sync stopped." : "Auto-sync on. This event now refreshes every 5 minutes.");
       loadEvents();
     };
-    function renderAutoSyncStatus() {
+    // What's stopping auto-sync, in plain words, or "" if nothing is. The flag alone only says staff
+    // asked for it, so this comes from auto_sync_health(), which checks what actually ran.
+    function autoSyncProblem(h) {
+      if (h.cron_job === false) return "No scheduled job exists, so nothing will run. Re-run SQL/rebuild_all.sql, or enable pg_cron and pg_net first.";
+      if (h.vault_secret === false) return "The sync_secret is missing from the Vault, so every run fails. See section 15 of SQL/rebuild_all.sql.";
+      if (h.last_run_status === "failed") return "The last scheduled run failed: " + (h.last_run_message || "no details");
+      if (h.http_error) return "The last request to official-sync failed: " + h.http_error;
+      if (h.http_status === 401) return "official-sync refused the request. The Vault's sync_secret doesn't match the function's SYNC_SECRET.";
+      if (h.http_status != null && h.http_status !== 200) return "official-sync answered with HTTP " + h.http_status + ".";
+      return "";
+    }
+    async function renderAutoSyncStatus() {
       var el = document.getElementById("autoSyncStatus");
       var ev = events.filter(function (e) { return e.auto_sync; })[0];
       el.classList.toggle("d-none", !ev);
@@ -1209,7 +1231,18 @@
         (ev.official_synced_at || p
           ? esc(last.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))
           : "none yet") + '.';
+      var r = await sb.rpc("auto_sync_health");
+      if (r.error) { console.warn("Auto-sync health unavailable:", r.error.message); return; }
+      var problem = autoSyncProblem(r.data || {});
+      if (problem) {
+        el.innerHTML = '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' +
+          '<strong>Auto-sync for ' + esc(ev.name) + ' isn\'t working.</strong> ' + esc(problem);
+      }
     }
+    // Runs happen on the server, so keep the status current while this page is open
+    setInterval(function () {
+      if (document.visibilityState === "visible" && events.some(function (e) { return e.auto_sync; })) loadEvents();
+    }, 60000);
 
     // Resyncs every event that has an FRC/TBA code, one at a time (not in parallel — the
     // official-sync function calls the FRC Events / TBA APIs per event, and firing a burst of

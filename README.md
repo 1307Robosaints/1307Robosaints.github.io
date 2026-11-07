@@ -28,6 +28,10 @@ ratings and the other derived stats are calculated. Update it whenever that math
   tablets stack the cards). Picks are kept in that browser (`js/alliance.js`), so each person and
   device has their own. To change which stats are compared, edit `STAT_GROUPS` in the page.
   Each alliance also gets a grade and an estimated win chance, explained on `ratings.html`.
+- `playoffs.html` — Playoff Selection: staff enter an event's alliances as they form, and the whole
+  team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
+  a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in
+  the Alliance View. To change the table's stats, edit `COLUMNS` in the page.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
@@ -57,8 +61,10 @@ queues the file, and the Scout page and Staff Portal remove it through the Stora
 
 **Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA at every 5-minute mark
 of the clock (9:35, 9:40, 9:45...). It runs on the server through `pg_cron`, so nobody has to keep
-a page open, and turns itself off 4 days after the event date. The job is scheduled once by hand:
-see section 15 of `SQL/rebuild_all.sql`.
+a page open, and turns itself off 4 days after the event date. `SQL/rebuild_all.sql` enables pg_cron
+and pg_net and schedules the job. The one manual step is storing `sync_secret` in the Vault (section 15).
+The check query at the end of that file shows if either is missing, and the Staff Portal warns if a
+run is failing.
 
 ## Contact form
 

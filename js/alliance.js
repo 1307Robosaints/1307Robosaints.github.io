@@ -1,5 +1,6 @@
-// The red and blue picks for the Alliance View, shared by query.html (add buttons) and
-// alliance.html (the comparison). Only team numbers are kept, in this browser's localStorage.
+// The red and blue picks for the Alliance View, shared by query.html (add buttons),
+// playoffs.html (Red and Blue buttons on each playoff alliance) and alliance.html (the
+// comparison). Only team numbers are kept, in this browser's localStorage.
 (function () {
   var KEY = "rs_alliances";
   var MAX = 3;
@@ -44,6 +45,15 @@
       var s = read();
       var keep = function (t) { return t !== team; };
       write({ red: s.red.filter(keep), blue: s.blue.filter(keep) });
+    },
+    // Replaces one whole side, taking those teams off the other side.
+    set: function (color, teams) {
+      var s = read();
+      var list = clean(teams);
+      var other = color === "red" ? "blue" : "red";
+      s[color] = list;
+      s[other] = s[other].filter(function (t) { return list.indexOf(t) === -1; });
+      write(s);
     },
     clear: function () { write({ red: [], blue: [] }); }
   };

@@ -359,6 +359,7 @@
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+                <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
             </li>
@@ -445,7 +446,7 @@
           <div class="col-12 col-lg-7">
             <div class="tier-item">
               <strong>Staff</strong>
-              <p>Set up events and form fields, manage share codes, see all scouting data across the team, and review an audit log of who changed what. Access is granted by allowlist.</p>
+              <p>Set up events and form fields, manage share codes, enter playoff alliances, see all scouting data across the team, and review an audit log of who changed what. Access is granted by allowlist.</p>
             </div>
             <div class="tier-item">
               <strong>Team members</strong>
@@ -582,6 +583,8 @@
                    title:"Team Database", desc:"Match history, robot parameters, official results, and ratings" });
       tiles.push({ href:"/alliance.html", icon:"fa-columns", cls:"",
                    title:"Alliance View", desc:"Compare red and blue alliances, six robots side by side" });
+      tiles.push({ href:"/playoffs.html", icon:"fa-trophy", cls:"",
+                   title:"Playoff Selection", desc:"Track alliances as they form and rank the teams still available" });
     } else {
       tiles.push({ href:"/scout.html", icon:"fa-search", cls:"",
                    title:"View shared data", desc:"Enter a share code from Team 1307" });

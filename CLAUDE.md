@@ -24,7 +24,7 @@ no build/lint/test tooling in this repo — don't introduce one unless asked.
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
 `contact_me.js`, plus the vendored `jqBootstrapValidation.js`). Everything specific to a page
-(`scout.html`, `query.html`, `alliance.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
+(`scout.html`, `query.html`, `alliance.html`, `playoffs.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -72,6 +72,8 @@ Key tables/functions to know when touching 1307scout:
   `'image'`, which drives a file/camera picker on the Scout page that uploads to the
   `scouting-photos` Storage bucket and stores the resulting public URL as the field's string
   value.
+- `playoff_picks` — the alliances on `playoffs.html`, one row per filled spot (slot 1 is the
+  captain). Staff write, the team reads, and the page polls it so every screen stays current.
 - `photo_cleanup_queue` — photo files nothing uses any more, queued by triggers on the entry
   tables. SQL can't delete Storage files, so `scout.html` and `portal.html` call
   `photo_cleanup_paths()` and remove them through the Storage API.
@@ -96,6 +98,8 @@ Key tables/functions to know when touching 1307scout:
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
   Competition-day auto-sync is `events.auto_sync` (one event at a time, set through
   `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 5 minutes.
+  `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
+  and the Staff Portal shows that next to the auto-sync status.
   `manage-member` is a separate Edge Function used by the Staff Portal for member management.
   Its deployed slug is `bright-responder`, so that is the name `portal.html` invokes.
   `delete-account` is a separate Edge Function behind the My Account delete button. Both must
