@@ -253,12 +253,44 @@ hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
   text-decoration: none;
 }
 
+/* Outline buttons need the same two-layer trick as .card (see section 7): a plain border or
+   inset box-shadow gets clipped off wherever .btn's clip-path cuts the corner, leaving the
+   outline open at the diagonal instead of continuing around it. */
 .btn-outline-secondary, .btn-outline-dark {
-  background: var(--white);
+  --bc: 10px;                      /* matches .btn's own clip-path corner size */
+  position: relative;
+  isolation: isolate;
+  background: transparent;
   color: var(--navy);
-  box-shadow: inset 0 0 0 1.5px var(--navy);
+  box-shadow: none;
 }
-.btn-outline-secondary:hover, .btn-outline-dark:hover { background: var(--navy); color: #fff; }
+.btn-outline-secondary::before, .btn-outline-dark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: var(--navy);
+  clip-path: polygon(0 0, calc(100% - var(--bc)) 0, 100% var(--bc), 100% 100%, 0 100%);
+  pointer-events: none;
+}
+.btn-outline-secondary::after, .btn-outline-dark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--white);
+  clip-path: polygon(
+    1.5px 1.5px,
+    calc(100% - var(--bc) - .62px) 1.5px,
+    calc(100% - 1.5px) calc(var(--bc) + .62px),
+    calc(100% - 1.5px) calc(100% - 1.5px),
+    1.5px calc(100% - 1.5px)
+  );
+  pointer-events: none;
+  transition: background-color .15s ease;
+}
+.btn-outline-secondary:hover, .btn-outline-dark:hover { color: #fff; }
+.btn-outline-secondary:hover::after, .btn-outline-dark:hover::after { background: var(--navy); }
 
 
 /* =========================================================================================================

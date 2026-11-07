@@ -18,7 +18,7 @@
 --   4  Form fields (incl. picture fields)     9  Team rating (A-F grade)
 --   5  Events, entries, share codes          9b Storage: scouting photos
 --   6  Pit entries + validation             10  Guest access via share codes
---  11  Member management (Staff Portal)
+--  8e  Test teams                           11  Member management (Staff Portal)
 --  12  Permissions   13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Check query
 --
@@ -515,6 +515,33 @@ $$;
 
 
 -- =====================================================================
+-- 8e. Test teams
+--
+--    Staff can tag a team number as "test" from the Staff Portal (e.g. a
+--    team made up to try out the Scout form, or a dummy number used while
+--    debugging). This doesn't hide or delete anything that team scouted —
+--    it just tells the Team Database to keep that team out of the
+--    "rated teams" comparison pool (see scoutGradeFor/officialGradeFor in
+--    query.html) and to badge it clearly, so test data never skews a real
+--    team's percentile or gets mistaken for a real opponent.
+-- =====================================================================
+create table if not exists public.test_teams (
+  team_number int primary key check (team_number between 1 and 99999),
+  note text check (char_length(note) <= 200),
+  added_by uuid references auth.users(id) on delete set null,
+  added_at timestamptz not null default now()
+);
+alter table public.test_teams enable row level security;
+
+drop policy if exists "team reads test teams"   on public.test_teams;
+drop policy if exists "staff manages test teams" on public.test_teams;
+create policy "team reads test teams" on public.test_teams for select to authenticated
+  using (public.is_staff() or public.is_student());
+create policy "staff manages test teams" on public.test_teams for all to authenticated
+  using (public.is_staff()) with check (public.is_staff());
+
+
+-- =====================================================================
 -- 9. Team rating (the A-F grade)
 --
 --    TWO SEPARATE RANKINGS, never blended into one number:
@@ -918,6 +945,7 @@ grant select, insert, update, delete on public.scouting_entries to authenticated
 grant select, insert, update, delete on public.scout_fields     to authenticated;
 grant select, insert, update, delete on public.share_codes      to authenticated;
 grant select, insert, update, delete on public.pit_entries      to authenticated;
+grant select, insert, update, delete on public.test_teams       to authenticated;
 grant select on public.official_matches          to authenticated;
 grant select on public.official_matches_combined to authenticated;
 grant select on public.official_team_matches     to authenticated;
@@ -1092,7 +1120,7 @@ on conflict (user_id) do nothing;
 with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
-  ('table','member_grants'), ('table','official_matches'),
+  ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),

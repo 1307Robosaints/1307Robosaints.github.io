@@ -33,6 +33,8 @@ window.CONTACT_CONFIG = {
     { label: "Joining the team",         email: [] },
     { label: "Mentoring / volunteering", email: [] },
     { label: "Outreach & demos",         email: ["ssenter28@stalux.org"] },
+    { label: "Website support",          email: ["dmartinl878@gmail.com"] },
+    { label: "1307scout support",        email: ["dmartinl878@gmail.com"] },
     { label: "Something else",           email: ["ssenter28@stalux.org"] }
     // >>>>>>>>>>>>>>>>>>>>>>  EDIT ABOVE THIS LINE  <<<<<<<<<<<<<<<<<<<<<<
   ]

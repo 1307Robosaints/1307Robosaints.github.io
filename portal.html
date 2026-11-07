@@ -88,6 +88,28 @@
     }
     .code-row.revoked { opacity: .45; text-decoration: line-through; }
 
+    .tt-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr auto;
+      gap: .5rem; align-items: center;
+      padding: .6rem .75rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .9rem;
+    }
+    .tt-row:last-child { border-bottom: 0; }
+    .tt-row-header {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr auto;
+      gap: .5rem;
+      padding: .4rem .75rem;
+      background: var(--navy);
+      color: #fff;
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .badge-test { background: #e67e22; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
+
     .table-wrap {
       border: 1px solid var(--line);
       border-radius: 0;
@@ -155,13 +177,16 @@
     @media (max-width: 767px) {
       .field-row, .field-row-header,
       .event-row, .event-row-header,
-      .code-row,  .code-row-header  { grid-template-columns: 1fr auto; }
+      .code-row,  .code-row-header,
+      .tt-row,    .tt-row-header    { grid-template-columns: 1fr auto; }
       .field-row > *:nth-child(n+3):not(:last-child),
       .event-row > *:nth-child(n+3):not(:last-child),
       .code-row  > *:nth-child(n+3):not(:last-child),
+      .tt-row    > *:nth-child(n+3):not(:last-child),
       .field-row-header > *:nth-child(n+3),
       .event-row-header > *:nth-child(n+3),
-      .code-row-header  > *:nth-child(n+3) { display: none; }
+      .code-row-header  > *:nth-child(n+3),
+      .tt-row-header    > *:nth-child(n+3) { display: none; }
     }
   </style>
 </head>
@@ -239,6 +264,7 @@
       <button class="portal-tab active" data-tab="events">Events</button>
       <button class="portal-tab" data-tab="fields">Form Fields</button>
       <button class="portal-tab" data-tab="codes">Share Codes</button>
+      <button class="portal-tab" data-tab="testteams">Test Teams</button>
       <button class="portal-tab" data-tab="members">Members</button>
     </div>
 
@@ -411,6 +437,38 @@
     </div>
   </div>
 
+  <!-- ===== TEST TEAMS ===== -->
+  <div class="portal-section" id="tab-testteams">
+    <div class="form-panel">
+      <h3 style="font-size:1.1rem; margin-bottom:1rem;">Tag a Test Team</h3>
+      <p class="text-muted" style="font-size:.9rem;">
+        Tagging a team number as a test team doesn't hide or delete anything it scouted — it just
+        keeps that team out of the Team Database's rating comparisons and shows a clear "Test" badge,
+        so a dummy number used to try out the Scout form never skews a real team's percentile.
+      </p>
+      <div class="form-row">
+        <div class="form-group col-md-2">
+          <label for="ttTeam">Team #</label>
+          <input type="number" id="ttTeam" class="form-control" min="1" max="99999" placeholder="e.g. 9999">
+        </div>
+        <div class="form-group col-md-6">
+          <label for="ttNote">Note <small class="text-muted">(optional)</small></label>
+          <input type="text" id="ttNote" class="form-control" maxlength="200" placeholder="e.g. Used to test the Scout form during build season">
+        </div>
+        <div class="form-group col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary w-100" id="ttSave">Tag Team</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="tt-row-header">
+        <span>Team #</span><span>Note</span><span>Tagged</span><span></span>
+      </div>
+      <div id="ttList"><div class="empty-state">No test teams tagged yet.</div></div>
+    </div>
+  </div>
+
   <!-- ===== MEMBER MANAGEMENT ===== -->
 
   <div class="portal-section" id="tab-members">
@@ -508,6 +566,15 @@
     </a>
     <div class="container">
       <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
     </div>
   </footer>
 
@@ -896,6 +963,49 @@
     };
 
     // ══════════════════════════════════════════════════════════════════
+    // TEST TEAMS
+    // ══════════════════════════════════════════════════════════════════
+    var testTeams = [];
+    async function loadTestTeams() {
+      var r = await sb.from("test_teams").select("*").order("added_at", { ascending: false });
+      if (r.error) { toast("Couldn't load test teams.", true); return; }
+      testTeams = r.data;
+      renderTestTeams();
+    }
+    function renderTestTeams() {
+      var el = document.getElementById("ttList");
+      if (!testTeams.length) { el.innerHTML = '<div class="empty-state">No test teams tagged yet.</div>'; return; }
+      el.innerHTML = testTeams.map(function (t) {
+        return '<div class="tt-row">' +
+          '<span><strong>' + t.team_number + '</strong></span>' +
+          '<span>' + esc(t.note || "—") + '</span>' +
+          '<span>' + fmt(t.added_at) + '</span>' +
+          '<span><button class="btn-icon danger" onclick="untagTeam(' + t.team_number + ')"><i class="fa fa-trash"></i></button></span>' +
+        '</div>';
+      }).join("");
+    }
+
+    document.getElementById("ttSave").addEventListener("click", async function () {
+      var team = parseInt(document.getElementById("ttTeam").value, 10);
+      var note = document.getElementById("ttNote").value.trim();
+      if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
+      var r = await sb.from("test_teams").upsert({ team_number: team, note: note || null, added_by: meUid });
+      if (r.error) { toast(r.error.message || "Couldn't tag team.", true); return; }
+      document.getElementById("ttTeam").value = "";
+      document.getElementById("ttNote").value = "";
+      toast("Team " + team + " tagged as a test team.");
+      loadTestTeams();
+    });
+
+    window.untagTeam = async function (team) {
+      if (!confirm("Remove the test-team tag from team " + team + "? Its scouted data stays, but it will start counting toward real team ratings again.")) return;
+      var r = await sb.from("test_teams").delete().eq("team_number", team);
+      if (r.error) { toast("Couldn't untag team.", true); return; }
+      toast("Team " + team + " is no longer tagged as a test team.");
+      loadTestTeams();
+    };
+
+    // ══════════════════════════════════════════════════════════════════
     // MEMBERS
     // ══════════════════════════════════════════════════════════════════
     var LEVELS = ["staff", "mentor", "student", "guest"];
@@ -979,7 +1089,7 @@
     document.getElementById("refreshMembers").addEventListener("click", loadMembers);
 
     // ── Boot ─────────────────────────────────────────────────────────
-    await Promise.all([loadEvents(), loadFields(), loadCodes()]);
+    await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams()]);
     loadMembers();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.

@@ -14,13 +14,14 @@
 
     .q-layout {
       display: grid;
-      grid-template-columns: minmax(230px, 300px) 1fr;
+      grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
       gap: 1.25rem;
       align-items: start;
     }
     @media (max-width: 991px) { .q-layout { grid-template-columns: 1fr; } }
 
     .q-panel {
+      min-width: 0;
       background: var(--white);
       border: 1px solid var(--line);
       border-top: 3px solid var(--blue);
@@ -29,6 +30,7 @@
     .team-table { font-size: .92rem; margin-bottom: 0; }
     .team-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; }
     .team-table td { border-top: 1px solid var(--line); }
+    .team-table td:first-child { white-space: nowrap; }
     .team-table tbody tr { cursor: pointer; }
     .team-table tbody tr:hover { background: var(--tint); }
     .team-table tbody tr.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
@@ -40,6 +42,7 @@
 
     .detail-card {
       position: relative;
+      min-width: 0;
       background: var(--white);
       border: 1px solid var(--line);
       border-top: 3px solid var(--blue);
@@ -197,6 +200,10 @@
           <div class="d-flex justify-content-between align-items-center mb-2">
             <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Filter by team #">
           </div>
+          <div class="custom-control custom-checkbox mb-2">
+            <input type="checkbox" class="custom-control-input" id="showTestTeams">
+            <label class="custom-control-label" for="showTestTeams" style="font-size:.82rem;">Show test teams</label>
+          </div>
           <div class="text-muted mb-2" style="font-size:.82rem;" id="teamCount"></div>
           <div class="list-scroll">
             <table class="table team-table">
@@ -232,6 +239,15 @@
         Official match data from the
         <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
         and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
       </p>
     </div>
   </footer>
@@ -273,12 +289,14 @@
       C:  { color: "#6c3fb5", ink: "#ffffff" },
       D:  { color: "#e67e22", ink: "#ffffff" },
       F:  { color: "#c0392b", ink: "#ffffff" },
-      NR: { color: "#9a9a9c", ink: "#ffffff" }
+      NR: { color: "#9a9a9c", ink: "#ffffff" },
+      TEST: { color: "#17a2b8", ink: "#ffffff" }
     };
     var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
     var MIN_RATED_MATCHES = 3;
 
     var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [], officialRatings = [], dataCounts = [];
+    var testTeamSet = new Set();   // team numbers staff tagged as test teams — kept out of rating comparisons
 
     function fieldsFor(scope) {
       return fields.filter(function (f) { return (f.scope || "match") === scope; });
@@ -297,7 +315,7 @@
 
     // ── Data ─────────────────────────────────────────────────────────
     async function loadMeta() {
-      var rf = await sb.from("scout_fields").select("*").order("sort_order", { ascending: true });
+      var rf = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
       fields = rf.data || [];
       var re = await sb.from("events").select("id,name,event_date");
       eventsById = {};
@@ -328,6 +346,11 @@
       if (r.error) console.warn("Data-source counts unavailable:", r.error.message);
       dataCounts = r.error ? [] : (r.data || []);
     }
+    async function loadTestTeams() {
+      var r = await sb.from("test_teams").select("team_number");
+      if (r.error) { console.warn("Test teams unavailable:", r.error.message); return; }
+      testTeamSet = new Set((r.data || []).map(function (t) { return t.team_number; }));
+    }
 
     // Scouted and official counts are shown side by side, never merged into one number —
     // that merge ("official replaces scouted wherever official data exists") used to be exactly
@@ -347,8 +370,11 @@
     var selected = null;
     function renderList() {
       var q = $("teamSearch").value.trim();
+      var showTest = $("showTestTeams").checked;
       var pitSet = new Set(pitTeams);
-      var rows = teamList().filter(function (r) { return !q || String(r.team).indexOf(q) !== -1; });
+      var rows = teamList().filter(function (r) {
+        return (!q || String(r.team).indexOf(q) !== -1) && (showTest || !testTeamSet.has(r.team));
+      });
       $("teamRows").innerHTML = rows.length
         ? rows.map(function (r) {
             var gs = scoutGradeFor(r.team), go = officialGradeFor(r.team);
@@ -365,6 +391,7 @@
       $("teamCount").textContent = rows.length + (rows.length === 1 ? " team" : " teams");
     }
     $("teamSearch").addEventListener("input", renderList);
+    $("showTestTeams").addEventListener("change", renderList);
     $("teamRows").addEventListener("click", function (e) {
       var tr = e.target.closest("tr[data-team]");
       if (tr) openTeam(parseInt(tr.dataset.team, 10));
@@ -373,9 +400,15 @@
     // ── Ratings (computed on click from the latest summary) ──────────
     // Two independent grades. Each is blind to the other's data source, on purpose — see the
     // comment on team_ratings() in rebuild_all.sql for why blending them was a problem.
+    // Test teams (tagged in the Staff Portal) are dropped from the comparison pool for both, so
+    // a dummy number used to try out the Scout form never shifts a real team's percentile.
     function scoutGradeFor(team) {
-      var rated = summary.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
+      var pool = summary.filter(function (r) { return !testTeamSet.has(r.team_number); });
+      var rated = pool.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
       var me = summary.find(function (r) { return r.team_number === team; });
+      if (testTeamSet.has(team)) {
+        return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: rated.length, pct: null };
+      }
       if (!me || me.matches < MIN_RATED_MATCHES) {
         return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
       }
@@ -390,20 +423,32 @@
     }
 
     function officialGradeFor(team) {
-      var rated = officialRatings.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
+      var pool = officialRatings.filter(function (r) { return !testTeamSet.has(r.team_number); });
+      var rated = pool.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
       var me = officialRatings.find(function (r) { return r.team_number === team; });
+      if (testTeamSet.has(team)) {
+        return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
+      }
       if (!me || me.matches < MIN_RATED_MATCHES) {
         return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
       }
-      return { tier: me.grade, matches: me.matches, avg: Number(me.avg_alliance_score), n: rated.length, pct: Number(me.percentile) };
+      var avg = Number(me.avg_alliance_score);
+      var atOrBelow = rated.filter(function (r) { return Number(r.avg_alliance_score) <= avg; }).length;
+      var pct = atOrBelow / rated.length;
+      var tier = "F";
+      for (var i = 0; i < CUTS.length; i++) {
+        if (pct >= CUTS[i][0]) { tier = CUTS[i][1]; break; }
+      }
+      return { tier: tier, matches: me.matches, avg: avg, n: rated.length, pct: pct };
     }
 
     function ratingBox(label, g) {
       var c = TIERS[g.tier];
-      var meta = g.tier === "NR" ? "Not rated" : (g.matches + (g.matches === 1 ? " match" : " matches"));
+      var big = g.tier === "TEST" ? "T" : g.tier;
+      var meta = g.tier === "TEST" ? "Test team" : g.tier === "NR" ? "Not rated" : (g.matches + (g.matches === 1 ? " match" : " matches"));
       return '<div class="rating-wrap">' +
         '<div class="rating-box" style="background:' + c.color + ';color:' + c.ink + ';">' +
-          '<span class="rating-letter">' + g.tier + '</span>' +
+          '<span class="rating-letter">' + big + '</span>' +
           '<span class="rating-caption">' + esc(label) + '</span>' +
         '</div>' +
         '<div class="rating-meta">' + meta + '</div>' +
@@ -411,6 +456,9 @@
     }
 
     function basisText(label, unit, g) {
+      if (g.tier === "TEST") {
+        return label + ": tagged as a test team — excluded from the rated-teams comparison.";
+      }
       if (g.tier === "NR") {
         return label + ": needs at least " + MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far).";
       }
@@ -577,7 +625,7 @@
 
     // ── Boot ─────────────────────────────────────────────────────────
     await loadMeta();
-    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts()]);
+    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts(), loadTestTeams()]);
     renderList();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
