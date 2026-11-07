@@ -520,13 +520,16 @@
       "Team members get full access by signing in with their school Google account (stalux.org). If you should have team access, contact a staff member.";
 
     // ── Sign out ─────────────────────────────────────────────────────
+    // Swallow errors here too: if a staff member already force-signed-out this
+    // session (staff_kick), the server-side session is gone and signOut() rejects,
+    // but we still need to clear the stale local session and leave the page.
     $("signOutBtn").addEventListener("click", async function () {
-      await sb.auth.signOut();
+      try { await sb.auth.signOut(); } catch (e) {}
       location.href = "/index.html";
     });
     $("signOutAllBtn").addEventListener("click", async function () {
       if (!confirm("Sign out of every device, including this one?")) return;
-      await sb.auth.signOut({ scope: "global" });
+      try { await sb.auth.signOut({ scope: "global" }); } catch (e) {}
       location.href = "/signin.html";
     });
 

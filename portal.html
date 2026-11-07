@@ -1596,6 +1596,9 @@
           body: { action: unban ? "unban" : "ban", target: m.user_id }
         });
         if (r.error) return memFlash(false, await memErr(r.error));
+        // Banning only flags the account; it doesn't drop their current session, so without
+        // this their existing (unexpired) access token would keep working as promised above.
+        if (!unban) await sb.rpc("staff_kick", { target: m.user_id });
         memFlash(true, m.email + (unban ? " was unbanned." : " was banned."));
         loadMembers();
       }, self));

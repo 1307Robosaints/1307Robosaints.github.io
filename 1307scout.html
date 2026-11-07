@@ -601,9 +601,12 @@
       area.appendChild(a);
     });
 
-    // Sign out, then reload so the logged-out view appears
+    // Sign out, then reload so the logged-out view appears. Swallow errors: if a
+    // staff member already force-signed-out this session (staff_kick), the server
+    // side session is gone and signOut() rejects, but we still need to clear the
+    // stale local session and reload.
     document.getElementById("quickSignOut").addEventListener("click", async function () {
-      await sb.auth.signOut();
+      try { await sb.auth.signOut(); } catch (e) {}
       location.reload();
     });
 

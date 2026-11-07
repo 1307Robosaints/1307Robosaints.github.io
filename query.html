@@ -459,9 +459,9 @@
         if (!byTeam.has(t)) byTeam.set(t, { team: t, scouted: 0, official: 0 });
         return byTeam.get(t);
       }
-      summary.forEach(function (r) { ensure(r.team_number).scouted = r.matches; });
-      official.forEach(function (r) { ensure(r.team_number).official = r.matches; });
-      pitTeams.forEach(function (t) { ensure(t); });
+      summary.forEach(function (r) { if (r.team_number != null) ensure(r.team_number).scouted = r.matches; });
+      official.forEach(function (r) { if (r.team_number != null) ensure(r.team_number).official = r.matches; });
+      pitTeams.forEach(function (t) { if (t != null) ensure(t); });
       return Array.from(byTeam.values());
     }
 

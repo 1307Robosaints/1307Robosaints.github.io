@@ -97,7 +97,19 @@ create table if not exists public.staff_members (
 alter table public.staff_members enable row level security;
 revoke all on public.staff_members from anon, authenticated;
 
--- Staff = verified login on the allowlist, not banned
+-- A Supabase access token stays valid (by signature) until it expires, even after its
+-- session row is deleted by staff_kick() -- Supabase's own docs confirm this. Every JWT
+-- carries a required session_id claim, so checking it against auth.sessions here is what
+-- makes "Sign out" actually take effect immediately instead of waiting out the token's TTL.
+create or replace function public.session_live() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from auth.sessions
+    where id = (auth.jwt() ->> 'session_id')::uuid
+  );
+$$;
+
+-- Staff = verified login on the allowlist, not banned, current session not kicked
 create or replace function public.is_staff() returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists (
@@ -107,7 +119,7 @@ language sql stable security definer set search_path = '' as $$
     where s.user_id = auth.uid()
       and u.email_confirmed_at is not null
       and (u.banned_until is null or u.banned_until <= now())
-  );
+  ) and public.session_live();
 $$;
 
 
@@ -124,8 +136,8 @@ create table if not exists public.member_grants (
 alter table public.member_grants enable row level security;
 revoke all on public.member_grants from anon, authenticated;
 
--- Student = verified, not banned, and either a grant or a school login.
--- A 'guest' grant turns off the school-domain rule for that account.
+-- Student = verified, not banned, current session not kicked, and either a grant or a
+-- school login. A 'guest' grant turns off the school-domain rule for that account.
 create or replace function public.is_student() returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists (
@@ -139,7 +151,7 @@ language sql stable security definer set search_path = '' as $$
         g.level in ('mentor','student')
         or (lower(u.email) like '%@stalux.org' and coalesce(g.level, '') <> 'guest')
       )
-  );
+  ) and public.session_live();
 $$;
 
 -- One call the site uses to pick a view: 'staff', 'student', or 'guest'
@@ -595,7 +607,7 @@ select m.event_id, m.match_key, m.comp_level, m.set_number, m.match_number, m.pl
        m.sources
 from public.official_matches_combined m
 cross join lateral unnest(m.red_teams) as x(team)
-where m.red_score is not null and m.blue_score is not null
+where m.red_score is not null and m.blue_score is not null and x.team is not null
 union all
 select m.event_id, m.match_key, m.comp_level, m.set_number, m.match_number, m.played_at,
        'blue', x.team,
@@ -605,7 +617,7 @@ select m.event_id, m.match_key, m.comp_level, m.set_number, m.match_number, m.pl
        m.sources
 from public.official_matches_combined m
 cross join lateral unnest(m.blue_teams) as x(team)
-where m.red_score is not null and m.blue_score is not null;
+where m.red_score is not null and m.blue_score is not null and x.team is not null;
 
 -- 8c. One row per team per match INCLUDING matches not played yet (scores are null).
 --     The Team Database page reads this one, so a team's upcoming schedule shows too.
@@ -634,6 +646,7 @@ cross join lateral (
   select u.team, 'blue', u.ord::int
     from unnest(m.blue_teams) with ordinality as u(team, ord)
 ) t
+where t.team_number is not null
 order by m.event_id, m.match_key, t.team_number,
          (m.red_score is not null) desc, (m.source = 'frc') desc;
 
@@ -1217,6 +1230,7 @@ grant select on public.official_matches_combined to authenticated;
 grant select on public.official_team_matches     to authenticated;
 grant select on public.official_match_teams      to authenticated;
 
+revoke all on function public.session_live()                from public, anon;
 revoke all on function public.is_staff()                   from public, anon;
 revoke all on function public.is_student()                 from public, anon;
 revoke all on function public.my_access_level()            from public, anon;
@@ -1233,6 +1247,7 @@ revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
 revoke all on function public.staff_list_share_codes()     from public, anon;
 
+grant execute on function public.session_live()                to authenticated;
 grant execute on function public.is_staff()                   to authenticated;
 grant execute on function public.is_student()                 to authenticated;
 grant execute on function public.my_access_level()            to authenticated;
@@ -1403,6 +1418,7 @@ with expected(kind, name) as (values
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
+  ('function','session_live'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
