@@ -6,7 +6,7 @@
   // Supabase comes from a CDN that ad blockers and school filters can block. Public pages work
   // without it; the app pages would otherwise hang, so tell the person what happened.
   if (!window.supabase) {
-    if (/\/(1307scout|account|portal|query|scout|signin)(\.html)?$/.test(location.pathname)) {
+    if (/\/(1307scout|account|alliance|portal|query|scout|signin)(\.html)?$/.test(location.pathname)) {
       var note = document.createElement("div");
       note.className = "alert alert-danger";
       note.style.cssText = "margin:6rem 1rem 1rem;";

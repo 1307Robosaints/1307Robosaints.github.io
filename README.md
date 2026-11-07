@@ -18,7 +18,11 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
   parameters, and two independent ratings (one from human scouting, one from synced official
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).
-  A team's card also shows its name and logo if staff have set one on the Team Info tab.
+  A team's card also shows its name and logo if staff have set one on the Team Info tab, and
+  buttons to add it to the red or blue alliance.
+- `alliance.html` — Alliance View: compares up to six teams picked on the Team Database, as a row
+  of 3 cards per alliance. Picks are kept in that browser (`js/alliance.js`), so each person and
+  device has their own. To change which stats are compared, edit `STAT_GROUPS` in the page.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;

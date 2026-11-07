@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Alliance View – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .a-wrap { max-width: 1200px; margin: 0 auto; }
+    .a-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+
+    .alliance { --team: #c0392b; margin-bottom: 2rem; }
+    .alliance.blue { --team: #1B4DB1; }
+    .alliance-head {
+      display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;
+      gap: .25rem 1rem; border-bottom: 3px solid var(--team); padding-bottom: .35rem; margin-bottom: 1rem;
+    }
+    .alliance-head h2 { color: var(--team); font-size: 1.35rem; margin: 0; }
+    .alliance-total { color: var(--muted); font-size: .9rem; }
+    .alliance-total strong { color: var(--navy); }
+
+    /* One row of 3 cards per alliance. Every card lists the same stats in the same order,
+       so values line up across the row, and with the same column in the other alliance. */
+    .alliance-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    @media (max-width: 767px) { .alliance-row { grid-template-columns: 1fr; } }
+
+    .a-card {
+      position: relative; min-width: 0; padding: 1rem;
+      background: var(--white); border: 1px solid var(--line); border-top: 4px solid var(--team);
+    }
+    .a-remove {
+      position: absolute; top: .5rem; right: .5rem; width: 28px; height: 28px; padding: 0;
+      background: none; border: 1px solid var(--line); color: var(--muted); cursor: pointer;
+    }
+    .a-remove:hover { color: #c0392b; border-color: #c0392b; }
+
+    .a-head { display: flex; align-items: center; gap: .6rem; padding-right: 2rem; min-height: 44px; }
+    .a-head img { width: 40px; height: 40px; object-fit: contain; flex: none; background: var(--paper); border: 1px solid var(--line); }
+    .a-head-text { min-width: 0; }
+    .a-head h3 { font-size: 1.2rem; margin: 0; }
+    .a-name { color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .a-photo {
+      display: flex; align-items: center; justify-content: center;
+      aspect-ratio: 16 / 10; margin: .75rem 0; overflow: hidden;
+      background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: .82rem;
+    }
+    .a-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+    .a-grades { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+    .a-grade { display: flex; align-items: center; justify-content: center; gap: .45rem; padding: .3rem .25rem; }
+    .a-grade b { font-family: var(--display); font-size: 1.35rem; line-height: 1; }
+    .a-grade span { font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+
+    .a-group { margin: .9rem 0 .2rem; font-size: .68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .a-stat {
+      display: flex; justify-content: space-between; gap: .75rem;
+      padding: .22rem .3rem; border-bottom: 1px solid var(--line); font-size: .86rem;
+    }
+    .a-stat span { color: var(--muted); }
+    .a-stat strong { font-weight: 600; text-align: right; }
+    .a-stat.best { background: #e7f7ee; }
+    .a-stat.best strong { color: #1a7f4b; }
+
+    .a-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem;
+      min-height: 200px; padding: 1rem; text-align: center; color: var(--muted);
+      border: 2px dashed var(--line);
+    }
+    .a-empty:hover { color: var(--team); border-color: var(--team); text-decoration: none; }
+    .loading-msg { color: var(--muted); font-family: var(--display); padding: 2rem 0; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container" style="padding-top:2rem;">
+    <div class="a-wrap">
+      <h1 class="mt-4 mb-1">Alliance View</h1>
+      <div class="a-intro">
+        <p class="text-muted mb-0" style="font-size:.95rem;">
+          Compare up to six robots side by side. Add teams from the
+          <a href="/query.html">Team Database</a>. The best value in each stat is highlighted in green.
+        </p>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll">Clear all</button>
+      </div>
+      <div id="loadError"></div>
+      <div id="alliances"><div class="loading-msg">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/alliance.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ── Access gate (team members only, same as the Team Database) ───
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = (await sb.rpc("my_access_level")).data || "guest";
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+
+    // ── Grades: same tiers and rules as query.html ───────────────────
+    var TIERS = {
+      S:  { color: "#D4AF37", ink: "#2b2100" },
+      A:  { color: "#1a7f4b", ink: "#ffffff" },
+      B:  { color: "#1B4DB1", ink: "#ffffff" },
+      C:  { color: "#6c3fb5", ink: "#ffffff" },
+      D:  { color: "#e67e22", ink: "#ffffff" },
+      F:  { color: "#c0392b", ink: "#ffffff" },
+      NR: { color: "#9a9a9c", ink: "#ffffff" },
+      TEST: { color: "#17a2b8", ink: "#ffffff" }
+    };
+    var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
+    var MIN_RATED_MATCHES = 3;
+
+    function gradeFor(rows, team) {
+      if (testTeams.has(team)) return "TEST";
+      var me = rows.find(function (r) { return r.team_number === team; });
+      if (!me || me.matches < MIN_RATED_MATCHES) return "NR";
+      var rated = rows.filter(function (r) { return !testTeams.has(r.team_number) && r.matches >= MIN_RATED_MATCHES; });
+      var score = Number(me.score);
+      var pct = rated.filter(function (r) { return Number(r.score) <= score; }).length / rated.length;
+      for (var i = 0; i < CUTS.length; i++) {
+        if (pct >= CUTS[i][0]) return CUTS[i][1];
+      }
+      return "F";
+    }
+
+    // ── Stat helpers ─────────────────────────────────────────────────
+    function num(v) {
+      if (v == null || v === "") return null;
+      var n = Number(v);
+      return isFinite(n) ? n : null;
+    }
+    function avgOf(rows, key) {
+      var vals = rows.map(function (r) { return num(r.data[key]); }).filter(function (v) { return v != null; });
+      return vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : null;
+    }
+    function shareOf(rows, test) {
+      return rows.length ? rows.filter(test).length / rows.length : null;
+    }
+    function oneDecimal(v) { return v.toFixed(1); }
+    function percent(v) { return Math.round(v * 100) + "%"; }
+    function pitValue(key) {
+      return function (t) {
+        var v = t.pit && t.pit.data ? t.pit.data[key] : null;
+        return v == null || v === "" ? null : v;
+      };
+    }
+    function climbRows(t) {
+      return t.rows.filter(function (r) { return r.data.teleop_tower != null && r.data.teleop_tower !== ""; });
+    }
+
+    // The stats on every card, in order. To change what's compared, edit this list.
+    //   value: the number used to pick the best team (leave out for text-only rows)
+    //   show:  the text displayed. lower: true means a smaller number is better.
+    //   noBest: true shows a number without highlighting a "best" team
+    var STAT_GROUPS = [
+      { title: "Scouted", stats: [
+        { label: "Matches scouted", noBest: true,
+          value: function (t) { return t.scout ? t.scout.matches : 0; } },
+        { label: "Avg pts / match", show: oneDecimal,
+          value: function (t) { return t.scout ? num(t.scout.avg_points) : null; } },
+        { label: "Auto FUEL", show: oneDecimal, value: function (t) { return avgOf(t.rows, "auto_fuel_hub"); } },
+        { label: "Teleop FUEL", show: oneDecimal, value: function (t) { return avgOf(t.rows, "teleop_fuel_hub"); } },
+        { label: "Accuracy (1–5)", show: oneDecimal, value: function (t) { return avgOf(t.rows, "shooter_accuracy"); } },
+        { label: "Climb rate",
+          value: function (t) {
+            return shareOf(climbRows(t), function (r) { return r.data.teleop_tower !== "None"; });
+          },
+          show: function (v, t) {
+            var best = climbRows(t).map(function (r) { return r.data.teleop_tower; }).sort().pop();
+            return percent(v) + (best && best !== "None" ? " (best " + best + ")" : "");
+          } },
+        { label: "Disabled / broke down", lower: true, show: percent,
+          value: function (t) {
+            return shareOf(t.rows, function (r) { return r.data.robot_disabled === true || r.data.broke_down === true; });
+          } },
+        { label: "Fouls / cards", lower: true, show: percent,
+          value: function (t) { return shareOf(t.rows, function (r) { return r.data.foul_or_card === true; }); } }
+      ] },
+      { title: "Official", stats: [
+        { label: "Record (W-L-T)",
+          value: function (t) { return t.official && t.official.matches ? t.official.wins / t.official.matches : null; },
+          show: function (v, t) { return t.official.wins + "-" + t.official.losses + "-" + t.official.ties; } },
+        { label: "Avg alliance score", show: oneDecimal,
+          value: function (t) { return t.official ? num(t.official.avg_alliance_score) : null; } }
+      ] },
+      { title: "Robot", stats: [
+        { label: "Drivetrain", text: pitValue("drivetrain") },
+        { label: "Shooter", text: pitValue("shooter_type") },
+        { label: "Max FUEL held", value: function (t) { return num(pitValue("fuel_capacity")(t)); } },
+        { label: "Highest climb", text: pitValue("tower_max_level") },
+        { label: "Fits under TRENCH",
+          text: function (t) {
+            var v = pitValue("trench_capable")(t);
+            return v == null ? null : v ? "Yes" : "No";
+          } }
+      ] }
+    ];
+
+    // ── Data ─────────────────────────────────────────────────────────
+    // Same check as team_ratings(): skips entries from earlier seasons' forms.
+    var SEASON_KEYS = ["stuck_on_field", "foul_or_card", "auto_fuel_hub", "teleop_fuel_hub", "auto_tower", "teleop_tower"];
+    function isThisSeason(r) {
+      return !!r.data && SEASON_KEYS.some(function (k) { return k in r.data; });
+    }
+
+    var ratings = [], officialRatings = [], testTeams = new Set(), teamInfo = {};
+    var entriesByTeam = {}, pitByTeam = {};
+
+    // The API returns at most 1000 rows per request, so page through the match entries.
+    async function loadEntries(teams) {
+      var rows = [], size = 1000;
+      for (var from = 0; ; from += size) {
+        var r = await sb.from("scouting_entries").select("team_number,data")
+          .in("team_number", teams).order("id").range(from, from + size - 1);
+        if (r.error) return { error: r.error, data: rows };
+        rows = rows.concat(r.data || []);
+        if ((r.data || []).length < size) return { data: rows };
+      }
+    }
+
+    var loadCount = 0;
+    async function load() {
+      var thisLoad = ++loadCount;
+      var picks = Alliance.get();
+      var teams = picks.red.concat(picks.blue);
+      var results = await Promise.all([
+        sb.rpc("team_ratings"),
+        sb.rpc("team_official_ratings"),
+        sb.from("test_teams").select("team_number"),
+        sb.from("team_info").select("team_number,team_name,logo_url"),
+        teams.length ? loadEntries(teams) : { data: [] },
+        teams.length
+          ? sb.from("pit_entries").select("team_number,data,updated_at").in("team_number", teams)
+              .order("updated_at", { ascending: false })
+          : { data: [] }
+      ]);
+      if (thisLoad !== loadCount) return;   // the picks changed while this was loading
+
+      // A failed request would otherwise look like a team with no data.
+      var failed = results.filter(function (r) { return r.error; });
+      failed.forEach(function (r) { console.warn("Alliance View:", r.error.message); });
+      $("loadError").innerHTML = failed.length
+        ? '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some team data couldn\'t be loaded, so blank stats may be wrong. Try refreshing the page.</div>'
+        : "";
+
+      ratings = results[0].data || [];
+      officialRatings = results[1].data || [];
+      testTeams = new Set((results[2].data || []).map(function (t) { return t.team_number; }));
+      teamInfo = {};
+      (results[3].data || []).forEach(function (t) { teamInfo[t.team_number] = t; });
+      entriesByTeam = {};
+      (results[4].data || []).filter(isThisSeason).forEach(function (r) {
+        (entriesByTeam[r.team_number] = entriesByTeam[r.team_number] || []).push(r);
+      });
+      pitByTeam = {};
+      (results[5].data || []).forEach(function (p) {
+        if (!pitByTeam[p.team_number]) pitByTeam[p.team_number] = p;   // newest first
+      });
+      render();
+    }
+
+    function teamData(team) {
+      var pit = pitByTeam[team] || null;
+      return {
+        team: team,
+        info: teamInfo[team] || {},
+        scout: ratings.find(function (r) { return r.team_number === team; }) || null,
+        official: officialRatings.find(function (r) { return r.team_number === team; }) || null,
+        gradeScout: gradeFor(ratings, team),
+        gradeOfficial: gradeFor(officialRatings, team),
+        rows: entriesByTeam[team] || [],
+        pit: pit
+      };
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    // Best value for one stat across the picked teams, or null if there's nothing to compare.
+    // Test teams hold dummy data, so they're left out, as they are from the ratings.
+    function bestValue(stat, all) {
+      if (!stat.value || stat.noBest) return null;
+      var real = all.filter(function (t) { return !testTeams.has(t.team); });
+      var vals = real.map(stat.value).filter(function (v) { return v != null; });
+      if (vals.length < 2) return null;
+      var hi = Math.max.apply(null, vals), lo = Math.min.apply(null, vals);
+      if (hi === lo) return null;
+      return stat.lower ? lo : hi;
+    }
+    function statRow(stat, t, best) {
+      var v = stat.value ? stat.value(t) : null;
+      var shown = stat.text ? stat.text(t)
+        : v == null ? null
+        : stat.show ? stat.show(v, t) : v;
+      var isBest = best != null && v === best && !testTeams.has(t.team);
+      return '<div class="a-stat' + (isBest ? " best" : "") + '">' +
+        "<span>" + esc(stat.label) + "</span><strong>" + (shown == null ? "—" : esc(shown)) + "</strong></div>";
+    }
+    function gradeBox(label, tier) {
+      var c = TIERS[tier];
+      return '<div class="a-grade" style="background:' + c.color + ";color:" + c.ink + ';">' +
+        "<b>" + (tier === "TEST" ? "T" : tier) + "</b><span>" + label + "</span></div>";
+    }
+    function cardHtml(t, all) {
+      var photo = t.pit && t.pit.data ? t.pit.data.robot_photo : null;
+      return '<div class="a-card">' +
+        '<button type="button" class="a-remove" data-remove="' + t.team + '" title="Remove team ' + t.team +
+          '" aria-label="Remove team ' + t.team + '"><i class="fa fa-times"></i></button>' +
+        '<div class="a-head">' +
+          (t.info.logo_url ? '<img src="' + esc(t.info.logo_url) + '" alt="">' : "") +
+          '<div class="a-head-text"><h3>Team ' + t.team + "</h3>" +
+            '<div class="a-name">' + (esc(t.info.team_name) || "&nbsp;") + "</div></div>" +
+        "</div>" +
+        '<div class="a-photo">' +
+          (photo ? '<img src="' + esc(photo) + '" alt="Robot photo for team ' + t.team + '">' : "No robot photo") +
+        "</div>" +
+        '<div class="a-grades">' + gradeBox("Scouting", t.gradeScout) + gradeBox("Official", t.gradeOfficial) + "</div>" +
+        STAT_GROUPS.map(function (g) {
+          return '<div class="a-group">' + esc(g.title) + "</div>" +
+            g.stats.map(function (stat) { return statRow(stat, t, bestValue(stat, all)); }).join("");
+        }).join("") +
+      "</div>";
+    }
+    function allianceHtml(color, teams, all) {
+      var title = color === "red" ? "Red Alliance" : "Blue Alliance";
+      // Scouted points are per robot, so they add up. Official scores already cover a whole alliance.
+      var withPoints = teams.filter(function (t) { return t.scout && num(t.scout.avg_points) != null; });
+      var total = withPoints.reduce(function (sum, t) { return sum + num(t.scout.avg_points); }, 0);
+      var summary = teams.length + " of " + Alliance.MAX + " teams" +
+        (withPoints.length
+          ? ' · Combined <strong>' + total.toFixed(1) + "</strong> scouted pts / match" +
+            (withPoints.length < teams.length
+              ? " (" + withPoints.length + " of " + teams.length + " teams have data)" : "")
+          : "");
+      var empties = "";
+      for (var i = teams.length; i < Alliance.MAX; i++) {
+        empties += '<a class="a-empty" href="/query.html"><i class="fa fa-plus"></i>Add a team from the Team Database</a>';
+      }
+      return '<section class="alliance ' + color + '">' +
+        '<div class="alliance-head"><h2>' + title + '</h2><div class="alliance-total">' + summary + "</div></div>" +
+        '<div class="alliance-row">' +
+          teams.map(function (t) { return cardHtml(t, all); }).join("") + empties +
+        "</div></section>";
+    }
+    function render() {
+      var picks = Alliance.get();
+      var red = picks.red.map(teamData), blue = picks.blue.map(teamData);
+      var all = red.concat(blue);
+      $("clearAll").hidden = !all.length;
+      $("alliances").innerHTML = allianceHtml("red", red, all) + allianceHtml("blue", blue, all);
+    }
+
+    $("alliances").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-remove]");
+      if (!btn) return;
+      Alliance.remove(parseInt(btn.dataset.remove, 10));
+      render();
+    });
+    $("clearAll").addEventListener("click", function () {
+      if (!confirm("Remove all teams from both alliances?")) return;
+      Alliance.clear();
+      render();
+    });
+    // Picks made in a Team Database tab show up here without a manual refresh
+    window.addEventListener("storage", load);
+
+    await load();
+  })();
+  </script>
+</body>
+</html>

@@ -129,6 +129,14 @@
       white-space: nowrap;
     }
 
+    /* Add to Red / Blue Alliance buttons, under the team name (padded clear of the rating boxes) */
+    .alliance-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1rem; padding-right: 210px; }
+    .alliance-actions .btn { color: #fff; }
+    .alliance-actions .btn-red { background: #c0392b; }
+    .alliance-actions .btn-blue { background: #1B4DB1; }
+    .alliance-actions .btn:hover { filter: brightness(.88); }
+    .alliance-actions a.view-link { font-size: .85rem; }
+
     .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
     .src-badge {
       font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
@@ -175,6 +183,7 @@
     @media (max-width: 575px) {
       .detail-card { padding: 1rem; }
       .detail-head { padding-right: 0; flex-wrap: wrap; }
+      .alliance-actions { padding-right: 0; }
       .rating-group { position: static; margin: .9rem 0 0; width: 100%; }
       .rating-wrap { width: 84px; }
       .rating-box { height: 68px; }
@@ -240,6 +249,7 @@
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -336,6 +346,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/alliance.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -728,6 +739,31 @@
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
 
+    // Red and Blue buttons for the Alliance View. Clicking the team's own alliance removes it;
+    // clicking the other one moves it. A full alliance disables its button.
+    function allianceButton(team, color, label) {
+      var current = Alliance.colorOf(team);
+      var full = current !== color && Alliance.get()[color].length >= Alliance.MAX;
+      var text = current === color ? "Remove from " + label
+        : full ? label + " full"
+        : (current ? "Move to " : "Add to ") + label;
+      return '<button type="button" class="btn btn-sm btn-' + color + '" data-alliance="' + color + '"' +
+        (full ? " disabled" : "") + ">" + text + "</button>";
+    }
+    function allianceActionsHtml(team) {
+      var picks = Alliance.get();
+      return allianceButton(team, "red", "Red Alliance") + allianceButton(team, "blue", "Blue Alliance") +
+        '<a class="view-link" href="/alliance.html">View alliances (' + (picks.red.length + picks.blue.length) + " of 6)</a>";
+    }
+    $("detail").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-alliance]");
+      if (!btn || selected == null) return;
+      var color = btn.dataset.alliance;
+      if (Alliance.colorOf(selected) === color) Alliance.remove(selected);
+      else Alliance.add(color, selected);
+      $("allianceActions").innerHTML = allianceActionsHtml(selected);
+    });
+
     function renderDetail(team, gScout, gOff, matches, pit, officialRows, officialErr) {
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
 
@@ -795,6 +831,7 @@
             '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisOff) + "</p>" +
           '</div>' +
         "</div>" +
+        '<div class="alliance-actions" id="allianceActions">' + allianceActionsHtml(team) + "</div>" +
 
         '<div class="tile-grid">' +
           tiles.map(function (t) {

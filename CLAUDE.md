@@ -22,9 +22,9 @@ no build/lint/test tooling in this repo — don't introduce one unless asked.
 
 ### No bundler, inline-script pages
 
-Shared JS lives only in `js/` (`auth-config.js`, `auth.js`, `contact-config.js`,
+Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
 `contact_me.js`, plus the vendored `jqBootstrapValidation.js`). Everything specific to a page
-(`scout.html`, `query.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
+(`scout.html`, `query.html`, `alliance.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
