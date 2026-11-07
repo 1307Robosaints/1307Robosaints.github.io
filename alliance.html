@@ -23,6 +23,14 @@
     .alliance-total { color: var(--muted); font-size: .9rem; }
     .alliance-total strong { color: var(--navy); }
 
+    /* Alliance grades and win chance, beside the alliance name */
+    .alliance-left { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .9rem; min-width: 0; }
+    .alliance-grades { display: flex; gap: .3rem; }
+    .alliance-grades .a-grade { min-width: 6.2rem; padding: .05rem .4rem; }
+    .alliance-grades .a-grade b { font-size: 1.05rem; }
+    .win-chance { color: var(--muted); font-size: .9rem; }
+    .win-chance strong { color: var(--team); font-family: var(--display); font-size: 1.2rem; }
+
     /* One row of 3 cards per alliance. Every card lists the same stats in the same order,
        so values line up across the row, and with the same column in the other alliance. */
     .alliance-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
@@ -97,9 +105,15 @@
         grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
       }
       .alliance { display: flex; flex-direction: column; min-height: 0; margin: 0; }
-      .alliance-head { flex-wrap: nowrap; border-bottom-width: 2px; padding-bottom: .1em; margin-bottom: .35em; }
-      .alliance-head h2 { font-size: 1.25em; }
-      .alliance-total { font-size: .95em; }
+      .alliance-head { flex-wrap: nowrap; align-items: center; border-bottom-width: 2px; padding-bottom: .1em; margin-bottom: .35em; }
+      .alliance-head h2 { font-size: 1.25em; white-space: nowrap; }
+      .alliance-left { flex-wrap: nowrap; gap: .8em; }
+      .alliance-grades { gap: .3em; }
+      .alliance-grades .a-grade { min-width: 6.4em; padding: 0 .4em; }
+      .alliance-grades .a-grade b { font-size: 1.05em; }
+      .win-chance { font-size: .95em; white-space: nowrap; }
+      .win-chance strong { font-size: 1.25em; }
+      .alliance-total { font-size: .95em; white-space: nowrap; }
       .alliance-row { flex: 1; min-height: 0; gap: .6em; grid-template-rows: minmax(0, 1fr); }
 
       .a-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: .4em .55em; border-top-width: 3px; }
@@ -370,18 +384,29 @@
     }
 
     var ratings = [], officialRatings = [], testTeams = new Set(), teamInfo = {};
-    var entriesByTeam = {}, pitByTeam = {};
+    var entriesByTeam = {}, pitByTeam = {}, officialScoresByTeam = {};
 
-    // The API returns at most 1000 rows per request, so page through the match entries.
-    async function loadEntries(teams) {
+    // The API returns at most 1000 rows per request, so page through anything that can grow.
+    async function pagedRows(query) {
       var rows = [], size = 1000;
       for (var from = 0; ; from += size) {
-        var r = await sb.from("scouting_entries").select("team_number,data")
-          .in("team_number", teams).order("id").range(from, from + size - 1);
+        var r = await query().range(from, from + size - 1);
         if (r.error) return { error: r.error, data: rows };
         rows = rows.concat(r.data || []);
         if ((r.data || []).length < size) return { data: rows };
       }
+    }
+    function loadEntries(teams) {
+      return pagedRows(function () {
+        return sb.from("scouting_entries").select("team_number,event_id,match_number,data")
+          .in("team_number", teams).order("id");
+      });
+    }
+    function loadOfficialScores(teams) {
+      return pagedRows(function () {
+        return sb.from("official_match_teams").select("team_number,alliance_score,opponent_score")
+          .in("team_number", teams).order("event_id").order("match_key").order("team_number");
+      });
     }
 
     var loadCount = 0;
@@ -398,7 +423,8 @@
         teams.length
           ? sb.from("pit_entries").select("team_number,data,updated_at").in("team_number", teams)
               .order("updated_at", { ascending: false })
-          : { data: [] }
+          : { data: [] },
+        teams.length ? loadOfficialScores(teams) : { data: [] }
       ]);
       if (thisLoad !== loadCount) return;   // the picks changed while this was loading
 
@@ -422,6 +448,11 @@
       (results[5].data || []).forEach(function (p) {
         if (!pitByTeam[p.team_number]) pitByTeam[p.team_number] = p;   // newest first
       });
+      officialScoresByTeam = {};
+      (results[6].data || []).forEach(function (r) {
+        if (r.alliance_score == null || r.opponent_score == null) return;   // not played yet
+        (officialScoresByTeam[r.team_number] = officialScoresByTeam[r.team_number] || []).push(r.alliance_score);
+      });
       render();
     }
 
@@ -435,8 +466,129 @@
         gradeScout: gradeFor(ratings, team),
         gradeOfficial: gradeFor(officialRatings, team),
         rows: entriesByTeam[team] || [],
+        officialScores: officialScoresByTeam[team] || [],
         pit: pit
       };
+    }
+
+    // ── Alliance grade and win chance (explained on ratings.html) ────
+    // Share of all possible 3-team alliances whose combined score is at or below total. Counted
+    // exactly: for each pair, a binary search finds how many higher-placed teams complete it.
+    function shareOfAlliances(scores, total) {
+      var a = scores.slice().sort(function (x, y) { return x - y; });
+      var n = a.length, count = 0;
+      for (var i = 0; i < n - 2; i++) {
+        for (var j = i + 1; j < n - 1; j++) {
+          var limit = total - a[i] - a[j] + 1e-9;   // tolerance for decimal scores
+          var lo = j + 1, hi = n;
+          while (lo < hi) {
+            var mid = (lo + hi) >> 1;
+            if (a[mid] <= limit) lo = mid + 1; else hi = mid;
+          }
+          count += lo - (j + 1);
+        }
+      }
+      return count / (n * (n - 1) * (n - 2) / 6);
+    }
+    // Scouting and official stay separate here, as they do for teams. An alliance needs three
+    // rated teams to get a grade, because a missing team would drag its total down.
+    function allianceGrade(rows, teams) {
+      var rated = teams.length === Alliance.MAX && teams.every(function (t) {
+        var g = gradeFor(rows, t.team);
+        return g !== "NR" && g !== "TEST";
+      });
+      if (!rated) return "NR";
+      var pool = rows.filter(function (r) { return !testTeams.has(r.team_number) && r.matches >= MIN_RATED_MATCHES; })
+        .map(function (r) { return Number(r.score); });
+      var total = teams.reduce(function (sum, t) {
+        return sum + Number(rows.find(function (r) { return r.team_number === t.team; }).score);
+      }, 0);
+      var pct = shareOfAlliances(pool, total);
+      for (var i = 0; i < CUTS.length; i++) {
+        if (pct >= CUTS[i][0]) return CUTS[i][1];
+      }
+      return "F";
+    }
+
+    var MIN_SWING = 5;        // floor on a team's match-to-match swing, in points
+    var WIN_LIMITS = [.05, .95];   // this data can't justify more certainty than this
+
+    // Points a robot scored in each match, using the Table 6-4 values in rebuilt_points().
+    // Entries for the same match are averaged, as they are in team_ratings().
+    function pointsPerMatch(rows) {
+      var byMatch = {};
+      rows.forEach(function (r, i) {
+        var key = r.match_number == null ? "entry" + i : r.event_id + "|" + r.match_number;
+        var pts = (num(r.data.auto_fuel_hub) || 0) + (num(r.data.teleop_fuel_hub) || 0) +
+          (r.data.auto_tower === "L1" ? 15 : 0) +
+          ({ L1: 10, L2: 20, L3: 30 }[r.data.teleop_tower] || 0);
+        (byMatch[key] = byMatch[key] || []).push(pts);
+      });
+      return Object.keys(byMatch).map(function (k) {
+        return byMatch[k].reduce(function (a, b) { return a + b; }, 0) / byMatch[k].length;
+      });
+    }
+    // How far one future match could land from a team's average: its match-to-match variance,
+    // plus 1/n more because an average of n matches is itself uncertain.
+    function matchVariance(vals) {
+      var n = vals.length;
+      if (n < 2) return MIN_SWING * MIN_SWING;
+      var avg = vals.reduce(function (a, b) { return a + b; }, 0) / n;
+      var variance = vals.reduce(function (s, v) { return s + (v - avg) * (v - avg); }, 0) / (n - 1);
+      return Math.max(variance, MIN_SWING * MIN_SWING) * (1 + 1 / n);
+    }
+    // Red's chance when red is expected to lead by gap, with that much variance in the result.
+    // The logistic curve is a close, standard stand-in for the normal distribution.
+    function chanceFromGap(gap, variance) {
+      return 1 / (1 + Math.exp(-1.702 * gap / Math.sqrt(variance)));
+    }
+    function hasMatches(t, source) {
+      return !testTeams.has(t.team) && !!t[source] && t[source].matches >= MIN_RATED_MATCHES;
+    }
+    // Scouted points are per robot, so the three robots add up, and so do their variances.
+    function scoutedChance(red, blue) {
+      var all = red.concat(blue);
+      if (!all.every(function (t) { return hasMatches(t, "scout"); })) return null;
+      var sum = function (teams) {
+        return teams.reduce(function (s, t) { return s + num(t.scout.avg_points); }, 0);
+      };
+      var variance = all.reduce(function (s, t) { return s + matchVariance(pointsPerMatch(t.rows)); }, 0);
+      return chanceFromGap(sum(red) - sum(blue), variance);
+    }
+    // Official scores already cover a whole alliance, so each side is the average of its teams.
+    function officialChance(red, blue) {
+      var all = red.concat(blue);
+      if (!all.every(function (t) { return hasMatches(t, "official"); })) return null;
+      var avg = function (teams, value) {
+        return teams.reduce(function (s, t) { return s + value(t); }, 0) / teams.length;
+      };
+      var score = function (t) { return num(t.official.avg_alliance_score); };
+      var spread = function (t) { return matchVariance(t.officialScores); };
+      return chanceFromGap(avg(red, score) - avg(blue, score), avg(red, spread) + avg(blue, spread));
+    }
+    // Returns red's chance overall and from each source, or null until all six teams have data.
+    function winChance(red, blue) {
+      if (red.length < Alliance.MAX || blue.length < Alliance.MAX) return null;
+      var scouted = scoutedChance(red, blue), official = officialChance(red, blue);
+      var parts = [scouted, official].filter(function (p) { return p != null; });
+      if (!parts.length) return null;
+      var overall = parts.reduce(function (a, b) { return a + b; }, 0) / parts.length;
+      return {
+        overall: Math.min(WIN_LIMITS[1], Math.max(WIN_LIMITS[0], overall)),
+        scouted: scouted, official: official
+      };
+    }
+    function winChanceHtml(color, chance, full) {
+      if (!chance) {
+        return '<span class="win-chance">' +
+          (full ? "Win chance needs 3+ matches for all six teams" : "Win chance needs all six teams") + "</span>";
+      }
+      var mine = function (p) { return Math.round(100 * (color === "red" ? p : 1 - p)) + "%"; };
+      var sources = [];
+      if (chance.scouted != null) sources.push("scouted " + mine(chance.scouted));
+      if (chance.official != null) sources.push("official " + mine(chance.official));
+      return '<span class="win-chance" title="An estimate from past results, not a prediction. See How ratings work.">' +
+        "<strong>" + mine(chance.overall) + "</strong> win chance (" + sources.join(", ") + ")</span>";
     }
 
     // ── Rendering ────────────────────────────────────────────────────
@@ -494,7 +646,7 @@
         }).join("") +
       "</div>";
     }
-    function allianceHtml(color, teams, all) {
+    function allianceHtml(color, teams, all, chance) {
       var title = color === "red" ? "Red Alliance" : "Blue Alliance";
       // Scouted points are per robot, so they add up. Official scores already cover a whole alliance.
       var withPoints = teams.filter(function (t) { return t.scout && num(t.scout.avg_points) != null; });
@@ -510,7 +662,15 @@
         empties += '<a class="a-empty" href="/query.html"><i class="fa fa-plus"></i>Add a team from the Team Database</a>';
       }
       return '<section class="alliance ' + color + '">' +
-        '<div class="alliance-head"><h2>' + title + '</h2><div class="alliance-total">' + summary + "</div></div>" +
+        '<div class="alliance-head">' +
+          '<div class="alliance-left"><h2>' + title + "</h2>" +
+            '<div class="alliance-grades" title="Alliance grades: where this alliance\'s combined score ranks among every possible alliance">' +
+              gradeBox("Scouting", allianceGrade(ratings, teams)) + gradeBox("Official", allianceGrade(officialRatings, teams)) +
+            "</div>" +
+            winChanceHtml(color, chance, all.length === 2 * Alliance.MAX) +
+          "</div>" +
+          '<div class="alliance-total">' + summary + "</div>" +
+        "</div>" +
         '<div class="alliance-row">' +
           teams.map(function (t) { return cardHtml(t, all); }).join("") + empties +
         "</div></section>";
@@ -520,7 +680,8 @@
       var red = picks.red.map(teamData), blue = picks.blue.map(teamData);
       var all = red.concat(blue);
       $("clearAll").hidden = !all.length;
-      $("alliances").innerHTML = allianceHtml("red", red, all) + allianceHtml("blue", blue, all);
+      var chance = winChance(red, blue);
+      $("alliances").innerHTML = allianceHtml("red", red, all, chance) + allianceHtml("blue", blue, all, chance);
     }
 
     $("alliances").addEventListener("click", function (e) {

@@ -27,6 +27,7 @@ ratings and the other derived stats are calculated. Update it whenever that math
   of 3 cards per alliance, all on one screen with no scrolling on a widescreen display (phones and
   tablets stack the cards). Picks are kept in that browser (`js/alliance.js`), so each person and
   device has their own. To change which stats are compared, edit `STAT_GROUPS` in the page.
+  Each alliance also gets a grade and an estimated win chance, explained on `ratings.html`.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;

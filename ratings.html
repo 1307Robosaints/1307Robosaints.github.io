@@ -238,6 +238,53 @@
         <li><strong>Test teams don't affect real teams.</strong> They're ranked in their own group at every step, so a dummy team can't move anyone's score or grade. Teams with fewer than 3 matches are not graded, but they are still counted when each part is ranked.</li>
       </ul>
 
+      <h2>Alliance grades and win chance</h2>
+      <p>The Alliance View adds two estimates for a full red and blue match-up.</p>
+
+      <h3>Alliance grade</h3>
+      <p>
+        Each alliance gets a Scouting grade and an Official grade, kept separate like team grades.
+        The three teams' scores are added together, then compared against every possible 3-team
+        alliance from the rated teams, using the same S to F cutoffs as above. An S alliance has a
+        combined score in the top 10% of all alliances those teams could form. All three teams must
+        be rated, otherwise the grade is NR, and a test team counts as not rated.
+      </p>
+
+      <h3>Win chance</h3>
+      <p>
+        This estimates how likely each alliance is to outscore the other, from two separate
+        sources. A source is only used if all six teams have at least 3 matches in it.
+      </p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th></th><th>Scouted</th><th>Official</th></tr></thead>
+        <tbody>
+          <tr><th>Expected score</th><td>The three robots' Avg pts / match, added up</td><td>The average of the three teams' Avg alliance score</td></tr>
+          <tr><th>Uncertainty</th><td>The three robots' variances, added up</td><td>The average of the three teams' variances</td></tr>
+        </tbody>
+      </table></div>
+      <p>
+        A team's variance measures how far its scores swing from match to match, and is increased
+        by 1/n for a team with n matches, so less data means less certainty. It's never treated as
+        less than a 5 point swing. Each source then turns the expected gap into a chance:
+      </p>
+      <div class="calc block">Chance = 1 ÷ (1 + e<sup>−1.702 × gap ÷ √(red uncertainty + blue uncertainty)</sup>)</div>
+      <p>
+        The headline number is the average of the sources available, and it's kept between 5% and
+        95%. Both sources are shown beside it, because when they disagree, that's worth knowing.
+      </p>
+      <div class="example">
+        <strong>Example.</strong> Red is expected to lead by 20 points, and the two alliances'
+        uncertainty adds up to 900, a typical swing of 30 points.
+        <div class="calc">1 ÷ (1 + e<sup>−1.702 × 20 ÷ 30</sup>) = <strong>76%</strong> for red, leaving 100 − 76 = <strong>24%</strong> for blue</div>
+      </div>
+      <p>Treat this as a rough guide:</p>
+      <ul>
+        <li><strong>It hasn't been tested against real results yet,</strong> so a 70% isn't proven to mean winning 7 times out of 10.</li>
+        <li><strong>It only knows past scores.</strong> It can't see defense, strategy, match-ups, penalties or a robot that was just repaired.</li>
+        <li><strong>It treats robots as independent,</strong> so it misses alliances that work especially well or badly together.</li>
+        <li><strong>Scouted points are estimates</strong> and leave out penalty points, and official scores include past partners.</li>
+      </ul>
+
       <h2>Other derived stats</h2>
       <p>These appear on the Team Database and Alliance View. They use plain, unweighted numbers, so they won't always match the rating's inputs.</p>
       <div class="table-responsive"><table class="table r-table">
