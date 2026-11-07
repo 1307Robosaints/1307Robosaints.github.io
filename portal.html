@@ -443,6 +443,7 @@
             <label for="fType">Type</label>
             <select id="fType" class="form-control">
               <option value="number">Number</option>
+              <option value="slider">Slider (bounded number, e.g. 1-5)</option>
               <option value="text">Text</option>
               <option value="choice">Choice</option>
               <option value="boolean">Yes / No</option>
@@ -478,20 +479,39 @@
             <input type="number" id="fMax" class="form-control" placeholder="optional">
           </div>
           <div class="form-group col-md-2">
+            <label for="fRegLimit">Spec limit <small class="text-muted">(flag, not enforced)</small></label>
+            <input type="number" id="fRegLimit" class="form-control" placeholder="optional">
+          </div>
+          <div class="form-group col-md-2">
             <label for="fSort">Order</label>
             <input type="number" id="fSort" class="form-control" value="0">
           </div>
-          <div class="form-group col-md-3 d-flex align-items-end pb-2">
+          <div class="form-group col-md-4 d-flex align-items-end pb-2" style="gap:1rem;">
             <div class="custom-control custom-checkbox">
               <input type="checkbox" class="custom-control-input" id="fPoints">
               <label class="custom-control-label" for="fPoints">Counts toward points</label>
             </div>
+            <div class="custom-control custom-checkbox">
+              <input type="checkbox" class="custom-control-input" id="fAllowUnsure">
+              <label class="custom-control-label" for="fAllowUnsure">Allow "Unsure"</label>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" id="numberOptsHelp">
+          <div class="form-group col-md-12" style="margin-bottom:.5rem;">
+            <small class="text-muted">
+              Spec limit flags a scouted value as over the FRC limit everywhere it's shown, without rejecting the entry.
+              "Allow Unsure" adds a checkbox next to the input on the Scout page for when a scout genuinely can't tell.
+            </small>
           </div>
         </div>
 
         <div class="form-group d-none" id="choiceOpts">
           <label for="fOptions">Choices <small class="text-muted">(one per line)</small></label>
           <textarea id="fOptions" class="form-control" rows="3" placeholder="None&#10;Low&#10;High&#10;Deep"></textarea>
+          <small class="text-muted">
+            Add an option named exactly "Other" to automatically show a note box on the Scout page when it's selected.
+          </small>
         </div>
 
         <input type="hidden" id="fId">
@@ -1125,7 +1145,7 @@
         var badge = f.active
           ? '<span class="badge-active">Active</span>'
           : '<span class="badge-inactive">Inactive</span>';
-        var typeLabel = { number:"Number", text:"Text", choice:"Choice", boolean:"Yes / No", image:"Picture" }[f.field_type] || f.field_type;
+        var typeLabel = { number:"Number", slider:"Slider", text:"Text", choice:"Choice", boolean:"Yes / No", image:"Picture" }[f.field_type] || f.field_type;
         return '<div class="field-row' + (f.active ? "" : " inactive") + '">' +
           '<span><strong>' + esc(f.label) + '</strong><br><code style="font-size:.75rem;color:var(--muted);">' + esc(f.key) + '</code></span>' +
           '<span>' + esc(f.section) + ' <small class="text-muted">· ' + (f.scope === "pit" ? "Pit" : "Match") + '</small></span>' +
@@ -1141,10 +1161,13 @@
       }).join("");
     }
 
-    // Show/hide type-specific options
+    // Show/hide type-specific options. Slider shares the same Min/Max/Spec limit/Unsure
+    // options as Number — it's the same stored value, just a different input widget.
+    function isNumberLike(t) { return t === "number" || t === "slider"; }
     document.getElementById("fType").addEventListener("change", function () {
       var t = this.value;
-      document.getElementById("numberOpts").style.display = t === "number" ? "" : "none";
+      document.getElementById("numberOpts").style.display = isNumberLike(t) ? "" : "none";
+      document.getElementById("numberOptsHelp").style.display = isNumberLike(t) ? "" : "none";
       document.getElementById("choiceOpts").classList.toggle("d-none", t !== "choice");
     });
 
@@ -1158,6 +1181,8 @@
       var sort    = parseInt(document.getElementById("fSort").value, 10) || 0;
       var min     = document.getElementById("fMin").value !== "" ? parseFloat(document.getElementById("fMin").value) : null;
       var max     = document.getElementById("fMax").value !== "" ? parseFloat(document.getElementById("fMax").value) : null;
+      var regLimit = document.getElementById("fRegLimit").value !== "" ? parseFloat(document.getElementById("fRegLimit").value) : null;
+      var allowUnsure = isNumberLike(type) && document.getElementById("fAllowUnsure").checked;
       var opts    = type === "choice"
         ? document.getElementById("fOptions").value.split("\n").map(function(s){return s.trim();}).filter(Boolean)
         : null;
@@ -1170,9 +1195,10 @@
       if (type === "choice" && (!opts || !opts.length)) { toast("Add at least one choice.", true); return; }
 
       var scope  = document.getElementById("fScope").value;
-      var points = type === "number" && document.getElementById("fPoints").checked;
+      var points = isNumberLike(type) && document.getElementById("fPoints").checked;
       var payload = { label, field_type: type, section, required: req, sort_order: sort,
-                      min_value: min, max_value: max, options: opts, scope: scope, is_points: points };
+                      min_value: min, max_value: max, options: opts, scope: scope, is_points: points,
+                      reg_limit: regLimit, allow_unsure: allowUnsure };
       var r;
       if (id) {
         r = await sb.from("scout_fields").update(payload).eq("id", id);
@@ -1186,17 +1212,19 @@
     });
 
     function resetFieldForm() {
-      ["fId","fKey","fLabel","fMin","fMax"].forEach(function(id){ document.getElementById(id).value = ""; });
+      ["fId","fKey","fLabel","fMin","fMax","fRegLimit"].forEach(function(id){ document.getElementById(id).value = ""; });
       document.getElementById("fType").value = "number";
       document.getElementById("fSection").value = "Match";
       document.getElementById("fRequired").checked = false;
       document.getElementById("fSort").value = "0";
       document.getElementById("fScope").value = "match";
       document.getElementById("fPoints").checked = false;
+      document.getElementById("fAllowUnsure").checked = false;
       document.getElementById("fOptions").value = "";
       document.getElementById("fKey").disabled = false;
       document.getElementById("choiceOpts").classList.add("d-none");
       document.getElementById("numberOpts").style.display = "";
+      document.getElementById("numberOptsHelp").style.display = "";
       document.getElementById("fieldFormTitle").textContent = "Add Field";
       document.getElementById("fCancel").classList.add("d-none");
     }
@@ -1213,11 +1241,14 @@
       document.getElementById("fRequired").checked = f.required;
       document.getElementById("fScope").value = f.scope || "match";
       document.getElementById("fPoints").checked = !!f.is_points;
+      document.getElementById("fAllowUnsure").checked = !!f.allow_unsure;
       document.getElementById("fSort").value = f.sort_order;
       document.getElementById("fMin").value = f.min_value != null ? f.min_value : "";
       document.getElementById("fMax").value = f.max_value != null ? f.max_value : "";
+      document.getElementById("fRegLimit").value = f.reg_limit != null ? f.reg_limit : "";
       document.getElementById("fOptions").value = f.options ? f.options.join("\n") : "";
-      document.getElementById("numberOpts").style.display = f.field_type === "number" ? "" : "none";
+      document.getElementById("numberOpts").style.display = isNumberLike(f.field_type) ? "" : "none";
+      document.getElementById("numberOptsHelp").style.display = isNumberLike(f.field_type) ? "" : "none";
       document.getElementById("choiceOpts").classList.toggle("d-none", f.field_type !== "choice");
       document.getElementById("fieldFormTitle").textContent = "Edit Field";
       document.getElementById("fCancel").classList.remove("d-none");

@@ -182,11 +182,24 @@ alter table public.scout_fields add column if not exists scope text not null def
 alter table public.scout_fields add column if not exists is_points boolean not null default false;
 alter table public.scout_fields enable row level security;
 
--- On a database built before 'image' existed, widen the existing check constraint
+-- On a database built before 'image'/'slider' existed, widen the existing check constraint
 -- in place (the table above was only created, not altered, if it already existed).
 alter table public.scout_fields drop constraint if exists scout_fields_field_type_check;
 alter table public.scout_fields add constraint scout_fields_field_type_check
-  check (field_type in ('number','text','choice','boolean','image'));
+  check (field_type in ('number','text','choice','boolean','image','slider'));
+
+-- reg_limit: the FRC-legal max for a physical spec (frame height, weight, ...), shown by the
+-- Scout page and Team Database as a flag when a scouted value exceeds it. It is informational
+-- only — min_value/max_value (above) are what validate_data() actually enforces, and specs are
+-- deliberately left unenforced there (a robot that's slightly over isn't an invalid scouting
+-- entry, it's a fact worth flagging) while still getting caught everywhere the value is shown.
+alter table public.scout_fields add column if not exists reg_limit numeric;
+
+-- allow_unsure: for a number/slider field where a scout genuinely may not know the figure
+-- (e.g. max shooting range), this adds an "Unsure" checkbox next to the input on the Scout page.
+-- Checking it clears/disables the number box and saves "<key>__unsure": true instead of a
+-- number — see validate_data() below for how that companion key is accepted.
+alter table public.scout_fields add column if not exists allow_unsure boolean not null default false;
 
 drop policy if exists "team reads fields"   on public.scout_fields;
 drop policy if exists "staff writes fields" on public.scout_fields;
@@ -365,23 +378,57 @@ create policy "team deletes pit" on public.pit_entries for delete to authenticat
 -- Every key must belong to the entry's scope. Inactive fields are still accepted,
 -- so old entries keep saving. Active fields are checked for type, range, choices,
 -- and required values. 'image' fields hold the uploaded photo's public URL, so
--- they're validated the same way 'text' is (a reasonably short string).
+-- they're validated the same way 'text' is (a reasonably short string). 'slider' is
+-- validated exactly like 'number' — it's the same stored value, just a different input
+-- widget on the Scout page.
+--
+-- Two key suffixes are accepted without a scout_fields row of their own, since the Scout
+-- page generates them automatically rather than staff configuring them per field:
+--   <key>__other_note   a free-text note, shown when a 'choice' field with an "Other" option
+--                        is set to Other. Valid for any choice field whose options include it.
+--   <key>__unsure        boolean, shown instead of the number/slider input when staff enabled
+--                         allow_unsure on that field and the scout checked "Unsure".
 create or replace function public.validate_data(p_data jsonb, p_scope text) returns void
 language plpgsql set search_path = '' as $$
-declare f record; v jsonb; txt text;
+declare f record; v jsonb; txt text; k text; base_key text;
 begin
   if jsonb_typeof(p_data) <> 'object' then
     raise exception 'Entry data must be an object';
   end if;
 
-  if exists (
-    select 1 from jsonb_object_keys(p_data) k
-    where not exists (select 1 from public.scout_fields sf where sf.key = k and sf.scope = p_scope)
-  ) then
-    raise exception 'Entry contains a field that is not part of this form';
-  end if;
+  for k in select jsonb_object_keys(p_data) loop
+    if exists (select 1 from public.scout_fields sf where sf.key = k and sf.scope = p_scope) then
+      continue;
+    end if;
+    if k like '%\_\_other\_note' escape '\' then
+      base_key := left(k, length(k) - length('__other_note'));
+      if not exists (select 1 from public.scout_fields sf where sf.key = base_key and sf.scope = p_scope
+                       and sf.field_type = 'choice' and 'Other' = any (sf.options)) then
+        raise exception 'Entry contains a field that is not part of this form';
+      end if;
+      if jsonb_typeof(p_data -> k) <> 'string' or char_length(p_data ->> k) > 300 then
+        raise exception 'Note for % is too long', base_key;
+      end if;
+    elsif k like '%\_\_unsure' escape '\' then
+      base_key := left(k, length(k) - length('__unsure'));
+      if not exists (select 1 from public.scout_fields sf where sf.key = base_key and sf.scope = p_scope
+                       and sf.field_type in ('number','slider') and sf.allow_unsure) then
+        raise exception 'Entry contains a field that is not part of this form';
+      end if;
+      if jsonb_typeof(p_data -> k) <> 'boolean' then raise exception '% must be yes or no', base_key; end if;
+    else
+      raise exception 'Entry contains a field that is not part of this form';
+    end if;
+  end loop;
 
   for f in select * from public.scout_fields where scope = p_scope and active loop
+    -- A field marked "Unsure" via its __unsure companion key is deliberately left blank —
+    -- skip the usual required/type checks on the number itself.
+    if f.field_type in ('number','slider') and f.allow_unsure
+       and coalesce((p_data ->> (f.key || '__unsure'))::boolean, false) then
+      continue;
+    end if;
+
     v := p_data -> f.key;
     if v is null or jsonb_typeof(v) = 'null' then
       if f.required then raise exception 'Missing required field: %', f.label; end if;
@@ -389,7 +436,7 @@ begin
     end if;
     txt := v #>> '{}';
 
-    if f.field_type = 'number' then
+    if f.field_type in ('number','slider') then
       if jsonb_typeof(v) <> 'number' then raise exception '% must be a number', f.label; end if;
       if f.min_value is not null and txt::numeric < f.min_value then raise exception '% is too low', f.label; end if;
       if f.max_value is not null and txt::numeric > f.max_value then raise exception '% is too high', f.label; end if;
@@ -777,7 +824,7 @@ language sql immutable set search_path = '' as $$
     (case public.jbool(d, 'trench_capable') when true then 1 when false then 0 end),
     (case d ->> 'intake_type' when 'None' then 0 when 'Front' then .7 when 'Side' then .7 when 'Front and side' then 1 end),
     (case d ->> 'shooter_type' when 'Fixed flywheel' then .4 when 'Adjustable hood' then .7 when 'Turret' then 1 when 'Other' then .5 end),
-    (case d ->> 'drivetrain' when 'Swerve' then 1 when 'Tank (West Coast)' then .8 when 'Mecanum' then .5 when 'Other' then .5 end),
+    (case d ->> 'drivetrain' when 'Swerve' then 1 when 'West Coast' then .8 when 'Tank' then .65 when 'Mecanum' then .5 when 'Other' then .5 end),
     (case when public.jnum(d, 'fuel_capacity') is not null then least(public.jnum(d, 'fuel_capacity') / 30, 1) end),
     (case when public.jnum(d, 'shooter_max_range_ft') is not null then least(public.jnum(d, 'shooter_max_range_ft') / 20, 1) end),
     (case public.jbool(d, 'uses_vision') when true then 1 when false then 0 end)
@@ -1227,59 +1274,67 @@ on conflict (key) do update set active = false;
 
 -- 13b. 2026 REBUILT match scouting
 -- Scouts record approximate counts and climb levels. rebuilt_points() turns them into points.
--- A volley is one burst of shooting at the HUB. Volley count and FUEL per volley feed the
--- Efficiency part of the grade; the approximate FUEL totals feed the points.
+-- A volley is one burst of shooting at the HUB. Volley count and FUEL per volley come first, so
+-- the Scout page can autofill the FUEL total from them (staying editable by hand — see the
+-- autofill comment in scout.html); the total itself is ordered right after.
 -- Keys reused from earlier seasons keep their saved values.
 insert into public.scout_fields
-  (key, label, field_type, options, min_value, max_value, required, section, sort_order, active, scope, is_points) values
-  ('auto_mobility',          'Left starting zone (auto)',                 'boolean', null, null, null, false, 'Auto',    10, true, 'match', false),
-  ('auto_fuel_hub',          'Approx. FUEL scored in HUB (auto)',         'number',  null, 0,    200,  false, 'Auto',    11, true, 'match', false),
-  ('auto_volleys',           'Volley count (auto)',                       'number',  null, 0,    20,   false, 'Auto',    12, true, 'match', false),
-  ('auto_fuel_per_volley',   'Approx. FUEL per volley (auto)',            'number',  null, 0,    100,  false, 'Auto',    13, true, 'match', false),
-  ('auto_tower',             'TOWER climb (auto)',                        'choice',  array['None','L1'], null, null, false, 'Auto', 14, true, 'match', false),
-  ('teleop_fuel_hub',        'Approx. FUEL scored in ACTIVE HUB (teleop)','number',  null, 0,    500,  false, 'Teleop',  20, true, 'match', false),
-  ('teleop_volleys',         'Volley count (teleop)',                     'number',  null, 0,    100,  false, 'Teleop',  21, true, 'match', false),
-  ('teleop_fuel_per_volley', 'Approx. FUEL per volley (teleop)',          'number',  null, 0,    100,  false, 'Teleop',  22, true, 'match', false),
-  ('teleop_fuel_source',     'Main FUEL source',                          'choice',  array['Neutral zone','Depot','Outpost','Multiple'], null, null, false, 'Teleop', 23, true, 'match', false),
-  ('teleop_role',            'Primary role',                              'choice',  array['Scorer','Feeder','Defense','Mixed'], null, null, false, 'Teleop', 24, true, 'match', false),
-  ('shooter_accuracy',       'Shooting accuracy (1 = poor, 5 = great)',   'number',  null, 1,    5,    false, 'Teleop',  25, true, 'match', false),
-  ('stuck_on_field',         'Got stuck on a BUMP or in a TRENCH',        'boolean', null, null, null, false, 'Teleop',  26, true, 'match', false),
-  ('teleop_tower',           'TOWER climb (teleop)',                      'choice',  array['None','L1','L2','L3'], null, null, false, 'Endgame', 30, true, 'match', false),
-  ('foul_or_card',           'Committed a foul or card',                  'boolean', null, null, null, false, 'Match',   40, true, 'match', false),
-  ('robot_disabled',         'Robot disabled during match',               'boolean', null, null, null, false, 'Match',   41, true, 'match', false),
-  ('broke_down',             'Broke down / needed help',                  'boolean', null, null, null, false, 'Match',   42, true, 'match', false),
-  ('match_notes',            'Notes',                                     'text',    null, null, null, false, 'Match',   50, true, 'match', false)
+  (key, label, field_type, options, min_value, max_value, required, section, sort_order, active, scope, is_points, reg_limit, allow_unsure) values
+  ('auto_mobility',          'Left starting zone (auto)',                 'boolean', null, null, null, false, 'Autonomous', 10, true, 'match', false, null, false),
+  ('auto_volleys',           'Volley count (auto)',                       'number',  null, 0,    20,   false, 'Autonomous', 11, true, 'match', false, null, false),
+  ('auto_fuel_per_volley',   'Approx. FUEL per volley (auto)',            'number',  null, 0,    100,  false, 'Autonomous', 12, true, 'match', false, null, false),
+  ('auto_fuel_hub',          'Approx. FUEL scored in HUB (auto)',         'number',  null, 0,    200,  false, 'Autonomous', 13, true, 'match', false, null, false),
+  ('auto_tower',             'TOWER climb (auto)',                        'choice',  array['None','L1'], null, null, false, 'Autonomous', 14, true, 'match', false, null, false),
+  ('teleop_volleys',         'Volley count (teleop)',                     'number',  null, 0,    100,  false, 'Teleop',  20, true, 'match', false, null, false),
+  ('teleop_fuel_per_volley', 'Approx. FUEL per volley (teleop)',          'number',  null, 0,    100,  false, 'Teleop',  21, true, 'match', false, null, false),
+  ('teleop_fuel_hub',        'Approx. FUEL scored in ACTIVE HUB (teleop)','number',  null, 0,    500,  false, 'Teleop',  22, true, 'match', false, null, false),
+  ('teleop_fuel_source',     'Main FUEL source',                          'choice',  array['Neutral zone','Depot','Outpost','Multiple'], null, null, false, 'Teleop', 23, true, 'match', false, null, false),
+  ('teleop_role',            'Primary role',                              'choice',  array['Scorer','Feeder','Defense','Mixed'], null, null, false, 'Teleop', 24, true, 'match', false, null, false),
+  ('shooter_accuracy',       'Shooting accuracy',                         'slider',  null, 1,    5,    false, 'Teleop',  25, true, 'match', false, null, false),
+  ('stuck_on_field',         'Got stuck on a BUMP or in a TRENCH',        'boolean', null, null, null, false, 'Teleop',  26, true, 'match', false, null, false),
+  ('teleop_tower',           'TOWER climb (teleop)',                      'choice',  array['None','L1','L2','L3'], null, null, false, 'Endgame', 30, true, 'match', false, null, false),
+  ('foul_or_card',           'Committed a foul or card',                  'boolean', null, null, null, false, 'Match Events', 40, true, 'match', false, null, false),
+  ('robot_disabled',         'Robot disabled during match',               'boolean', null, null, null, false, 'Match Events', 41, true, 'match', false, null, false),
+  ('broke_down',             'Broke down / needed help',                  'boolean', null, null, null, false, 'Match Events', 42, true, 'match', false, null, false),
+  ('match_notes',            'Notes',                                     'text',    null, null, null, false, 'Match Events', 50, true, 'match', false, null, false)
 on conflict (key) do update set
   label = excluded.label, field_type = excluded.field_type, options = excluded.options,
   min_value = excluded.min_value, max_value = excluded.max_value, required = excluded.required,
   section = excluded.section, sort_order = excluded.sort_order, active = excluded.active,
-  scope = excluded.scope, is_points = excluded.is_points;
+  scope = excluded.scope, is_points = excluded.is_points,
+  reg_limit = excluded.reg_limit, allow_unsure = excluded.allow_unsure;
 
 -- 13c. 2026 REBUILT pit scouting (limits from manual R103, R104, R107, and the TRENCH clearance)
 -- robot_photo is the picture field: scouts attach a photo of the team's robot from the Scout
 -- page; the value saved is that photo's public URL in the scouting-photos bucket (section 9b).
+-- Frame height and weight carry a reg_limit instead of a hard max_value: a robot a little over
+-- spec is still a real, savable scouting entry, just one flagged everywhere it's shown (the
+-- Scout page's pit form and tables, and the Team Database) rather than rejected outright.
+-- shooter_max_range_ft allows "Unsure" (allow_unsure) since a scout often can't tell a robot's
+-- actual max range just by watching it.
 insert into public.scout_fields
-  (key, label, field_type, options, min_value, max_value, required, section, sort_order, active, scope, is_points) values
-  ('robot_photo',          'Robot photo',                             'image',   null, null, null, false, 'Photo',      1,  true, 'pit', false),
-  ('frame_length_in',      'Frame length (in)',                       'number',  null, 0, 120, false, 'Frame',      10, true, 'pit', false),
-  ('frame_width_in',       'Frame width (in)',                        'number',  null, 0, 120, false, 'Frame',      11, true, 'pit', false),
-  ('frame_height_in',      'Starting height (in, limit 30)',          'number',  null, 0, 120, false, 'Frame',      12, true, 'pit', false),
-  ('weight_lb',            'Weight (lb, limit 115)',                  'number',  null, 0, 200, false, 'Frame',      13, true, 'pit', false),
-  ('drivetrain',           'Drivetrain',                              'choice',  array['Swerve','Tank (West Coast)','Mecanum','Other'], null, null, false, 'Drivetrain', 20, true, 'pit', false),
-  ('trench_capable',       'Fits under a TRENCH (22.25 in clearance)','boolean', null, null, null, false, 'Drivetrain', 21, true, 'pit', false),
-  ('intake_type',          'Ground intake',                           'choice',  array['Front','Side','Front and side','None'], null, null, false, 'Intake', 30, true, 'pit', false),
-  ('fuel_capacity',        'Max FUEL it can hold',                    'number',  null, 0, 100, false, 'Intake',     31, true, 'pit', false),
-  ('shooter_type',         'Shooter type',                            'choice',  array['Fixed flywheel','Adjustable hood','Turret','Other'], null, null, false, 'Shooter', 40, true, 'pit', false),
-  ('shooter_max_range_ft', 'Max shooting range (ft)',                 'number',  null, 0, 60,  false, 'Shooter',    41, true, 'pit', false),
-  ('tower_max_level',      'Highest TOWER level climbed',             'choice',  array['None','L1','L2','L3'], null, null, false, 'Climb', 50, true, 'pit', false),
-  ('uses_vision',          'Uses AprilTag vision',                    'boolean', null, null, null, false, 'Other',   60, true, 'pit', false),
-  ('auto_strategy',        'Auto routine (notes)',                    'text',    null, null, null, false, 'Other',   61, true, 'pit', false),
-  ('pit_notes',            'Pit notes',                               'text',    null, null, null, false, 'Notes',   70, true, 'pit', false)
+  (key, label, field_type, options, min_value, max_value, required, section, sort_order, active, scope, is_points, reg_limit, allow_unsure) values
+  ('robot_photo',          'Robot photo',                             'image',   null, null, null, false, 'Robot Photo',       1,  true, 'pit', false, null, false),
+  ('frame_length_in',      'Frame length (in)',                       'number',  null, 0, null, false, 'Frame & Weight',     10, true, 'pit', false, null, false),
+  ('frame_width_in',       'Frame width (in)',                        'number',  null, 0, null, false, 'Frame & Weight',     11, true, 'pit', false, null, false),
+  ('frame_height_in',      'Starting height (in)',                    'number',  null, 0, null, false, 'Frame & Weight',     12, true, 'pit', false, 30,   false),
+  ('weight_lb',            'Weight (lb)',                             'number',  null, 0, null, false, 'Frame & Weight',     13, true, 'pit', false, 115,  false),
+  ('drivetrain',           'Drivetrain',                              'choice',  array['Swerve','Tank','West Coast','Mecanum','Other'], null, null, false, 'Drivetrain', 20, true, 'pit', false, null, false),
+  ('trench_capable',       'Fits under a TRENCH (22.25 in clearance)','boolean', null, null, null, false, 'Drivetrain', 21, true, 'pit', false, null, false),
+  ('intake_type',          'Ground intake',                           'choice',  array['Front','Side','Front and side','None'], null, null, false, 'Intake', 30, true, 'pit', false, null, false),
+  ('fuel_capacity',        'Max FUEL it can hold',                    'number',  null, 0, 100, false, 'Intake',     31, true, 'pit', false, null, false),
+  ('shooter_type',         'Shooter type',                            'choice',  array['Fixed flywheel','Adjustable hood','Turret','Other'], null, null, false, 'Shooter', 40, true, 'pit', false, null, false),
+  ('shooter_max_range_ft', 'Max shooting range (ft)',                 'number',  null, 0, 60,  false, 'Shooter',    41, true, 'pit', false, null, true),
+  ('tower_max_level',      'Highest TOWER level climbed',             'choice',  array['None','L1','L2','L3'], null, null, false, 'Climbing', 50, true, 'pit', false, null, false),
+  ('uses_vision',          'Uses AprilTag vision',                    'boolean', null, null, null, false, 'Strategy & Vision', 60, true, 'pit', false, null, false),
+  ('auto_strategy',        'Auto routine (notes)',                    'text',    null, null, null, false, 'Strategy & Vision', 61, true, 'pit', false, null, false),
+  ('pit_notes',            'Pit notes',                               'text',    null, null, null, false, 'Pit Notes',  70, true, 'pit', false, null, false)
 on conflict (key) do update set
   label = excluded.label, field_type = excluded.field_type, options = excluded.options,
   min_value = excluded.min_value, max_value = excluded.max_value, required = excluded.required,
   section = excluded.section, sort_order = excluded.sort_order, active = excluded.active,
-  scope = excluded.scope, is_points = excluded.is_points;
+  scope = excluded.scope, is_points = excluded.is_points,
+  reg_limit = excluded.reg_limit, allow_unsure = excluded.allow_unsure;
 
 
 -- =====================================================================

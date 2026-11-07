@@ -40,19 +40,62 @@
     }
     .scout-tab.active { color: var(--navy); border-bottom-color: var(--blue); }
 
-    /* Section headings inside the dynamic form (Auto, Teleop, Endgame, ...) */
+    /* Section headings inside the dynamic form (Autonomous, Teleop, Endgame, ...) — a colored
+       tab instead of a thin gray rule, so a scout can tell at a glance where one group of
+       fields ends and the next starts without reading every label. */
     .field-section-heading {
       font-family: var(--display);
-      font-size: .8rem;
+      font-size: .9rem;
       font-weight: 700;
-      letter-spacing: .06em;
-      color: var(--muted);
+      letter-spacing: .05em;
+      color: var(--navy);
       text-transform: uppercase;
-      border-bottom: 1px solid var(--line);
-      padding-bottom: .3rem;
-      margin: 1.25rem 0 .75rem;
+      background: var(--tint);
+      border-left: 4px solid var(--blue);
+      padding: .5rem .75rem;
+      margin: 1.5rem 0 1rem;
     }
     .field-section-heading:first-child { margin-top: 0; }
+
+    /* Required/optional labeling on dynamic fields */
+    .field-optional { font-weight: 400; color: var(--muted); font-size: .85em; }
+    .field-required { color: #c0392b; }
+
+    /* Regulation-spec flag: shown next to a value (table cell) or under an input (live form)
+       when a scouted frame dimension / weight is over the FRC limit. Specs are never rejected
+       at save time — see the comment on scout_fields.reg_limit — just flagged everywhere. */
+    .reg-flag {
+      display: inline-block; background: #fde8e8; color: #a83228;
+      font-size: .68rem; font-family: var(--display); font-weight: 700;
+      padding: .05rem .4rem; margin-left: .35rem; vertical-align: middle;
+    }
+    .reg-warn {
+      display: none; color: #a83228; font-size: .78rem; margin-top: .3rem;
+    }
+
+    /* "Other" note box: hidden until a choice field with an "Other" option is set to Other */
+    .other-note-wrap { display: none; margin-top: .4rem; }
+
+    /* "Unsure" checkbox next to a number/slider input */
+    .unsure-toggle { margin-top: .4rem; }
+
+    /* Slider fields: the range input plus a live numeric readout beside it */
+    .slider-row { display: flex; align-items: center; gap: .75rem; }
+    .slider-row input[type="range"] { flex: 1; }
+    .slider-row .slider-val {
+      font-family: var(--display); font-weight: 700; color: var(--navy);
+      min-width: 1.6rem; text-align: center;
+    }
+    .slider-scale { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin-top: .1rem; }
+
+    /* Picture fields: a styled "Choose File" trigger + filename text standing in for the
+       native file input, which can't be restyled consistently across browsers. */
+    .file-field { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .file-name { font-size: .85rem; color: var(--muted); }
+    .visually-hidden-file {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
 
     /* Recent entries table */
     .entries-section h3 { font-size: 1.1rem; margin-bottom: .75rem; }
@@ -149,7 +192,6 @@
        camera right on the page, via the #cameraModal below, instead of handing off to a
        separate camera app. */
     .photo-field-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-    .photo-field-row input[type="file"] { flex: 1; min-width: 160px; }
     #cameraVideo, #cameraCanvas { width: 100%; background: #000; }
     #cameraCanvas { display: none; }
   </style>
@@ -252,12 +294,12 @@
 
         <div class="form-row">
           <div class="form-group col-6 col-md-4">
-            <label for="fTeam">Team #</label>
+            <label for="fTeam">Team # <span class="field-required">*</span></label>
             <input type="number" id="fTeam" class="form-control" min="1" max="99999" required>
           </div>
           <!-- Match number only applies to match scouting; pit mode hides this group -->
           <div class="form-group col-6 col-md-4" id="matchGroup">
-            <label for="fMatch">Match # <small class="text-muted">(optional)</small></label>
+            <label for="fMatch">Match #</label>
             <input type="number" id="fMatch" class="form-control" min="1" max="500">
           </div>
         </div>
@@ -386,6 +428,15 @@
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
     function get(id) { return document.getElementById(id); }
+
+    // Label text for a dynamic field: a red "*" when staff marked it required, a muted
+    // "(optional)" otherwise, so that marker is consistent across every field instead of
+    // only ever appearing on the hardcoded Match # box.
+    function fieldLabelHtml(f) {
+      return esc(f.label) + (f.required
+        ? ' <span class="field-required">*</span>'
+        : ' <span class="field-optional">(optional)</span>');
+    }
 
     // ── In-page camera capture for picture fields ─────────────────────
     // Opens the device camera inside #cameraModal so a scout can take a photo without leaving
@@ -627,6 +678,16 @@
       return order.reduce(function (out, sec) { return out.concat(groups[sec]); }, []);
     }
 
+    // Fields that have a "note box" companion, shown only once the field's value is "Other",
+    // and the note field automatically accepted by the backend as "<key>__other_note" without
+    // staff having to add a separate row for it (see the comment on validate_data() in
+    // rebuild_all.sql). Works for any choice field whose options include "Other".
+    function hasOtherOption(f) { return f.field_type === "choice" && (f.options || []).indexOf("Other") !== -1; }
+
+    // A field value scored against scout_fields.reg_limit — an FRC spec limit that's flagged,
+    // not enforced (see the comment on that column in rebuild_all.sql).
+    function overRegLimit(f, v) { return f.reg_limit != null && v != null && v !== "" && Number(v) > Number(f.reg_limit); }
+
     // Build the form for the active tab. Booleans become checkboxes.
     function buildForm() {
       var container = get("dynamicFields");
@@ -653,19 +714,21 @@
           cb.id = "field_" + f.key; cb.dataset.fieldKey = f.key;
           var cbLabel = document.createElement("label");
           cbLabel.className = "custom-control-label";
-          cbLabel.htmlFor = cb.id; cbLabel.textContent = f.label;
+          cbLabel.htmlFor = cb.id; cbLabel.innerHTML = fieldLabelHtml(f);
           wrap.appendChild(cb); wrap.appendChild(cbLabel);
           group.appendChild(wrap);
           container.appendChild(group);
           return;
         }
 
-        // Picture fields: a file input (camera-capable on mobile) plus a preview of what's picked /
-        // already saved. The actual upload happens on save, not here — see uploadImageFields().
+        // Picture fields: a styled "Choose File" trigger (the native file input is visually
+        // hidden but still reachable via its <label for=...>, so it stays fully accessible)
+        // plus a preview of what's picked / already saved. The actual upload happens on save,
+        // not here — see uploadImageFields().
         if (f.field_type === "image") {
           var label2 = document.createElement("label");
           label2.htmlFor = "field_" + f.key;
-          label2.textContent = f.label + (f.required ? " *" : "");
+          label2.innerHTML = fieldLabelHtml(f);
           group.appendChild(label2);
 
           var preview = document.createElement("div");
@@ -674,22 +737,39 @@
           group.appendChild(preview);
 
           var row = document.createElement("div");
-          row.className = "photo-field-row";
+          row.className = "photo-field-row file-field";
 
           var fileInput = document.createElement("input");
           fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.capture = "environment";
-          fileInput.className = "form-control-file";
+          fileInput.className = "visually-hidden-file";
           fileInput.id = "field_" + f.key;
           fileInput.dataset.fieldKey = f.key;
           fileInput.dataset.fieldType = f.field_type;
+
+          var fileTrigger = document.createElement("label");
+          fileTrigger.className = "btn btn-outline-secondary btn-sm mb-0";
+          fileTrigger.htmlFor = fileInput.id;
+          fileTrigger.textContent = "Choose File";
+
+          var fileName = document.createElement("span");
+          fileName.className = "file-name";
+          fileName.id = "filename_" + f.key;
+          fileName.textContent = "No file chosen";
+
           fileInput.addEventListener("change", function () {
             var key = this.dataset.fieldKey;
             var p = get("preview_" + key);
+            var nameEl = get("filename_" + key);
             if (this.files && this.files[0]) {
+              nameEl.textContent = this.files[0].name;
               p.innerHTML = '<img src="' + URL.createObjectURL(this.files[0]) + '" style="height:70px;width:70px;object-fit:cover;border:1px solid var(--line);">' +
                 ' <small class="text-muted">New photo selected</small>';
+            } else {
+              nameEl.textContent = "No file chosen";
             }
           });
+          row.appendChild(fileTrigger);
+          row.appendChild(fileName);
           row.appendChild(fileInput);
 
           var camBtn = document.createElement("button");
@@ -704,14 +784,36 @@
           return;
         }
 
-        // Everything else: a label plus a number box, text box, or dropdown
+        // Everything else: a label plus a number box, slider, text box, or dropdown
         var label = document.createElement("label");
         label.htmlFor = "field_" + f.key;
-        label.textContent = f.label + (f.required ? " *" : "");
+        label.innerHTML = fieldLabelHtml(f);
         group.appendChild(label);
 
         var input;
-        if (f.field_type === "number") {
+        if (f.field_type === "slider") {
+          // Range input with a live numeric readout and low/high end labels, instead of a
+          // plain number box, for small bounded scales like shooting accuracy.
+          var sliderRow = document.createElement("div");
+          sliderRow.className = "slider-row";
+          input = document.createElement("input");
+          input.type = "range"; input.className = "form-control-range";
+          input.min = f.min_value != null ? f.min_value : 1;
+          input.max = f.max_value != null ? f.max_value : 5;
+          input.step = "1";
+          input.value = Math.round(((Number(input.min) + Number(input.max)) / 2));
+          var sliderVal = document.createElement("span");
+          sliderVal.className = "slider-val";
+          sliderVal.textContent = input.value;
+          input.addEventListener("input", function () { sliderVal.textContent = this.value; });
+          sliderRow.appendChild(input);
+          sliderRow.appendChild(sliderVal);
+          group.appendChild(sliderRow);
+          var scale = document.createElement("div");
+          scale.className = "slider-scale";
+          scale.innerHTML = "<span>" + esc(input.min) + " · Poor</span><span>" + esc(input.max) + " · Great</span>";
+          group.appendChild(scale);
+        } else if (f.field_type === "number") {
           input = document.createElement("input");
           input.type = "number"; input.step = "any"; input.className = "form-control";
           if (f.min_value != null) input.min = f.min_value;
@@ -735,8 +837,91 @@
         input.id = "field_" + f.key;   // getFormValues / setFormValues find inputs by this id
         input.dataset.fieldKey = f.key;
         input.dataset.fieldType = f.field_type;
-        group.appendChild(input);
+        if (f.field_type !== "slider") group.appendChild(input);
+
+        // Spec fields (reg_limit set): a hidden warning that appears under the input the
+        // moment the value goes over the FRC limit — the value still saves either way.
+        if (f.reg_limit != null) {
+          var warn = document.createElement("div");
+          warn.className = "reg-warn";
+          warn.id = "regwarn_" + f.key;
+          warn.innerHTML = '<i class="fa fa-exclamation-triangle"></i> Exceeds the ' + esc(f.reg_limit) + ' limit — still saved, but flagged everywhere.';
+          group.appendChild(warn);
+          var checkReg = function () {
+            warn.style.display = overRegLimit(f, input.value) ? "" : "none";
+          };
+          input.addEventListener("input", checkReg);
+        }
+
+        // "Unsure" checkbox (number/slider fields with allow_unsure): disables and clears the
+        // input, and saves "<key>__unsure": true instead of a number.
+        if (f.allow_unsure && (f.field_type === "number" || f.field_type === "slider")) {
+          var unsureWrap = document.createElement("div");
+          unsureWrap.className = "custom-control custom-checkbox unsure-toggle";
+          var unsureCb = document.createElement("input");
+          unsureCb.type = "checkbox"; unsureCb.className = "custom-control-input";
+          unsureCb.id = "field_" + f.key + "__unsure";
+          unsureCb.dataset.unsureFor = f.key;
+          var unsureLabel = document.createElement("label");
+          unsureLabel.className = "custom-control-label";
+          unsureLabel.htmlFor = unsureCb.id;
+          unsureLabel.textContent = "Unsure";
+          unsureWrap.appendChild(unsureCb); unsureWrap.appendChild(unsureLabel);
+          unsureCb.addEventListener("change", function () {
+            input.disabled = this.checked;
+            if (this.checked) { input.value = ""; var w = get("regwarn_" + f.key); if (w) w.style.display = "none"; }
+          });
+          group.appendChild(unsureWrap);
+        }
+
+        // "Other" note box (choice fields with an "Other" option): hidden until Other is picked
+        if (hasOtherOption(f)) {
+          var noteWrap = document.createElement("div");
+          noteWrap.className = "other-note-wrap";
+          noteWrap.id = "notewrap_" + f.key;
+          var noteInput = document.createElement("input");
+          noteInput.type = "text"; noteInput.className = "form-control form-control-sm";
+          noteInput.maxLength = 300;
+          noteInput.placeholder = "Say more about \"Other\"…";
+          noteInput.id = "field_" + f.key + "__other_note";
+          noteInput.dataset.otherNoteFor = f.key;
+          noteWrap.appendChild(noteInput);
+          group.appendChild(noteWrap);
+          input.addEventListener("change", function () {
+            get("notewrap_" + f.key).style.display = this.value === "Other" ? "" : "none";
+          });
+        }
+
         container.appendChild(group);
+      });
+      wireAutoTotals();
+    }
+
+    // ── FUEL total autofill ─────────────────────────────────────────
+    // Auto/teleop FUEL totals autofill from volley count x FUEL per volley. Editing the total
+    // directly "sticks" — it's left alone until one of the two inputs it's derived from changes
+    // again, at which point the total is recalculated and the manual value is overwritten.
+    var AUTO_TOTAL_RULES = {
+      auto_fuel_hub:   ["auto_volleys", "auto_fuel_per_volley"],
+      teleop_fuel_hub: ["teleop_volleys", "teleop_fuel_per_volley"]
+    };
+    var autoTotalManual = {};   // totalKey -> true once it's been hand-edited since the last dep change
+    function wireAutoTotals() {
+      Object.keys(AUTO_TOTAL_RULES).forEach(function (totalKey) {
+        var totalEl = get("field_" + totalKey);
+        var depKeys = AUTO_TOTAL_RULES[totalKey];
+        var depEls = depKeys.map(function (k) { return get("field_" + k); });
+        if (!totalEl || depEls.indexOf(null) !== -1) return;   // this tab doesn't have all three fields active
+
+        if (!(totalKey in autoTotalManual)) autoTotalManual[totalKey] = true;   // leave as-is until a dep changes
+        totalEl.addEventListener("input", function () { autoTotalManual[totalKey] = true; });
+        depEls.forEach(function (el) {
+          el.addEventListener("input", function () {
+            autoTotalManual[totalKey] = false;
+            var vals = depEls.map(function (e) { return parseFloat(e.value); });
+            if (!vals.some(isNaN)) totalEl.value = vals[0] * vals[1];
+          });
+        });
       });
     }
 
@@ -752,11 +937,20 @@
           data[f.key] = !!(cb && cb.checked);   // unchecked is saved as false
           return;
         }
+        if (f.allow_unsure && (f.field_type === "number" || f.field_type === "slider")) {
+          var unsureCb = get("field_" + f.key + "__unsure");
+          if (unsureCb && unsureCb.checked) { data[f.key + "__unsure"] = true; return; }
+        }
         var el = get("field_" + f.key);
         if (!el) return;
         var val = el.value.trim();
-        if (val === "") return;
-        data[f.key] = f.field_type === "number" ? parseFloat(val) : val;
+        if (val !== "") data[f.key] = (f.field_type === "number" || f.field_type === "slider") ? parseFloat(val) : val;
+        // "Other" note: only kept when the choice is actually set to Other
+        if (hasOtherOption(f) && val === "Other") {
+          var noteEl = get("field_" + f.key + "__other_note");
+          var noteVal = noteEl ? noteEl.value.trim() : "";
+          if (noteVal) data[f.key + "__other_note"] = noteVal;
+        }
       });
       return data;
     }
@@ -802,19 +996,42 @@
           return;
         }
         var el = get("field_" + f.key);
-        if (el && data[f.key] != null) el.value = data[f.key];
+        if (f.allow_unsure && (f.field_type === "number" || f.field_type === "slider")) {
+          var unsureCb = get("field_" + f.key + "__unsure");
+          var isUnsure = !!data[f.key + "__unsure"];
+          if (unsureCb) unsureCb.checked = isUnsure;
+          if (el) el.disabled = isUnsure;
+        }
+        if (el && data[f.key] != null) {
+          el.value = data[f.key];
+          if (f.field_type === "slider") {
+            var sv = el.parentElement.querySelector(".slider-val");
+            if (sv) sv.textContent = el.value;
+          }
+          var w = get("regwarn_" + f.key);
+          if (w) w.style.display = overRegLimit(f, el.value) ? "" : "none";
+        }
+        if (hasOtherOption(f)) {
+          var noteWrap = get("notewrap_" + f.key);
+          var noteEl = get("field_" + f.key + "__other_note");
+          if (noteWrap) noteWrap.style.display = (el && el.value === "Other") ? "" : "none";
+          if (noteEl) noteEl.value = data[f.key + "__other_note"] || "";
+        }
       });
     }
 
     // Clear the form and return it to "new entry" state
     function resetEntryForm() {
       get("fTeam").value = ""; get("fMatch").value = "";
+      autoTotalManual = {};   // fresh entry: FUEL totals should autofill again once typed into
       activeFields().forEach(function(f) {
         if (f.field_type === "image") {
           var el = get("field_" + f.key);
           if (el) el.value = "";
           var p = get("preview_" + f.key);
           if (p) p.innerHTML = "";
+          var nameEl = get("filename_" + f.key);
+          if (nameEl) nameEl.textContent = "No file chosen";
           return;
         }
         if (f.field_type === "boolean") {
@@ -822,7 +1039,29 @@
           if (cb) cb.checked = false;
         } else {
           var el2 = get("field_" + f.key);
-          if (el2) el2.value = "";
+          if (el2) {
+            el2.disabled = false;
+            if (f.field_type === "slider") {
+              var mid = Math.round((Number(el2.min) + Number(el2.max)) / 2);
+              el2.value = mid;
+              var sv = el2.parentElement.querySelector(".slider-val");
+              if (sv) sv.textContent = mid;
+            } else {
+              el2.value = "";
+            }
+          }
+          if (f.allow_unsure) {
+            var unsureCb = get("field_" + f.key + "__unsure");
+            if (unsureCb) unsureCb.checked = false;
+          }
+          var w = get("regwarn_" + f.key);
+          if (w) w.style.display = "none";
+          if (hasOtherOption(f)) {
+            var noteWrap = get("notewrap_" + f.key);
+            if (noteWrap) noteWrap.style.display = "none";
+            var noteEl = get("field_" + f.key + "__other_note");
+            if (noteEl) noteEl.value = "";
+          }
         }
       });
       editingId = null;
@@ -901,6 +1140,24 @@
     }
 
     // Draw the match table: one column per active match field, plus team, match, and actions
+    // Shared cell renderer for both tables: "Unsure", the choice's "Other" note, and an
+    // over-the-limit flag on spec fields all need the same treatment whether it's a match row
+    // or a pit row.
+    function cellHtml(entry, f) {
+      var d = entry.data || {};
+      if (f.allow_unsure && d[f.key + "__unsure"]) return "Unsure";
+      var v = d[f.key];
+      if (v == null || v === "") return "—";
+      if (f.field_type === "boolean") return v ? "Yes" : "No";
+      if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:32px;width:32px;object-fit:cover;"></a>';
+      var html = esc(v);
+      if (hasOtherOption(f) && v === "Other" && d[f.key + "__other_note"]) {
+        html += ' <small class="text-muted">(' + esc(d[f.key + "__other_note"]) + ')</small>';
+      }
+      if (overRegLimit(f, v)) html += ' <span class="reg-flag" title="Exceeds the ' + esc(f.reg_limit) + ' limit">Over limit</span>';
+      return html;
+    }
+
     function renderMatchTable() {
       var thead = document.querySelector("#entryTable thead");
       var tbody = document.querySelector("#entryTable tbody");
@@ -919,13 +1176,7 @@
       var filtered = allEntries.filter(matchesFilter);
       tbody.innerHTML = filtered.map(function(entry) {
         var cells = [entry.team_number, entry.match_number || "—"];
-        list.forEach(function(f) {
-          var v = entry.data ? entry.data[f.key] : null;
-          if (v == null) { cells.push("—"); return; }
-          if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
-          else if (f.field_type === "image") cells.push('<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:32px;width:32px;object-fit:cover;"></a>');
-          else cells.push(esc(v));
-        });
+        list.forEach(function(f) { cells.push(cellHtml(entry, f)); });
         // Staff can change any entry; students only the ones they scouted
         var canEdit = isStaff || entry.scouted_by === userId;
         var actions = canEdit
@@ -957,13 +1208,7 @@
       var filtered = allPit.filter(matchesFilter);
       tbody.innerHTML = filtered.map(function(entry) {
         var cells = [entry.team_number];
-        list.forEach(function(f) {
-          var v = entry.data ? entry.data[f.key] : null;
-          if (v == null || v === "") { cells.push("—"); return; }
-          if (f.field_type === "boolean") cells.push(v ? "Yes" : "No");
-          else if (f.field_type === "image") cells.push('<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:32px;width:32px;object-fit:cover;"></a>');
-          else cells.push(esc(v));
-        });
+        list.forEach(function(f) { cells.push(cellHtml(entry, f)); });
         // Pit data is shared by the team, so any member can edit it
         cells.push(
           '<button class="btn-icon mr-1" onclick="editPit(\'' + entry.id + '\')"><i class="fa fa-pencil"></i></button>' +
@@ -1005,6 +1250,10 @@
           continue;
         }
         if (!f.required || f.field_type === "boolean") continue;
+        if (f.allow_unsure) {
+          var unsureCb = get("field_" + f.key + "__unsure");
+          if (unsureCb && unsureCb.checked) continue;   // "Unsure" is a valid answer
+        }
         var el = get("field_" + f.key);
         if (!el || el.value.trim() === "") { toast(f.label + " is required.", true); return; }
       }

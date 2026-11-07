@@ -152,6 +152,15 @@
     .info-grid dt { color: var(--muted); font-weight: 500; }
     .info-grid dd { margin: 0; word-break: break-word; }
 
+    /* Flags a frame/weight spec over the FRC limit — see scout_fields.reg_limit. Specs aren't
+       rejected at save time, just flagged everywhere a value shows up (here and on the Scout
+       page's own tables/form). */
+    .reg-flag {
+      display: inline-block; background: #fde8e8; color: #a83228;
+      font-size: .62rem; text-transform: uppercase; letter-spacing: .03em;
+      font-weight: 700; padding: .05rem .4rem; margin-left: .35rem; vertical-align: middle;
+    }
+
     .match-table { font-size: .86rem; }
     .match-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; white-space: nowrap; }
     .match-table td { border-top: 1px solid var(--line); white-space: nowrap; }
@@ -377,11 +386,23 @@
     var e = eventsById[id];
     return e && e.event_date ? new Date(String(e.event_date).slice(0, 10) + "T00:00:00Z").getTime() : 0;
     }
-    function cell(v, f) {
+    // data is the whole match/pit data object the value came from, so "Unsure" and an "Other"
+    // note (both stored under "<key>__unsure" / "<key>__other_note" instead of a scout_fields
+    // row — see the comment on validate_data() in rebuild_all.sql) can be shown alongside it.
+    function cell(v, f, data) {
+      data = data || {};
+      if (f.allow_unsure && data[f.key + "__unsure"]) return "Unsure";
       if (v == null || v === "") return "—";
       if (f.field_type === "boolean") return v ? "Yes" : "No";
       if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:40px;width:40px;object-fit:cover;"></a>';
-      return esc(v);
+      var html = esc(v);
+      if (f.field_type === "choice" && v === "Other" && data[f.key + "__other_note"]) {
+        html += ' <span class="text-muted" style="font-size:.85em;">(' + esc(data[f.key + "__other_note"]) + ')</span>';
+      }
+      if (f.reg_limit != null && Number(v) > Number(f.reg_limit)) {
+        html += ' <span class="reg-flag" title="Exceeds the ' + esc(f.reg_limit) + ' limit">Over limit</span>';
+      }
+      return html;
     }
 
     // ── Data ─────────────────────────────────────────────────────────
@@ -731,8 +752,9 @@
       } else {
         var rows = pFields.map(function (f) {
           var v = pit.data ? pit.data[f.key] : null;
-          if (v == null || v === "") return "";
-          return "<dt>" + esc(f.label) + "</dt><dd>" + cell(v, f) + "</dd>";
+          var unsure = f.allow_unsure && pit.data && pit.data[f.key + "__unsure"];
+          if ((v == null || v === "") && !unsure) return "";
+          return "<dt>" + esc(f.label) + "</dt><dd>" + cell(v, f, pit.data) + "</dd>";
         }).join("");
         paramsHtml = (rows
             ? '<dl class="info-grid">' + rows + "</dl>"
@@ -745,7 +767,7 @@
       var matchCols = ["Event", "Match"].concat(mFields.map(function (f) { return f.label; }));
       var matchRows = matches.map(function (m) {
         return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + (m.match_number || "—") + "</td>" +
-          mFields.map(function (f) { return "<td>" + cell(m.data ? m.data[f.key] : null, f) + "</td>"; }).join("") +
+          mFields.map(function (f) { return "<td>" + cell(m.data ? m.data[f.key] : null, f, m.data) + "</td>"; }).join("") +
           "</tr>";
       }).join("");
 
