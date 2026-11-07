@@ -92,6 +92,8 @@ Key tables/functions to know when touching 1307scout:
 - `official-sync` is a separate Supabase Edge Function (not in this repo) that needs its own
   deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
+  Competition-day auto-sync is `events.auto_sync` (one event at a time, set through
+  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 5 minutes.
   `manage-member` is a separate Edge Function used by the Staff Portal for member management.
   Its deployed slug is `bright-responder`, so that is the name `portal.html` invokes.
   `delete-account` is a separate Edge Function behind the My Account delete button. Both must

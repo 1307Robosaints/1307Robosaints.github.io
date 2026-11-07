@@ -129,6 +129,7 @@
       font-size: .68rem; font-family: var(--display); font-weight: 600; vertical-align: middle;
     }
     .btn-icon.star-on { color: #d4af37; border-color: #d4af37; }
+    .btn-icon.auto-on { color: var(--blue); border-color: var(--blue); }
 
     .ti-row {
       display: grid;
@@ -465,6 +466,8 @@
           <button class="btn btn-outline-secondary btn-sm" id="syncAllBtn" type="button">Resync All</button>
         </div>
       </div>
+
+      <div id="autoSyncStatus" class="small text-muted mb-2 d-none"></div>
 
       <div class="table-wrap">
         <div class="event-row-header">
@@ -983,6 +986,7 @@
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
       renderEvents();
+      renderAutoSyncStatus();
       populateEventSelect();
     }
     var TIER_SORT_ORDER = { championship: 0, district_championship: 1, qualifier: 2, offseason: 3 };
@@ -1019,7 +1023,8 @@
       el.innerHTML = list.map(function (ev) {
         return '<div class="event-row">' +
           '<span><strong>' + esc(ev.name) + '</strong>' +
-            (ev.is_default_event ? '<span class="badge-default">Default</span>' : '') + '</span>' +
+            (ev.is_default_event ? '<span class="badge-default">Default</span>' : '') +
+            (ev.auto_sync ? '<span class="badge-default">Auto-sync</span>' : '') + '</span>' +
           '<span>' + tierBadge(ev.event_tier) + '</span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
           '<span>' + fmt(ev.event_date) + '</span>' +
@@ -1030,7 +1035,10 @@
               'onclick="setDefaultEvent(\'' + ev.id + '\', ' + !!ev.is_default_event + ')">' +
               '<i class="fa ' + (ev.is_default_event ? "fa-star" : "fa-star-o") + '"></i></button>' +
             ((ev.frc_event_code || ev.tba_event_key)
-              ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>'
+              ? '<button class="btn-icon" title="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>' +
+                '<button class="btn-icon' + (ev.auto_sync ? ' auto-on' : '') + '" ' +
+                  'title="' + (ev.auto_sync ? "Auto-syncing every 5 minutes — click to stop" : "Auto-sync this event every 5 minutes") + '" ' +
+                  'onclick="setAutoSync(\'' + ev.id + '\', ' + !!ev.auto_sync + ')"><i class="fa fa-clock-o"></i></button>'
               : '') +
             '<button class="btn-icon" title="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
             '<button class="btn-icon danger" onclick="deleteEvent(\'' + ev.id + '\')"><i class="fa fa-trash"></i></button>' +
@@ -1175,6 +1183,28 @@
       loadEvents();
     };
 
+    // Competition-day auto-sync: the server refreshes this one event every 5 minutes (pg_cron
+    // calling run_auto_sync() in rebuild_all.sql), so it keeps running with this page closed.
+    window.setAutoSync = async function (id, wasOn) {
+      var r = await sb.rpc("set_auto_sync_event", { p_event_id: wasOn ? null : id });
+      if (r.error) { toast("Couldn't update auto-sync: " + r.error.message, true); return; }
+      toast(wasOn ? "Auto-sync stopped." : "Auto-sync on. This event now refreshes every 5 minutes.");
+      loadEvents();
+    };
+    function renderAutoSyncStatus() {
+      var el = document.getElementById("autoSyncStatus");
+      var ev = events.filter(function (e) { return e.auto_sync; })[0];
+      el.classList.toggle("d-none", !ev);
+      if (!ev) return;
+      var p = ev.official_sync_note ? parseSyncNote(ev.official_sync_note) : null;
+      var last = new Date(p ? p.when : ev.official_synced_at);
+      el.innerHTML = '<i class="fa fa-clock-o"></i> Auto-syncing <strong>' + esc(ev.name) + '</strong> ' +
+        'every 5 minutes on the clock (9:35, 9:40, 9:45…). Last sync: ' +
+        (ev.official_synced_at || p
+          ? esc(last.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))
+          : "none yet") + '.';
+    }
+
     // Resyncs every event that has an FRC/TBA code, one at a time (not in parallel — the
     // official-sync function calls the FRC Events / TBA APIs per event, and firing a burst of
     // those at once risks tripping their rate limits).
@@ -1182,6 +1212,8 @@
       var btn = this;
       var linked = events.filter(function (ev) { return ev.frc_event_code || ev.tba_event_key; });
       if (!linked.length) { toast("No events are linked to an FRC/TBA code yet.", true); return; }
+      if (!confirm("Resync all " + linked.length + " linked event" + (linked.length === 1 ? "" : "s") + "?\n\n" +
+        "Events sync one at a time, so this can take a long time. Keep this page open until it finishes.")) return;
       btn.disabled = true;
       var okCount = 0, failed = [];
       for (var i = 0; i < linked.length; i++) {

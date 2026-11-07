@@ -293,6 +293,64 @@ end $$;
 revoke all on function public.set_default_event(uuid) from public, anon;
 grant execute on function public.set_default_event(uuid) to authenticated;
 
+-- Competition-day auto-sync: the one event refreshed from FRC/TBA every 5 minutes, chosen by
+-- staff with the clock button on an event row. Same one-at-a-time index as the default event.
+-- The schedule itself is a pg_cron job calling run_auto_sync() (see section 15).
+alter table public.events add column if not exists auto_sync boolean not null default false;
+create unique index if not exists events_one_auto_sync_idx
+  on public.events ((auto_sync)) where auto_sync;
+
+-- Moves the auto-sync flag to p_event_id in one request. Pass null to turn auto-sync off.
+create or replace function public.set_auto_sync_event(p_event_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_staff() then
+    raise exception 'Only staff can set the auto-sync event.';
+  end if;
+  if p_event_id is not null and not exists (
+    select 1 from public.events
+    where id = p_event_id and (frc_event_code is not null or tba_event_key is not null)
+  ) then
+    raise exception 'Link this event to an FRC or TBA code before turning on auto-sync.';
+  end if;
+  update public.events set auto_sync = false where auto_sync;
+  if p_event_id is not null then
+    update public.events set auto_sync = true where id = p_event_id;
+  end if;
+end $$;
+revoke all on function public.set_auto_sync_event(uuid) from public, anon;
+grant execute on function public.set_auto_sync_event(uuid) to authenticated;
+
+-- Called by pg_cron only. Sends force=true because the Edge Function otherwise skips events
+-- synced under 90 seconds ago, which would drop a tick right after a manual sync. The longer
+-- timeout is because pg_net's 5 second default is shorter than a full sync can take.
+-- Turns itself off 4 days after the event, so a forgotten flag can't poll the APIs forever.
+create or replace function public.run_auto_sync() returns void
+language plpgsql set search_path = '' as $$
+declare
+  v_event  uuid;
+  v_secret text;
+begin
+  update public.events set auto_sync = false
+    where auto_sync and event_date < (now() at time zone 'America/New_York')::date - 4;
+
+  select id into v_event from public.events
+    where auto_sync and (frc_event_code is not null or tba_event_key is not null);
+  if v_event is null then return; end if;
+
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'sync_secret';
+  if v_secret is null then
+    raise exception 'Vault secret sync_secret is missing (see section 15).';
+  end if;
+
+  perform net.http_post(
+    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/official-sync',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+    body    := jsonb_build_object('event_id', v_event, 'force', true),
+    timeout_milliseconds := 60000);
+end $$;
+revoke all on function public.run_auto_sync() from public, anon, authenticated;
+
 -- Backfill the tier of events already in the table from earlier imports (safe to re-run;
 -- only touches rows that already exist, and only sets non-default tiers).
 update public.events set event_tier = 'offseason'
@@ -1818,6 +1876,15 @@ on conflict (user_id) do nothing;
 -- $job$);
 --
 --     To stop it:  select cron.unschedule('official-sync');
+--
+--     Competition-day auto-sync: refreshes the one event staff picked with the
+--     clock button in the Staff Portal, at every 5-minute mark of the clock
+--     (9:35, 9:40, 9:45...). It does nothing while no event is picked, so it
+--     can stay scheduled all season. Needs steps 1 and 2 above, then run once:
+--
+-- select cron.schedule('auto-sync-event', '*/5 * * * *', 'select public.run_auto_sync()');
+--
+--     To stop it:  select cron.unschedule('auto-sync-event');
 -- =====================================================================
 
 
@@ -1914,10 +1981,18 @@ declare
   v_id      text;
   v_summary text;
   v_verb    text;
+  v_sync_cols constant text[] := array['official_synced_at', 'tba_etag', 'frc_last_modified',
+                                       'official_sync_status', 'official_sync_note'];
 begin
   -- A share-code redemption only bumps its counters. Logging that would add a row per use.
   if TG_TABLE_NAME = 'share_codes' and TG_OP = 'UPDATE'
      and to_jsonb(NEW) - 'use_count' - 'last_used_at' = to_jsonb(OLD) - 'use_count' - 'last_used_at' then
+    return NEW;
+  end if;
+
+  -- Same for a sync's bookkeeping columns, or auto-sync would add a row every 5 minutes.
+  if TG_TABLE_NAME = 'events' and TG_OP = 'UPDATE'
+     and to_jsonb(NEW) - v_sync_cols = to_jsonb(OLD) - v_sync_cols then
     return NEW;
   end if;
 
@@ -2072,6 +2147,7 @@ with expected(kind, name) as (values
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
+  ('function','set_auto_sync_event'), ('function','run_auto_sync'),
   ('function','photo_cleanup_paths'), ('function','photo_is_orphaned'), ('function','photo_in_use'),
   ('function','log_action'), ('function','purge_old_audit_log'), ('function','staff_search_audit_log'),
   ('bucket','scouting-photos'), ('bucket','team-logos')

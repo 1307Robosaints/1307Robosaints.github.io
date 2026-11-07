@@ -22,7 +22,8 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
-  entries are deleted automatically after 6 months).
+  entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
+  The clock button on an event row turns on competition-day auto-sync for that event.
 
 Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
 row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.
@@ -44,6 +45,11 @@ what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
 Robot photos uploaded from the Scout page land in a public Supabase Storage bucket
 (`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo
 queues the file, and the Scout page and Staff Portal remove it through the Storage API.
+
+**Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA at every 5-minute mark
+of the clock (9:35, 9:40, 9:45...). It runs on the server through `pg_cron`, so nobody has to keep
+a page open, and turns itself off 4 days after the event date. The job is scheduled once by hand:
+see section 15 of `SQL/rebuild_all.sql`.
 
 ## Contact form
 
