@@ -70,6 +70,9 @@ Key tables/functions to know when touching 1307scout:
   `'image'`, which drives a file/camera picker on the Scout page that uploads to the
   `scouting-photos` Storage bucket and stores the resulting public URL as the field's string
   value.
+- `photo_cleanup_queue` — photo files nothing uses any more, queued by triggers on the entry
+  tables. SQL can't delete Storage files, so `scout.html` and `portal.html` call
+  `photo_cleanup_paths()` and remove them through the Storage API.
 - `purge_member_data()` — removes what a banned or deleted account entered; `service_role`
   only, called by `manage-member` and `delete-account`, which then remove the photo files it
   returns through the Storage API.

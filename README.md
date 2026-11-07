@@ -21,7 +21,8 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
   A team's card also shows its name and logo if staff have set one on the Team Info tab.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
-  mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list).
+  mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
+  entries are deleted automatically after 6 months).
 
 Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
 row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.
@@ -41,7 +42,8 @@ FRC/TBA code, etc.) — row-only changes that don't touch the schema. They're ke
 what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
 
 Robot photos uploaded from the Scout page land in a public Supabase Storage bucket
-(`scouting-photos`), created by `rebuild_all.sql`.
+(`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo
+queues the file, and the Scout page and Staff Portal remove it through the Storage API.
 
 ## Contact form
 

@@ -936,6 +936,14 @@
       return String(s == null ? "" : s)
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     }
+    // Removes photo files the database has marked as no longer used, such as those from a deleted
+    // event (see photo_cleanup_paths() in rebuild_all.sql). Leftovers go on the next run.
+    async function cleanUpPhotos() {
+      try {
+        var r = await sb.rpc("photo_cleanup_paths");
+        if (!r.error && r.data && r.data.length) await sb.storage.from("scouting-photos").remove(r.data);
+      } catch (e) { console.warn("Photo cleanup skipped:", e); }
+    }
     // Disables a save button until its handler finishes, so a double-click can't submit twice
     function guarded(fn) {
       return async function () {
@@ -1273,6 +1281,7 @@
       if (r.error || !r.data.length) { toast("Couldn't delete event.", true); return; }
       toast("Event deleted.");
       loadEvents();
+      cleanUpPhotos();
     };
 
     // ══════════════════════════════════════════════════════════════════
@@ -1898,6 +1907,7 @@
     // ── Boot ─────────────────────────────────────────────────────────
     await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams(), loadTeamInfo()]);
     loadMembers();
+    cleanUpPhotos();
     loadAuditLog(false);
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.

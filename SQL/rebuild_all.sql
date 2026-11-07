@@ -50,6 +50,9 @@
 -- entries stamp their own editor and time. If this project is ever moved to a new Supabase
 -- ref, update the URL pattern in validate_data() (section 6).
 --
+-- Photo cleanup update: deleting an entry or replacing its photo now queues the old file for
+-- removal, and the Scout page and Staff Portal delete it through the Storage API (section 9b).
+--
 -- Later update: events now have an event_tier ('offseason', 'qualifier',
 -- 'district_championship', or 'championship'), set per event in the Staff
 -- Portal. team_official_ratings() (section 9) weights each match by its
@@ -1144,6 +1147,11 @@ $$;
 --
 --    The bucket is public so a saved photo URL renders directly as an
 --    <img>, including on guest share pages, without a signed request.
+--
+--    Because of that, a file must really be removed once nothing uses it. SQL can't delete
+--    Storage files, so triggers below record the path in photo_cleanup_queue when an entry is
+--    deleted (including through an event cascade) or its photo replaced. The Scout page and
+--    Staff Portal then call photo_cleanup_paths() and remove those files through the Storage API.
 -- =====================================================================
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('scouting-photos', 'scouting-photos', true, 10485760,
@@ -1157,6 +1165,7 @@ drop policy if exists "team replaces scouting photos" on storage.objects;
 drop policy if exists "anyone views scouting photos" on storage.objects;
 drop policy if exists "team lists scouting photos" on storage.objects;
 drop policy if exists "staff deletes scouting photos" on storage.objects;
+drop policy if exists "team deletes orphaned scouting photos" on storage.objects;
 
 create policy "team uploads scouting photos" on storage.objects for insert to authenticated
   with check (bucket_id = 'scouting-photos' and ((select public.is_staff()) or (select public.is_student())));
@@ -1172,6 +1181,91 @@ create policy "team lists scouting photos" on storage.objects for select to auth
   using (bucket_id = 'scouting-photos' and ((select public.is_staff()) or (select public.is_student())));
 create policy "staff deletes scouting photos" on storage.objects for delete to authenticated
   using (bucket_id = 'scouting-photos' and (select public.is_staff()));
+
+-- Paths waiting to be removed from the bucket. Written by the trigger below, emptied by
+-- photo_cleanup_paths(). Never reachable through the API directly.
+create table if not exists public.photo_cleanup_queue (
+  path      text primary key,
+  queued_at timestamptz not null default now()
+);
+alter table public.photo_cleanup_queue enable row level security;
+revoke all on public.photo_cleanup_queue from anon, authenticated;
+
+-- True if any entry still points at this file. Every removal checks this first, so a path that
+-- was queued by mistake, or reused by another entry, can never cost a live photo.
+create or replace function public.photo_in_use(p_name text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.scouting_entries s where position(p_name in s.data::text) > 0)
+      or exists (select 1 from public.pit_entries p where position(p_name in p.data::text) > 0);
+$$;
+
+-- Queues every photo this row pointed at that its new version (if any) no longer does
+create or replace function public.queue_orphaned_photos() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_new text := case when TG_OP = 'UPDATE' then NEW.data::text else '' end;
+begin
+  insert into public.photo_cleanup_queue (path)
+  select m[1]
+  from regexp_matches(OLD.data::text, '/storage/v1/object/public/scouting-photos/([A-Za-z0-9_./-]+)', 'g') m
+  where position(m[1] in v_new) = 0
+  on conflict (path) do nothing;
+  return null;
+end $$;
+
+drop trigger if exists queue_photos_match on public.scouting_entries;
+drop trigger if exists queue_photos_pit   on public.pit_entries;
+create trigger queue_photos_match after delete or update of data on public.scouting_entries
+  for each row execute function public.queue_orphaned_photos();
+create trigger queue_photos_pit after delete or update of data on public.pit_entries
+  for each row execute function public.queue_orphaned_photos();
+
+-- Students may delete a pit entry they didn't upload, so they need to be able to remove its file.
+-- This limits them to files that are queued and unused; only staff can delete anything else.
+create or replace function public.photo_is_orphaned(p_name text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.photo_cleanup_queue q where q.path = p_name)
+     and not public.photo_in_use(p_name);
+$$;
+create policy "team deletes orphaned scouting photos" on storage.objects for delete to authenticated
+  using (bucket_id = 'scouting-photos' and (select public.is_student()) and public.photo_is_orphaned(name));
+
+-- Returns up to 500 paths for the caller to remove. First drops anything already gone from the
+-- bucket or back in use, so a removal that failed part way simply comes round again next call.
+create or replace function public.photo_cleanup_paths() returns text[]
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_paths text[];
+begin
+  if not (public.is_staff() or public.is_student()) then return '{}'; end if;
+  delete from public.photo_cleanup_queue q
+   where public.photo_in_use(q.path)
+      or not exists (select 1 from storage.objects o where o.bucket_id = 'scouting-photos' and o.name = q.path);
+  select coalesce(array_agg(x.path), '{}') into v_paths
+    from (select q.path from public.photo_cleanup_queue q order by q.queued_at limit 500) x;
+  return v_paths;
+end $$;
+
+revoke all on function public.photo_in_use(text) from public, anon, authenticated;
+revoke all on function public.photo_is_orphaned(text) from public, anon;
+revoke all on function public.photo_cleanup_paths() from public, anon;
+grant execute on function public.photo_is_orphaned(text) to authenticated;
+grant execute on function public.photo_cleanup_paths() to authenticated;
+
+-- OPTIONAL, ONE TIME: files orphaned before the triggers above existed were never queued. To
+-- clear them, preview with the select, then run the insert and open the Staff Portal. This
+-- permanently deletes the files, so it's left commented out rather than running on every rebuild.
+-- The one-day limit skips a photo that's mid-upload for an entry not saved yet.
+--
+-- select o.name, o.created_at from storage.objects o
+-- where o.bucket_id = 'scouting-photos' and o.created_at < now() - interval '1 day'
+--   and not public.photo_in_use(o.name);
+--
+-- insert into public.photo_cleanup_queue (path)
+-- select o.name from storage.objects o
+-- where o.bucket_id = 'scouting-photos' and o.created_at < now() - interval '1 day'
+--   and not public.photo_in_use(o.name)
+-- on conflict (path) do nothing;
 
 
 -- =====================================================================
@@ -1743,6 +1837,10 @@ on conflict (user_id) do nothing;
 --     '<summary>')` over its service-role connection, which already has
 --     execute on every function per section 12b.
 --
+--     Rows are kept for 6 months. purge_old_audit_log() below removes anything older, and
+--     log_action() calls it on every write, so this needs no scheduled job. To change the
+--     retention period, edit the interval in that function.
+--
 --     Only staff can read the log (policy below); everyone else can
 --     write to it only indirectly, through the security definer
 --     functions here, never through a direct insert.
@@ -1770,6 +1868,13 @@ drop policy if exists "staff read audit log" on public.audit_log;
 create policy "staff read audit log" on public.audit_log for select to authenticated
   using ((select public.is_staff()));
 
+-- Deletes audit rows past the retention period. The created_at index makes this a quick no-op
+-- when nothing has expired. Not logged itself, and not callable from the API.
+create or replace function public.purge_old_audit_log() returns void
+language sql security definer set search_path = '' as $$
+  delete from public.audit_log where created_at < now() - interval '6 months';
+$$;
+
 -- Central write helper. Every writer below (the generic trigger, staff_kick(), the
 -- manage-member Edge Function) calls this rather than inserting into audit_log
 -- directly, so actor_role is always worked out the same way. It must stay uncallable from
@@ -1795,6 +1900,7 @@ begin
   end if;
   insert into public.audit_log (actor_id, actor_email, actor_role, action, table_name, record_id, summary, details)
   values (auth.uid(), v_email, v_role, p_action, p_table, p_record_id, left(p_summary, 300), p_details);
+  perform public.purge_old_audit_log();
 end $$;
 
 -- Generic row-change logger, attached as an AFTER trigger to every audited table.
@@ -1904,6 +2010,10 @@ end $$;
 
 revoke all on function public.log_action(text, text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function public.log_action(text, text, text, text, jsonb) to service_role;
+revoke all on function public.purge_old_audit_log() from public, anon, authenticated;
+
+-- Clear anything already past the retention period when this file is run
+select public.purge_old_audit_log();
 revoke all on function public.staff_search_audit_log(text, text, text, text, timestamptz, timestamptz, int, int) from public, anon;
 grant execute on function public.staff_search_audit_log(text, text, text, text, timestamptz, timestamptz, int, int) to authenticated;
 
@@ -1952,7 +2062,7 @@ with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
-  ('table','team_info'), ('table','audit_log'), ('table','share_code_attempts'),
+  ('table','team_info'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
@@ -1962,7 +2072,8 @@ with expected(kind, name) as (values
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
-  ('function','log_action'), ('function','staff_search_audit_log'),
+  ('function','photo_cleanup_paths'), ('function','photo_is_orphaned'), ('function','photo_in_use'),
+  ('function','log_action'), ('function','purge_old_audit_log'), ('function','staff_search_audit_log'),
   ('bucket','scouting-photos'), ('bucket','team-logos')
 )
 select e.kind, e.name,

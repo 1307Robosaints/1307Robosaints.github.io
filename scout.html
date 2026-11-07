@@ -86,6 +86,11 @@
       font-family: var(--display); font-weight: 700; color: var(--navy);
       min-width: 1.6rem; text-align: center;
     }
+    .slider-row input.slider-unset { opacity: .45; }
+    .slider-clear {
+      background: none; border: 0; padding: 0; color: var(--muted);
+      font-size: .75rem; text-decoration: underline; cursor: pointer;
+    }
     .slider-scale { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin-top: .1rem; }
 
     /* Picture fields: a styled "Choose File" trigger + filename text standing in for the
@@ -1059,6 +1064,18 @@
     // not enforced (see the comment on that column in rebuild_all.sql).
     function overRegLimit(f, v) { return f.reg_limit != null && v != null && v !== "" && Number(v) > Number(f.reg_limit); }
 
+    // A slider always shows some position, so "not answered" has to be tracked separately. It
+    // starts unset and saves nothing until a scout uses it. Otherwise every untouched slider
+    // records the middle value, and that made-up number feeds the team's rating.
+    function setSliderState(el, isSet) {
+      if (!isSet) el.value = Math.round((Number(el.min) + Number(el.max)) / 2);
+      el.dataset.answered = isSet ? "1" : "";
+      el.classList.toggle("slider-unset", !isSet);
+      var row = el.parentElement;
+      row.querySelector(".slider-val").textContent = isSet ? el.value : "—";
+      row.querySelector(".slider-clear").style.display = isSet ? "" : "none";
+    }
+
     // Build the form for the active tab. Booleans become checkboxes.
     function buildForm() {
       var container = get("dynamicFields");
@@ -1172,14 +1189,22 @@
           input.min = f.min_value != null ? f.min_value : 1;
           input.max = f.max_value != null ? f.max_value : 5;
           input.step = "1";
-          input.value = Math.round(((Number(input.min) + Number(input.max)) / 2));
           var sliderVal = document.createElement("span");
           sliderVal.className = "slider-val";
-          sliderVal.textContent = input.value;
-          input.addEventListener("input", function () { sliderVal.textContent = this.value; });
+          var sliderClear = document.createElement("button");
+          sliderClear.type = "button"; sliderClear.className = "slider-clear"; sliderClear.textContent = "Clear";
           sliderRow.appendChild(input);
           sliderRow.appendChild(sliderVal);
+          sliderRow.appendChild(sliderClear);
           group.appendChild(sliderRow);
+          setSliderState(input, false);
+          // click as well as input: tapping the thumb to confirm the middle value changes nothing,
+          // so it fires no input event, but it's still a deliberate answer
+          input.addEventListener("input", function () { setSliderState(this, true); });
+          input.addEventListener("click", function () { setSliderState(this, true); });
+          sliderClear.addEventListener("click", (function (el) {
+            return function () { setSliderState(el, false); };
+          })(input));
           var scale = document.createElement("div");
           scale.className = "slider-scale";
           scale.innerHTML = "<span>" + esc(input.min) + " · Poor</span><span>" + esc(input.max) + " · Great</span>";
@@ -1240,7 +1265,10 @@
           unsureWrap.appendChild(unsureCb); unsureWrap.appendChild(unsureLabel);
           unsureCb.addEventListener("change", function () {
             input.disabled = this.checked;
-            if (this.checked) { input.value = ""; var w = get("regwarn_" + f.key); if (w) w.style.display = "none"; }
+            if (this.checked) {
+              if (f.field_type === "slider") setSliderState(input, false); else input.value = "";
+              var w = get("regwarn_" + f.key); if (w) w.style.display = "none";
+            }
           });
           group.appendChild(unsureWrap);
         }
@@ -1314,6 +1342,7 @@
         }
         var el = get("field_" + f.key);
         if (!el) return;
+        if (f.field_type === "slider" && !el.dataset.answered) return;   // untouched: no answer to save
         var val = el.value.trim();
         if (val !== "") data[f.key] = (f.field_type === "number" || f.field_type === "slider") ? parseFloat(val) : val;
         // "Other" note: only kept when the choice is actually set to Other
@@ -1327,6 +1356,15 @@
     }
 
     var PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+
+    // Removes photo files the database has marked as no longer used (see photo_cleanup_paths() in
+    // rebuild_all.sql). Best effort: anything left over is picked up the next time this runs.
+    async function cleanUpPhotos() {
+      try {
+        var r = await sb.rpc("photo_cleanup_paths");
+        if (!r.error && r.data && r.data.length) await sb.storage.from("scouting-photos").remove(r.data);
+      } catch (e) { console.warn("Photo cleanup skipped:", e); }
+    }
 
     // Upload any newly-picked photos for the active tab's image fields, and carry over the URL of
     // any image field the scout didn't touch. existing is the data object being edited (or {} for new).
@@ -1382,13 +1420,10 @@
         }
         if (el && data[f.key] != null) {
           el.value = data[f.key];
-          if (f.field_type === "slider") {
-            var sv = el.parentElement.querySelector(".slider-val");
-            if (sv) sv.textContent = el.value;
-          }
           var w = get("regwarn_" + f.key);
           if (w) w.style.display = overRegLimit(f, el.value) ? "" : "none";
         }
+        if (el && f.field_type === "slider") setSliderState(el, data[f.key] != null);
         if (hasOtherOption(f)) {
           var noteWrap = get("notewrap_" + f.key);
           var noteEl = get("field_" + f.key + "__other_note");
@@ -1419,14 +1454,8 @@
           var el2 = get("field_" + f.key);
           if (el2) {
             el2.disabled = false;
-            if (f.field_type === "slider") {
-              var mid = Math.round((Number(el2.min) + Number(el2.max)) / 2);
-              el2.value = mid;
-              var sv = el2.parentElement.querySelector(".slider-val");
-              if (sv) sv.textContent = mid;
-            } else {
-              el2.value = "";
-            }
+            if (f.field_type === "slider") setSliderState(el2, false);
+            else el2.value = "";
           }
           if (f.allow_unsure) {
             var unsureCb = get("field_" + f.key + "__unsure");
@@ -1650,7 +1679,9 @@
           if (unsureCb && unsureCb.checked) continue;   // "Unsure" is a valid answer
         }
         var el = get("field_" + f.key);
-        if (!el || el.value.trim() === "") { toast(f.label + " is required.", true); return; }
+        if (!el || el.value.trim() === "" || (f.field_type === "slider" && !el.dataset.answered)) {
+          toast(f.label + " is required.", true); return;
+        }
       }
 
       var data = getFormValues();
@@ -1690,6 +1721,7 @@
       toast(editId ? "Entry updated." : "Entry saved.");
       resetEntryForm();
       loadEntries();
+      if (editId) cleanUpPhotos();
     }
 
     // Pit entries have no draft queue: they're saved straight to the server. There's one shared
@@ -1716,6 +1748,7 @@
       toast("Pit entry saved.");
       resetEntryForm();
       loadEntries();
+      cleanUpPhotos();
     }
 
     // ── Edit / delete ────────────────────────────────────────────────
@@ -1741,6 +1774,7 @@
       if (r.error || !r.data.length) { toast("Couldn't delete entry.", true); return; }
       toast("Entry deleted.");
       loadEntries();
+      cleanUpPhotos();
     };
 
     window.editPit = function(id) {
@@ -1762,6 +1796,7 @@
       if (r.error || !r.data.length) { toast("Couldn't delete pit entry.", true); return; }
       toast("Pit entry deleted.");
       loadEntries();
+      cleanUpPhotos();
     };
 
     // Flush drafts when coming back online
@@ -1772,6 +1807,7 @@
     await loadFields();
     await loadEvents();
     flushDrafts();
+    cleanUpPhotos();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
     function fmtEventDate(d, opts) {
