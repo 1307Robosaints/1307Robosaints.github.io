@@ -1679,9 +1679,9 @@
       if (typeof content === "string") td.textContent = content; else td.appendChild(content);
       return td;
     }
-    function memButton(label, handler, disabled) {
+    function memButton(label, handler, disabled, danger) {
       var b = document.createElement("button");
-      b.type = "button"; b.className = "btn-icon mr-1"; b.textContent = label;
+      b.type = "button"; b.className = "btn-icon mr-1" + (danger ? " danger" : ""); b.textContent = label;
       b.disabled = !!disabled; b.onclick = handler;
       return b;
     }
@@ -1726,6 +1726,16 @@
         memFlash(true, m.email + (unban ? " was unbanned." : " was banned."));
         loadMembers();
       }, self));
+      actions.appendChild(memButton("Delete", async function () {
+        if (!confirm("Permanently delete " + m.email + "'s account? This can't be undone. " +
+          "(Accounts with existing scouting or pit data can't be deleted — ban them instead.)")) return;
+        var r = await sb.functions.invoke("manage-member", {
+          body: { action: "delete", target: m.user_id }
+        });
+        if (r.error) return memFlash(false, await memErr(r.error));
+        memFlash(true, m.email + " was deleted.");
+        loadMembers();
+      }, self, true));
 
       var tr = document.createElement("tr");
       tr.appendChild(memCell(m.display_name || "—"));

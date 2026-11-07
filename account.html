@@ -72,6 +72,8 @@
       clip-path: none;
     }
     .ghost-btn:hover { border-color: var(--navy); color: var(--navy); }
+    .ghost-btn.danger-btn { border-color: #c0392b; color: #c0392b; }
+    .ghost-btn.danger-btn:hover { background: #c0392b; color: #fff; }
 
     .info-grid { display: grid; grid-template-columns: 9rem 1fr; gap: .5rem 1rem; font-size: .92rem; margin: 0; }
     .info-grid dt { color: var(--muted); font-weight: 500; }
@@ -269,6 +271,16 @@
         <h2>Sessions</h2>
         <p class="section-sub">Signed in on a shared or lost device? Sign out everywhere, then sign back in here.</p>
         <button class="ghost-btn" id="signOutAllBtn" type="button">Sign out of all devices</button>
+      </div>
+
+      <!-- Delete account -->
+      <div class="account-card danger-zone">
+        <h2>Delete account</h2>
+        <p class="section-sub">Permanently deletes your account and sign-in. This can't be undone. If you have
+          existing scouting or pit data, delete that first (or ask staff to) — accounts with data attached can't
+          be removed.</p>
+        <button class="ghost-btn danger-btn" id="deleteAccountBtn" type="button">Delete my account</button>
+        <div class="mt-2"><span id="deleteMsg" class="small" role="status" aria-live="polite"></span></div>
       </div>
     </div>
   </div>
@@ -531,6 +543,22 @@
       if (!confirm("Sign out of every device, including this one?")) return;
       try { await sb.auth.signOut({ scope: "global" }); } catch (e) {}
       location.href = "/signin.html";
+    });
+
+    // ── Delete account ──────────────────────────────────────────────
+    $("deleteAccountBtn").addEventListener("click", async function () {
+      var typed = prompt('This permanently deletes your account and everything tied to it. ' +
+        'This can\'t be undone. Type DELETE to confirm.');
+      if (typed !== "DELETE") return;
+      var msg = $("deleteMsg");
+      flash(msg, true, "Deleting…");
+      var r = await sb.functions.invoke("delete-account", {});
+      if (r.error) { flash(msg, false, await (async function () {
+        try { return (await r.error.context.json()).error || "Couldn't delete your account."; }
+        catch (e) { return "Couldn't delete your account."; }
+      })()); return; }
+      try { await sb.auth.signOut(); } catch (e) {}
+      location.href = "/index.html";
     });
 
     // ── Show page ────────────────────────────────────────────────────
