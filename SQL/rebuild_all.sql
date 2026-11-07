@@ -938,6 +938,9 @@ create policy "staff deletes team logos" on storage.objects for delete to authen
 --      11  Robot capability  pit form: climb level, trench fit, intake, shooter, drivetrain,
 --                            FUEL capacity, shooting range, vision (see pit_capability())
 --
+--    When several scouts enter the same team, event and match number, their entries are
+--    averaged into one match first, so a double-scouted match counts once. Test teams are
+--    ranked in their own group, so they can't shift a real team's rank at any step.
 --    Matches where the scout marked the role as Defense or Feeder are left out of
 --    the FUEL-scoring average, so a good defender isn't graded as a bad scorer.
 --    Letter grade = where the score ranks among rated teams:
@@ -1003,7 +1006,7 @@ returns table (team_number int, matches int, disabled_matches int, avg_points nu
                score numeric, grade text, percentile numeric, components jsonb)
 language sql stable security definer set search_path = '' as $$
   with entries as (
-    select s.team_number, s.data as d,
+    select s.id, s.event_id, s.match_number, s.team_number, s.data as d,
            public.rebuilt_fuel_points(s.data)  as fuel_pts,
            public.rebuilt_tower_points(s.data) as tower_pts,
            public.rebuilt_auto_points(s.data)  as auto_pts,
@@ -1012,24 +1015,43 @@ language sql stable security definer set search_path = '' as $$
     where ((select public.is_staff()) or (select public.is_student()))
       and s.data ?| array['stuck_on_field','foul_or_card','auto_fuel_hub','teleop_fuel_hub','auto_tower','teleop_tower']
   ),
-  agg as (
+  -- One row per match: when several scouts entered the same match, their entries are averaged
+  -- so it counts once. An entry with no match number can't be paired, so it stands alone.
+  per_match as (
     select e.team_number,
-      count(*)::int as matches,
-      count(*) filter (where coalesce(public.jbool(e.d, 'robot_disabled'), false))::int as disabled_matches,
-      avg(e.fuel_pts + e.tower_pts)                         as avg_points,
-      avg(e.fuel_pts) filter (where e.scoring_match)        as fuel_avg,
-      avg(e.tower_pts)                                      as tower_avg,
-      avg(e.auto_pts)                                       as auto_avg,
-      avg(case public.jbool(e.d, 'auto_mobility') when true then 1 when false then 0 end) as mobility_rate,
-      avg(public.jnum(e.d, 'shooter_accuracy'))             as accuracy_avg,
+      avg(e.fuel_pts + e.tower_pts) as points,
+      avg(e.fuel_pts) filter (where e.scoring_match) as fuel_pts,
+      avg(e.tower_pts) as tower_pts,
+      avg(e.auto_pts) as auto_pts,
+      avg(case public.jbool(e.d, 'auto_mobility') when true then 1 when false then 0 end) as mobility,
+      avg(public.jnum(e.d, 'shooter_accuracy')) as accuracy,
       avg(coalesce(public.jnum(e.d, 'teleop_fuel_per_volley'),
-                   public.jnum(e.d, 'teleop_fuel_hub') / nullif(public.jnum(e.d, 'teleop_volleys'), 0))) as fpv_avg,
-      avg(case when coalesce(public.jbool(e.d, 'robot_disabled'), false) then 1 else 0 end)::numeric as dis_rate,
-      avg(case when coalesce(public.jbool(e.d, 'broke_down'), false) then 1 else 0 end)::numeric     as broke_rate,
-      avg(case when coalesce(public.jbool(e.d, 'stuck_on_field'), false) then 1 else 0 end)::numeric as stuck_rate,
-      avg(case when coalesce(public.jbool(e.d, 'foul_or_card'), false) then 1 else 0 end)::numeric   as foul_rate
+                   public.jnum(e.d, 'teleop_fuel_hub') / nullif(public.jnum(e.d, 'teleop_volleys'), 0))) as fpv,
+      avg(case when coalesce(public.jbool(e.d, 'robot_disabled'), false) then 1 else 0 end)::numeric as dis,
+      avg(case when coalesce(public.jbool(e.d, 'broke_down'), false) then 1 else 0 end)::numeric as broke,
+      avg(case when coalesce(public.jbool(e.d, 'stuck_on_field'), false) then 1 else 0 end)::numeric as stuck,
+      avg(case when coalesce(public.jbool(e.d, 'foul_or_card'), false) then 1 else 0 end)::numeric as foul
     from entries e
-    group by e.team_number
+    group by e.team_number, e.event_id, coalesce(e.match_number::text, e.id::text)
+  ),
+  agg as (
+    select m.team_number,
+      count(*)::int as matches,
+      count(*) filter (where m.dis > 0)::int as disabled_matches,
+      avg(m.points) as avg_points,
+      avg(m.fuel_pts) as fuel_avg,
+      avg(m.tower_pts) as tower_avg,
+      avg(m.auto_pts) as auto_avg,
+      avg(m.mobility) as mobility_rate,
+      avg(m.accuracy) as accuracy_avg,
+      avg(m.fpv) as fpv_avg,
+      avg(m.dis) as dis_rate,
+      avg(m.broke) as broke_rate,
+      avg(m.stuck) as stuck_rate,
+      avg(m.foul) as foul_rate,
+      exists (select 1 from public.test_teams tt where tt.team_number = m.team_number) as is_test
+    from per_match m
+    group by m.team_number
   ),
   pit as (
     select distinct on (p.team_number) p.team_number, public.pit_capability(p.data) as cap
@@ -1039,10 +1061,10 @@ language sql stable security definer set search_path = '' as $$
   ),
   base as (
     select a.*, pit.cap,
-      case when a.fuel_avg  is not null then (cume_dist() over (partition by (a.fuel_avg  is not null) order by a.fuel_avg))::numeric end as p_fuel,
-      case when a.tower_avg is not null then (cume_dist() over (partition by (a.tower_avg is not null) order by a.tower_avg))::numeric end as p_tower,
-      case when a.auto_avg  is not null then (cume_dist() over (partition by (a.auto_avg  is not null) order by a.auto_avg))::numeric end as p_auto,
-      case when a.fpv_avg   is not null then (cume_dist() over (partition by (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv
+      case when a.fuel_avg  is not null then (cume_dist() over (partition by a.is_test, (a.fuel_avg  is not null) order by a.fuel_avg))::numeric end as p_fuel,
+      case when a.tower_avg is not null then (cume_dist() over (partition by a.is_test, (a.tower_avg is not null) order by a.tower_avg))::numeric end as p_tower,
+      case when a.auto_avg  is not null then (cume_dist() over (partition by a.is_test, (a.auto_avg  is not null) order by a.auto_avg))::numeric end as p_auto,
+      case when a.fpv_avg   is not null then (cume_dist() over (partition by a.is_test, (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv
     from agg a
     left join pit on pit.team_number = a.team_number
   ),
@@ -1066,7 +1088,7 @@ language sql stable security definer set search_path = '' as $$
     from comp c
   ),
   ranked as (
-    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    select s.*, (cume_dist() over (partition by s.is_test order by s.raw_score))::numeric as pct
     from scored s
   )
   select r.team_number, r.matches, r.disabled_matches,
@@ -1132,12 +1154,13 @@ language sql stable security definer set search_path = '' as $$
       count(*) filter (where m.alliance_score = m.opponent_score)::int as ties,
       sum(m.alliance_score * m.w) / sum(m.w) as avg_score,
       sum((case when m.alliance_score > m.opponent_score then 1
-                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate
+                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate,
+      exists (select 1 from public.test_teams tt where tt.team_number = m.team_number) as is_test
     from weighted m
     group by m.team_number
   ),
   ranked as (
-    select a.*, (cume_dist() over (order by a.avg_score))::numeric as p_score
+    select a.*, (cume_dist() over (partition by a.is_test order by a.avg_score))::numeric as p_score
     from agg a
   ),
   scored as (
@@ -1145,7 +1168,7 @@ language sql stable security definer set search_path = '' as $$
     from ranked r
   ),
   pct as (
-    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    select s.*, (cume_dist() over (partition by s.is_test order by s.raw_score))::numeric as pct
     from scored s
   )
   select p.team_number, p.matches, p.wins, p.losses, p.ties,
@@ -1408,7 +1431,7 @@ begin
   -- instead of every match, and with no is_staff()/is_student() gate (the code already proved
   -- access to exactly this slice).
   rate_entries as (
-    select m.team_number, m.data as d,
+    select m.id, m.event_id, m.match_number, m.team_number, m.data as d,
            public.rebuilt_fuel_points(m.data)  as fuel_pts,
            public.rebuilt_tower_points(m.data) as tower_pts,
            public.rebuilt_auto_points(m.data)  as auto_pts,
@@ -1416,23 +1439,40 @@ begin
     from scoped_matches m
     where m.data ?| array['stuck_on_field','foul_or_card','auto_fuel_hub','teleop_fuel_hub','auto_tower','teleop_tower']
   ),
-  rate_agg as (
+  rate_per_match as (
     select e.team_number,
-      count(*)::int as matches,
-      avg(e.fuel_pts + e.tower_pts) as avg_points,
-      avg(e.fuel_pts) filter (where e.scoring_match) as fuel_avg,
-      avg(e.tower_pts) as tower_avg,
-      avg(e.auto_pts) as auto_avg,
-      avg(case public.jbool(e.d, 'auto_mobility') when true then 1 when false then 0 end) as mobility_rate,
-      avg(public.jnum(e.d, 'shooter_accuracy')) as accuracy_avg,
+      avg(e.fuel_pts + e.tower_pts) as points,
+      avg(e.fuel_pts) filter (where e.scoring_match) as fuel_pts,
+      avg(e.tower_pts) as tower_pts,
+      avg(e.auto_pts) as auto_pts,
+      avg(case public.jbool(e.d, 'auto_mobility') when true then 1 when false then 0 end) as mobility,
+      avg(public.jnum(e.d, 'shooter_accuracy')) as accuracy,
       avg(coalesce(public.jnum(e.d, 'teleop_fuel_per_volley'),
-                   public.jnum(e.d, 'teleop_fuel_hub') / nullif(public.jnum(e.d, 'teleop_volleys'), 0))) as fpv_avg,
-      avg(case when coalesce(public.jbool(e.d, 'robot_disabled'), false) then 1 else 0 end)::numeric as dis_rate,
-      avg(case when coalesce(public.jbool(e.d, 'broke_down'), false) then 1 else 0 end)::numeric as broke_rate,
-      avg(case when coalesce(public.jbool(e.d, 'stuck_on_field'), false) then 1 else 0 end)::numeric as stuck_rate,
-      avg(case when coalesce(public.jbool(e.d, 'foul_or_card'), false) then 1 else 0 end)::numeric as foul_rate
+                   public.jnum(e.d, 'teleop_fuel_hub') / nullif(public.jnum(e.d, 'teleop_volleys'), 0))) as fpv,
+      avg(case when coalesce(public.jbool(e.d, 'robot_disabled'), false) then 1 else 0 end)::numeric as dis,
+      avg(case when coalesce(public.jbool(e.d, 'broke_down'), false) then 1 else 0 end)::numeric as broke,
+      avg(case when coalesce(public.jbool(e.d, 'stuck_on_field'), false) then 1 else 0 end)::numeric as stuck,
+      avg(case when coalesce(public.jbool(e.d, 'foul_or_card'), false) then 1 else 0 end)::numeric as foul
     from rate_entries e
-    group by e.team_number
+    group by e.team_number, e.event_id, coalesce(e.match_number::text, e.id::text)
+  ),
+  rate_agg as (
+    select m.team_number,
+      count(*)::int as matches,
+      avg(m.points) as avg_points,
+      avg(m.fuel_pts) as fuel_avg,
+      avg(m.tower_pts) as tower_avg,
+      avg(m.auto_pts) as auto_avg,
+      avg(m.mobility) as mobility_rate,
+      avg(m.accuracy) as accuracy_avg,
+      avg(m.fpv) as fpv_avg,
+      avg(m.dis) as dis_rate,
+      avg(m.broke) as broke_rate,
+      avg(m.stuck) as stuck_rate,
+      avg(m.foul) as foul_rate,
+      exists (select 1 from public.test_teams tt where tt.team_number = m.team_number) as is_test
+    from rate_per_match m
+    group by m.team_number
   ),
   rate_pit as (
     select distinct on (p.team_number) p.team_number, public.pit_capability(p.data) as cap
@@ -1441,10 +1481,10 @@ begin
   ),
   rate_base as (
     select a.*, pit.cap,
-      case when a.fuel_avg  is not null then (cume_dist() over (partition by (a.fuel_avg  is not null) order by a.fuel_avg))::numeric end as p_fuel,
-      case when a.tower_avg is not null then (cume_dist() over (partition by (a.tower_avg is not null) order by a.tower_avg))::numeric end as p_tower,
-      case when a.auto_avg  is not null then (cume_dist() over (partition by (a.auto_avg  is not null) order by a.auto_avg))::numeric end as p_auto,
-      case when a.fpv_avg   is not null then (cume_dist() over (partition by (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv
+      case when a.fuel_avg  is not null then (cume_dist() over (partition by a.is_test, (a.fuel_avg  is not null) order by a.fuel_avg))::numeric end as p_fuel,
+      case when a.tower_avg is not null then (cume_dist() over (partition by a.is_test, (a.tower_avg is not null) order by a.tower_avg))::numeric end as p_tower,
+      case when a.auto_avg  is not null then (cume_dist() over (partition by a.is_test, (a.auto_avg  is not null) order by a.auto_avg))::numeric end as p_auto,
+      case when a.fpv_avg   is not null then (cume_dist() over (partition by a.is_test, (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv
     from rate_agg a
     left join rate_pit pit on pit.team_number = a.team_number
   ),
@@ -1468,7 +1508,7 @@ begin
     from rate_comp c
   ),
   rate_ranked as (
-    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    select s.*, (cume_dist() over (partition by s.is_test order by s.raw_score))::numeric as pct
     from rate_scored s
   ),
   scout_grades as (
@@ -1496,12 +1536,13 @@ begin
       count(*) filter (where m.alliance_score = m.opponent_score)::int as ties,
       sum(m.alliance_score * m.w) / sum(m.w) as avg_score,
       sum((case when m.alliance_score > m.opponent_score then 1
-                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate
+                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate,
+      exists (select 1 from public.test_teams tt where tt.team_number = m.team_number) as is_test
     from off_weighted m
     group by m.team_number
   ),
   off_ranked as (
-    select a.*, (cume_dist() over (order by a.avg_score))::numeric as p_score
+    select a.*, (cume_dist() over (partition by a.is_test order by a.avg_score))::numeric as p_score
     from off_agg a
   ),
   off_scored as (
@@ -1509,7 +1550,7 @@ begin
     from off_ranked r
   ),
   off_pct as (
-    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    select s.*, (cume_dist() over (partition by s.is_test order by s.raw_score))::numeric as pct
     from off_scored s
   ),
   official_grades as (
