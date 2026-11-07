@@ -30,35 +30,63 @@ insert into public.events (name, location, event_date, frc_event_code, tba_event
 select v.name, v.location, v.event_date::date, v.frc_event_code, v.tba_event_key, v.event_tier
 from (values
   -- 2027 New England District Championship (Wed 4/14 - Sat 4/17, 2027)
-  ('District Champs - Burns ''27',   'Eastern States Exposition, West Springfield, MA', '2027-04-16', 'NECMP1', '2027necmp1', 'district_championship'),
-  ('District Champs - Newsom ''27',  'Eastern States Exposition, West Springfield, MA', '2027-04-16', 'NECMP2', '2027necmp2', 'district_championship'),
+  ('Burns ''27',   'Eastern States Exposition, West Springfield, MA', '2027-04-16', 'NECMP1', '2027necmp1', 'district_championship'),
+  ('Newsom ''27',  'Eastern States Exposition, West Springfield, MA', '2027-04-16', 'NECMP2', '2027necmp2', 'district_championship'),
 
-  -- 2026 FIRST Championship, Houston (Wed 4/29 - Sat 5/2, 2026)
-  ('FIRST Championship ''26',            'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CMPTX',      '2026cmptx',      'championship'),
-  ('FIRST Championship - Archimedes ''26','George R. Brown Convention Center, Houston, TX', '2026-05-01', 'ARCHIMEDES', '2026archimedes', 'championship'),
-  ('FIRST Championship - Curie ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CURIE',      '2026curie',      'championship'),
-  ('FIRST Championship - Daly ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'DALY',       '2026daly',       'championship'),
-  ('FIRST Championship - Galileo ''26',   'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'GALILEO',    '2026galileo',    'championship'),
-  ('FIRST Championship - Hopper ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'HOPPER',     '2026hopper',     'championship'),
-  ('FIRST Championship - Johnson ''26',   'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'JOHNSON',    '2026johnson',    'championship'),
-  ('FIRST Championship - Milstein ''26',  'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'MILSTEIN',   '2026milstein',   'championship'),
-  ('FIRST Championship - Newton ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'NEWTON',     '2026newton',     'championship'),
+  -- 2026 FIRST Championship, Houston (Wed 4/29 - Sat 5/2, 2026). The overall event code
+  -- (CMPTX) is where Einstein finals are recorded, so that row is named for Einstein rather
+  -- than repeating "FIRST Championship" — the tier badge already says "Championship".
+  ('Einstein ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CMPTX',      '2026cmptx',      'championship'),
+  ('Archimedes ''26',  'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'ARCHIMEDES', '2026archimedes', 'championship'),
+  ('Curie ''26',       'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CURIE',      '2026curie',      'championship'),
+  ('Daly ''26',        'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'DALY',       '2026daly',       'championship'),
+  ('Galileo ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'GALILEO',    '2026galileo',    'championship'),
+  ('Hopper ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'HOPPER',     '2026hopper',     'championship'),
+  ('Johnson ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'JOHNSON',    '2026johnson',    'championship'),
+  ('Milstein ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'MILSTEIN',   '2026milstein',   'championship'),
+  ('Newton ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'NEWTON',     '2026newton',     'championship'),
 
   -- 2027 FIRST Championship, Houston (Wed 4/28 - Sat 5/1, 2027)
-  ('FIRST Championship ''27',            'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CMPTX',      '2027cmptx',      'championship'),
-  ('FIRST Championship - Archimedes ''27','George R. Brown Convention Center, Houston, TX', '2027-04-30', 'ARCHIMEDES', '2027archimedes', 'championship'),
-  ('FIRST Championship - Curie ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CURIE',      '2027curie',      'championship'),
-  ('FIRST Championship - Daly ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'DALY',       '2027daly',       'championship'),
-  ('FIRST Championship - Galileo ''27',   'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'GALILEO',    '2027galileo',    'championship'),
-  ('FIRST Championship - Hopper ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'HOPPER',     '2027hopper',     'championship'),
-  ('FIRST Championship - Johnson ''27',   'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'JOHNSON',    '2027johnson',    'championship'),
-  ('FIRST Championship - Milstein ''27',  'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'MILSTEIN',   '2027milstein',   'championship'),
-  ('FIRST Championship - Newton ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'NEWTON',     '2027newton',     'championship')
+  ('Einstein ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CMPTX',      '2027cmptx',      'championship'),
+  ('Archimedes ''27',  'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'ARCHIMEDES', '2027archimedes', 'championship'),
+  ('Curie ''27',       'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CURIE',      '2027curie',      'championship'),
+  ('Daly ''27',        'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'DALY',       '2027daly',       'championship'),
+  ('Galileo ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'GALILEO',    '2027galileo',    'championship'),
+  ('Hopper ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'HOPPER',     '2027hopper',     'championship'),
+  ('Johnson ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'JOHNSON',    '2027johnson',    'championship'),
+  ('Milstein ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'MILSTEIN',   '2027milstein',   'championship'),
+  ('Newton ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'NEWTON',     '2027newton',     'championship')
 ) as v(name, location, event_date, frc_event_code, tba_event_key, event_tier)
 where not exists (
   select 1 from public.events e
   where e.name = v.name or e.frc_event_code = v.frc_event_code
 );
+
+-- One-off rename for rows already inserted under the old naming convention
+-- (the tier badge next to the name already said "Championship"/"District
+-- Champs", so repeating "FIRST Championship -" / "District Champs -" on the
+-- name itself was redundant). Matched by frc_event_code so it's a no-op once
+-- already renamed.
+update public.events set name = 'Burns ''27'       where frc_event_code = 'NECMP1'     and event_tier = 'district_championship' and name <> 'Burns ''27';
+update public.events set name = 'Newsom ''27'      where frc_event_code = 'NECMP2'     and event_tier = 'district_championship' and name <> 'Newsom ''27';
+update public.events set name = 'Einstein ''26'    where frc_event_code = 'CMPTX'      and event_date = '2026-05-01' and name <> 'Einstein ''26';
+update public.events set name = 'Archimedes ''26'  where frc_event_code = 'ARCHIMEDES' and event_date = '2026-05-01' and name <> 'Archimedes ''26';
+update public.events set name = 'Curie ''26'       where frc_event_code = 'CURIE'      and event_date = '2026-05-01' and name <> 'Curie ''26';
+update public.events set name = 'Daly ''26'        where frc_event_code = 'DALY'       and event_date = '2026-05-01' and name <> 'Daly ''26';
+update public.events set name = 'Galileo ''26'     where frc_event_code = 'GALILEO'    and event_date = '2026-05-01' and name <> 'Galileo ''26';
+update public.events set name = 'Hopper ''26'      where frc_event_code = 'HOPPER'     and event_date = '2026-05-01' and name <> 'Hopper ''26';
+update public.events set name = 'Johnson ''26'     where frc_event_code = 'JOHNSON'    and event_date = '2026-05-01' and name <> 'Johnson ''26';
+update public.events set name = 'Milstein ''26'    where frc_event_code = 'MILSTEIN'   and event_date = '2026-05-01' and name <> 'Milstein ''26';
+update public.events set name = 'Newton ''26'      where frc_event_code = 'NEWTON'     and event_date = '2026-05-01' and name <> 'Newton ''26';
+update public.events set name = 'Einstein ''27'    where frc_event_code = 'CMPTX'      and event_date = '2027-04-30' and name <> 'Einstein ''27';
+update public.events set name = 'Archimedes ''27'  where frc_event_code = 'ARCHIMEDES' and event_date = '2027-04-30' and name <> 'Archimedes ''27';
+update public.events set name = 'Curie ''27'       where frc_event_code = 'CURIE'      and event_date = '2027-04-30' and name <> 'Curie ''27';
+update public.events set name = 'Daly ''27'        where frc_event_code = 'DALY'       and event_date = '2027-04-30' and name <> 'Daly ''27';
+update public.events set name = 'Galileo ''27'     where frc_event_code = 'GALILEO'    and event_date = '2027-04-30' and name <> 'Galileo ''27';
+update public.events set name = 'Hopper ''27'      where frc_event_code = 'HOPPER'     and event_date = '2027-04-30' and name <> 'Hopper ''27';
+update public.events set name = 'Johnson ''27'     where frc_event_code = 'JOHNSON'    and event_date = '2027-04-30' and name <> 'Johnson ''27';
+update public.events set name = 'Milstein ''27'    where frc_event_code = 'MILSTEIN'   and event_date = '2027-04-30' and name <> 'Milstein ''27';
+update public.events set name = 'Newton ''27'      where frc_event_code = 'NEWTON'     and event_date = '2027-04-30' and name <> 'Newton ''27';
 
 
 -- Check query

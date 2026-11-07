@@ -49,8 +49,16 @@
       padding: 1.5rem;
       min-height: 320px;
     }
-    .detail-head { padding-right: 210px; }
+    .detail-head { padding-right: 210px; display: flex; gap: .9rem; align-items: center; }
     .detail-head h2 { margin-bottom: .15rem; }
+    .team-logo {
+      width: 56px; height: 56px; object-fit: contain; flex: none;
+      background: var(--paper); border: 1px solid var(--line);
+    }
+    .team-logo-sm {
+      width: 20px; height: 20px; object-fit: contain; vertical-align: middle;
+      margin-right: .4rem; background: var(--paper); border: 1px solid var(--line);
+    }
 
     /* Rating boxes, top right of the card — one for scouting, one for official data */
     .rating-group {
@@ -297,6 +305,7 @@
 
     var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [], officialRatings = [], dataCounts = [];
     var testTeamSet = new Set();   // team numbers staff tagged as test teams — kept out of rating comparisons
+    var teamInfoByNumber = {};     // team_number -> { team_name, logo_url }, set in the Staff Portal
 
     function fieldsFor(scope) {
       return fields.filter(function (f) { return (f.scope || "match") === scope; });
@@ -351,6 +360,12 @@
       if (r.error) { console.warn("Test teams unavailable:", r.error.message); return; }
       testTeamSet = new Set((r.data || []).map(function (t) { return t.team_number; }));
     }
+    async function loadTeamInfo() {
+      var r = await sb.from("team_info").select("team_number,team_name,logo_url");
+      if (r.error) { console.warn("Team info unavailable:", r.error.message); return; }
+      teamInfoByNumber = {};
+      (r.data || []).forEach(function (t) { teamInfoByNumber[t.team_number] = t; });
+    }
 
     // Scouted and official counts are shown side by side, never merged into one number —
     // that merge ("official replaces scouted wherever official data exists") used to be exactly
@@ -380,8 +395,11 @@
             var gs = scoutGradeFor(r.team), go = officialGradeFor(r.team);
             var dots = '<span class="tier-dot" style="background:' + TIERS[gs.tier].color + ';" title="Scouting: ' + gs.tier + '"></span>' +
               '<span class="tier-dot" style="background:' + TIERS[go.tier].color + ';" title="Official: ' + go.tier + '"></span>';
+            var info = teamInfoByNumber[r.team];
+            var logoImg = info && info.logo_url ? '<img class="team-logo-sm" src="' + esc(info.logo_url) + '" alt="">' : "";
+            var nameSuffix = info && info.team_name ? ' <span class="text-muted">' + esc(info.team_name) + '</span>' : "";
             return '<tr data-team="' + r.team + '" class="' + (selected === r.team ? "selected" : "") + '">' +
-              "<td>" + dots + "<strong>" + r.team + "</strong></td>" +
+              "<td>" + dots + logoImg + "<strong>" + r.team + "</strong>" + nameSuffix + "</td>" +
               "<td>" + r.scouted + "</td>" +
               "<td>" + r.official + "</td>" +
               "<td>" + (pitSet.has(r.team) ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + "</td>" +
@@ -598,12 +616,18 @@
           "</tr>";
       }).join("");
 
+      var info = teamInfoByNumber[team];
+      var logoHtml = info && info.logo_url ? '<img class="team-logo" src="' + esc(info.logo_url) + '" alt="">' : "";
+
       $("detail").innerHTML =
         '<div class="rating-group">' + ratingBox("Scouting", gScout) + ratingBox("Official", gOff) + '</div>' +
         '<div class="detail-head">' +
-          "<h2>Team " + team + "</h2>" +
-          '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisScout) + "</p>" +
-          '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisOff) + "</p>" +
+          logoHtml +
+          '<div>' +
+            "<h2>Team " + team + (info && info.team_name ? ' <small class="text-muted">' + esc(info.team_name) + '</small>' : "") + "</h2>" +
+            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisScout) + "</p>" +
+            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisOff) + "</p>" +
+          '</div>' +
         "</div>" +
 
         '<div class="tile-grid">' +
@@ -625,7 +649,7 @@
 
     // ── Boot ─────────────────────────────────────────────────────────
     await loadMeta();
-    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts(), loadTestTeams()]);
+    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts(), loadTestTeams(), loadTeamInfo()]);
     renderList();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.

@@ -86,6 +86,17 @@ Key tables/functions to know when touching 1307scout:
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
   `manage-member` is a separate Edge Function used by the Staff Portal for member management.
 
+## Documentation and comments
+
+When the website or service changes, update the docs that describe it, not just the code —
+this includes `README.md`, but also user-facing pages like the privacy policy, terms of
+service, and the `1307scout.html` homepage/about content, plus any other page that documents
+behavior rather than implements it.
+
+Code should be commented for easy reading, but keep comments short. Paragraph-length comments
+are only appropriate as section headers or to describe a major code block, not inline on
+individual lines.
+
 ### Contact form
 
 `contact.html`'s form sends mail client-side via EmailJS, no server component — `mail/

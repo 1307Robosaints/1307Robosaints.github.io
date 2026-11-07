@@ -52,13 +52,20 @@ from (values
   ('Greater Boston ''26',  'Revere High School, Revere, MA',                '2026-03-28', 'MABOS',  '2026mabos'),
   ('UVM ''26',             'Patrick Gym, Burlington, VT',                   '2026-04-03', 'VTBUR',  '2026vtbur'),
   ('WPI ''26',             'Harrington Auditorium, Worcester, MA',          '2026-04-04', 'MAWOR',  '2026mawor'),
-  ('District Champs - Burns ''26',  'Eastern States Exposition, West Springfield, MA', '2026-04-17', 'NECMP1', '2026necmp1'),
-  ('District Champs - Newsom ''26', 'Eastern States Exposition, West Springfield, MA', '2026-04-17', 'NECMP2', '2026necmp2')
+  ('Burns ''26',  'Eastern States Exposition, West Springfield, MA', '2026-04-17', 'NECMP1', '2026necmp1'),
+  ('Newsom ''26', 'Eastern States Exposition, West Springfield, MA', '2026-04-17', 'NECMP2', '2026necmp2')
 ) as v(name, location, event_date, frc_event_code, tba_event_key)
 where not exists (
   select 1 from public.events e
   where e.name = v.name or e.frc_event_code = v.frc_event_code
 );
+
+-- One-off rename for rows already inserted under the old naming convention
+-- (the tier badge next to the name already says "District Champs", so the
+-- prefix on the name itself was redundant). Matched by frc_event_code so
+-- it's a no-op once already renamed.
+update public.events set name = 'Burns ''26'  where frc_event_code = 'NECMP1' and name <> 'Burns ''26';
+update public.events set name = 'Newsom ''26' where frc_event_code = 'NECMP2' and name <> 'Newsom ''26';
 
 
 -- =====================================================================

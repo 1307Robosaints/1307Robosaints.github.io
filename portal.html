@@ -45,6 +45,8 @@
     }
 
     .sync-note { font-size: .78rem; color: var(--muted); line-height: 1.3; word-break: break-word; }
+    .sync-note.warn { color: #a83228; }
+    .sync-info-box { font-size: .85rem; line-height: 1.7; }
     /* Name | Tier | Location | Date | Official sync | Actions. The Actions column is a fixed
        width (not auto) so it takes up the same space whether a row has one button or three —
        otherwise the other columns' widths shift row to row and no longer line up with the
@@ -122,11 +124,43 @@
     }
     .badge-test { background: #e67e22; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
 
-    /* Event-tier badges — how much an event's results count toward a team's official rating */
-    .badge-tier-qual  { background: var(--tint); color: var(--blue); padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
-    .badge-tier-off   { background: var(--line); color: var(--muted); padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
-    .badge-tier-dc    { background: #6c3fb5; color: #fff; padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
-    .badge-tier-champ { background: #D4AF37; color: #2b2100; padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
+    .ti-row {
+      display: grid;
+      grid-template-columns: 48px .8fr 1.2fr auto;
+      gap: .5rem; align-items: center;
+      padding: .6rem .75rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .9rem;
+    }
+    .ti-row:last-child { border-bottom: 0; }
+    .ti-row-header {
+      display: grid;
+      grid-template-columns: 48px .8fr 1.2fr auto;
+      gap: .5rem;
+      padding: .4rem .75rem;
+      background: var(--navy);
+      color: #fff;
+      font-family: var(--display);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .ti-logo {
+      width: 36px; height: 36px; object-fit: contain;
+      background: var(--paper); border: 1px solid var(--line);
+    }
+    .ti-logo-placeholder {
+      width: 36px; height: 36px; background: var(--paper); border: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: .7rem;
+    }
+
+    /* Event-tier badges — how much an event's results count toward a team's official rating.
+       Qualifier (blue) and Off-season (warm tan) are kept in different color families since
+       they're the two most common tiers and used to look nearly identical at a glance. */
+    .badge-tier-qual  { background: var(--tint); color: var(--blue); padding: .2rem .65rem; font-size: .76rem; font-family: var(--display); }
+    .badge-tier-off   { background: #F3E6D3; color: #8A5A22; padding: .2rem .65rem; font-size: .76rem; font-family: var(--display); }
+    .badge-tier-dc    { background: #6c3fb5; color: #fff; padding: .2rem .65rem; font-size: .76rem; font-family: var(--display); }
+    .badge-tier-champ { background: #D4AF37; color: #2b2100; padding: .2rem .65rem; font-size: .76rem; font-family: var(--display); }
 
     .table-wrap {
       border: 1px solid var(--line);
@@ -233,6 +267,10 @@
       .code-row, .code-row-header { grid-template-columns: 1fr auto 70px; }
       .code-row > :nth-child(2), .code-row > :nth-child(3), .code-row > :nth-child(4), .code-row > :nth-child(5),
       .code-row-header > :nth-child(2), .code-row-header > :nth-child(3), .code-row-header > :nth-child(4), .code-row-header > :nth-child(5) { display: none; }
+
+      /* Team info: drop the logo thumbnail, keep team # + name + actions */
+      .ti-row, .ti-row-header { grid-template-columns: .8fr 1.2fr auto; }
+      .ti-row > :nth-child(1), .ti-row-header > :nth-child(1) { display: none; }
     }
   </style>
 </head>
@@ -311,6 +349,7 @@
       <button class="portal-tab" data-tab="fields">Form Fields</button>
       <button class="portal-tab" data-tab="codes">Share Codes</button>
       <button class="portal-tab" data-tab="testteams">Test Teams</button>
+      <button class="portal-tab" data-tab="teaminfo">Team Info</button>
       <button class="portal-tab" data-tab="members">Members</button>
     </div>
 
@@ -549,6 +588,53 @@
     </div>
   </div>
 
+  <!-- ===== TEAM INFO ===== -->
+  <div class="portal-section" id="tab-teaminfo">
+    <div class="form-panel">
+      <h3 style="font-size:1.1rem; margin-bottom:1rem;" id="tiFormTitle">Add Team Name / Logo</h3>
+      <p class="text-muted" style="font-size:.9rem;">
+        Purely cosmetic — attaches a display name and logo to a team number so its card in the
+        Team Database (query.html) shows who it is, instead of just a number. Works for our team
+        or any opponent. Paste a logo link or upload an image (2MB max).
+      </p>
+      <div class="form-row">
+        <div class="form-group col-md-2">
+          <label for="tiTeam">Team #</label>
+          <input type="number" id="tiTeam" class="form-control" min="1" max="99999" placeholder="e.g. 254">
+        </div>
+        <div class="form-group col-md-4">
+          <label for="tiName">Team name <small class="text-muted">(optional)</small></label>
+          <input type="text" id="tiName" class="form-control" maxlength="100" placeholder="e.g. The Cheesy Poofs">
+        </div>
+        <div class="form-group col-md-4">
+          <label for="tiLogoUrl">Logo URL <small class="text-muted">(optional, or upload below)</small></label>
+          <input type="text" id="tiLogoUrl" class="form-control" maxlength="500" placeholder="https://...">
+        </div>
+        <div class="form-group col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary w-100" id="tiSave">Save</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group col-md-4">
+          <label for="tiLogoFile">Or upload a logo image</label>
+          <input type="file" id="tiLogoFile" class="form-control" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+        </div>
+        <div class="form-group col-md-2 d-flex align-items-end">
+          <img id="tiPreview" class="ti-logo" style="display:none;" alt="">
+        </div>
+      </div>
+      <input type="hidden" id="tiId">
+      <button class="btn btn-outline-secondary btn-sm d-none" id="tiCancel">Cancel edit</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="ti-row-header">
+        <span></span><span>Team #</span><span>Name / Logo</span><span></span>
+      </div>
+      <div id="tiList"><div class="empty-state">No team info saved yet.</div></div>
+    </div>
+  </div>
+
   <!-- ===== MEMBER MANAGEMENT ===== -->
 
   <div class="portal-section" id="tab-members">
@@ -598,7 +684,7 @@
     <div class="modal-dialog modal-dialog-centered" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Edit Event</h5>
+          <h5 class="modal-title">Event Info</h5>
           <button type="button" class="close" data-dismiss="modal">&times;</button>
         </div>
         <div class="modal-body">
@@ -630,6 +716,10 @@
               <option value="district_championship">District Championship</option>
               <option value="championship">Championship (Worlds)</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label>Official sync status</label>
+            <div class="sync-info-box" id="mEvSyncInfo"></div>
           </div>
           <input type="hidden" id="mEvId">
         </div>
@@ -783,24 +873,70 @@
       return '<span class="badge-tier-qual">Qualifier</span>';
     }
     // The raw official_sync_note from the official-sync Edge Function looks like
-    // "2026-11-07T02:31:20.523Z | FRC: 56 matches | TBA: 55 matches" — parse that into a
-    // compact one-line summary instead of showing the raw timestamp + full sentence, which is
-    // what made this column busy and prone to wrapping across two lines. Anything that
-    // doesn't match the expected shape (an error message, "Never synced", etc.) is shown as-is.
-    var SYNC_NOTE_RE = /^(\S+)\s*\|\s*FRC:\s*(\d+)\s*matches?\s*\|\s*TBA:\s*(\d+)\s*matches?$/i;
+    // "2026-11-07T02:31:20.523Z | FRC: 56 matches | TBA: 55 matches" on a full success, or with
+    // either side reading "failed: <reason>" when that one source didn't come through (API
+    // timeout, bad code, etc. — the other side can still have synced fine). Parse either shape
+    // into a compact one-line summary instead of showing the raw timestamp + full sentence,
+    // which is what made this column busy and prone to wrapping across two lines.
+    var SYNC_NOTE_RE = /^(\S+)\s*\|\s*FRC:?\s*(\d+\s*matches?|failed:?\s*.*?)\s*\|\s*TBA:?\s*(\d+\s*matches?|failed:?\s*.*)$/i;
+    function syncPart(raw) {
+      raw = raw.trim();
+      var okM = /^(\d+)\s*matches?$/i.exec(raw);
+      if (okM) return { ok: true, text: okM[1] + " matches" };
+      var failM = /^failed:?\s*(.*)$/i.exec(raw);
+      return { ok: false, text: failM ? failM[1] : raw };
+    }
+    // Returns { when, frc, tba, ok } for a note matching SYNC_NOTE_RE, or null if the note is
+    // some other shape (a raw error from a failed function invocation, "Never synced", etc.).
+    function parseSyncNote(note) {
+      var m = note.match(SYNC_NOTE_RE);
+      if (!m) return null;
+      var frc = syncPart(m[2]), tba = syncPart(m[3]);
+      return { when: m[1], frc: frc, tba: tba, ok: frc.ok && tba.ok };
+    }
     function syncCell(ev) {
       if (!ev.frc_event_code && !ev.tba_event_key) return '<span class="sync-note">Not linked</span>';
-      var note = ev.official_sync_note || "Never synced";
-      var m = note.match(SYNC_NOTE_RE);
-      if (m) {
-        var when = new Date(m[1]);
-        var whenStr = isNaN(when) ? m[1] : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        return '<span class="sync-note" title="' + esc(note).replace(/"/g, "&quot;") + '">' +
-          '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i> ' + esc(whenStr) +
-          ' &middot; FRC ' + m[2] + ' / TBA ' + m[3] + '</span>';
+      var note = ev.official_sync_note;
+      if (!note) return '<span class="sync-note">Never synced</span>';
+      var p = parseSyncNote(note);
+      var titleAttr = ' title="' + esc(note).replace(/"/g, "&quot;") + '"';
+      if (p) {
+        var when = new Date(p.when);
+        var whenStr = isNaN(when) ? p.when : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        var icon = p.ok
+          ? '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i>'
+          : '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i>';
+        var frcText = p.frc.ok ? ("FRC " + p.frc.text.replace(" matches", "")) : "FRC failed";
+        var tbaText = p.tba.ok ? ("TBA " + p.tba.text.replace(" matches", "")) : "TBA failed";
+        return '<span class="sync-note' + (p.ok ? "" : " warn") + '"' + titleAttr + '">' +
+          icon + ' ' + esc(whenStr) + ' &middot; ' + frcText + ' / ' + tbaText + '</span>';
       }
-      return '<span class="sync-note" title="' + esc(note).replace(/"/g, "&quot;") + '">' +
+      return '<span class="sync-note warn"' + titleAttr + '">' +
+        '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' +
         esc(note.length > 60 ? note.slice(0, 60) + "…" : note) + '</span>';
+    }
+    // Fuller version of the same parse for the event info modal — full timestamp, full error
+    // text (not truncated to 60 chars), FRC and TBA broken out on their own lines.
+    function syncInfoHTML(ev) {
+      if (!ev.frc_event_code && !ev.tba_event_key) {
+        return '<span class="text-muted">Not linked to an FRC/TBA event code — add one above to enable syncing.</span>';
+      }
+      var note = ev.official_sync_note;
+      if (!note) return '<span class="text-muted">Never synced.</span>';
+      var p = parseSyncNote(note);
+      if (p) {
+        var when = new Date(p.when);
+        var whenStr = isNaN(when) ? p.when : when.toLocaleString("en-US",
+          { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+        var line = function (ok, label, text) {
+          return '<div style="color:' + (ok ? "#1a7f4b" : "#a83228") + ';">' +
+            '<i class="fa ' + (ok ? "fa-check-circle" : "fa-exclamation-triangle") + '"></i> ' +
+            label + ': ' + esc(text) + '</div>';
+        };
+        return '<div class="text-muted">Last attempt: ' + esc(whenStr) + '</div>' +
+          line(p.frc.ok, "FRC", p.frc.text) + line(p.tba.ok, "TBA", p.tba.text);
+      }
+      return '<div style="color:#a83228;"><i class="fa fa-exclamation-triangle"></i> ' + esc(note) + '</div>';
     }
     // Reads and checks the two code inputs. Returns {frc, tba} or null (after showing a message).
     function readCodes(frcId, tbaId) {
@@ -897,6 +1033,7 @@
       document.getElementById("mEvFrc").value = ev.frc_event_code || "";
       document.getElementById("mEvTba").value = ev.tba_event_key || "";
       document.getElementById("mEvTier").value = ev.event_tier || "qualifier";
+      document.getElementById("mEvSyncInfo").innerHTML = syncInfoHTML(ev);
       $("#evModal").modal("show");
     };
     document.getElementById("mEvSave").addEventListener("click", async function () {
@@ -1221,6 +1358,108 @@
     };
 
     // ══════════════════════════════════════════════════════════════════
+    // TEAM INFO (names + logos, shown on the team's card in query.html)
+    // ══════════════════════════════════════════════════════════════════
+    var teamInfo = [];
+    async function loadTeamInfo() {
+      var r = await sb.from("team_info").select("*").order("team_number", { ascending: true });
+      if (r.error) { toast("Couldn't load team info.", true); return; }
+      teamInfo = r.data;
+      renderTeamInfo();
+    }
+    function renderTeamInfo() {
+      var el = document.getElementById("tiList");
+      if (!teamInfo.length) { el.innerHTML = '<div class="empty-state">No team info saved yet.</div>'; return; }
+      el.innerHTML = teamInfo.map(function (t) {
+        var logo = t.logo_url
+          ? '<img class="ti-logo" src="' + esc(t.logo_url) + '" alt="">'
+          : '<span class="ti-logo-placeholder">—</span>';
+        return '<div class="ti-row">' +
+          '<span>' + logo + '</span>' +
+          '<span><strong>' + t.team_number + '</strong></span>' +
+          '<span>' + esc(t.team_name || "—") + '</span>' +
+          '<span class="row-actions">' +
+            '<button class="btn-icon" onclick="editTeamInfo(' + t.team_number + ')"><i class="fa fa-pencil"></i></button>' +
+            '<button class="btn-icon danger" onclick="deleteTeamInfo(' + t.team_number + ')"><i class="fa fa-trash"></i></button>' +
+          '</span>' +
+        '</div>';
+      }).join("");
+    }
+
+    function resetTeamInfoForm() {
+      document.getElementById("tiId").value = "";
+      document.getElementById("tiTeam").value = "";
+      document.getElementById("tiTeam").disabled = false;
+      document.getElementById("tiName").value = "";
+      document.getElementById("tiLogoUrl").value = "";
+      document.getElementById("tiLogoFile").value = "";
+      document.getElementById("tiPreview").style.display = "none";
+      document.getElementById("tiFormTitle").textContent = "Add Team Name / Logo";
+      document.getElementById("tiCancel").classList.add("d-none");
+    }
+    document.getElementById("tiCancel").addEventListener("click", resetTeamInfoForm);
+
+    window.editTeamInfo = function (team) {
+      var t = teamInfo.find(function (x) { return x.team_number === team; });
+      if (!t) return;
+      document.getElementById("tiId").value = team;
+      document.getElementById("tiTeam").value = team;
+      document.getElementById("tiTeam").disabled = true; // team number is the key, immutable once saved
+      document.getElementById("tiName").value = t.team_name || "";
+      document.getElementById("tiLogoUrl").value = t.logo_url || "";
+      document.getElementById("tiLogoFile").value = "";
+      var prev = document.getElementById("tiPreview");
+      if (t.logo_url) { prev.src = t.logo_url; prev.style.display = ""; } else { prev.style.display = "none"; }
+      document.getElementById("tiFormTitle").textContent = "Edit Team " + team;
+      document.getElementById("tiCancel").classList.remove("d-none");
+      document.getElementById("tab-teaminfo").scrollIntoView({ behavior: "smooth" });
+    };
+
+    document.getElementById("tiLogoFile").addEventListener("change", function () {
+      var file = this.files[0];
+      var prev = document.getElementById("tiPreview");
+      if (!file) { return; }
+      prev.src = URL.createObjectURL(file);
+      prev.style.display = "";
+    });
+
+    document.getElementById("tiSave").addEventListener("click", async function () {
+      var editing = document.getElementById("tiId").value;
+      var team = parseInt(document.getElementById("tiTeam").value, 10);
+      var name = document.getElementById("tiName").value.trim();
+      var logoUrl = document.getElementById("tiLogoUrl").value.trim();
+      var file = document.getElementById("tiLogoFile").files[0];
+      if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
+
+      if (file) {
+        var ext = (file.name.split(".").pop() || "png").toLowerCase();
+        var path = team + "-" + Date.now() + "." + ext;
+        var up = await sb.storage.from("team-logos").upload(path, file, { upsert: true });
+        if (up.error) { toast(up.error.message || "Couldn't upload logo.", true); return; }
+        logoUrl = sb.storage.from("team-logos").getPublicUrl(path).data.publicUrl;
+      }
+
+      var r = await sb.from("team_info").upsert({
+        team_number: team,
+        team_name: name || null,
+        logo_url: logoUrl || null,
+        updated_by: meUid
+      });
+      if (r.error) { toast(r.error.message || "Couldn't save team info.", true); return; }
+      toast((editing ? "Updated" : "Saved") + " team " + team + ".");
+      resetTeamInfoForm();
+      loadTeamInfo();
+    });
+
+    window.deleteTeamInfo = async function (team) {
+      if (!confirm("Remove the saved name/logo for team " + team + "?")) return;
+      var r = await sb.from("team_info").delete().eq("team_number", team);
+      if (r.error) { toast("Couldn't remove team info.", true); return; }
+      toast("Removed team info for " + team + ".");
+      loadTeamInfo();
+    };
+
+    // ══════════════════════════════════════════════════════════════════
     // MEMBERS
     // ══════════════════════════════════════════════════════════════════
     var LEVELS = ["staff", "mentor", "student", "guest"];
@@ -1304,7 +1543,7 @@
     document.getElementById("refreshMembers").addEventListener("click", loadMembers);
 
     // ── Boot ─────────────────────────────────────────────────────────
-    await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams()]);
+    await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams(), loadTeamInfo()]);
     loadMembers();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.

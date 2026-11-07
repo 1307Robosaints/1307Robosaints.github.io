@@ -19,6 +19,7 @@
 --   5  Events, entries, share codes          9b Storage: scouting photos
 --   6  Pit entries + validation             10  Guest access via share codes
 --  8e  Test teams                           11  Member management (Staff Portal)
+--  8f  Team info (names/logos)               8g  Storage: team logos
 --  12  Permissions   13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Check query
 --
@@ -606,6 +607,64 @@ create policy "staff manages test teams" on public.test_teams for all to authent
 
 
 -- =====================================================================
+-- 8f. Team info (names + logos)
+--
+--    Lets staff attach a display name and a logo to any team number (ours,
+--    an opponent, anyone) from the Staff Portal. Purely cosmetic — shown on
+--    the team's card in the Team Database (query.html) and in the team
+--    list there — it has no effect on ratings or scouting data.
+--    logo_url is either a pasted image link or a file staff uploaded to the
+--    "team-logos" Storage bucket (section 8g); either way it's just stored
+--    as a URL and rendered with <img>.
+-- =====================================================================
+create table if not exists public.team_info (
+  team_number int primary key check (team_number between 1 and 99999),
+  team_name   text check (char_length(team_name) <= 100),
+  logo_url    text check (char_length(logo_url) <= 500),
+  updated_by  uuid references auth.users(id) on delete set null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.team_info enable row level security;
+
+drop policy if exists "team reads team info"   on public.team_info;
+drop policy if exists "staff manages team info" on public.team_info;
+create policy "team reads team info" on public.team_info for select to authenticated
+  using (public.is_staff() or public.is_student());
+create policy "staff manages team info" on public.team_info for all to authenticated
+  using (public.is_staff()) with check (public.is_staff());
+
+
+-- =====================================================================
+-- 8g. Storage: team logos
+--
+--    Backs the logo-upload option on the Team Info tab (section 8f).
+--    Public, like scouting-photos, so a saved logo_url renders directly.
+--    Path convention the site uses: <team_number>-<timestamp>.<ext>
+-- =====================================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('team-logos', 'team-logos', true, 2097152,
+        array['image/jpeg','image/png','image/webp','image/svg+xml'])
+on conflict (id) do update set
+  public = true, file_size_limit = 2097152,
+  allowed_mime_types = array['image/jpeg','image/png','image/webp','image/svg+xml'];
+
+drop policy if exists "staff uploads team logos" on storage.objects;
+drop policy if exists "staff replaces team logos" on storage.objects;
+drop policy if exists "anyone views team logos" on storage.objects;
+drop policy if exists "staff deletes team logos" on storage.objects;
+
+create policy "staff uploads team logos" on storage.objects for insert to authenticated
+  with check (bucket_id = 'team-logos' and public.is_staff());
+create policy "staff replaces team logos" on storage.objects for update to authenticated
+  using (bucket_id = 'team-logos' and public.is_staff())
+  with check (bucket_id = 'team-logos' and public.is_staff());
+create policy "anyone views team logos" on storage.objects for select
+  using (bucket_id = 'team-logos');
+create policy "staff deletes team logos" on storage.objects for delete to authenticated
+  using (bucket_id = 'team-logos' and public.is_staff());
+
+
+-- =====================================================================
 -- 9. Team rating (the A-F grade)
 --
 --    TWO SEPARATE RANKINGS, never blended into one number:
@@ -1078,6 +1137,7 @@ grant select, insert, update, delete on public.scout_fields     to authenticated
 grant select, insert, update, delete on public.share_codes      to authenticated;
 grant select, insert, update, delete on public.pit_entries      to authenticated;
 grant select, insert, update, delete on public.test_teams       to authenticated;
+grant select, insert, update, delete on public.team_info        to authenticated;
 grant select on public.official_matches          to authenticated;
 grant select on public.official_matches_combined to authenticated;
 grant select on public.official_team_matches     to authenticated;
@@ -1257,6 +1317,7 @@ with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
+  ('table','team_info'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
@@ -1265,7 +1326,7 @@ with expected(kind, name) as (values
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('function','staff_list_share_codes'),
-  ('bucket','scouting-photos')
+  ('bucket','scouting-photos'), ('bucket','team-logos')
 )
 select e.kind, e.name,
        case e.kind

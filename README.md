@@ -18,8 +18,9 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
   parameters, and two independent ratings (one from human scouting, one from synced official
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).
+  A team's card also shows its name and logo if staff have set one on the Team Info tab.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
-  and member access levels.
+  team names/logos, and member access levels.
 
 Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
 row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.
