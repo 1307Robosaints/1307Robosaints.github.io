@@ -199,7 +199,7 @@
   <!-- ===== Scripts ===== -->
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
@@ -355,11 +355,13 @@
     });
 
     // ── On load ──────────────────────────────────────────────────────
-    // Arriving from a password-reset email: Supabase fires PASSWORD_RECOVERY, so show the "new password" form.
+    // Arriving from a password-reset email: show the "new password" form. RS.recovery comes from
+    // auth.js, because by the time this runs Supabase may already have cleared the URL hash.
+    if (RS.recovery) show("reset");
     sb.auth.onAuthStateChange(function (ev) { if (ev === "PASSWORD_RECOVERY") show("reset"); });
     // Already signed in? Skip this page (unless this is a recovery link, which also carries a session).
     sb.auth.getSession().then(function (r) {
-      if (r.data.session && !/type=recovery/.test(location.hash)) location.href = "account.html";
+      if (r.data.session && !RS.recovery) location.href = "account.html";
     });
   })();
   </script>

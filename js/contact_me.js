@@ -18,6 +18,20 @@ $(function () {
     emailjs.init({ publicKey: cfg.emailjs.publicKey });
   }
 
+  // These limits run in the browser, so they stop accidents and casual abuse only. EmailJS's
+  // dashboard (allowed origins, rate limits) is what actually protects the account's quota.
+  var LIMITS = { name: 100, email: 254, message: 999 };
+  var COOLDOWN_MS = 60 * 1000;
+  var COOLDOWN_KEY = "rs_contact_last_sent";
+
+  // Storage can be blocked (private windows), and that must never stop the form working
+  function lastSent() {
+    try { return parseInt(localStorage.getItem(COOLDOWN_KEY), 10) || 0; } catch (e) { return 0; }
+  }
+  function markSent() {
+    try { localStorage.setItem(COOLDOWN_KEY, String(Date.now())); } catch (e) {}
+  }
+
   // Only allow phone-style characters while typing
   $("#phone").on("input", function () {
     this.value = this.value.replace(/[^\d\s().+\-]/g, "");
@@ -93,6 +107,24 @@ $(function () {
 
     var name  = $("#name").val().trim();
     var email = $("#email").val().trim();
+    if (name.length > LIMITS.name || email.length > LIMITS.email || $("#message").val().trim().length > LIMITS.message) {
+      showAlert("warning", "Your name, email, or message is too long. Please shorten it and try again.");
+      return;
+    }
+
+    // An ad blocker or network filter can block the mail script. Say so rather than freezing.
+    if (!window.emailjs) {
+      showAlert("danger", "Our mail service didn't load, which an ad blocker or network filter can cause. " +
+        "Please email us directly at " + [].concat(cfg.always)[0] + ".");
+      return;
+    }
+
+    var wait = Math.ceil((lastSent() + COOLDOWN_MS - Date.now()) / 1000);
+    if (wait > 0) {
+      showAlert("warning", "Your last message just went out. Please wait " + wait + " seconds before sending another.");
+      return;
+    }
+
     var submitter = email.toLowerCase();
     var allTopics = chosen.map(function (t) { return t.label; }).join(", ");
 
@@ -149,6 +181,7 @@ $(function () {
       var text = "Your message has been sent. Thank you!";
       if (copied === true) text += " A copy was sent to " + email + ".";
       else if (copied === false) text += " We couldn't email you a copy, but your message was delivered.";
+      markSent();
       showAlert("success", text);
       $form[0].reset();
       $form.removeClass("was-validated");

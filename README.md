@@ -13,8 +13,8 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 
 **1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`):
 - `1307scout.html` — landing/command-center page, links out based on your access level.
-- `scout.html` — enter match and pit scouting data for the current event (or view a limited
-  slice of data via a share code, no account needed).
+- `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
+  free account can use a share code here to view a limited slice of data.
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
   parameters, and two independent ratings (one from human scouting, one from synced official
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).

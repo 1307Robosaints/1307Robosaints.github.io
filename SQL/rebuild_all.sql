@@ -34,11 +34,21 @@
 -- staff/member grants); a couple of actions that aren't a table write (staff_kick,
 -- and manage-member's ban/unban) call public.log_action() directly.
 --
+-- Member data removal: banning or deleting an account removes its match entries, pit
+-- entries and photos through purge_member_data() (section 16), called only by the
+-- manage-member and delete-account Edge Functions. Unbanning doesn't restore them.
+--
 -- 2026 REBUILT update: scout_fields.field_type now also accepts 'image',
 -- so staff can add a field ("Robot photo", scope = pit) that lets scouts
 -- attach a picture of a team's robot from the Scout page. The photo itself
 -- is stored in the "scouting-photos" Storage bucket created in section 9b;
 -- the entry's data just holds that photo's public URL as a string.
+--
+-- Hardening update: log_action() is no longer callable from the API; share-code guesses are
+-- throttled per account (share_code_attempts, section 5); photo URLs must point at this
+-- project's bucket; entries have a size cap; storage files can't be listed anonymously; pit
+-- entries stamp their own editor and time. If this project is ever moved to a new Supabase
+-- ref, update the URL pattern in validate_data() (section 6).
 --
 -- Later update: events now have an event_tier ('offseason', 'qualifier',
 -- 'district_championship', or 'championship'), set per event in the Staff
@@ -95,7 +105,7 @@ drop table if exists public.member_access;
 
 
 -- =====================================================================
--- 2. Staff allowlist. Only the SQL Editor can change this table.
+-- 2. Staff allowlist. Changed from the SQL Editor or by staff through staff_set_level().
 -- =====================================================================
 create table if not exists public.staff_members (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -224,9 +234,9 @@ alter table public.scout_fields add column if not exists allow_unsure boolean no
 drop policy if exists "team reads fields"   on public.scout_fields;
 drop policy if exists "staff writes fields" on public.scout_fields;
 create policy "team reads fields" on public.scout_fields for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 create policy "staff writes fields" on public.scout_fields for all to authenticated
-  using (public.is_staff()) with check (public.is_staff());
+  using ((select public.is_staff())) with check ((select public.is_staff()));
 
 
 -- =====================================================================
@@ -295,13 +305,16 @@ alter table public.scouting_entries add column if not exists data jsonb not null
 -- An 8-digit numeric code is short enough to read aloud or type from a printed handout, unlike
 -- the old 24-character hex code. Collisions are vanishingly unlikely at this team's scale, but
 -- the loop guards against one anyway instead of letting the unique constraint fail the insert.
+-- The digits come from gen_random_uuid() (its first 48 bits are cryptographically random), not
+-- random(), which is predictable. Short codes are only safe alongside the guess limit in
+-- get_shared_scouting() (section 10).
 create or replace function public.gen_share_code() returns text
 language plpgsql as $$
 declare
   c text;
 begin
   loop
-    c := lpad(floor(random() * 100000000)::int::text, 8, '0');
+    c := lpad(((('x' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12))::bit(48)::bigint) % 100000000)::text, 8, '0');
     exit when not exists (select 1 from public.share_codes where code = c);
   end loop;
   return c;
@@ -330,7 +343,7 @@ create table if not exists public.share_codes (
 alter table public.share_codes enable row level security;
 drop policy if exists "staff manages share codes" on public.share_codes;
 create policy "staff manages share codes" on public.share_codes for all to authenticated
-  using (public.is_staff()) with check (public.is_staff());
+  using ((select public.is_staff())) with check ((select public.is_staff()));
 
 -- Carry over the old per-event share codes, then remove those columns (runs once, only
 -- on a database that still has them)
@@ -384,6 +397,18 @@ alter table public.share_codes add constraint share_codes_check
 -- Re-point an existing table (created before the 8-digit code format) at the new default.
 alter table public.share_codes alter column code set default public.gen_share_code();
 
+-- Failed share-code lookups, one row each, read and written only by get_shared_scouting()
+-- (section 10) to limit guessing. Rows are pruned as soon as they age out of the window.
+create table if not exists public.share_code_attempts (
+  id           bigint generated always as identity primary key,
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  attempted_at timestamptz not null default now()
+);
+create index if not exists share_code_attempts_user_idx
+  on public.share_code_attempts (user_id, attempted_at);
+alter table public.share_code_attempts enable row level security;
+revoke all on public.share_code_attempts from anon, authenticated;
+
 
 -- =====================================================================
 -- 6. Pit entries (one per team per event, owned by the whole team)
@@ -405,17 +430,31 @@ drop policy if exists "team adds pit"    on public.pit_entries;
 drop policy if exists "team edits pit"   on public.pit_entries;
 drop policy if exists "team deletes pit" on public.pit_entries;
 create policy "team reads pit" on public.pit_entries for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 create policy "team adds pit" on public.pit_entries for insert to authenticated
-  with check ((public.is_staff() or public.is_student()) and scouted_by = auth.uid());
+  with check (((select public.is_staff()) or (select public.is_student())) and scouted_by = auth.uid());
 create policy "team edits pit" on public.pit_entries for update to authenticated
-  using (public.is_staff() or public.is_student())
-  with check (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()))
+  with check ((select public.is_staff()) or (select public.is_student()));
 create policy "team deletes pit" on public.pit_entries for delete to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
+
+-- The server decides who last edited a pit entry and when, so neither can be forged through the
+-- API. auth.uid() is null for service-role work, which keeps the existing editor.
+create or replace function public.stamp_pit_entry() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if auth.uid() is not null then new.scouted_by := auth.uid(); end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+drop trigger if exists stamp_pit_entry on public.pit_entries;
+create trigger stamp_pit_entry before insert or update on public.pit_entries
+  for each row execute function public.stamp_pit_entry();
 
 -- Every key must belong to the entry's scope. Inactive fields are still accepted,
--- so old entries keep saving. Active fields are checked for type, range, choices,
+-- so old entries keep saving, but only as short scalar values (see the first loop below). Active fields are checked for type, range, choices,
 -- and required values. 'image' fields hold the uploaded photo's public URL, so
 -- they're validated the same way 'text' is (a reasonably short string). 'slider' is
 -- validated exactly like 'number' — it's the same stored value, just a different input
@@ -434,9 +473,18 @@ begin
   if jsonb_typeof(p_data) <> 'object' then
     raise exception 'Entry data must be an object';
   end if;
+  -- Generous for any real form, small enough that nobody can stuff the database through one row
+  if octet_length(p_data::text) > 32768 then
+    raise exception 'Entry is too large';
+  end if;
 
   for k in select jsonb_object_keys(p_data) loop
     if exists (select 1 from public.scout_fields sf where sf.key = k and sf.scope = p_scope) then
+      -- Active fields get full checks below. Retired ones skip those, so bound them here.
+      if not exists (select 1 from public.scout_fields sf where sf.key = k and sf.scope = p_scope and sf.active)
+         and (jsonb_typeof(p_data -> k) in ('object','array') or char_length(p_data ->> k) > 2000) then
+        raise exception 'Entry contains an invalid value for a retired field';
+      end if;
       continue;
     end if;
     if k like '%\_\_other\_note' escape '\' then
@@ -490,8 +538,11 @@ begin
       -- string. This is the gate that keeps a crafted data payload (e.g. sent straight to the
       -- REST API, bypassing the site's own upload flow) from ever storing attacker-controlled
       -- text in a field that scout.html/query.html later render into an <img src="..."> / <a href="...">.
+      -- The project ref is pinned (any Supabase project would otherwise pass) and the path allows
+      -- only the characters uploadImageFields() in scout.html generates. Each path segment must
+      -- start with a letter, digit, or underscore, which rules out "..".
       if jsonb_typeof(v) <> 'string' or char_length(txt) > 2000
-         or txt !~ '^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/public/scouting-photos/'
+         or txt !~ '^https://nyanwljgsazwuzmnlrcz\.supabase\.co/storage/v1/object/public/scouting-photos(/[A-Za-z0-9_][A-Za-z0-9_.-]*)+$'
       then raise exception '% must be a photo uploaded through the scouting-photos bucket', f.label; end if;
     end if;
   end loop;
@@ -500,6 +551,8 @@ end $$;
 create or replace function public.validate_entry() returns trigger
 language plpgsql set search_path = '' as $$
 begin
+  -- Fixing a team or match number shouldn't fail because form rules changed after this was saved
+  if tg_op = 'UPDATE' and new.data = old.data then return new; end if;
   perform public.validate_data(new.data, 'match');
   return new;
 end $$;
@@ -511,6 +564,7 @@ create trigger validate_entry before insert or update on public.scouting_entries
 create or replace function public.validate_pit_entry() returns trigger
 language plpgsql set search_path = '' as $$
 begin
+  if tg_op = 'UPDATE' and new.data = old.data then return new; end if;
   perform public.validate_data(new.data, 'pit');
   return new;
 end $$;
@@ -522,6 +576,8 @@ create trigger validate_pit_entry before insert or update on public.pit_entries
 
 -- =====================================================================
 -- 7. Policies for events and match entries
+--    Throughout this file, "(select public.is_staff())" rather than a bare call makes Postgres
+--    run the check once per query instead of once per row. Keep that form in new policies.
 -- =====================================================================
 alter table public.events enable row level security;
 alter table public.scouting_entries enable row level security;
@@ -531,13 +587,13 @@ drop policy if exists "staff add events"               on public.events;
 drop policy if exists "staff edit events"              on public.events;
 drop policy if exists "staff deletes events"           on public.events;
 create policy "staff and students read events" on public.events for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 create policy "staff add events" on public.events for insert to authenticated
-  with check (public.is_staff());
+  with check ((select public.is_staff()));
 create policy "staff edit events" on public.events for update to authenticated
-  using (public.is_staff());
+  using ((select public.is_staff()));
 create policy "staff deletes events" on public.events for delete to authenticated
-  using (public.is_staff());
+  using ((select public.is_staff()));
 
 drop policy if exists "staff and students read entries" on public.scouting_entries;
 drop policy if exists "team adds entries"               on public.scouting_entries;
@@ -546,18 +602,18 @@ drop policy if exists "staff edits any entry"           on public.scouting_entri
 drop policy if exists "team deletes own entries"        on public.scouting_entries;
 drop policy if exists "staff deletes any entry"         on public.scouting_entries;
 create policy "staff and students read entries" on public.scouting_entries for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 create policy "team adds entries" on public.scouting_entries for insert to authenticated
-  with check ((public.is_staff() or public.is_student()) and scouted_by = auth.uid());
+  with check (((select public.is_staff()) or (select public.is_student())) and scouted_by = auth.uid());
 create policy "team edits own entries" on public.scouting_entries for update to authenticated
-  using ((public.is_staff() or public.is_student()) and scouted_by = auth.uid())
+  using (((select public.is_staff()) or (select public.is_student())) and scouted_by = auth.uid())
   with check (scouted_by = auth.uid());
 create policy "staff edits any entry" on public.scouting_entries for update to authenticated
-  using (public.is_staff()) with check (public.is_staff());
+  using ((select public.is_staff())) with check ((select public.is_staff()));
 create policy "team deletes own entries" on public.scouting_entries for delete to authenticated
-  using ((public.is_staff() or public.is_student()) and scouted_by = auth.uid());
+  using (((select public.is_staff()) or (select public.is_student())) and scouted_by = auth.uid());
 create policy "staff deletes any entry" on public.scouting_entries for delete to authenticated
-  using (public.is_staff());
+  using ((select public.is_staff()));
 
 
 -- =====================================================================
@@ -595,7 +651,7 @@ alter table public.official_matches enable row level security;
 
 drop policy if exists "team reads official matches" on public.official_matches;
 create policy "team reads official matches" on public.official_matches for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 
 -- 8a. One row per match. FRC Events is the authority for scores; TBA fills in when FRC has
 --     nothing yet. sources shows where the row came from; scores_agree is false if the two
@@ -688,7 +744,7 @@ language sql stable security definer set search_path = '' as $$
          round(avg(o.alliance_score), 2)
   from public.official_match_teams o
   where o.alliance_score is not null
-    and (public.is_staff() or public.is_student())
+    and ((select public.is_staff()) or (select public.is_student()))
   group by o.team_number;
 $$;
 
@@ -715,9 +771,9 @@ alter table public.test_teams enable row level security;
 drop policy if exists "team reads test teams"   on public.test_teams;
 drop policy if exists "staff manages test teams" on public.test_teams;
 create policy "team reads test teams" on public.test_teams for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 create policy "staff manages test teams" on public.test_teams for all to authenticated
-  using (public.is_staff()) with check (public.is_staff());
+  using ((select public.is_staff())) with check ((select public.is_staff()));
 
 
 -- =====================================================================
@@ -740,12 +796,17 @@ create table if not exists public.team_info (
 );
 alter table public.team_info enable row level security;
 
+-- Logos are pasted links or uploads, so require https. "not valid" leaves existing rows alone.
+alter table public.team_info drop constraint if exists team_info_logo_https;
+alter table public.team_info add constraint team_info_logo_https
+  check (logo_url is null or logo_url ~ '^https://[^[:space:]"<>]+$') not valid;
+
 drop policy if exists "team reads team info"   on public.team_info;
 drop policy if exists "staff manages team info" on public.team_info;
 create policy "team reads team info" on public.team_info for select to authenticated
-  using (public.is_staff() or public.is_student());
+  using ((select public.is_staff()) or (select public.is_student()));
 create policy "staff manages team info" on public.team_info for all to authenticated
-  using (public.is_staff()) with check (public.is_staff());
+  using ((select public.is_staff())) with check ((select public.is_staff()));
 
 
 -- =====================================================================
@@ -765,17 +826,20 @@ on conflict (id) do update set
 drop policy if exists "staff uploads team logos" on storage.objects;
 drop policy if exists "staff replaces team logos" on storage.objects;
 drop policy if exists "anyone views team logos" on storage.objects;
+drop policy if exists "staff lists team logos" on storage.objects;
 drop policy if exists "staff deletes team logos" on storage.objects;
 
 create policy "staff uploads team logos" on storage.objects for insert to authenticated
-  with check (bucket_id = 'team-logos' and public.is_staff());
+  with check (bucket_id = 'team-logos' and (select public.is_staff()));
 create policy "staff replaces team logos" on storage.objects for update to authenticated
-  using (bucket_id = 'team-logos' and public.is_staff())
-  with check (bucket_id = 'team-logos' and public.is_staff());
-create policy "anyone views team logos" on storage.objects for select
-  using (bucket_id = 'team-logos');
+  using (bucket_id = 'team-logos' and (select public.is_staff()))
+  with check (bucket_id = 'team-logos' and (select public.is_staff()));
+-- Public URLs in a public bucket are served without this policy. It only controls listing the
+-- bucket's contents through the API, which upload's upsert also needs, so keep it to staff.
+create policy "staff lists team logos" on storage.objects for select to authenticated
+  using (bucket_id = 'team-logos' and (select public.is_staff()));
 create policy "staff deletes team logos" on storage.objects for delete to authenticated
-  using (bucket_id = 'team-logos' and public.is_staff());
+  using (bucket_id = 'team-logos' and (select public.is_staff()));
 
 
 -- =====================================================================
@@ -882,7 +946,7 @@ language sql stable security definer set search_path = '' as $$
            public.rebuilt_auto_points(s.data)  as auto_pts,
            coalesce(s.data ->> 'teleop_role', 'Scorer') not in ('Defense', 'Feeder') as scoring_match
     from public.scouting_entries s
-    where (public.is_staff() or public.is_student())
+    where ((select public.is_staff()) or (select public.is_student()))
       and s.data ?| array['stuck_on_field','foul_or_card','auto_fuel_hub','teleop_fuel_hub','auto_tower','teleop_tower']
   ),
   agg as (
@@ -907,7 +971,7 @@ language sql stable security definer set search_path = '' as $$
   pit as (
     select distinct on (p.team_number) p.team_number, public.pit_capability(p.data) as cap
     from public.pit_entries p
-    where public.is_staff() or public.is_student()
+    where (select public.is_staff()) or (select public.is_student())
     order by p.team_number, p.updated_at desc
   ),
   base as (
@@ -995,7 +1059,7 @@ language sql stable security definer set search_path = '' as $$
            public.event_tier_weight(e.event_tier) as w
     from public.official_team_matches o
     join public.events e on e.id = o.event_id
-    where public.is_staff() or public.is_student()
+    where (select public.is_staff()) or (select public.is_student())
   ),
   agg as (
     select m.team_number,
@@ -1037,26 +1101,26 @@ create or replace function public.team_data_counts()
 returns table (team_number int, scouted_matches int, official_matches int, overlap_matches int)
 language sql stable security definer set search_path = '' as $$
   with scouted as (
-    select s.team_number, count(distinct s.match_number)::int as n
+    select s.team_number, count(distinct (s.event_id, s.match_number))::int as n
     from public.scouting_entries s
-    where (public.is_staff() or public.is_student()) and s.match_number is not null
+    where ((select public.is_staff()) or (select public.is_student())) and s.match_number is not null
     group by s.team_number
   ),
   officials as (
     select o.team_number, count(*)::int as n
     from public.official_team_matches o
-    where public.is_staff() or public.is_student()
+    where (select public.is_staff()) or (select public.is_student())
     group by o.team_number
   ),
   overlap as (
-    select s.team_number, count(distinct s.match_number)::int as n
+    select s.team_number, count(distinct (s.event_id, s.match_number))::int as n
     from public.scouting_entries s
     join public.official_team_matches o
       on o.team_number = s.team_number
      and o.event_id = s.event_id
      and o.match_number = s.match_number
      and o.comp_level = 'qm'
-    where (public.is_staff() or public.is_student()) and s.match_number is not null
+    where ((select public.is_staff()) or (select public.is_student())) and s.match_number is not null
     group by s.team_number
   )
   select coalesce(sc.team_number, off.team_number, ov.team_number),
@@ -1091,20 +1155,23 @@ on conflict (id) do update set
 drop policy if exists "team uploads scouting photos" on storage.objects;
 drop policy if exists "team replaces scouting photos" on storage.objects;
 drop policy if exists "anyone views scouting photos" on storage.objects;
+drop policy if exists "team lists scouting photos" on storage.objects;
 drop policy if exists "staff deletes scouting photos" on storage.objects;
 
 create policy "team uploads scouting photos" on storage.objects for insert to authenticated
-  with check (bucket_id = 'scouting-photos' and (public.is_staff() or public.is_student()));
+  with check (bucket_id = 'scouting-photos' and ((select public.is_staff()) or (select public.is_student())));
 -- Re-uploading the same path (upsert, e.g. replacing a pit photo) is an update, not an insert.
 -- Students may only overwrite a photo they themselves uploaded (storage.objects.owner is set
 -- automatically on insert); staff can replace anyone's, same as everywhere else on this site.
 create policy "team replaces scouting photos" on storage.objects for update to authenticated
-  using (bucket_id = 'scouting-photos' and (public.is_staff() or (public.is_student() and owner = auth.uid())))
-  with check (bucket_id = 'scouting-photos' and (public.is_staff() or (public.is_student() and owner = auth.uid())));
-create policy "anyone views scouting photos" on storage.objects for select
-  using (bucket_id = 'scouting-photos');
+  using (bucket_id = 'scouting-photos' and ((select public.is_staff()) or ((select public.is_student()) and owner = auth.uid())))
+  with check (bucket_id = 'scouting-photos' and ((select public.is_staff()) or ((select public.is_student()) and owner = auth.uid())));
+-- Saved photo URLs load for anyone without this policy, because the bucket is public. It only
+-- controls listing files through the API, so anonymous visitors can't enumerate every photo.
+create policy "team lists scouting photos" on storage.objects for select to authenticated
+  using (bucket_id = 'scouting-photos' and ((select public.is_staff()) or (select public.is_student())));
 create policy "staff deletes scouting photos" on storage.objects for delete to authenticated
-  using (bucket_id = 'scouting-photos' and public.is_staff());
+  using (bucket_id = 'scouting-photos' and (select public.is_staff()));
 
 
 -- =====================================================================
@@ -1116,6 +1183,10 @@ create policy "staff deletes scouting photos" on storage.objects for delete to a
 --     guest's percentile is relative to the slice they were given, not the whole team database.
 --     Reuses the scoring helpers from section 9 (jnum/jbool/rebuilt_*_points/pit_capability/
 --     event_tier_weight) so the math can't drift from the real ratings.
+--
+--     Codes are short, so guesses are limited: 10 wrong codes in 10 minutes locks that account
+--     out for the rest of the window, returning {"error":"rate_limited"}. Test teams are left
+--     out unless the code names them, so dummy data never reaches or skews a guest's view.
 -- =====================================================================
 drop function if exists public.get_shared_scouting(text);
 create or replace function public.get_shared_scouting(p_code text)
@@ -1126,7 +1197,18 @@ declare
   v_event_ids uuid[];
   v_team_numbers int[];
   v_result jsonb;
+  v_uid uuid := auth.uid();
 begin
+  -- A session staff signed out stays valid by signature until it expires, so check it here too
+  if v_uid is null or not public.session_live() then
+    return null;
+  end if;
+
+  delete from public.share_code_attempts where attempted_at < now() - interval '10 minutes';
+  if (select count(*) from public.share_code_attempts where user_id = v_uid) >= 10 then
+    return jsonb_build_object('error', 'rate_limited');
+  end if;
+
   select c.id, c.event_ids, c.team_numbers into v_id, v_event_ids, v_team_numbers
   from public.share_codes c
   where c.code = p_code
@@ -1135,6 +1217,7 @@ begin
   limit 1;
 
   if v_id is null then
+    insert into public.share_code_attempts (user_id) values (v_uid);
     return null;
   end if;
 
@@ -1149,17 +1232,23 @@ begin
   scoped_matches as (
     select s.* from public.scouting_entries s
     where (cardinality(v_event_ids) = 0 or s.event_id = any(v_event_ids))
-      and (cardinality(v_team_numbers) = 0 or s.team_number = any(v_team_numbers))
+      and (case when cardinality(v_team_numbers) = 0
+             then not exists (select 1 from public.test_teams tt where tt.team_number = s.team_number)
+             else s.team_number = any(v_team_numbers) end)
   ),
   scoped_pit as (
     select p.* from public.pit_entries p
     where (cardinality(v_event_ids) = 0 or p.event_id = any(v_event_ids))
-      and (cardinality(v_team_numbers) = 0 or p.team_number = any(v_team_numbers))
+      and (case when cardinality(v_team_numbers) = 0
+             then not exists (select 1 from public.test_teams tt where tt.team_number = p.team_number)
+             else p.team_number = any(v_team_numbers) end)
   ),
   scoped_official as (
     select o.* from public.official_match_teams o
     where (cardinality(v_event_ids) = 0 or o.event_id = any(v_event_ids))
-      and (cardinality(v_team_numbers) = 0 or o.team_number = any(v_team_numbers))
+      and (case when cardinality(v_team_numbers) = 0
+             then not exists (select 1 from public.test_teams tt where tt.team_number = o.team_number)
+             else o.team_number = any(v_team_numbers) end)
   ),
   -- Scouting grade, same math as team_ratings() (section 9) but over scoped_matches/scoped_pit
   -- instead of every match, and with no is_staff()/is_student() gate (the code already proved
@@ -1289,7 +1378,12 @@ begin
     'events', coalesce((
       select jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name, 'event_date', e.event_date))
       from public.events e
-      where cardinality(v_event_ids) = 0 or e.id = any(v_event_ids)
+      -- A team-only code lists just the events that team has data at, not every event
+      where e.id = any(v_event_ids)
+         or (cardinality(v_event_ids) = 0 and e.id in (
+              select event_id from scoped_matches union
+              select event_id from scoped_pit union
+              select event_id from scoped_official))
     ), '[]'::jsonb),
     'fields', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1355,7 +1449,7 @@ language sql stable security definer set search_path = '' as $$
   select c.id, c.code, c.label, c.event_ids, c.team_numbers,
          c.expires_at, c.revoked, c.created_at, c.use_count, c.last_used_at,
          c.created_by,
-         coalesce(nullif(u.raw_user_meta_data ->> 'display_name', ''), u.email::text)
+         coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), u.email::text)
   from public.share_codes c
   left join auth.users u on u.id = c.created_by
   where public.is_staff()
@@ -1374,7 +1468,7 @@ begin
   return query
     select u.id,
            u.email::text,
-           coalesce(u.raw_user_meta_data ->> 'display_name', '')::text,
+           coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
            (case
               when s.user_id is not null then 'staff'
               when g.level in ('mentor','student') then g.level
@@ -1674,11 +1768,12 @@ create index if not exists audit_log_role_idx    on public.audit_log (actor_role
 
 drop policy if exists "staff read audit log" on public.audit_log;
 create policy "staff read audit log" on public.audit_log for select to authenticated
-  using (public.is_staff());
+  using ((select public.is_staff()));
 
 -- Central write helper. Every writer below (the generic trigger, staff_kick(), the
 -- manage-member Edge Function) calls this rather than inserting into audit_log
--- directly, so actor_role is always worked out the same way.
+-- directly, so actor_role is always worked out the same way. It must stay uncallable from
+-- the API: security definer callers and service_role reach it, signed-in users don't.
 create or replace function public.log_action(
   p_action text, p_table text, p_record_id text, p_summary text, p_details jsonb default null
 ) returns void
@@ -1714,6 +1809,12 @@ declare
   v_summary text;
   v_verb    text;
 begin
+  -- A share-code redemption only bumps its counters. Logging that would add a row per use.
+  if TG_TABLE_NAME = 'share_codes' and TG_OP = 'UPDATE'
+     and to_jsonb(NEW) - 'use_count' - 'last_used_at' = to_jsonb(OLD) - 'use_count' - 'last_used_at' then
+    return NEW;
+  end if;
+
   v_row  := to_jsonb(case when TG_OP = 'DELETE' then OLD else NEW end);
   v_id   := coalesce(v_row ->> 'id', v_row ->> 'user_id', v_row ->> 'team_number', '');
   v_verb := initcap(lower(TG_OP));
@@ -1801,10 +1902,44 @@ begin
     limit least(coalesce(p_limit, 200), 500) offset greatest(coalesce(p_offset, 0), 0);
 end $$;
 
-revoke all on function public.log_action(text, text, text, text, jsonb) from public, anon;
+revoke all on function public.log_action(text, text, text, text, jsonb) from public, anon, authenticated;
+grant execute on function public.log_action(text, text, text, text, jsonb) to service_role;
 revoke all on function public.staff_search_audit_log(text, text, text, text, timestamptz, timestamptz, int, int) from public, anon;
-grant execute on function public.log_action(text, text, text, text, jsonb) to authenticated;
 grant execute on function public.staff_search_audit_log(text, text, text, text, timestamptz, timestamptz, int, int) to authenticated;
+
+-- Removes everything a banned or deleted account entered, in one transaction. Pit entries
+-- are matched on scouted_by, which is the last editor, so one a teammate has since edited stays.
+-- Returns the scouting-photos paths the caller must remove through the Storage API (SQL can't
+-- delete the files). Photos still used by a surviving entry are left alone. Rows already removed
+-- don't affect the result, so a failed photo cleanup can be retried. The audit triggers keep a
+-- staff-only copy of each deleted row. Must stay uncallable from the API: service_role only.
+create or replace function public.purge_member_data(target uuid, p_reason text)
+returns text[] language plpgsql security definer set search_path = '' as $$
+declare
+  v_match int;
+  v_pit   int;
+  v_paths text[];
+  v_email text;
+begin
+  delete from public.scouting_entries where scouted_by = target;
+  get diagnostics v_match = row_count;
+  delete from public.pit_entries where scouted_by = target;
+  get diagnostics v_pit = row_count;
+
+  select coalesce(array_agg(o.name), '{}') into v_paths
+    from storage.objects o
+    where o.bucket_id = 'scouting-photos' and o.owner = target
+      and not exists (select 1 from public.scouting_entries s where position(o.name in s.data::text) > 0)
+      and not exists (select 1 from public.pit_entries p where position(o.name in p.data::text) > 0);
+
+  select email into v_email from auth.users where id = target;
+  perform public.log_action('delete', 'auth.users', target::text,
+    format('Removed data for %s (%s): %s match entries, %s pit entries, %s photos',
+      coalesce(v_email, target::text), p_reason, v_match, v_pit, cardinality(v_paths)));
+  return v_paths;
+end $$;
+revoke all on function public.purge_member_data(uuid, text) from public, anon, authenticated;
+grant execute on function public.purge_member_data(uuid, text) to service_role;
 
 
 -- =====================================================================
@@ -1817,7 +1952,7 @@ with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
-  ('table','team_info'), ('table','audit_log'),
+  ('table','team_info'), ('table','audit_log'), ('table','share_code_attempts'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),

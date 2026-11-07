@@ -400,7 +400,7 @@
           <!-- Match number only applies to match scouting; pit mode hides this group -->
           <div class="form-group col-6 col-md-4" id="matchGroup">
             <label for="fMatch">Match #</label>
-            <input type="number" id="fMatch" class="form-control" min="1" max="500">
+            <input type="number" id="fMatch" class="form-control" min="1" max="999">
           </div>
         </div>
 
@@ -521,7 +521,7 @@
   <!-- ===== Scripts ===== -->
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script>
@@ -540,9 +540,11 @@
     // Escape text before putting it into innerHTML so scouted text can't inject markup
     function esc(s) {
       return String(s == null ? "" : s)
-        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     }
     function get(id) { return document.getElementById(id); }
+    // Digits only. parseInt alone would read "1e3" (valid in a number box) as team 1.
+    function wholeNumber(v) { return /^\d+$/.test(String(v).trim()) ? parseInt(v, 10) : NaN; }
 
     // Label text for a dynamic field: a red "*" when staff marked it required, a muted
     // "(optional)" otherwise, so that marker is consistent across every field instead of
@@ -610,6 +612,11 @@
       location.replace("signin.html"); return;
     }
 
+    // A code saved before sign-in is used once, here. Team members don't need it, so it's
+    // cleared either way, which also stops account.html sending anyone back to this page.
+    var savedCode = sessionStorage.getItem("rs_code");
+    sessionStorage.removeItem("rs_code");
+
     var DRAFT_KEY = "rs_drafts_" + s.user.id;
 
     // my_access_level() is a database function returning 'staff', 'student', or 'guest'
@@ -618,7 +625,22 @@
 
     // ── Offline draft queue (match entries only) ─────────────────────
     // If a save fails because the device is offline, the entry is stored in localStorage and
-    // re-sent by flushDrafts() when the connection comes back.
+    // re-sent by flushDrafts() when the connection comes back. A draft is either a new entry
+    // (the insert payload, with an id made here so a retry can't create it twice) or an edit,
+    // stored as { editId, patch } so that going offline mid-edit can't duplicate the entry.
+
+    // True when a request never got an answer from the database. supabase-js reports that as
+    // status 0 (502+ is the gateway), and its message text differs between browsers.
+    function isNetworkError(r) {
+      return !navigator.onLine || r.status === 0 || r.status >= 502;
+    }
+    function newId() {
+      if (crypto.randomUUID) return crypto.randomUUID();
+      return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function (c) {
+        return (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16);
+      });
+    }
+    function draftKey(d) { return d.editId || d.id; }
     
     function getDrafts() {
       try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "[]"); } catch(e) { return []; }
@@ -626,19 +648,51 @@
     function saveDrafts(arr) {
       try { localStorage.setItem(DRAFT_KEY, JSON.stringify(arr)); } catch(e) {}
     }
-    // Try to send every stored draft; keep only the ones that still fail
+    // Add a draft. A second offline edit of the same entry replaces the first.
+    function queueDraft(d) {
+      var key = draftKey(d);
+      saveDrafts(getDrafts().filter(function (x) { return draftKey(x) !== key; }).concat([d]));
+    }
+    // Remove drafts by key, re-reading storage so one queued during a flush isn't lost
+    function removeDrafts(keys) {
+      saveDrafts(getDrafts().filter(function (d) { return keys.indexOf(draftKey(d)) === -1; }));
+    }
+    // Try to send every stored draft. The online event and page boot can both call this, so
+    // only one run happens at a time. Stops at the first sign the connection is still down.
+    var flushing = false;
     async function flushDrafts() {
-      var drafts = getDrafts();
-      if (!drafts.length) return;
-      var sent = [];
-      for (var i = 0; i < drafts.length; i++) {
-        var r = await sb.from("scouting_entries").insert(drafts[i]);
-        if (!r.error) sent.push(i);
-      }
-      if (sent.length) {
-        saveDrafts(drafts.filter(function(_, i){ return !sent.includes(i); }));
-        toast(sent.length + " draft" + (sent.length > 1 ? "s" : "") + " submitted.");
-        loadEntries();
+      if (flushing) return;
+      flushing = true;
+      try {
+        // Drafts saved before ids existed get one now, so a retry can't double them
+        var drafts = getDrafts().map(function (d) { if (!draftKey(d)) d.id = newId(); return d; });
+        saveDrafts(drafts);
+        var sent = [], rejected = [], reason = "";
+        for (var i = 0; i < drafts.length; i++) {
+          var d = drafts[i];
+          var r = d.editId
+            ? await sb.from("scouting_entries").update(d.patch).eq("id", d.editId).select("id")
+            : await sb.from("scouting_entries").insert(d);
+          // 23505 = this id is already saved: an earlier try got through but its reply was lost
+          if (r.error && r.error.code === "23505") sent.push(draftKey(d));
+          else if (r.error && isNetworkError(r)) break;
+          else if (r.error) { rejected.push(draftKey(d)); reason = r.error.message; }
+          else if (d.editId && !r.data.length) { rejected.push(draftKey(d)); reason = "you can no longer edit that entry"; }
+          else sent.push(draftKey(d));
+        }
+        if (sent.length) {
+          removeDrafts(sent);
+          toast(sent.length + " draft" + (sent.length > 1 ? "s" : "") + " submitted.");
+          loadEntries();
+        }
+        // Retrying won't help these, and they'd block nothing but stay forever, so ask
+        if (rejected.length && confirm(rejected.length + " saved draft" + (rejected.length > 1 ? "s were" : " was") +
+            " rejected by the server (" + reason + "). Discard? Cancel keeps a copy on this device.")) {
+          removeDrafts(rejected);
+        }
+        if (!getDrafts().length) get("draftIndicator").style.display = "none";
+      } finally {
+        flushing = false;
       }
     }
 
@@ -661,8 +715,8 @@
     if (!isTeam) {
       get("guestView").style.display = "";
       // Use the code from the link (or one saved before sign-in) and load it right away
-      var code = hashCode || sessionStorage.getItem("rs_code") || "";
-      if (code) { sessionStorage.removeItem("rs_code"); get("guestCode").value = code; loadGuest(code); }
+      var code = hashCode || savedCode || "";
+      if (code) { get("guestCode").value = code; loadGuest(code); }
       get("guestLoad").addEventListener("click", function () {
         loadGuest(get("guestCode").value.trim());
       });
@@ -690,6 +744,10 @@
       msg.innerHTML = "";
       get("guestData").style.display = "none";
       var r = await sb.rpc("get_shared_scouting", { p_code: code });
+      if (r.data && r.data.error === "rate_limited") {
+        msg.innerHTML = '<div class="alert alert-warning">Too many incorrect codes. Please wait 10 minutes and try again.</div>';
+        return;
+      }
       if (r.error || !r.data) { msg.innerHTML = '<div class="alert alert-danger">Code not found or access has been revoked.</div>'; return; }
       gPayload = r.data;
       gEventsById = {};
@@ -894,7 +952,7 @@
     // Load events (newest first), then auto-select the one staff marked as default in the
     // Staff Portal — or, if none is set, the most recent event.
     async function loadEvents() {
-      var r = await sb.from("events").select("*").order("event_date", { ascending: false });
+      var r = await sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false });
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
       var def = events.find(function (ev) { return ev.is_default_event; });
@@ -1268,6 +1326,8 @@
       return data;
     }
 
+    var PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+
     // Upload any newly-picked photos for the active tab's image fields, and carry over the URL of
     // any image field the scout didn't touch. existing is the data object being edited (or {} for new).
     async function uploadImageFields(existing, team) {
@@ -1278,7 +1338,12 @@
         var el = get("field_" + f.key);
         var file = el && el.files && el.files[0];
         if (file) {
-          var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+          // Same limits as the bucket (section 9b of rebuild_all.sql), checked here for a clear message
+          if (file.size > PHOTO_MAX_BYTES) { toast(f.label + " is too large (10 MB max).", true); throw new Error("photo too large"); }
+          if (file.type && !/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type)) {
+            toast(f.label + " must be a JPEG, PNG, WebP, or HEIC image.", true); throw new Error("photo type");
+          }
+          var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "jpg";
           var path = currentEvent.id + "/" + mode + "/" + team + "/" + f.key + "-" + Date.now() + "." + ext;
           var up = await sb.storage.from("scouting-photos").upload(path, file, { upsert: true, contentType: file.type });
           if (up.error) { toast("Couldn't upload " + f.label + ": " + up.error.message, true); throw up.error; }
@@ -1407,7 +1472,7 @@
     // In pit mode, typing a team that already has a pit entry loads it for editing
     get("fTeam").addEventListener("change", function () {
       if (mode !== "pit") return;
-      var t = parseInt(this.value, 10);
+      var t = wholeNumber(this.value);
       var existing = allPit.find(function(e){ return e.team_number === t; });
       editingId = existing ? existing.id : null;
       if (existing) {
@@ -1420,7 +1485,7 @@
 
     // Match entry query: staff see everyone's entries; students only see their own
     var entryQuery = isStaff
-      ? function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).order("created_at", { ascending: false }).limit(500); }
+      ? function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).order("created_at", { ascending: false }).limit(1000); }
       : function(evId) { return sb.from("scouting_entries").select("*").eq("event_id", evId).eq("scouted_by", s.user.id).order("created_at", { ascending: false }).limit(200); };
 
     get("entrySearch").addEventListener("input", function() {
@@ -1436,6 +1501,8 @@
         entryQuery(evId),
         sb.from("pit_entries").select("*").eq("event_id", evId).order("team_number", { ascending: true })
       ]);
+      // Switched events while this was loading: a newer load owns the tables now
+      if (!currentEvent || currentEvent.id !== evId) return;
       if (results[0].error) toast("Couldn't load match entries.", true);
       else allEntries = results[0].data;
       if (results[1].error) toast("Couldn't load pit entries.", true);
@@ -1534,21 +1601,36 @@
     }
 
     // ── Save ─────────────────────────────────────────────────────────
+    // One save at a time: a double-tap on a slow connection would otherwise record the entry twice
+    var saving = false;
     get("entrySave").addEventListener("click", async function () {
-      if (!currentEvent) return;
-      var team = parseInt(get("fTeam").value, 10);
-      if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
+      if (!currentEvent || saving) return;
+      var btn = this;
+      saving = true; btn.disabled = true;
+      try { await saveEntry(); }
+      finally { saving = false; btn.disabled = false; }
+    });
+
+    async function saveEntry() {
+      // Uploads can take a while, so hold on to what this save is for in case the tab or event changes
+      var saveMode = mode, saveEvent = currentEvent, editId = editingId;
+      var team = wholeNumber(get("fTeam").value);
+      if (!(team >= 1 && team <= 99999)) { toast("Enter a valid team number.", true); return; }
       var match = null;
-      if (mode === "match" && get("fMatch").value) match = parseInt(get("fMatch").value, 10);
+      if (saveMode === "match" && get("fMatch").value !== "") {
+        match = wholeNumber(get("fMatch").value);
+        if (!(match >= 1 && match <= 999)) { toast("Enter a match number from 1 to 999.", true); return; }
+      }
 
       // Existing saved data for the row being edited, so a required photo already on file
       // doesn't get rejected just because no new file was picked this time.
       var existingData = {};
-      if (mode === "pit") {
-        var existingPit = allPit.find(function(e){ return e.team_number === team; });
+      var existingPit = null;
+      if (saveMode === "pit") {
+        existingPit = allPit.find(function(e){ return e.team_number === team; }) || null;
         existingData = (existingPit && existingPit.data) || {};
-      } else if (editingId) {
-        var existingMatch = allEntries.find(function(e){ return e.id === editingId; });
+      } else if (editId) {
+        var existingMatch = allEntries.find(function(e){ return e.id === editId; });
         existingData = (existingMatch && existingMatch.data) || {};
       }
 
@@ -1577,25 +1659,25 @@
       catch (e) { return; }   // uploadImageFields already showed a toast
       Object.assign(data, imageData);
 
-      if (mode === "pit") { await savePit(team, data); return; }
+      if (saveMode === "pit") { await savePit(team, data, saveEvent, existingPit); return; }
 
       // Match entry: update the existing row when editing, otherwise insert a new one
-      var payload = { event_id: currentEvent.id, team_number: team, match_number: match,
+      var payload = { id: newId(), event_id: saveEvent.id, team_number: team, match_number: match,
                       data: data, scouted_by: s.user.id };
+      var patch = { team_number: team, match_number: match, data: data };
 
       var r;
-      if (editingId) {
-        r = await sb.from("scouting_entries").update({ team_number: team, match_number: match, data: data }).eq("id", editingId);
+      if (editId) {
+        r = await sb.from("scouting_entries").update(patch).eq("id", editId).select("id");
       } else {
         r = await sb.from("scouting_entries").insert(payload);
       }
 
       if (r.error) {
-        // Offline: save as draft
-        if (!navigator.onLine || r.error.message === "Failed to fetch") {
-          var drafts = getDrafts();
-          drafts.push(payload);
-          saveDrafts(drafts);
+        // Offline: save as draft, and clear the form so the same entry can't be queued twice
+        if (isNetworkError(r)) {
+          queueDraft(editId ? { editId: editId, patch: patch } : payload);
+          resetEntryForm();
           get("draftIndicator").style.display = "flex";
           toast("No connection — saved as draft.");
         } else {
@@ -1603,18 +1685,34 @@
         }
         return;
       }
-      toast(editingId ? "Entry updated." : "Entry saved.");
+      // Row security hides a blocked update as "0 rows changed", not as an error
+      if (editId && !r.data.length) { toast("Couldn't update this entry. You may no longer have access to it.", true); return; }
+      toast(editId ? "Entry updated." : "Entry saved.");
       resetEntryForm();
       loadEntries();
-    });
+    }
 
-    // Pit entries have no draft queue: they're saved straight to the server
-    async function savePit(team, data) {
-      var payload = { event_id: currentEvent.id, team_number: team, data: data,
+    // Pit entries have no draft queue: they're saved straight to the server. There's one shared
+    // row per team, so check nobody else saved over it since this page loaded it.
+    async function savePit(team, data, saveEvent, loaded) {
+      var cur = await sb.from("pit_entries").select("updated_at")
+        .eq("event_id", saveEvent.id).eq("team_number", team).maybeSingle();
+      if (cur.data && (!loaded || cur.data.updated_at !== loaded.updated_at)) {
+        if (!confirm("Someone else saved a pit entry for team " + team + " after this page loaded it. " +
+            "Replace theirs with yours? Cancel to go back without saving.")) {
+          loadEntries();
+          return;
+        }
+      }
+      var payload = { event_id: saveEvent.id, team_number: team, data: data,
                       scouted_by: s.user.id, updated_at: new Date().toISOString() };
       // One pit entry per team per event: insert, or overwrite the existing one
       var r = await sb.from("pit_entries").upsert(payload, { onConflict: "event_id,team_number" });
-      if (r.error) { toast(r.error.message || "Couldn't save pit entry.", true); return; }
+      if (r.error) {
+        toast(isNetworkError(r) ? "No connection — pit entry not saved. Try again once you're back online."
+                                : (r.error.message || "Couldn't save pit entry."), true);
+        return;
+      }
       toast("Pit entry saved.");
       resetEntryForm();
       loadEntries();
@@ -1639,8 +1737,8 @@
 
     window.deleteEntry = async function(id) {
       if (!confirm("Delete this entry?")) return;
-      var r = await sb.from("scouting_entries").delete().eq("id", id);
-      if (r.error) { toast("Couldn't delete entry.", true); return; }
+      var r = await sb.from("scouting_entries").delete().eq("id", id).select("id");
+      if (r.error || !r.data.length) { toast("Couldn't delete entry.", true); return; }
       toast("Entry deleted.");
       loadEntries();
     };
@@ -1660,8 +1758,8 @@
 
     window.deletePit = async function(id) {
       if (!confirm("Delete this pit entry?")) return;
-      var r = await sb.from("pit_entries").delete().eq("id", id);
-      if (r.error) { toast("Couldn't delete pit entry.", true); return; }
+      var r = await sb.from("pit_entries").delete().eq("id", id).select("id");
+      if (r.error || !r.data.length) { toast("Couldn't delete pit entry.", true); return; }
       toast("Pit entry deleted.");
       loadEntries();
     };

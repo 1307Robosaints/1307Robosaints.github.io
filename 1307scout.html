@@ -535,7 +535,7 @@
   <!-- ===== Scripts ===== -->
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script>
@@ -601,12 +601,10 @@
       area.appendChild(a);
     });
 
-    // Sign out, then reload so the logged-out view appears. Swallow errors: if a
-    // staff member already force-signed-out this session (staff_kick), the server
-    // side session is gone and signOut() rejects, but we still need to clear the
-    // stale local session and reload.
+    // Sign out, then reload so the logged-out view appears. RS.signOut clears this
+    // device even if the server can't be reached or staff already ended the session.
     document.getElementById("quickSignOut").addEventListener("click", async function () {
-      try { await sb.auth.signOut(); } catch (e) {}
+      await RS.signOut();
       location.reload();
     });
 

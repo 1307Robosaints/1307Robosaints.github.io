@@ -202,19 +202,22 @@
         <h2>How long we keep information</h2>
         <p>
           Scouting and competition records are kept indefinitely as part of the team's institutional
-          history, the same way old match videos or spreadsheets would be. Account information is kept
-          while your account is active. You can delete your own account at any time, or ask us to delete
-          it or your personal information for you; some scouting records tied to a team number (not to
-          you personally) may be kept for the team's historical record even after your account is removed.
+          history, the same way old match videos or spreadsheets would be, unless the account that
+          entered them is banned or deleted. Account information is kept while your account is active.
+          You can delete your own account at any time, or ask us to delete it or your personal information
+          for you. When an account is banned or deleted, its scouting entries, pit entries and photos are
+          removed; a pit entry a teammate has since edited stays, because it counts as theirs. Our
+          staff-only audit log keeps a record of removed entries, including their contents, as a history
+          of changes to the data. Incorrect share-code attempts are recorded against your account for
+          about ten minutes to limit guessing, then deleted.
         </p>
 
         <h2>Your choices</h2>
         <ul>
           <li>Ask us to see, correct, or delete the personal information we hold about you.</li>
           <li>
-            Delete your own account from the My Account page at any time. If you've already submitted
-            scouting or pit data, you'll need to ask a staff member to remove it first, or to ban your
-            account instead so that data stays attributed.
+            Delete your own account from the My Account page at any time. This also removes the scouting
+            entries, pit entries and photos you entered.
           </li>
           <li>Ask a staff member to sign you out of every device, or to ban or delete your account.</li>
           <li>Decline to use the contact form or 1307scout — the rest of the site needs no account.</li>
@@ -273,7 +276,7 @@
     <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 
     <!-- Supabase authentication (adds Sign In / My Account to the nav) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
     <script src="/js/auth-config.js"></script>
     <script src="/js/auth.js"></script>
 

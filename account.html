@@ -276,9 +276,8 @@
       <!-- Delete account -->
       <div class="account-card danger-zone">
         <h2>Delete account</h2>
-        <p class="section-sub">Permanently deletes your account and sign-in. This can't be undone. If you have
-          existing scouting or pit data, delete that first (or ask staff to) — accounts with data attached can't
-          be removed.</p>
+        <p class="section-sub">Permanently deletes your account and sign-in, along with the scouting entries, pit
+          entries and photos you entered. This can't be undone.</p>
         <button class="ghost-btn danger-btn" id="deleteAccountBtn" type="button">Delete my account</button>
         <div class="mt-2"><span id="deleteMsg" class="small" role="status" aria-live="polite"></span></div>
       </div>
@@ -311,7 +310,7 @@
 
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script>
@@ -329,6 +328,8 @@
 
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
+    // Came through sign-in from a share link: finish the trip (scout.html clears the saved code)
+    if (sessionStorage.getItem("rs_code")) { location.replace("scout.html"); return; }
 
     var user = s.user;
     var lvl  = (await sb.rpc("my_access_level")).data || "guest";
@@ -532,16 +533,15 @@
       "Team members get full access by signing in with their school Google account (stalux.org). If you should have team access, contact a staff member.";
 
     // ── Sign out ─────────────────────────────────────────────────────
-    // Swallow errors here too: if a staff member already force-signed-out this
-    // session (staff_kick), the server-side session is gone and signOut() rejects,
-    // but we still need to clear the stale local session and leave the page.
+    // RS.signOut clears this device even if the server can't be reached or the session
+    // was already removed by a staff member (staff_kick).
     $("signOutBtn").addEventListener("click", async function () {
-      try { await sb.auth.signOut(); } catch (e) {}
+      await RS.signOut();
       location.href = "/index.html";
     });
     $("signOutAllBtn").addEventListener("click", async function () {
       if (!confirm("Sign out of every device, including this one?")) return;
-      try { await sb.auth.signOut({ scope: "global" }); } catch (e) {}
+      await RS.signOut({ scope: "global" });
       location.href = "/signin.html";
     });
 
@@ -557,7 +557,7 @@
         try { return (await r.error.context.json()).error || "Couldn't delete your account."; }
         catch (e) { return "Couldn't delete your account."; }
       })()); return; }
-      try { await sb.auth.signOut(); } catch (e) {}
+      await RS.signOut();
       location.href = "/index.html";
     });
 

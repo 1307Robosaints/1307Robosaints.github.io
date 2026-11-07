@@ -113,7 +113,7 @@
         <p>
           The public pages (home, about, sponsors, gallery, contact) are open to everyone. 1307scout
           is for Team 1307 members, mentors, and people a staff member has specifically granted
-          access to. A share code lets someone without an account view a specific, limited slice of
+          access to. A share code lets someone with a free guest account view a specific, limited slice of
           scouting data a staff member chose to share with them.
         </p>
 
@@ -122,7 +122,7 @@
           <li>You're responsible for keeping your login credentials to yourself and for anything done under your account.</li>
           <li>Use an accurate email address — students generally use their school (<code>@stalux.org</code>) address.</li>
           <li>One account per person. Don't share your login, or a share code, with anyone it wasn't meant for.</li>
-          <li>Staff can change your access level, sign you out of every device, or ban or delete your account for violating these terms.</li>
+          <li>Staff can change your access level, sign you out of every device, or ban or delete your account for violating these terms. Banning or deleting an account also permanently removes the scouting entries, pit entries and photos it entered.</li>
         </ul>
 
         <h2>Acceptable use</h2>
@@ -157,7 +157,8 @@
         <p>
           A share code is created and scoped by a staff member for a specific purpose — for example,
           sharing one team's data with that team. We can revoke a share code at any time, including
-          ones already handed out, and we may set them to expire automatically.
+          ones already handed out, and we may set them to expire automatically. Too many incorrect
+          codes will temporarily lock your account out of entering more.
         </p>
 
         <h2>Availability</h2>
@@ -233,7 +234,7 @@
     <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 
     <!-- Supabase authentication (adds Sign In / My Account to the nav) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
     <script src="/js/auth-config.js"></script>
     <script src="/js/auth.js"></script>
 

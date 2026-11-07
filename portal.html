@@ -909,8 +909,8 @@
 
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script>
@@ -931,9 +931,20 @@
       document.getElementById("toastWrap").appendChild(d);
       setTimeout(function () { d.remove(); }, 3000);
     }
+    // Quotes matter here: esc() output also lands inside src="" and title="" attributes
     function esc(s) {
       return String(s == null ? "" : s)
-        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    }
+    // Disables a save button until its handler finishes, so a double-click can't submit twice
+    function guarded(fn) {
+      return async function () {
+        var btn = this;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try { await fn.call(btn); }
+        finally { btn.disabled = false; }
+      };
     }
     function fmt(date) {
     return fmtEventDate(date, { month: "short", day: "numeric", year: "numeric" });
@@ -1062,18 +1073,18 @@
       var note = ev.official_sync_note;
       if (!note) return '<span class="sync-note">Never synced</span>';
       var p = parseSyncNote(note);
-      var titleAttr = ' title="' + esc(note).replace(/"/g, "&quot;") + '"';
+      var titleAttr = ' title="' + esc(note) + '"';
       if (p && p.ok) {
         var when = new Date(p.when);
         var whenStr = isNaN(when) ? p.when : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         var frcText = "FRC " + p.frc.text.replace(" matches", "");
         var tbaText = "TBA " + p.tba.text.replace(" matches", "");
-        return '<span class="sync-note"' + titleAttr + '">' +
+        return '<span class="sync-note"' + titleAttr + '>' +
           '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i> ' + esc(whenStr) +
           ' &middot; ' + frcText + ' / ' + tbaText + '</span>';
       }
       if (isFutureEvent(ev)) {
-        return '<span class="sync-note upcoming"' + titleAttr + '">' +
+        return '<span class="sync-note upcoming"' + titleAttr + '>' +
           '<i class="fa fa-clock-o"></i> Hasn\'t happened yet</span>';
       }
       if (p) {
@@ -1081,11 +1092,11 @@
         var whenStr2 = isNaN(when2) ? p.when : when2.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         var frcText2 = p.frc.ok ? ("FRC " + p.frc.text.replace(" matches", "")) : "FRC failed";
         var tbaText2 = p.tba.ok ? ("TBA " + p.tba.text.replace(" matches", "")) : "TBA failed";
-        return '<span class="sync-note warn"' + titleAttr + '">' +
+        return '<span class="sync-note warn"' + titleAttr + '>' +
           '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' + esc(whenStr2) +
           ' &middot; ' + frcText2 + ' / ' + tbaText2 + '</span>';
       }
-      return '<span class="sync-note warn"' + titleAttr + '">' +
+      return '<span class="sync-note warn"' + titleAttr + '>' +
         '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' +
         esc(note.length > 60 ? note.slice(0, 60) + "…" : note) + '</span>';
     }
@@ -1191,7 +1202,7 @@
         '</div>';
       }).join("");
     }
-    document.getElementById("evSave").addEventListener("click", async function () {
+    document.getElementById("evSave").addEventListener("click", guarded(async function () {
       var name = document.getElementById("evName").value.trim();
       var loc  = document.getElementById("evLocation").value.trim();
       var date = document.getElementById("evDate").value || null;
@@ -1212,7 +1223,7 @@
       document.getElementById("evTier").value = "qualifier";
       toast("Event saved.");
       loadEvents();
-    });
+    }));
     window.editEvent = function (id) {
       var ev = events.find(function (e) { return e.id === id; });
       if (!ev) return;
@@ -1244,10 +1255,22 @@
       toast("Event updated.");
       loadEvents();
     });
+    // Deleting an event cascades to everything recorded there, so show what's at stake and make
+    // staff type the name: a stray click on the trash icon shouldn't be able to cost a season.
     window.deleteEvent = async function (id) {
-      if (!confirm("Delete this event? All entries for it will also be deleted.")) return;
-      var r = await sb.from("events").delete().eq("id", id);
-      if (r.error) { toast("Couldn't delete event.", true); return; }
+      var ev = events.find(function (e) { return e.id === id; });
+      if (!ev) return;
+      var counts = await Promise.all(["scouting_entries", "pit_entries", "official_matches"].map(function (t) {
+        return sb.from(t).select("id", { count: "exact", head: true }).eq("event_id", id);
+      }));
+      var n = counts.map(function (c) { return c.count == null ? "an unknown number of" : c.count; });
+      var typed = prompt('This permanently deletes "' + ev.name + '" along with ' + n[0] + " match entries, " +
+        n[1] + " pit entries, and " + n[2] + " official match rows. This can't be undone.\n\n" +
+        "Type the event name to confirm:");
+      if (typed === null) return;
+      if (typed.trim() !== ev.name.trim()) { toast("That didn't match the event name. Nothing was deleted.", true); return; }
+      var r = await sb.from("events").delete().eq("id", id).select("id");
+      if (r.error || !r.data.length) { toast("Couldn't delete event.", true); return; }
       toast("Event deleted.");
       loadEvents();
     };
@@ -1317,6 +1340,8 @@
         toast("Key must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.", true); return;
       }
       if (type === "choice" && (!opts || !opts.length)) { toast("Add at least one choice.", true); return; }
+      // Nothing could ever pass validate_data() on a field like this, blocking every entry
+      if (min != null && max != null && min > max) { toast("Min can't be greater than Max.", true); return; }
 
       var scope  = document.getElementById("fScope").value;
       var points = isNumberLike(type) && document.getElementById("fPoints").checked;
@@ -1467,7 +1492,7 @@
       if (e.key === "Enter") { e.preventDefault(); addTeamChip(); }
     });
 
-    document.getElementById("cSave").addEventListener("click", async function () {
+    document.getElementById("cSave").addEventListener("click", guarded(async function () {
       var label    = document.getElementById("cLabel").value.trim();
       var eventIds = Array.from(document.querySelectorAll("#cEventList input[type=checkbox]:checked")).map(function (cb) { return cb.value; });
       var expiry   = document.getElementById("cExpiry").value || null;
@@ -1489,7 +1514,7 @@
       toast("Share code created.");
       await loadCodes();
       showCode(r.data.id);
-    });
+    }));
 
     window.showCode = function (id) {
       var c = codes.find(function(x){ return x.id === id; });
@@ -1624,16 +1649,17 @@
       prev.style.display = "";
     });
 
-    document.getElementById("tiSave").addEventListener("click", async function () {
+    document.getElementById("tiSave").addEventListener("click", guarded(async function () {
       var editing = document.getElementById("tiId").value;
       var team = parseInt(document.getElementById("tiTeam").value, 10);
       var name = document.getElementById("tiName").value.trim();
       var logoUrl = document.getElementById("tiLogoUrl").value.trim();
       var file = document.getElementById("tiLogoFile").files[0];
       if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
+      if (!file && logoUrl && !/^https:\/\//i.test(logoUrl)) { toast("A logo link must start with https://.", true); return; }
 
       if (file) {
-        var ext = (file.name.split(".").pop() || "png").toLowerCase();
+        var ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "png";
         var path = team + "-" + Date.now() + "." + ext;
         var up = await sb.storage.from("team-logos").upload(path, file, { upsert: true });
         if (up.error) { toast(up.error.message || "Couldn't upload logo.", true); return; }
@@ -1650,7 +1676,7 @@
       toast((editing ? "Updated" : "Saved") + " team " + team + ".");
       resetTeamInfoForm();
       loadTeamInfo();
-    });
+    }));
 
     window.deleteTeamInfo = async function (team) {
       if (!confirm("Remove the saved name/logo for team " + team + "?")) return;
@@ -1665,14 +1691,17 @@
     // ══════════════════════════════════════════════════════════════════
     var LEVELS = ["staff", "mentor", "student", "guest"];
     var meUid = s.user.id;
+    // Deployed slug of the manage-member function. Supabase slugs can't be renamed.
+    var MANAGE_MEMBER_FN = "bright-responder";
     function memFlash(ok, text) {
       var el = document.getElementById("memberMsg");
       el.className = "small " + (ok ? "text-success" : "text-danger");
       el.textContent = text;
     }
     async function memErr(err) {
-      try { return (await err.context.json()).error || "Action failed."; }
-      catch (e) { return "Action failed."; }
+      // Functions send {error}, the Supabase gateway sends {message}, network failures send neither
+      try { var b = await err.context.json(); return b.error || b.message || "Action failed."; }
+      catch (e) { return err.message || "Action failed."; }
     }
     function memCell(content) {
       var td = document.createElement("td");
@@ -1714,9 +1743,10 @@
       actions.appendChild(memButton(m.banned ? "Unban" : "Ban", async function () {
         var unban = m.banned;
         var q = unban ? "Unban " + m.email + "?"
-                      : "Ban " + m.email + "? They will be signed out and unable to sign in.";
+                      : "Ban " + m.email + "? They will be signed out and unable to sign in, and their scouting " +
+                        "entries, pit entries and photos will be permanently removed. Unbanning won't restore them.";
         if (!confirm(q)) return;
-        var r = await sb.functions.invoke("manage-member", {
+        var r = await sb.functions.invoke(MANAGE_MEMBER_FN, {
           body: { action: unban ? "unban" : "ban", target: m.user_id }
         });
         if (r.error) return memFlash(false, await memErr(r.error));
@@ -1727,9 +1757,9 @@
         loadMembers();
       }, self));
       actions.appendChild(memButton("Delete", async function () {
-        if (!confirm("Permanently delete " + m.email + "'s account? This can't be undone. " +
-          "(Accounts with existing scouting or pit data can't be deleted — ban them instead.)")) return;
-        var r = await sb.functions.invoke("manage-member", {
+        if (!confirm("Permanently delete " + m.email + "'s account and their scouting entries, pit entries " +
+          "and photos? This can't be undone.")) return;
+        var r = await sb.functions.invoke(MANAGE_MEMBER_FN, {
           body: { action: "delete", target: m.user_id }
         });
         if (r.error) return memFlash(false, await memErr(r.error));

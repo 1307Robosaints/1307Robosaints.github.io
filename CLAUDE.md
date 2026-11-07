@@ -33,7 +33,8 @@ Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 (`@supabase/supabase-js` UMD), then `/js/auth-config.js`, then `/js/auth.js`. `auth.js` builds
 `window.RS = { sb: <supabase client> }` — every page's inline script calls Supabase through
 `RS.sb` (aliased locally as `sb`), e.g. `sb.from("scouting_entries").select(...)`,
-`sb.rpc("my_access_level")`, `sb.storage.from("scouting-photos").upload(...)`. `auth.js` also
+`sb.rpc("my_access_level")`, `sb.storage.from("scouting-photos").upload(...)`. CDN `<script>`
+tags carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
 drives the shared nav: it hides/shows `[data-role="staff"]` / `[data-role="team"]` elements and
 highlights the active nav link — this is cosmetic only, not the real access control.
 
@@ -46,8 +47,8 @@ button in HTML/JS is UX polish; it is never sufficient on its own to gate a feat
 gated feature needs an RLS policy or a function check in the SQL, mirroring the pattern already
 in `SQL/rebuild_all.sql`.
 
-Access levels: `staff`, `mentor`/`student` (team), `guest`. `staff_members` is an allowlist only
-editable from the SQL Editor; `member_grants` covers mentors/students on personal emails and
+Access levels: `staff`, `mentor`/`student` (team), `guest`. `staff_members` is an allowlist
+editable from the SQL Editor or by existing staff through `staff_set_level()`; `member_grants` covers mentors/students on personal emails and
 explicit guest grants; students otherwise qualify via a `@stalux.org` login.
 
 ### `SQL/rebuild_all.sql` is the single source of truth for the schema
@@ -69,8 +70,12 @@ Key tables/functions to know when touching 1307scout:
   `'image'`, which drives a file/camera picker on the Scout page that uploads to the
   `scouting-photos` Storage bucket and stores the resulting public URL as the field's string
   value.
-- `share_codes` — revocable, optionally-expiring codes for no-account guest access to a slice of
-  data (read via the `get_shared_scouting()` RPC).
+- `purge_member_data()` — removes what a banned or deleted account entered; `service_role`
+  only, called by `manage-member` and `delete-account`, which then remove the photo files it
+  returns through the Storage API.
+- `share_codes` — revocable, optionally-expiring codes that give a signed-in guest a slice of
+  data (read via the `get_shared_scouting()` RPC). Wrong guesses are throttled per account
+  through `share_code_attempts`.
 - `official_matches` / the per-team views in section 8 — official FRC Events + The Blue Alliance
   results, written only by the `official-sync` Edge Function (service role); staff/students can
   read, nobody writes through the normal API. `match_key` format: `qm12` (qualification 12),
@@ -85,6 +90,10 @@ Key tables/functions to know when touching 1307scout:
   deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
   `manage-member` is a separate Edge Function used by the Staff Portal for member management.
+  Its deployed slug is `bright-responder`, so that is the name `portal.html` invokes.
+  `delete-account` is a separate Edge Function behind the My Account delete button. Both must
+  have "Verify JWT with legacy secret" off: user tokens are signed with the project's ES256
+  key, so each function checks the login itself.
 
 ## Documentation and comments
 
@@ -99,8 +108,8 @@ individual lines.
 
 ### Contact form
 
-`contact.html`'s form sends mail client-side via EmailJS, no server component — `mail/
-contact_me.php` is unused legacy from the original template. **`js/contact-config.js` is the
+`contact.html`'s form sends mail client-side via EmailJS, no server component.
+**`js/contact-config.js` is the
 only file to edit** to add/remove a topic or change who gets notified for it; it drives
 `js/contact_me.js`, which builds the checkboxes, validates input, and sends through EmailJS.
 Every topic's recipients always also get `CONTACT_CONFIG.always`, and someone checking multiple
