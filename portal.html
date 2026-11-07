@@ -110,6 +110,11 @@
     }
     .badge-test { background: #e67e22; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
 
+    /* Event-tier badges — how much an event's results count toward a team's official rating */
+    .badge-tier-off   { background: var(--line); color: var(--muted); padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
+    .badge-tier-dc    { background: #6c3fb5; color: #fff; padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
+    .badge-tier-champ { background: #D4AF37; color: #2b2100; padding: .15rem .55rem; font-size: .7rem; font-family: var(--display); }
+
     .table-wrap {
       border: 1px solid var(--line);
       border-radius: 0;
@@ -295,7 +300,16 @@
             <label for="evTba">TBA event key <small class="text-muted">(optional)</small></label>
             <input type="text" id="evTba" class="form-control" maxlength="30" placeholder="e.g. 2026nhdur">
           </div>
-          <div class="form-group col-md-2 d-flex align-items-end">
+          <div class="form-group col-md-3">
+            <label for="evTier">Event tier <small class="text-muted">(how much it counts)</small></label>
+            <select id="evTier" class="form-control">
+              <option value="qualifier" selected>Qualifier (regular season)</option>
+              <option value="offseason">Off-season</option>
+              <option value="district_championship">District Championship</option>
+              <option value="championship">Championship (Worlds)</option>
+            </select>
+          </div>
+          <div class="form-group col-md-3 d-flex align-items-end">
             <button class="btn btn-primary w-100" id="evSave">Save Event</button>
           </div>
         </div>
@@ -542,6 +556,15 @@
             <label for="mEvTba">TBA event key <small class="text-muted">(optional)</small></label>
             <input type="text" id="mEvTba" class="form-control" maxlength="30">
           </div>
+          <div class="form-group">
+            <label for="mEvTier">Event tier <small class="text-muted">(how much it counts)</small></label>
+            <select id="mEvTier" class="form-control">
+              <option value="qualifier">Qualifier (regular season)</option>
+              <option value="offseason">Off-season</option>
+              <option value="district_championship">District Championship</option>
+              <option value="championship">Championship (Worlds)</option>
+            </select>
+          </div>
           <input type="hidden" id="mEvId">
         </div>
         <div class="modal-footer">
@@ -642,7 +665,7 @@
       if (!events.length) { el.innerHTML = '<div class="empty-state">No events yet. Add one above.</div>'; return; }
       el.innerHTML = events.map(function (ev) {
         return '<div class="event-row">' +
-          '<span><strong>' + esc(ev.name) + '</strong></span>' +
+          '<span><strong>' + esc(ev.name) + '</strong>' + tierBadge(ev.event_tier) + '</span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
           '<span>' + fmt(ev.event_date) + '</span>' +
           '<span>' + syncCell(ev) + '</span>' +
@@ -655,6 +678,12 @@
           '</span>' +
         '</div>';
       }).join("");
+    }
+    function tierBadge(tier) {
+      if (tier === "district_championship") return ' <span class="badge-tier-dc">District Champs</span>';
+      if (tier === "championship") return ' <span class="badge-tier-champ">Championship</span>';
+      if (tier === "offseason") return ' <span class="badge-tier-off">Off-season</span>';
+      return "";   // 'qualifier' is the common case — no badge needed
     }
     function syncCell(ev) {
       if (!ev.frc_event_code && !ev.tba_event_key) return '<span class="sync-note">Not linked</span>';
@@ -698,9 +727,10 @@
       if (!name) { toast("Event name is required.", true); return; }
       var codes = readCodes("evFrc", "evTba");
       if (!codes) return;
+      var tier = document.getElementById("evTier").value;
       var r = await sb.from("events").insert({
         name: name, location: loc || null, event_date: date,
-        frc_event_code: codes.frc, tba_event_key: codes.tba
+        frc_event_code: codes.frc, tba_event_key: codes.tba, event_tier: tier
       });
       if (r.error) { toast("Couldn't save event.", true); return; }
       document.getElementById("evName").value = "";
@@ -708,6 +738,7 @@
       document.getElementById("evDate").value = "";
       document.getElementById("evFrc").value = "";
       document.getElementById("evTba").value = "";
+      document.getElementById("evTier").value = "qualifier";
       toast("Event saved.");
       loadEvents();
     });
@@ -720,6 +751,7 @@
       document.getElementById("mEvDate").value = ev.event_date ? ev.event_date.slice(0,10) : "";
       document.getElementById("mEvFrc").value = ev.frc_event_code || "";
       document.getElementById("mEvTba").value = ev.tba_event_key || "";
+      document.getElementById("mEvTier").value = ev.event_tier || "qualifier";
       $("#evModal").modal("show");
     };
     document.getElementById("mEvSave").addEventListener("click", async function () {
@@ -730,9 +762,10 @@
       if (!name) { toast("Event name is required.", true); return; }
       var codes = readCodes("mEvFrc", "mEvTba");
       if (!codes) return;
+      var tier = document.getElementById("mEvTier").value;
       var r = await sb.from("events").update({
         name: name, location: loc || null, event_date: date,
-        frc_event_code: codes.frc, tba_event_key: codes.tba
+        frc_event_code: codes.frc, tba_event_key: codes.tba, event_tier: tier
       }).eq("id", id);
       if (r.error) { toast("Couldn't update event.", true); return; }
       $("#evModal").modal("hide");

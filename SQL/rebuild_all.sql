@@ -30,6 +30,14 @@
 -- attach a picture of a team's robot from the Scout page. The photo itself
 -- is stored in the "scouting-photos" Storage bucket created in section 9b;
 -- the entry's data just holds that photo's public URL as a string.
+--
+-- Later update: events now have an event_tier ('offseason', 'qualifier',
+-- 'district_championship', or 'championship'), set per event in the Staff
+-- Portal. team_official_ratings() (section 9) weights each match by its
+-- event's tier via event_tier_weight() — a win or a high score at a
+-- District Championship or the FIRST Championship counts for more than
+-- the same result at a regular qualifier, and an off-season result
+-- counts for a little less.
 -- =====================================================================
 
 
@@ -204,6 +212,22 @@ alter table public.events add column if not exists tba_etag             text;
 alter table public.events add column if not exists frc_last_modified    jsonb not null default '{}'::jsonb;
 alter table public.events add column if not exists official_sync_status jsonb;
 alter table public.events add column if not exists official_sync_note   text;
+
+-- How much this event's official results count toward a team's official rating (section 9).
+-- Set per event in the Staff Portal. 'qualifier' (a normal district/regular-season event) is
+-- the default for every existing event, so nothing changes until staff mark a championship.
+alter table public.events add column if not exists event_tier text not null default 'qualifier'
+  check (event_tier in ('offseason','qualifier','district_championship','championship'));
+
+-- Backfill the tier of events already in the table from earlier imports (safe to re-run;
+-- only touches rows that already exist, and only sets non-default tiers).
+update public.events set event_tier = 'offseason'
+  where frc_event_code in ('NHHOL','NHALT','NHALT1','CTGLA','MAWOR1','MANOR','MAWOR2',
+                            'CTWOL','MABIL1','NHMER','CTSOU','NHMAN');
+update public.events set event_tier = 'district_championship'
+  where frc_event_code in ('NECMP','NECMP1','NECMP2');
+update public.events set event_tier = 'championship'
+  where frc_event_code in ('CMPTX','ARCHIMEDES','CURIE','DALY','GALILEO','HOPPER','JOHNSON','MILSTEIN','NEWTON');
 
 alter table public.scouting_entries add column if not exists data jsonb not null default '{}'::jsonb;
 
@@ -583,7 +607,10 @@ create policy "staff manages test teams" on public.test_teams for all to authent
 --
 --    team_official_ratings(): a single-metric ranking (no components to
 --    blend) from FRC Events / TBA results — 60% average alliance score
---    (ranked against other teams), 40% win rate (a tie counts as half a win).
+--    (ranked against other teams), 40% win rate (a tie counts as half a win),
+--    with each match first weighted by its event's tier (event_tier_weight(),
+--    just above the function): 2.0x at the FIRST Championship, 1.5x at a
+--    District Championship, 1.0x at a regular qualifier, 0.75x off-season.
 -- =====================================================================
 create or replace function public.jnum(d jsonb, k text) returns numeric
 language sql immutable set search_path = '' as $$
@@ -726,25 +753,48 @@ language sql stable security definer set search_path = '' as $$
   select t.team_number, t.matches, t.disabled_matches, t.avg_points from public.team_ratings() t;
 $$;
 
+-- How much an event's results count toward a team's official rating. A win or a high score at a
+-- District Championship or the FIRST Championship says more about a team than the same result at
+-- a regular qualifier does — the field is tougher — so it should move the rating more. An
+-- off-season result counts a little less, since off-seasons vary a lot in how competitive the
+-- field is and FIRST doesn't operate them. To retune the system, change the numbers here; every
+-- other query that cares about event strength goes through this one function.
+create or replace function public.event_tier_weight(tier text) returns numeric
+language sql immutable set search_path = '' as $$
+  select case tier
+    when 'championship'            then 2.0   -- FIRST Championship (Worlds)
+    when 'district_championship'   then 1.5   -- a district's own championship event
+    when 'offseason'                then 0.75  -- off-season / scrimmage events
+    else 1.0                                    -- 'qualifier': a normal regular-season event
+  end
+$$;
+
 -- Official rating: the same shape and grading rule as team_ratings(), but scored purely from
 -- synced FRC Events / TBA results — 60% average alliance score (ranked against other teams)
--- plus 40% win rate (a tie counts as half a win). Entirely independent of scouting data.
+-- plus 40% win rate (a tie counts as half a win), with each match weighted by how strong its
+-- event is (event_tier_weight() above). Entirely independent of scouting data.
 create or replace function public.team_official_ratings()
 returns table (team_number int, matches int, wins int, losses int, ties int,
                avg_alliance_score numeric, score numeric, grade text, percentile numeric)
 language sql stable security definer set search_path = '' as $$
-  with agg as (
-    select o.team_number,
-      count(*)::int as matches,
-      count(*) filter (where o.alliance_score > o.opponent_score)::int as wins,
-      count(*) filter (where o.alliance_score < o.opponent_score)::int as losses,
-      count(*) filter (where o.alliance_score = o.opponent_score)::int as ties,
-      avg(o.alliance_score) as avg_score,
-      avg(case when o.alliance_score > o.opponent_score then 1
-                when o.alliance_score = o.opponent_score then .5 else 0 end) as win_rate
+  with weighted as (
+    select o.team_number, o.alliance_score, o.opponent_score,
+           public.event_tier_weight(e.event_tier) as w
     from public.official_team_matches o
+    join public.events e on e.id = o.event_id
     where public.is_staff() or public.is_student()
-    group by o.team_number
+  ),
+  agg as (
+    select m.team_number,
+      count(*)::int as matches,
+      count(*) filter (where m.alliance_score > m.opponent_score)::int as wins,
+      count(*) filter (where m.alliance_score < m.opponent_score)::int as losses,
+      count(*) filter (where m.alliance_score = m.opponent_score)::int as ties,
+      sum(m.alliance_score * m.w) / sum(m.w) as avg_score,
+      sum((case when m.alliance_score > m.opponent_score then 1
+                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate
+    from weighted m
+    group by m.team_number
   ),
   ranked as (
     select a.*, (cume_dist() over (order by a.avg_score))::numeric as p_score
@@ -960,6 +1010,7 @@ revoke all on function public.staff_kick(uuid)             from public, anon;
 revoke all on function public.team_ratings()               from public, anon;
 revoke all on function public.team_points_summary()        from public, anon;
 revoke all on function public.team_official_ratings()      from public, anon;
+revoke all on function public.event_tier_weight(text)      from public, anon;
 revoke all on function public.team_official_summary()      from public, anon;
 revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
@@ -974,6 +1025,7 @@ grant execute on function public.staff_kick(uuid)             to authenticated;
 grant execute on function public.team_points_summary()        to authenticated;
 grant execute on function public.team_ratings()               to authenticated;
 grant execute on function public.team_official_ratings()      to authenticated;
+grant execute on function public.event_tier_weight(text)      to authenticated;
 grant execute on function public.team_official_summary()      to authenticated;
 grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
@@ -1126,7 +1178,7 @@ with expected(kind, name) as (values
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
-  ('function','team_official_ratings'), ('function','team_official_summary'),
+  ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('bucket','scouting-photos')
 )
