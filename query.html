@@ -164,6 +164,12 @@
     .rating-part .rp-value { font-weight: 600; text-align: right; }
     .insight-note { color: var(--muted); font-size: .8rem; margin: .5rem 0 0; }
 
+    /* Full stat tables. Collapsible because they can run long, but open by default */
+    details.stat-block > summary { cursor: pointer; }
+    details.stat-block > summary .section-title { display: inline-block; }
+    .match-table td.stat-mix { white-space: normal; min-width: 14rem; }
+    .match-table tr.stat-section td { background: var(--tint); color: var(--navy); font-weight: 600; font-size: .78rem; }
+
     .info-grid { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; font-size: .92rem; margin: 0; }
     .info-grid dt { color: var(--muted); font-weight: 500; }
     .info-grid dd { margin: 0; word-break: break-word; }
@@ -274,7 +280,7 @@
   <div class="container" style="padding-top:2rem;">
     <div class="q-wrap">
       <h1 class="mt-4 mb-1">Team Database</h1>
-      <p class="text-muted mb-4" style="font-size:.95rem;">Select a team to see its match history, robot parameters, and rating.</p>
+      <p class="text-muted mb-4" style="font-size:.95rem;">Select a team to see its match history, robot parameters, and rating. <a href="/ratings.html">How ratings work</a></p>
 
       <div class="q-layout">
         <!-- Team list -->
@@ -380,7 +386,7 @@
     // Tiers come from a team's percentile among rated teams, ranked by the weighted score from
     // team_ratings() / team_official_ratings(). Share of rated teams at or below this team's score:
     //   S: 90%+   A: 75–90%   B: 50–75%   C: 25–50%   D: 10–25%   F: under 10%
-    // NR (not rated) means the team has no matches yet, so there are no points to rate.
+    // NR (not rated) means the team has fewer than MIN_RATED_MATCHES matches. See ratings.html.
     var TIERS = {
       S:  { color: "#D4AF37", ink: "#2b2100" },
       A:  { color: "#1a7f4b", ink: "#ffffff" },
@@ -605,7 +611,7 @@
         return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: rated.length, pct: null };
       }
       if (!me || me.matches < MIN_RATED_MATCHES) {
-        return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
+        return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: rated.length, pct: null };
       }
       var avg = Number(me.avg_points);
       var score = Number(me.score);
@@ -626,7 +632,7 @@
         return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
       }
       if (!me || me.matches < MIN_RATED_MATCHES) {
-        return { tier: "NR", matches: me ? me.matches : 0, avg: null, n: rated.length, pct: null };
+        return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
       }
       var avg = Number(me.avg_alliance_score);
       var score = Number(me.score);
@@ -681,22 +687,30 @@
         sb.from("scouting_entries").select("*").eq("team_number", team)
           .order("match_number", { ascending: true, nullsFirst: false }),
         sb.from("pit_entries").select("*").eq("team_number", team)
-          .order("updated_at", { ascending: false }).limit(1),
+          .order("updated_at", { ascending: false }),
         sb.from("official_match_teams")
-          .select("event_id,match_key,comp_level,set_number,match_number,alliance,alliance_score,opponent_score,played_at")
+          .select("event_id,match_key,comp_level,set_number,match_number,alliance,station,alliance_score,opponent_score,played_at,breakdown")
           .eq("team_number", team)
-          .order("played_at", { ascending: true, nullsFirst: false })
+          .order("played_at", { ascending: true, nullsFirst: false }),
+        // Who was on each alliance, for the partner and opponent columns
+        sb.from("official_matches_combined")
+          .select("event_id,match_key,red_teams,blue_teams,sources,scores_agree")
+          .or("red_teams.cs.{" + team + "},blue_teams.cs.{" + team + "}")
       ]);
       if (selected !== team) return;   // clicked another team while this one loaded
       summary = results[0].error ? [] : (results[0].data || []);
       officialRatings = results[1].error ? [] : (results[1].data || []);
       dataCounts = results[2].error ? [] : (results[2].data || []);
       var matches = results[3].data || [];
-      var pit = (results[4].data || [])[0] || null;
+      var pits = results[4].data || [];
       var officialRows = results[5].error ? [] : (results[5].data || []);
       var officialErr = results[5].error || null;
+      // Optional extra detail, so a failure here only leaves those columns blank
+      if (results[6].error) console.warn("Match line-ups unavailable:", results[6].error.message);
+      var lineups = {};
+      (results[6].data || []).forEach(function (m) { lineups[m.event_id + "|" + m.match_key] = m; });
 
-      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pit, officialRows, officialErr);
+      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pits, officialRows, officialErr, lineups);
     }
 
     function matchLabel(r) {
@@ -758,12 +772,34 @@
       var quals = played.filter(function (r) { return r.comp_level === "qm"; });
       var playoffs = played.filter(function (r) { return r.comp_level !== "qm"; });
       var scores = played.map(function (r) { return r.alliance_score; });
+      var margins = played.map(marginOf);
       var last = played.slice(-5);
-      var tiles = [];
+      var streak = 0, longest = 0;
+      played.forEach(function (r) {
+        streak = resultOf(r) === "W" ? streak + 1 : 0;
+        longest = Math.max(longest, streak);
+      });
+      var tiles = [
+        ["Wins", countResult(played, "W")], ["Losses", countResult(played, "L")], ["Ties", countResult(played, "T")]
+      ];
       if (quals.length) tiles.push(["Qualification win % (" + quals.length + ")", winPct(quals)]);
       if (playoffs.length) tiles.push(["Playoff win % (" + playoffs.length + ")", winPct(playoffs)]);
-      tiles.push(["Avg score margin", signed(mean(played.map(marginOf)))]);
+      ["red", "blue"].forEach(function (color) {
+        var side = played.filter(function (r) { return r.alliance === color; });
+        if (side.length) tiles.push([(color === "red" ? "Red" : "Blue") + " win % (" + side.length + ")", winPct(side)]);
+      });
+      [1, 2, 3].forEach(function (station) {
+        var spot = played.filter(function (r) { return r.station === station; });
+        if (spot.length) tiles.push(["Station " + station + " win % (" + spot.length + ")", winPct(spot)]);
+      });
+      tiles.push(["Avg score margin", signed(mean(margins))]);
+      tiles.push(["Avg opponent score", mean(played.map(function (r) { return r.opponent_score; })).toFixed(1)]);
       tiles.push(["Best alliance score", Math.max.apply(null, scores)]);
+      tiles.push(["Lowest alliance score", Math.min.apply(null, scores)]);
+      var biggest = Math.max.apply(null, margins), worst = Math.min.apply(null, margins);
+      if (biggest > 0) tiles.push(["Biggest win", "+" + biggest]);
+      if (worst < 0) tiles.push(["Biggest loss", worst]);
+      tiles.push(["Longest win streak", longest]);
       if (scores.length >= 3) {
         // Standard deviation: the typical swing in score from match to match, so lower is steadier
         var avg = mean(scores);
@@ -806,11 +842,14 @@
       });
       return top == null ? null : top + " (" + Math.round(100 * counts[top] / total) + "%)";
     }
-    // matches must already be oldest first
-    function scoutedInsightTiles(matches) {
-      var rows = matches.filter(function (m) {
+    function seasonRows(matches) {
+      return matches.filter(function (m) {
         return m.data && SEASON_KEYS.some(function (k) { return k in m.data; });
       });
+    }
+    // matches must already be oldest first
+    function scoutedInsightTiles(matches) {
+      var rows = seasonRows(matches);
       var tiles = [];
       function addAvg(label, key, suffix) {
         var vals = numbersFor(rows, key);
@@ -847,8 +886,22 @@
       ["fuel", "FUEL scoring"], ["climb", "Climbing"], ["auto", "Autonomous"], ["efficiency", "Shooting efficiency"],
       ["reliability", "Reliability"], ["discipline", "Fouls avoided"], ["pit", "Robot capability"]
     ];
+    // Position among rated teams, using the same pool as the letter grade
+    function rankText(rows, team) {
+      var pool = rows.filter(function (r) { return !testTeamSet.has(r.team_number) && r.matches >= MIN_RATED_MATCHES; });
+      var me = pool.find(function (r) { return r.team_number === team; });
+      if (!me) return null;
+      var ahead = pool.filter(function (r) { return Number(r.score) > Number(me.score); }).length;
+      return (ahead + 1) + " of " + pool.length;
+    }
     function ratingBreakdownHtml(team) {
       var me = summary.find(function (r) { return r.team_number === team; });
+      var off = officialRatings.find(function (r) { return r.team_number === team; });
+      var tiles = [];
+      if (me) tiles.push(["Scouting score (0–100)", me.score]);
+      if (rankText(summary, team)) tiles.push(["Scouting rank", rankText(summary, team)]);
+      if (off) tiles.push(["Official score (0–100)", off.score]);
+      if (rankText(officialRatings, team)) tiles.push(["Official rank", rankText(officialRatings, team)]);
       var parts = me && me.components ? me.components : {};
       var rows = RATING_PARTS.filter(function (p) { return parts[p[0]] != null; }).map(function (p) {
         var v = Math.max(0, Math.min(100, Number(parts[p[0]])));
@@ -856,13 +909,139 @@
           '<span class="rp-track"><span class="rp-fill" style="width:' + v + '%;"></span></span>' +
           '<span class="rp-value">' + Math.round(v) + "</span></div>";
       }).join("");
-      return rows
-        ? '<h3 class="section-title">Rating breakdown<span class="src-badge scout">Scouted</span></h3>' + rows +
-          '<p class="insight-note">What makes up the scouting grade, each part from 0 to 100. Higher is better.</p>'
+      if (!tiles.length && !rows) return "";
+      return '<h3 class="section-title">Rating breakdown</h3>' +
+        (tiles.length ? tileGrid(tiles) : "") +
+        (rows ? '<div class="mt-3">' + rows + "</div>" : "") +
+        '<p class="insight-note">' +
+          (rows ? "The bars are what make up the scouting grade, each from 0 to 100. Higher is better. " : "") +
+          '<a href="/ratings.html">How ratings work</a></p>';
+    }
+
+    // ── Full stat tables ─────────────────────────────────────────────
+    function statBlock(title, badge, body) {
+      return '<details class="stat-block" open><summary><h3 class="section-title">' + esc(title) + badge + "</h3></summary>" +
+        body + "</details>";
+    }
+    // One table row for a list of raw values, chosen by what they are: yes/no answers give a
+    // Yes %, numbers give average, low and high, and anything else gives each answer's share.
+    function statRowHtml(label, raw) {
+      var vals = raw.filter(function (v) { return v != null && v !== ""; });
+      if (!vals.length) return "";
+      var head = "<tr><td>" + esc(label) + "</td><td>" + vals.length + "</td>";
+      if (vals.every(function (v) { return typeof v === "boolean"; })) {
+        var yes = vals.filter(function (v) { return v; }).length;
+        return head + '<td colspan="3">Yes ' + Math.round(100 * yes / vals.length) + "%</td></tr>";
+      }
+      if (vals.every(function (v) { return isFinite(Number(v)); })) {
+        var nums = vals.map(Number);
+        return head + "<td>" + mean(nums).toFixed(1) + "</td><td>" + Math.min.apply(null, nums) + "</td>" +
+          "<td>" + Math.max.apply(null, nums) + "</td></tr>";
+      }
+      var counts = {};
+      vals.forEach(function (v) { counts[v] = (counts[v] || 0) + 1; });
+      var mix = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).map(function (k) {
+        return esc(k) + " " + Math.round(100 * counts[k] / vals.length) + "%";
+      }).join(" · ");
+      return head + '<td colspan="3" class="stat-mix">' + mix + "</td></tr>";
+    }
+    function statTableHtml(countLabel, body) {
+      return '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+        "<th>Stat</th><th>" + esc(countLabel) + "</th><th>Average</th><th>Low</th><th>High</th>" +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>";
+    }
+    // Built from the active form fields, so a field staff add later shows up here on its own.
+    // Text and photo fields are skipped because they can't be summarized. They're in Match history.
+    function scoutedStatsHtml(matches, mFields) {
+      var rows = seasonRows(matches);
+      var section = null, body = "";
+      mFields.forEach(function (f) {
+        if (f.field_type === "text" || f.field_type === "image") return;
+        var row = statRowHtml(f.label, rows.map(function (m) { return m.data[f.key]; }));
+        if (!row) return;
+        if (f.section !== section) {
+          section = f.section;
+          body += '<tr class="stat-section"><td colspan="5">' + esc(section) + "</td></tr>";
+        }
+        body += row;
+      });
+      return body
+        ? statBlock("All scouted stats", '<span class="src-badge scout">Scouted</span>', statTableHtml("Entries", body))
+        : "";
+    }
+    // Average of every numeric field at each event, once a team has been scouted at more than one
+    function scoutedByEventHtml(matches, mFields) {
+      var rows = seasonRows(matches);
+      var ids = Array.from(new Set(rows.map(function (m) { return m.event_id; })));
+      if (ids.length < 2) return "";
+      var cols = mFields.filter(function (f) {
+        return (f.field_type === "number" || f.field_type === "slider") && numbersFor(rows, f.key).length;
+      });
+      var body = ids.map(function (id) {
+        var here = rows.filter(function (m) { return m.event_id === id; });
+        return "<tr><td>" + esc(evName(id)) + "</td><td>" + here.length + "</td>" +
+          cols.map(function (f) {
+            var vals = numbersFor(here, f.key);
+            return "<td>" + (vals.length ? mean(vals).toFixed(1) : "—") + "</td>";
+          }).join("") + "</tr>";
+      }).join("");
+      return statBlock("Scouted averages by event", '<span class="src-badge scout">Scouted</span>',
+        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Entries</th>' +
+          cols.map(function (f) { return "<th>" + esc(f.label) + "</th>"; }).join("") +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>");
+    }
+    // Pit answers side by side when a team has entries from more than one event, newest first
+    function pitHistoryHtml(pits, pFields) {
+      if (pits.length < 2) return "";
+      var body = pFields.map(function (f) {
+        var cells = pits.map(function (p) { return cell(p.data ? p.data[f.key] : null, f, p.data); });
+        if (cells.every(function (c) { return c === "—"; })) return "";
+        return "<tr><td>" + esc(f.label) + "</td>" + cells.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>";
+      }).join("");
+      return body
+        ? statBlock("Pit history", '<span class="src-badge scout">Scouted</span>',
+            '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Field</th>' +
+              pits.map(function (p) { return "<th>" + esc(evName(p.event_id)) + "</th>"; }).join("") +
+            "</tr></thead><tbody>" + body + "</tbody></table></div>")
         : "";
     }
 
-    function officialHtml(rows, err) {
+    // The score breakdown is stored exactly as FRC Events or TBA sent it, and its keys change
+    // every game, so nothing here names a key. Nested values are flattened, and a per-robot value
+    // such as "towerRobot2" is kept only for the station this team was in.
+    function prettyKey(k) {
+      var s = k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ");
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    function flattenBreakdown(obj, prefix, station, out) {
+      Object.keys(obj).forEach(function (k) {
+        var v = obj[k];
+        if (v == null || Array.isArray(v)) return;
+        var label = prefix + prettyKey(k);
+        if (typeof v === "object") { flattenBreakdown(v, label + ": ", station, out); return; }
+        var robot = /^(.+?)Robot([1-3])$/i.exec(k);
+        if (robot) {
+          if (Number(robot[2]) !== station) return;
+          label = prefix + prettyKey(robot[1]) + " (this robot)";
+        }
+        (out[label] = out[label] || []).push(v);
+      });
+    }
+    function scoreBreakdownHtml(played) {
+      var byLabel = {};
+      played.forEach(function (r) {
+        if (r.breakdown && typeof r.breakdown === "object") flattenBreakdown(r.breakdown, "", r.station, byLabel);
+      });
+      var body = Object.keys(byLabel).map(function (label) { return statRowHtml(label, byLabel[label]); }).join("");
+      return body
+        ? statBlock("Score breakdown", '<span class="src-badge api">API</span>',
+            statTableHtml("Matches", body) +
+            '<p class="insight-note mb-3">Everything FRC Events or TBA reported, across played matches. ' +
+              'These are alliance totals unless marked "this robot".</p>')
+        : "";
+    }
+
+    function officialHtml(rows, err, team, lineups) {
       var head = '<h3 class="section-title">Official results<span class="src-badge api">API</span></h3>';
       if (err) return head + accessNotice(err, "official match data");
       if (!rows.length) {
@@ -877,21 +1056,32 @@
       var body = rows.map(function (r) {
         var played = r.alliance_score != null && r.opponent_score != null;
         var result = !played ? "—" : r.alliance_score > r.opponent_score ? "W" : r.alliance_score < r.opponent_score ? "L" : "T";
+        var lineup = lineups[r.event_id + "|" + r.match_key];
+        var mine = lineup ? (r.alliance === "red" ? lineup.red_teams : lineup.blue_teams) : null;
+        var theirs = lineup ? (r.alliance === "red" ? lineup.blue_teams : lineup.red_teams) : null;
+        var partners = mine ? mine.filter(function (t) { return t !== team; }).join(", ") : "—";
+        var source = !lineup ? "—" : esc(lineup.sources) + (lineup.scores_agree === false ? " (scores differ)" : "");
         return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + esc(matchLabel(r)) + "</td>" +
-          "<td>" + esc(r.alliance) + "</td>" +
+          "<td>" + esc(r.alliance) + (r.station ? " " + r.station : "") + "</td>" +
           "<td>" + (played ? r.alliance_score + " – " + r.opponent_score : "—") + "</td>" +
-          "<td>" + result + "</td></tr>";
+          "<td>" + result + "</td>" +
+          "<td>" + esc(partners) + "</td><td>" + esc(theirs ? theirs.join(", ") : "—") + "</td>" +
+          "<td>" + source + "</td></tr>";
       }).join("");
+      var upcoming = rows.length - n;
       return head +
         '<p class="text-muted mb-2" style="font-size:.9rem;">Record ' + recordOf(played) +
         " · " + n + " matches played" +
+        (upcoming ? " · " + upcoming + " not played yet" : "") +
         (n ? " · avg alliance score " + avgScore.toFixed(1) : "") + "</p>" +
         (n
           ? tileGrid(officialInsightTiles(played)) + eventBreakdownHtml(played) +
-            '<p class="insight-note mb-3">Official results are for the whole alliance, so they reflect a team\'s partners too.</p>'
+            '<p class="insight-note mb-3">Official results are for the whole alliance, so they reflect a team\'s partners too.</p>' +
+            scoreBreakdownHtml(played)
           : "") +
         '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
+        "<th>Partners</th><th>Opponents</th><th>Source</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
 
@@ -920,8 +1110,9 @@
       $("allianceActions").innerHTML = allianceActionsHtml(selected);
     });
 
-    function renderDetail(team, gScout, gOff, matches, pit, officialRows, officialErr) {
+    function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups) {
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
+      var pit = pits[0] || null;   // newest first
 
       matches = matches.slice().sort(function (a, b) {
         return (evTime(a.event_id) - evTime(b.event_id)) || ((a.match_number || 0) - (b.match_number || 0));
@@ -996,11 +1187,14 @@
         (scoutedTiles.length
           ? '<h3 class="section-title">Scouted insights<span class="src-badge scout">Scouted</span></h3>' + tileGrid(scoutedTiles)
           : "") +
+        scoutedStatsHtml(matches, mFields) +
+        scoutedByEventHtml(matches, mFields) +
         ratingBreakdownHtml(team) +
 
         '<h3 class="section-title">Robot parameters<span class="src-badge scout">Scouted</span></h3>' + paramsHtml +
+        pitHistoryHtml(pits, pFields) +
 
-        officialHtml(officialRows || [], officialErr) +
+        officialHtml(officialRows || [], officialErr, team, lineups) +
         '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
         (matches.length
           ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +

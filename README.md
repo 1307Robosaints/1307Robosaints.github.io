@@ -9,14 +9,16 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 **Public pages** — no account needed:
 `index.html`, `about-the-students.html`, `about-the-mentors.html`, `about-the-robot.html`,
 `oursponsors.html`, `business-plan.html`, `Gallery/gallery.html`, `contact.html`,
-`privacy-policy.html`, `terms-of-service.html`.
+`privacy-policy.html`, `terms-of-service.html`, and `ratings.html`, which explains how team
+ratings and the other derived stats are calculated. Update it whenever that math changes.
 
 **1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`):
 - `1307scout.html` — landing/command-center page, links out based on your access level.
 - `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
   free account can use a share code here to view a limited slice of data.
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
-  parameters, insights (win %, margins, recent form, per-event results, scoring averages, and a
+  parameters, full stats for every form field, the official score breakdown, match line-ups, pit
+  history, insights (win %, margins, recent form, per-event results, scoring averages, and a
   rating breakdown), and two independent ratings (one from human scouting, one from synced official
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).
   A team's card also shows its name and logo if staff have set one on the Team Info tab, and

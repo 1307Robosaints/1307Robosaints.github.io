@@ -83,7 +83,7 @@ Key tables/functions to know when touching 1307scout:
   results, written only by the `official-sync` Edge Function (service role); staff/students can
   read, nobody writes through the normal API. `match_key` format: `qm12` (qualification 12),
   `sf8m1` (playoff set 8 match 1), `f1m2` (finals match 2).
-- Team ratings: there are **two independent ratings** kept deliberately separate — one derived
+- Team ratings (explained for users on `ratings.html`, which must change with the math): there are **two independent ratings** kept deliberately separate — one derived
   from human scouting data, one from synced official results (`team_official_ratings()`,
   weighted per-match by the event's `event_tier` via `event_tier_weight()` — districts/
   championships count more than a regular qualifier, off-season counts a little less). See the

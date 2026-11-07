@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>How Ratings Work – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .r-wrap { max-width: 860px; margin: 0 auto 3rem; }
+    .r-wrap p { max-width: none; }
+    .r-wrap h2 { font-size: 1.45rem; margin: 2.25rem 0 .6rem; }
+    .r-wrap h3 { font-size: 1.1rem; margin: 1.5rem 0 .4rem; }
+    .lead-note { background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--blue); padding: 1rem 1.25rem; }
+    .r-table { background: var(--white); font-size: .92rem; margin-bottom: 1rem; }
+    .r-table thead th { background: var(--navy); color: #fff; font-weight: 500; border: 0; }
+    .r-table td, .r-table tbody th { border-top: 1px solid var(--line); }
+    .r-table tbody th { font-weight: 600; white-space: nowrap; }
+    .chip {
+      display: inline-block; min-width: 2.1rem; padding: .05rem .4rem; text-align: center; color: #fff;
+      font-family: var(--display); font-weight: 700;
+    }
+    .example { background: var(--tint); padding: 1rem 1.25rem; margin: 1rem 0; font-size: .95rem; }
+    .calc { font-family: Consolas, Menlo, monospace; font-size: .86rem; margin: .4rem 0 .6rem; overflow-wrap: anywhere; }
+    .calc.block { background: var(--white); border: 1px solid var(--line); padding: .6rem .85rem; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container" style="padding-top:2rem;">
+    <div class="r-wrap">
+      <h1 class="mt-4 mb-3">How Ratings Work</h1>
+
+      <p class="lead-note">
+        1307scout shows every statistic we can, so you can look at the numbers and draw your own
+        conclusions. Ratings and the other derived stats on this page are there to supplement
+        those numbers, not replace them. A grade is a quick summary to help you decide where to
+        look, and the stats behind it are always shown next to it.
+      </p>
+
+      <h2>Two ratings, never blended</h2>
+      <p>Every team can have two separate grades. Neither one knows the other exists.</p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th></th><th>Scouting rating</th><th>Official rating</th></tr></thead>
+        <tbody>
+          <tr><th>Built from</th><td>Match and pit entries from our own scouts</td><td>Match results synced from FRC Events and The Blue Alliance</td></tr>
+          <tr><th>Measures</th><td>What this robot did on its own</td><td>How its alliances did, partners included</td></tr>
+          <tr><th>Seasons</th><td>This season's form only (2026 REBUILT)</td><td>Every synced match</td></tr>
+        </tbody>
+      </table></div>
+      <p>
+        They're kept apart so a team is rated on whichever data it actually has. A team with a full
+        official record but no scouting coverage still gets an official grade, and when the two
+        grades disagree, that's useful to see.
+      </p>
+
+      <h2>Letter grades</h2>
+      <p>
+        Both ratings turn into a letter the same way. Each team gets a score from 0 to 100, then
+        the grade comes from the share of rated teams with the same score or lower. A grade is a
+        ranking among the teams in our database, not a measure against all of FRC.
+      </p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Grade</th><th>Share of rated teams at or below this score</th><th>In other words</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip" style="background:#D4AF37;color:#2b2100;">S</span></td><td>90% or more</td><td>Top 10%</td></tr>
+          <tr><td><span class="chip" style="background:#1a7f4b;">A</span></td><td>75% to 90%</td><td>Next 15%</td></tr>
+          <tr><td><span class="chip" style="background:#1B4DB1;">B</span></td><td>50% to 75%</td><td>Next 25%</td></tr>
+          <tr><td><span class="chip" style="background:#6c3fb5;">C</span></td><td>25% to 50%</td><td>Next 25%</td></tr>
+          <tr><td><span class="chip" style="background:#e67e22;">D</span></td><td>10% to 25%</td><td>Next 15%</td></tr>
+          <tr><td><span class="chip" style="background:#c0392b;">F</span></td><td>Under 10%</td><td>Bottom 10%</td></tr>
+          <tr><td><span class="chip" style="background:#9a9a9c;">NR</span></td><td colspan="2">Not rated: fewer than 3 matches of that kind of data</td></tr>
+          <tr><td><span class="chip" style="background:#17a2b8;">T</span></td><td colspan="2">Test team: tagged by staff and left out of the grading</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2>The scouting rating</h2>
+      <p>
+        A team's score is a weighted blend of seven parts, each from 0 to 100. These are the bars
+        in the Rating breakdown on the Team Database. "Ranked" means the share of scouted teams
+        at or below this team on that measure, so 80 means it's level with or ahead of 80% of them.
+      </p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Weight</th><th>Part</th><th>How it's measured</th></tr></thead>
+        <tbody>
+          <tr><td>32</td><td>FUEL scoring</td><td>Average FUEL points per match, ranked. Matches where the scout marked the role as Defense or Feeder are left out, so a good defender isn't graded as a bad scorer.</td></tr>
+          <tr><td>16</td><td>Climbing</td><td>Average TOWER points per match (auto and teleop), ranked.</td></tr>
+          <tr><td>16</td><td>Reliability</td><td>1 − (disabled rate + 0.6 × broke-down rate + 0.4 × stuck rate), never below 0. Not ranked.</td></tr>
+          <tr><td>11</td><td>Shooting efficiency</td><td>The average of two things: FUEL per volley (ranked) and scouted accuracy, where 1 to 5 maps to 0 to 100.</td></tr>
+          <tr><td>11</td><td>Robot capability</td><td>The team's latest pit entry, scored in the table below. Not ranked.</td></tr>
+          <tr><td>9</td><td>Autonomous</td><td>80% average auto points (ranked) and 20% how often it left the starting zone.</td></tr>
+          <tr><td>5</td><td>Fouls avoided</td><td>1 − foul or card rate. Not ranked.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Points used</h3>
+      <p>From Table 6-4 of the 2026 game manual. Avg pts / match on a team's card is FUEL plus TOWER points, across all of its matches.</p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Action</th><th>Points</th></tr></thead>
+        <tbody>
+          <tr><td>FUEL in an active HUB (auto or teleop)</td><td>1 each</td></tr>
+          <tr><td>TOWER L1 in auto</td><td>15</td></tr>
+          <tr><td>TOWER L1 / L2 / L3 in teleop</td><td>10 / 20 / 30</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Robot capability scoring</h3>
+      <p>Each pit question answered scores from 0 to 1, and the answers are averaged. Questions left blank are skipped. The robot photo and notes aren't scored.</p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Question</th><th>Score</th></tr></thead>
+        <tbody>
+          <tr><td>Highest TOWER level</td><td>None 0, L1 0.33, L2 0.67, L3 1</td></tr>
+          <tr><td>Fits under a TRENCH</td><td>No 0, Yes 1</td></tr>
+          <tr><td>Ground intake</td><td>None 0, Front or Side 0.7, Front and side 1</td></tr>
+          <tr><td>Shooter type</td><td>Fixed flywheel 0.4, Other 0.5, Adjustable hood 0.7, Turret 1</td></tr>
+          <tr><td>Drivetrain</td><td>Mecanum or Other 0.5, Tank 0.65, West Coast 0.8, Swerve 1</td></tr>
+          <tr><td>Max FUEL held</td><td>Capacity ÷ 30, up to 1</td></tr>
+          <tr><td>Max shooting range</td><td>Range in feet ÷ 20, up to 1</td></tr>
+          <tr><td>Uses AprilTag vision</td><td>No 0, Yes 1</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>When data is missing</h3>
+      <ul>
+        <li><strong>A whole part has no data:</strong> it's skipped and the other weights are rescaled, so a team isn't punished for, say, having no pit entry.</li>
+        <li><strong>A field is blank in a match entry:</strong> FUEL and TOWER count as 0, and an unanswered problem such as "disabled" or "foul" counts as no.</li>
+        <li><strong>Only Defense or Feeder matches:</strong> FUEL scoring has no data, so it's skipped.</li>
+      </ul>
+
+      <div class="example">
+        <strong>Example.</strong> A team scores FUEL 80, Climbing 60, Reliability 90, Efficiency 70,
+        Capability 40, Autonomous 50 and Fouls avoided 100.
+        <div class="calc">(32×80 + 16×60 + 16×90 + 11×70 + 11×40 + 9×50 + 5×100) ÷ 100 = <strong>71.2</strong></div>
+        With no pit entry, Capability is skipped and the remaining weights add up to 89:
+        <div class="calc">(32×80 + 16×60 + 16×90 + 11×70 + 9×50 + 5×100) ÷ 89 = <strong>75.1</strong></div>
+      </div>
+
+      <h2>The official rating</h2>
+      <p>A simpler score, from results only:</p>
+      <div class="calc block">Score = 60% × average alliance score (ranked) + 40% × win rate</div>
+      <p>
+        For this rating a tie counts as half a win. Each match is also weighted by the tier staff
+        set on its event, because results against a tougher field say more about a team:
+      </p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Event tier</th><th>Match weight</th></tr></thead>
+        <tbody>
+          <tr><td>FIRST Championship</td><td>2.0×</td></tr>
+          <tr><td>District Championship</td><td>1.5×</td></tr>
+          <tr><td>Qualifier</td><td>1.0×</td></tr>
+          <tr><td>Off-season</td><td>0.75×</td></tr>
+        </tbody>
+      </table></div>
+      <div class="example">
+        <strong>Example.</strong> A team won 5 of 10 matches at a qualifier and 4 of 5 at a District Championship.
+        <div class="calc">Win rate = (5×1 + 4×1.5) ÷ (10×1 + 5×1.5) = 11 ÷ 17.5 = <strong>62.86%</strong></div>
+        If its average alliance score ranks at 70%:
+        <div class="calc">Score = 0.6×70 + 0.4×62.86 = <strong>67.1</strong></div>
+      </div>
+
+      <h2>Reading ratings carefully</h2>
+      <ul>
+        <li><strong>Grades are relative.</strong> They depend on which teams are in the database, so a grade can change when other teams' data changes, even if this team hasn't played. Early in a season, with few rated teams, they mean very little.</li>
+        <li><strong>Three matches is a low bar.</strong> A rated team may still have very little data behind it, so check the match counts.</li>
+        <li><strong>Scouting counts entries, not matches.</strong> If two scouts both enter the same match, it counts twice, including toward the 3 needed for a grade.</li>
+        <li><strong>Scouted numbers are estimates.</strong> FUEL counts are approximate, and accuracy is a scout's judgment.</li>
+        <li><strong>Official results include partners.</strong> A strong team on weak alliances can look worse than it is, and the reverse is also true.</li>
+        <li><strong>Capability scores describe a robot's design,</strong> not how well it performs. A swerve drive scores higher than tank whether or not it's driven well.</li>
+        <li><strong>Share codes are ranked differently.</strong> A guest's grades are worked out among only the teams in that share code, so they can differ from the Team Database.</li>
+        <li><strong>Test teams are only partly excluded.</strong> They're left out of the final grading, but on the Team Database they're still counted when each part is ranked, as are teams with fewer than 3 matches.</li>
+      </ul>
+
+      <h2>Other derived stats</h2>
+      <p>These appear on the Team Database and Alliance View. They use plain, unweighted numbers, so they won't always match the rating's inputs.</p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Stat</th><th>How it's calculated</th></tr></thead>
+        <tbody>
+          <tr><td>Win %</td><td>Wins ÷ matches played. A tie counts as played but not as a win, and matches aren't weighted by event tier.</td></tr>
+          <tr><td>Qualification / Playoff win %</td><td>The same, for just those matches. The number in brackets is the match count.</td></tr>
+          <tr><td>Avg score margin</td><td>Average of alliance score − opponent score, across wins and losses.</td></tr>
+          <tr><td>Score swing</td><td>Standard deviation of alliance score, shown from 3 matches. Lower means steadier.</td></tr>
+          <tr><td>Red / Blue / Station win %</td><td>Win % for just the matches on that alliance color or at that driver station.</td></tr>
+          <tr><td>Biggest win / Biggest loss</td><td>The largest positive and negative score margin.</td></tr>
+          <tr><td>Longest win streak</td><td>Most wins in a row, by event date and match order. Ties and losses end a streak.</td></tr>
+          <tr><td>Last 5</td><td>The last five results, by event date and match order.</td></tr>
+          <tr><td>Teleop FUEL trend</td><td>Average of the last 3 entries minus the average of all earlier ones, shown from 5 entries.</td></tr>
+          <tr><td>Scouting / Official rank</td><td>Position by score among rated teams, leaving out test teams. Teams level on score share a rank.</td></tr>
+          <tr><td>All scouted stats</td><td>For every form field: average, low and high for numbers, Yes % for yes/no answers, and each answer's share for choices. Blank answers aren't counted.</td></tr>
+          <tr><td>Score breakdown</td><td>The same summary for everything FRC Events or TBA report per match. These are alliance totals unless marked "this robot".</td></tr>
+          <tr><td>Climb rate</td><td>Share of entries with a teleop TOWER level other than None.</td></tr>
+          <tr><td>Usual role / Main FUEL source</td><td>The most common answer, with how often it was chosen.</td></tr>
+          <tr><td>Combined scouted pts</td><td>On the Alliance View, the sum of each team's Avg pts / match. Official scores aren't added up, because each one already covers a whole alliance.</td></tr>
+        </tbody>
+      </table></div>
+
+      <p class="text-muted mt-4" style="font-size:.85rem;">
+        The calculations live in <code>team_ratings()</code> and <code>team_official_ratings()</code> in
+        <code>SQL/rebuild_all.sql</code>, and the Team Database applies the final grading. If they
+        change, this page should change with them.
+      </p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+</body>
+</html>

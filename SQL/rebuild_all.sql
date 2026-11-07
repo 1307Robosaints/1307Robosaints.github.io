@@ -904,7 +904,8 @@ create policy "staff deletes team logos" on storage.objects for delete to authen
 
 
 -- =====================================================================
--- 9. Team rating (the A-F grade)
+-- 9. Team rating (the S-F grade). Plain-language version for users: ratings.html.
+--    Keep that page in step with any change to the math below.
 --
 --    TWO SEPARATE RANKINGS, never blended into one number:
 --      team_ratings() / team_points_summary()  — scouting rating, built
@@ -934,7 +935,8 @@ create policy "staff deletes team logos" on storage.objects for delete to authen
 --      11  Efficiency      FUEL per volley (ranked) + scouted accuracy, averaged
 --      16  Reliability     1 - (disabled rate + 0.6 x broke-down rate + 0.4 x stuck rate)
 --       5  Discipline      1 - foul/card rate
---      11  Robot capability  pit form: climb level, trench fit, intake, shooter, drivetrain, vision
+--      11  Robot capability  pit form: climb level, trench fit, intake, shooter, drivetrain,
+--                            FUEL capacity, shooting range, vision (see pit_capability())
 --
 --    Matches where the scout marked the role as Defense or Feeder are left out of
 --    the FUEL-scoring average, so a good defender isn't graded as a bad scorer.
