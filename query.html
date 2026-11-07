@@ -27,18 +27,49 @@
       border-top: 3px solid var(--blue);
       padding: 1rem;
     }
-    .team-table { font-size: .92rem; margin-bottom: 0; }
-    .team-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; }
-    .team-table td { border-top: 1px solid var(--line); }
-    .team-table td:first-child { white-space: nowrap; }
-    .team-table tbody tr { cursor: pointer; }
-    .team-table tbody tr:hover { background: var(--tint); }
-    .team-table tbody tr.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
+
+    /* Search / sort / filter controls above the team list */
+    .list-controls { margin-bottom: .75rem; }
+    .list-controls .row-2 { display: grid; grid-template-columns: 1fr auto; gap: .4rem; margin-top: .4rem; }
+    .list-controls select.form-control-sm { font-size: .82rem; }
+    #sortDir { padding: .25rem .5rem; }
+
+    /* Team list: one row per team, built as flex/grid rows (not a <table>) so it can
+       reflow to a stacked card layout on narrow screens without horizontal scrolling. */
+    .team-list { border-top: 1px solid var(--line); }
+    .team-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      column-gap: .75rem;
+      padding: .55rem .35rem;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      font-size: .9rem;
+    }
+    .team-row:hover { background: var(--tint); }
+    .team-row.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
+    .team-row .tr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .team-row .tr-name .team-name-sub { color: var(--muted); font-size: .85em; }
+    .team-row .tr-stat { text-align: center; min-width: 2.4rem; }
+    .team-row .tr-stat .stat-v { display: block; font-weight: 600; line-height: 1.1; }
+    .team-row .tr-stat .stat-k { display: block; font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
     .tier-dot {
       display: inline-block; width: 8px; height: 8px; border-radius: 50%;
       margin-right: 3px; vertical-align: middle;
+      flex: none;
     }
     .list-scroll { max-height: 70vh; overflow-y: auto; }
+
+    /* Narrow phones: drop the per-column stats onto a second line instead of squeezing them
+       into tiny grid columns next to the team name. */
+    @media (max-width: 420px) {
+      .team-row { grid-template-columns: 1fr; row-gap: .3rem; }
+      .team-row .tr-stats-line { grid-column: 1; display: flex; gap: 1rem; }
+      .team-row .tr-stat { text-align: left; min-width: 0; }
+      .team-row .tr-stat .stat-v, .team-row .tr-stat .stat-k { display: inline; }
+      .team-row .tr-stat .stat-k { margin-left: .2rem; }
+    }
 
     .detail-card {
       position: relative;
@@ -129,6 +160,22 @@
 
     .empty-detail { color: var(--muted); text-align: center; padding: 3rem 1rem; }
     .loading-msg { color: var(--muted); font-family: var(--display); padding: 2rem 0; text-align: center; }
+
+    /* Mobile: the rating boxes no longer fit floated top-right over the heading, so they drop
+       below the team name/basis text as a normal row instead of an absolutely-positioned one,
+       and the info-grid (pit data) stacks label-over-value instead of a fixed label column. */
+    @media (max-width: 575px) {
+      .detail-card { padding: 1rem; }
+      .detail-head { padding-right: 0; flex-wrap: wrap; }
+      .rating-group { position: static; margin: .9rem 0 0; width: 100%; }
+      .rating-wrap { width: 84px; }
+      .rating-box { height: 68px; }
+      .rating-letter { font-size: 1.9rem; }
+      .info-grid { grid-template-columns: 1fr; gap: .1rem .75rem; }
+      .info-grid dt { margin-top: .5rem; }
+      .tile-grid { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); }
+      .list-scroll { max-height: 48vh; }
+    }
   </style>
 </head>
 <body>
@@ -205,21 +252,37 @@
       <div class="q-layout">
         <!-- Team list -->
         <div class="q-panel">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Filter by team #">
-          </div>
-          <div class="custom-control custom-checkbox mb-2">
-            <input type="checkbox" class="custom-control-input" id="showTestTeams">
-            <label class="custom-control-label" for="showTestTeams" style="font-size:.82rem;">Show test teams</label>
+          <div class="list-controls">
+            <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Search team # or name">
+            <div class="row-2">
+              <select id="teamSort" class="form-control form-control-sm" aria-label="Sort by">
+                <option value="team">Sort: Team #</option>
+                <option value="name">Sort: Name</option>
+                <option value="scouted">Sort: Scouted matches</option>
+                <option value="official">Sort: Official matches</option>
+                <option value="scoutGrade">Sort: Scouting grade</option>
+                <option value="offGrade">Sort: Official grade</option>
+                <option value="pit">Sort: Pit data</option>
+              </select>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="sortDir" title="Reverse sort order">
+                <i class="fa fa-sort-amount-asc" id="sortDirIcon" aria-hidden="true"></i>
+              </button>
+            </div>
+            <select id="teamFilter" class="form-control form-control-sm mt-2" aria-label="Filter">
+              <option value="all">All teams</option>
+              <option value="rated">Rated teams only (3+ matches)</option>
+              <option value="unrated">Not yet rated</option>
+              <option value="haspit">Has pit data</option>
+              <option value="nopit">Missing pit data</option>
+            </select>
+            <div class="custom-control custom-checkbox mt-2">
+              <input type="checkbox" class="custom-control-input" id="showTestTeams">
+              <label class="custom-control-label" for="showTestTeams" style="font-size:.82rem;">Show test teams</label>
+            </div>
           </div>
           <div class="text-muted mb-2" style="font-size:.82rem;" id="teamCount"></div>
           <div class="list-scroll">
-            <table class="table team-table">
-              <thead>
-                <tr><th>Team</th><th title="Human-scouted matches">Scouted</th><th title="Synced from FRC Events / TBA">API</th><th>Pit</th></tr>
-              </thead>
-              <tbody id="teamRows"></tbody>
-            </table>
+            <div class="team-list" id="teamRows"></div>
           </div>
         </div>
 
@@ -379,40 +442,106 @@
       summary.forEach(function (r) { ensure(r.team_number).scouted = r.matches; });
       official.forEach(function (r) { ensure(r.team_number).official = r.matches; });
       pitTeams.forEach(function (t) { ensure(t); });
-      return Array.from(byTeam.values()).sort(function (a, b) { return a.team - b.team; });
+      return Array.from(byTeam.values());
     }
+
+    // Grades used for sort/filter, ranked worst-to-best. TEST sits below NR so test teams
+    // (shown only when the checkbox is on) don't clutter the top of a grade-sorted list.
+    var TIER_RANK = { TEST: -1, NR: 0, F: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
+
+    // Sort fields default to the direction that puts the most useful rows first:
+    // ascending for team #/name, descending (best/most first) for everything else.
+    var SORT_DEFAULT_DIR = { team: 1, name: 1, scouted: -1, official: -1, scoutGrade: -1, offGrade: -1, pit: -1 };
+    var sortDir = 1;
 
     var selected = null;
     function renderList() {
-      var q = $("teamSearch").value.trim();
+      var q = $("teamSearch").value.trim().toLowerCase();
       var showTest = $("showTestTeams").checked;
+      var sortKey = $("teamSort").value;
+      var filterKey = $("teamFilter").value;
       var pitSet = new Set(pitTeams);
-      var rows = teamList().filter(function (r) {
-        return (!q || String(r.team).indexOf(q) !== -1) && (showTest || !testTeamSet.has(r.team));
+
+      var rows = teamList().map(function (r) {
+        var info = teamInfoByNumber[r.team];
+        return {
+          team: r.team,
+          scouted: r.scouted,
+          official: r.official,
+          name: info && info.team_name ? info.team_name : "",
+          logo: info && info.logo_url ? info.logo_url : "",
+          hasPit: pitSet.has(r.team),
+          gScout: scoutGradeFor(r.team),
+          gOff: officialGradeFor(r.team)
+        };
       });
+
+      rows = rows.filter(function (r) {
+        if (!showTest && testTeamSet.has(r.team)) return false;
+        if (q) {
+          var hay = (String(r.team) + " " + r.name).toLowerCase();
+          if (hay.indexOf(q) === -1) return false;
+        }
+        if (filterKey === "rated" && (r.gScout.tier === "NR" || r.gScout.tier === "TEST")) return false;
+        if (filterKey === "unrated" && r.gScout.tier !== "NR") return false;
+        if (filterKey === "haspit" && !r.hasPit) return false;
+        if (filterKey === "nopit" && r.hasPit) return false;
+        return true;
+      });
+
+      rows.sort(function (a, b) {
+        var va, vb;
+        switch (sortKey) {
+          case "name": va = a.name.toLowerCase(); vb = b.name.toLowerCase(); break;
+          case "scouted": va = a.scouted; vb = b.scouted; break;
+          case "official": va = a.official; vb = b.official; break;
+          case "scoutGrade": va = TIER_RANK[a.gScout.tier]; vb = TIER_RANK[b.gScout.tier]; break;
+          case "offGrade": va = TIER_RANK[a.gOff.tier]; vb = TIER_RANK[b.gOff.tier]; break;
+          case "pit": va = a.hasPit ? 1 : 0; vb = b.hasPit ? 1 : 0; break;
+          default: va = a.team; vb = b.team;
+        }
+        if (va < vb) return -1 * sortDir;
+        if (va > vb) return 1 * sortDir;
+        return a.team - b.team;   // stable tie-break
+      });
+
       $("teamRows").innerHTML = rows.length
         ? rows.map(function (r) {
-            var gs = scoutGradeFor(r.team), go = officialGradeFor(r.team);
-            var dots = '<span class="tier-dot" style="background:' + TIERS[gs.tier].color + ';" title="Scouting: ' + gs.tier + '"></span>' +
-              '<span class="tier-dot" style="background:' + TIERS[go.tier].color + ';" title="Official: ' + go.tier + '"></span>';
-            var info = teamInfoByNumber[r.team];
-            var logoImg = info && info.logo_url ? '<img class="team-logo-sm" src="' + esc(info.logo_url) + '" alt="">' : "";
-            var nameSuffix = info && info.team_name ? ' <span class="text-muted">' + esc(info.team_name) + '</span>' : "";
-            return '<tr data-team="' + r.team + '" class="' + (selected === r.team ? "selected" : "") + '">' +
-              "<td>" + dots + logoImg + "<strong>" + r.team + "</strong>" + nameSuffix + "</td>" +
-              "<td>" + r.scouted + "</td>" +
-              "<td>" + r.official + "</td>" +
-              "<td>" + (pitSet.has(r.team) ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + "</td>" +
-              "</tr>";
+            var dots = '<span class="tier-dot" style="background:' + TIERS[r.gScout.tier].color + ';" title="Scouting: ' + r.gScout.tier + '"></span>' +
+              '<span class="tier-dot" style="background:' + TIERS[r.gOff.tier].color + ';" title="Official: ' + r.gOff.tier + '"></span>';
+            var logoImg = r.logo ? '<img class="team-logo-sm" src="' + esc(r.logo) + '" alt="">' : "";
+            var nameSuffix = r.name ? ' <span class="team-name-sub">' + esc(r.name) + '</span>' : "";
+            return '<div data-team="' + r.team + '" class="team-row' + (selected === r.team ? " selected" : "") + '">' +
+              '<div class="tr-name">' + dots + logoImg + "<strong>" + r.team + "</strong>" + nameSuffix + "</div>" +
+              '<div class="tr-stats-line">' +
+                '<div class="tr-stat" title="Human-scouted matches"><span class="stat-v">' + r.scouted + '</span><span class="stat-k">Scouted</span></div>' +
+                '<div class="tr-stat" title="Synced from FRC Events / TBA"><span class="stat-v">' + r.official + '</span><span class="stat-k">API</span></div>' +
+                '<div class="tr-stat" title="Has pit data"><span class="stat-v">' + (r.hasPit ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + '</span><span class="stat-k">Pit</span></div>' +
+              '</div>' +
+              '</div>';
           }).join("")
-        : '<tr><td colspan="4" class="text-muted text-center py-3">No teams yet.</td></tr>';
+        : '<div class="text-muted text-center py-3">No teams match.</div>';
       $("teamCount").textContent = rows.length + (rows.length === 1 ? " team" : " teams");
     }
     $("teamSearch").addEventListener("input", renderList);
     $("showTestTeams").addEventListener("change", renderList);
+    $("teamFilter").addEventListener("change", renderList);
+    $("teamSort").addEventListener("change", function () {
+      sortDir = SORT_DEFAULT_DIR[$("teamSort").value] || 1;
+      updateSortDirIcon();
+      renderList();
+    });
+    $("sortDir").addEventListener("click", function () {
+      sortDir = sortDir * -1;
+      updateSortDirIcon();
+      renderList();
+    });
+    function updateSortDirIcon() {
+      $("sortDirIcon").className = "fa " + (sortDir === 1 ? "fa-sort-amount-asc" : "fa-sort-amount-desc");
+    }
     $("teamRows").addEventListener("click", function (e) {
-      var tr = e.target.closest("tr[data-team]");
-      if (tr) openTeam(parseInt(tr.dataset.team, 10));
+      var row = e.target.closest(".team-row[data-team]");
+      if (row) openTeam(parseInt(row.dataset.team, 10));
     });
 
     // ── Ratings (computed on click from the latest summary) ──────────
@@ -488,6 +617,11 @@
       selected = team;
       renderList();
       $("detail").innerHTML = '<div class="loading-msg">Calculating rating…</div>';
+      // On narrow screens the list and detail panel stack vertically, so jump down to the
+      // detail panel on selection instead of leaving the person to scroll past the whole list.
+      if (window.innerWidth < 992) {
+        $("detail").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
 
       // Fetch fresh numbers on every click so the ratings use current data
       var results = await Promise.all([

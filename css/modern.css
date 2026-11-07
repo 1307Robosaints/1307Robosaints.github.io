@@ -393,6 +393,9 @@ img[src=""] { display: none; }                                       /* hides im
   background: no-repeat center center scroll;
   background-size: cover;
 }
+@media (max-width: 575px) {
+  .carousel-item { height: 45vh; min-height: 220px; }
+}
 header .carousel {
   border-bottom: 4px solid var(--blue);
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%);   /* signature corner, scaled up */
@@ -420,7 +423,7 @@ header .carousel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px; height: 40px;
+  width: 44px; height: 44px;
   margin: 0 .35rem 1.25rem;
   background: transparent;
   border: 1px solid rgba(255,255,255,.35);
