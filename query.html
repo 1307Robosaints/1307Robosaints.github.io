@@ -156,6 +156,14 @@
     .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--navy); font-weight: 700; line-height: 1.2; }
     .tile .k { font-size: .75rem; color: var(--muted); line-height: 1.3; }
 
+    /* Rating breakdown: one 0-100 bar per part of the scouting rating */
+    .rating-part { display: grid; grid-template-columns: 11rem 1fr 2.5rem; align-items: center; gap: .75rem; font-size: .88rem; padding: .15rem 0; }
+    .rating-part .rp-label { color: var(--muted); }
+    .rating-part .rp-track { height: 10px; background: var(--paper); border: 1px solid var(--line); }
+    .rating-part .rp-fill { display: block; height: 100%; background: var(--blue); }
+    .rating-part .rp-value { font-weight: 600; text-align: right; }
+    .insight-note { color: var(--muted); font-size: .8rem; margin: .5rem 0 0; }
+
     .info-grid { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; font-size: .92rem; margin: 0; }
     .info-grid dt { color: var(--muted); font-weight: 500; }
     .info-grid dd { margin: 0; word-break: break-word; }
@@ -190,6 +198,7 @@
       .rating-letter { font-size: 1.9rem; }
       .info-grid { grid-template-columns: 1fr; gap: .1rem .75rem; }
       .info-grid dt { margin-top: .5rem; }
+      .rating-part { grid-template-columns: 7.5rem 1fr 2.2rem; gap: .5rem; }
       .tile-grid { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); }
       .list-scroll { max-height: 48vh; }
     }
@@ -674,7 +683,7 @@
         sb.from("pit_entries").select("*").eq("team_number", team)
           .order("updated_at", { ascending: false }).limit(1),
         sb.from("official_match_teams")
-          .select("event_id,match_key,comp_level,match_number,alliance,alliance_score,opponent_score,played_at")
+          .select("event_id,match_key,comp_level,set_number,match_number,alliance,alliance_score,opponent_score,played_at")
           .eq("team_number", team)
           .order("played_at", { ascending: true, nullsFirst: false })
       ]);
@@ -707,21 +716,164 @@
       return '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">' + esc(text) + '</div>';
     }
 
+    // ── Insights ─────────────────────────────────────────────────────
+    function tileGrid(tiles) {
+      return '<div class="tile-grid">' +
+        tiles.map(function (t) {
+          return '<div class="tile"><div class="v">' + esc(t[1]) + '</div><div class="k">' + esc(t[0]) + "</div></div>";
+        }).join("") +
+      "</div>";
+    }
+    function mean(vals) {
+      return vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : null;
+    }
+    function signed(v) { return (v > 0 ? "+" : "") + v.toFixed(1); }
+
+    // Official matches that have a score, oldest first. Sorted by event and match order because
+    // played_at can be empty. Ties count as played but not as wins.
+    var LEVEL_ORDER = { qm: 0, sf: 1, f: 2 };
+    function playedMatches(rows) {
+      return rows.filter(function (r) { return r.alliance_score != null && r.opponent_score != null; })
+        .sort(function (a, b) {
+          return (evTime(a.event_id) - evTime(b.event_id)) ||
+            (LEVEL_ORDER[a.comp_level] - LEVEL_ORDER[b.comp_level]) ||
+            ((a.set_number || 0) - (b.set_number || 0)) || (a.match_number - b.match_number);
+        });
+    }
+    function resultOf(r) {
+      return r.alliance_score > r.opponent_score ? "W" : r.alliance_score < r.opponent_score ? "L" : "T";
+    }
+    function countResult(rows, result) {
+      return rows.filter(function (r) { return resultOf(r) === result; }).length;
+    }
+    function winPct(rows) {
+      return rows.length ? Math.round(100 * countResult(rows, "W") / rows.length) + "%" : "—";
+    }
+    function recordOf(rows) {
+      return countResult(rows, "W") + "-" + countResult(rows, "L") + "-" + countResult(rows, "T");
+    }
+    function marginOf(r) { return r.alliance_score - r.opponent_score; }
+
+    function officialInsightTiles(played) {
+      var quals = played.filter(function (r) { return r.comp_level === "qm"; });
+      var playoffs = played.filter(function (r) { return r.comp_level !== "qm"; });
+      var scores = played.map(function (r) { return r.alliance_score; });
+      var last = played.slice(-5);
+      var tiles = [];
+      if (quals.length) tiles.push(["Qualification win % (" + quals.length + ")", winPct(quals)]);
+      if (playoffs.length) tiles.push(["Playoff win % (" + playoffs.length + ")", winPct(playoffs)]);
+      tiles.push(["Avg score margin", signed(mean(played.map(marginOf)))]);
+      tiles.push(["Best alliance score", Math.max.apply(null, scores)]);
+      if (scores.length >= 3) {
+        // Standard deviation: the typical swing in score from match to match, so lower is steadier
+        var avg = mean(scores);
+        var spread = Math.sqrt(mean(scores.map(function (s) { return (s - avg) * (s - avg); })));
+        tiles.push(["Score swing (std dev)", "±" + spread.toFixed(1)]);
+      }
+      tiles.push(["Last " + last.length + " (newest last)", last.map(resultOf).join(" ")]);
+      return tiles;
+    }
+    // Only worth showing once a team has played more than one event
+    function eventBreakdownHtml(played) {
+      var ids = Array.from(new Set(played.map(function (r) { return r.event_id; })));
+      if (ids.length < 2) return "";
+      var body = ids.map(function (id) {
+        var rows = played.filter(function (r) { return r.event_id === id; });
+        return "<tr><td>" + esc(evName(id)) + "</td><td>" + recordOf(rows) + "</td><td>" + winPct(rows) + "</td>" +
+          "<td>" + mean(rows.map(function (r) { return r.alliance_score; })).toFixed(1) + "</td>" +
+          "<td>" + signed(mean(rows.map(marginOf))) + "</td></tr>";
+      }).join("");
+      return '<div class="table-responsive mt-3"><table class="table match-table"><thead><tr>' +
+        "<th>Event</th><th>Record</th><th>Win %</th><th>Avg score</th><th>Avg margin</th>" +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>";
+    }
+
+    // Same check as team_ratings(): skips entries from earlier seasons' forms.
+    var SEASON_KEYS = ["stuck_on_field", "foul_or_card", "auto_fuel_hub", "teleop_fuel_hub", "auto_tower", "teleop_tower"];
+    function numbersFor(rows, key) {
+      return rows.map(function (m) { return m.data[key]; })
+        .filter(function (v) { return v != null && v !== "" && isFinite(Number(v)); }).map(Number);
+    }
+    // Most common answer to a choice field, as "Scorer (75%)". Null if nobody answered it.
+    function topChoice(rows, key) {
+      var counts = {}, total = 0, top = null;
+      rows.forEach(function (m) {
+        var v = m.data[key];
+        if (v == null || v === "") return;
+        counts[v] = (counts[v] || 0) + 1;
+        total++;
+        if (top == null || counts[v] > counts[top]) top = v;
+      });
+      return top == null ? null : top + " (" + Math.round(100 * counts[top] / total) + "%)";
+    }
+    // matches must already be oldest first
+    function scoutedInsightTiles(matches) {
+      var rows = matches.filter(function (m) {
+        return m.data && SEASON_KEYS.some(function (k) { return k in m.data; });
+      });
+      var tiles = [];
+      function addAvg(label, key, suffix) {
+        var vals = numbersFor(rows, key);
+        if (vals.length) tiles.push([label, mean(vals).toFixed(1) + (suffix || "")]);
+      }
+      addAvg("Avg auto FUEL", "auto_fuel_hub");
+      addAvg("Avg teleop FUEL", "teleop_fuel_hub");
+
+      var teleop = numbersFor(rows, "teleop_fuel_hub");
+      if (teleop.length) tiles.push(["Best teleop FUEL", Math.max.apply(null, teleop)]);
+      // Needs a few earlier matches to compare against, or one good match reads as a trend
+      if (teleop.length >= 5) {
+        tiles.push(["Teleop FUEL trend (last 3 vs earlier)",
+          signed(mean(teleop.slice(-3)) - mean(teleop.slice(0, -3)))]);
+      }
+      addAvg("Avg accuracy", "shooter_accuracy", " / 5");
+
+      var climbs = rows.map(function (m) { return m.data.teleop_tower; })
+        .filter(function (v) { return v != null && v !== ""; });
+      if (climbs.length) {
+        var climbed = climbs.filter(function (v) { return v !== "None"; });
+        var best = climbed.slice().sort().pop();
+        tiles.push(["Climb rate" + (best ? " (best " + best + ")" : ""),
+          Math.round(100 * climbed.length / climbs.length) + "%"]);
+      }
+      var role = topChoice(rows, "teleop_role");
+      if (role) tiles.push(["Usual role", role]);
+      var source = topChoice(rows, "teleop_fuel_source");
+      if (source) tiles.push(["Main FUEL source", source]);
+      return tiles;
+    }
+    // The parts of the scouting rating, from team_ratings().components (each is 0-100)
+    var RATING_PARTS = [
+      ["fuel", "FUEL scoring"], ["climb", "Climbing"], ["auto", "Autonomous"], ["efficiency", "Shooting efficiency"],
+      ["reliability", "Reliability"], ["discipline", "Fouls avoided"], ["pit", "Robot capability"]
+    ];
+    function ratingBreakdownHtml(team) {
+      var me = summary.find(function (r) { return r.team_number === team; });
+      var parts = me && me.components ? me.components : {};
+      var rows = RATING_PARTS.filter(function (p) { return parts[p[0]] != null; }).map(function (p) {
+        var v = Math.max(0, Math.min(100, Number(parts[p[0]])));
+        return '<div class="rating-part"><span class="rp-label">' + esc(p[1]) + "</span>" +
+          '<span class="rp-track"><span class="rp-fill" style="width:' + v + '%;"></span></span>' +
+          '<span class="rp-value">' + Math.round(v) + "</span></div>";
+      }).join("");
+      return rows
+        ? '<h3 class="section-title">Rating breakdown<span class="src-badge scout">Scouted</span></h3>' + rows +
+          '<p class="insight-note">What makes up the scouting grade, each part from 0 to 100. Higher is better.</p>'
+        : "";
+    }
+
     function officialHtml(rows, err) {
       var head = '<h3 class="section-title">Official results<span class="src-badge api">API</span></h3>';
       if (err) return head + accessNotice(err, "official match data");
       if (!rows.length) {
         return head + '<p class="text-muted">No official match data yet. Link this event to its FRC / TBA codes in the Staff Portal.</p>';
       }
-      var wins = 0, losses = 0, ties = 0, total = 0, n = 0;
       rows.forEach(function (r) {
         r.set_number_label = (r.match_key.match(/^sf(\d+)/) || [])[1] || r.match_number;
-        if (r.alliance_score == null || r.opponent_score == null) return;
-        total += r.alliance_score; n++;
-        if (r.alliance_score > r.opponent_score) wins++;
-        else if (r.alliance_score < r.opponent_score) losses++;
-        else ties++;
       });
+      var played = playedMatches(rows);
+      var n = played.length;
+      var avgScore = mean(played.map(function (r) { return r.alliance_score; }));
       var body = rows.map(function (r) {
         var played = r.alliance_score != null && r.opponent_score != null;
         var result = !played ? "—" : r.alliance_score > r.opponent_score ? "W" : r.alliance_score < r.opponent_score ? "L" : "T";
@@ -731,9 +883,13 @@
           "<td>" + result + "</td></tr>";
       }).join("");
       return head +
-        '<p class="text-muted mb-2" style="font-size:.9rem;">Record ' + wins + "-" + losses + "-" + ties +
+        '<p class="text-muted mb-2" style="font-size:.9rem;">Record ' + recordOf(played) +
         " · " + n + " matches played" +
-        (n ? " · avg alliance score " + (total / n).toFixed(1) : "") + "</p>" +
+        (n ? " · avg alliance score " + avgScore.toFixed(1) : "") + "</p>" +
+        (n
+          ? tileGrid(officialInsightTiles(played)) + eventBreakdownHtml(played) +
+            '<p class="insight-note mb-3">Official results are for the whole alliance, so they reflect a team\'s partners too.</p>'
+          : "") +
         '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
@@ -780,7 +936,8 @@
         ["Official matches", counts.official_matches],
         ["Overlap (both)", counts.overlap_matches],
         ["Avg pts / match (scouted)", gScout.avg == null ? "—" : gScout.avg],
-        ["Avg alliance score (official)", gOff.avg == null ? "—" : gOff.avg]
+        ["Avg alliance score (official)", gOff.avg == null ? "—" : gOff.avg],
+        ["Win % (official)", officialErr ? "—" : winPct(playedMatches(officialRows || []))]
       ];
       mFields.filter(function (f) { return f.field_type === "boolean"; }).forEach(function (f) {
         var known = matches.filter(function (m) { return m.data && m.data[f.key] != null; });
@@ -820,6 +977,7 @@
 
       var info = teamInfoByNumber[team];
       var logoHtml = info && info.logo_url ? '<img class="team-logo" src="' + esc(info.logo_url) + '" alt="">' : "";
+      var scoutedTiles = scoutedInsightTiles(matches);
 
       $("detail").innerHTML =
         '<div class="rating-group">' + ratingBox("Scouting", gScout) + ratingBox("Official", gOff) + '</div>' +
@@ -833,11 +991,12 @@
         "</div>" +
         '<div class="alliance-actions" id="allianceActions">' + allianceActionsHtml(team) + "</div>" +
 
-        '<div class="tile-grid">' +
-          tiles.map(function (t) {
-            return '<div class="tile"><div class="v">' + esc(t[1]) + '</div><div class="k">' + esc(t[0]) + "</div></div>";
-          }).join("") +
-        "</div>" +
+        tileGrid(tiles) +
+
+        (scoutedTiles.length
+          ? '<h3 class="section-title">Scouted insights<span class="src-badge scout">Scouted</span></h3>' + tileGrid(scoutedTiles)
+          : "") +
+        ratingBreakdownHtml(team) +
 
         '<h3 class="section-title">Robot parameters<span class="src-badge scout">Scouted</span></h3>' + paramsHtml +
 

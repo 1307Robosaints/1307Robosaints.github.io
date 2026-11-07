@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="/css/modern.css" rel="stylesheet">
   <style>
-    .a-wrap { max-width: 1200px; margin: 0 auto; }
+    .a-page { max-width: 1200px; margin: 0 auto; padding: 2rem 15px; }
     .a-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
 
     .alliance { --team: #c0392b; margin-bottom: 2rem; }
@@ -38,6 +38,7 @@
     }
     .a-remove:hover { color: #c0392b; border-color: #c0392b; }
 
+    .a-top { display: flex; flex-direction: column-reverse; }
     .a-head { display: flex; align-items: center; gap: .6rem; padding-right: 2rem; min-height: 44px; }
     .a-head img { width: 40px; height: 40px; object-fit: contain; flex: none; background: var(--paper); border: 1px solid var(--line); }
     .a-head-text { min-width: 0; }
@@ -73,6 +74,57 @@
     }
     .a-empty:hover { color: var(--team); border-color: var(--team); text-decoration: none; }
     .loading-msg { color: var(--muted); font-family: var(--display); padding: 2rem 0; text-align: center; }
+
+    /* Widescreen: all six cards fit one screen with no scrolling, for a laptop or a projector.
+       Every size below is in em, and the font scales with the window, so the layout keeps its
+       proportions at any 16:9 size. 76px is the fixed navbar (body padding in modern.css). */
+    @media (min-width: 992px) and (min-aspect-ratio: 3/2) {
+      .a-page {
+        display: flex; flex-direction: column; height: calc(100vh - 76px);
+        max-width: none; padding: .4em 1em .6em;
+        font-size: clamp(10px, min(1.72vh, .92vw), 40px);
+      }
+      .a-intro { flex-wrap: nowrap; align-items: center; margin-bottom: .3em; }
+      .a-title { display: flex; align-items: baseline; gap: 1em; }
+      .a-title h1 { font-size: 1.6em; margin: 0; }
+      .a-title h1::after { display: none; }
+      .a-title p { font-size: .95em; }
+      #clearAll { font-size: .85em; padding: .15em .9em; }
+      #loadError .alert { padding: .2em .75em; margin-bottom: .3em; font-size: .95em !important; }
+
+      #alliances {
+        flex: 1; min-height: 0; display: grid; gap: .5em;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      }
+      .alliance { display: flex; flex-direction: column; min-height: 0; margin: 0; }
+      .alliance-head { flex-wrap: nowrap; border-bottom-width: 2px; padding-bottom: .1em; margin-bottom: .35em; }
+      .alliance-head h2 { font-size: 1.25em; }
+      .alliance-total { font-size: .95em; }
+      .alliance-row { flex: 1; min-height: 0; gap: .6em; grid-template-rows: minmax(0, 1fr); }
+
+      .a-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: .4em .55em; border-top-width: 3px; }
+      .a-remove { top: .25em; right: .25em; width: 1.7em; height: 1.7em; font-size: .85em; }
+      .a-top { flex: none; flex-direction: row; gap: .6em; height: 5em; }
+      .a-photo { flex: none; height: 100%; margin: 0; font-size: .8em; text-align: center; }
+      .a-id { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
+      .a-head { min-height: 0; gap: .4em; padding-right: 1.8em; }
+      .a-head img { width: 2.2em; height: 2.2em; }
+      .a-head h3 { font-size: 1.25em; line-height: 1.15; }
+      .a-name { font-size: .85em; line-height: 1.2; }
+      .a-grade { padding: .1em; gap: .35em; }
+      .a-grade b { font-size: 1.3em; }
+      .a-grade span { font-size: .62em; }
+
+      /* Two columns of nine lines each, so rows line up across the card */
+      .a-stats { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8em; margin-top: .2em; }
+      .a-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+      .a-group { flex: 1 1 0; display: flex; align-items: flex-end; min-height: 0; margin: 0; font-size: .72em; }
+      .a-stat { flex: 1 1 0; align-items: center; gap: .4em; min-height: 0; padding: 0 .25em; font-size: 1em; line-height: 1.1; }
+      .a-stat span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .a-stat strong { flex: none; white-space: nowrap; }
+      .a-empty { min-height: 0; font-size: 1em; }
+      .loading-msg { padding: 0; }
+    }
   </style>
 </head>
 <body>
@@ -142,19 +194,18 @@
     </div>
   </nav>
 
-  <div class="container" style="padding-top:2rem;">
-    <div class="a-wrap">
-      <h1 class="mt-4 mb-1">Alliance View</h1>
-      <div class="a-intro">
-        <p class="text-muted mb-0" style="font-size:.95rem;">
-          Compare up to six robots side by side. Add teams from the
-          <a href="/query.html">Team Database</a>. The best value in each stat is highlighted in green.
+  <div class="a-page">
+    <div class="a-intro">
+      <div class="a-title">
+        <h1>Alliance View</h1>
+        <p class="text-muted mb-0">
+          Add teams from the <a href="/query.html">Team Database</a>. The best value in each stat is green.
         </p>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll">Clear all</button>
       </div>
-      <div id="loadError"></div>
-      <div id="alliances"><div class="loading-msg">Loading…</div></div>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll">Clear all</button>
     </div>
+    <div id="loadError"></div>
+    <div id="alliances"><div class="loading-msg">Loading…</div></div>
   </div>
 
   <!-- Footer -->
@@ -264,8 +315,10 @@
     //   value: the number used to pick the best team (leave out for text-only rows)
     //   show:  the text displayed. lower: true means a smaller number is better.
     //   noBest: true shows a number without highlighting a "best" team
+    // col is the card column (0 or 1). Keep both columns the same length (group titles count as
+    // a line) so they line up, and about nine lines long so six cards still fit one screen.
     var STAT_GROUPS = [
-      { title: "Scouted", stats: [
+      { title: "Scouted", col: 0, stats: [
         { label: "Matches scouted", noBest: true,
           value: function (t) { return t.scout ? t.scout.matches : 0; } },
         { label: "Avg pts / match", show: oneDecimal,
@@ -278,8 +331,9 @@
             return shareOf(climbRows(t), function (r) { return r.data.teleop_tower !== "None"; });
           },
           show: function (v, t) {
-            var best = climbRows(t).map(function (r) { return r.data.teleop_tower; }).sort().pop();
-            return percent(v) + (best && best !== "None" ? " (best " + best + ")" : "");
+            var best = climbRows(t).map(function (r) { return r.data.teleop_tower; })
+              .filter(function (v) { return v !== "None"; }).sort().pop();
+            return percent(v) + (best ? " (best " + best + ")" : "");
           } },
         { label: "Disabled / broke down", lower: true, show: percent,
           value: function (t) {
@@ -288,14 +342,14 @@
         { label: "Fouls / cards", lower: true, show: percent,
           value: function (t) { return shareOf(t.rows, function (r) { return r.data.foul_or_card === true; }); } }
       ] },
-      { title: "Official", stats: [
+      { title: "Official", col: 1, stats: [
         { label: "Record (W-L-T)",
           value: function (t) { return t.official && t.official.matches ? t.official.wins / t.official.matches : null; },
           show: function (v, t) { return t.official.wins + "-" + t.official.losses + "-" + t.official.ties; } },
         { label: "Avg alliance score", show: oneDecimal,
           value: function (t) { return t.official ? num(t.official.avg_alliance_score) : null; } }
       ] },
-      { title: "Robot", stats: [
+      { title: "Robot", col: 1, stats: [
         { label: "Drivetrain", text: pitValue("drivetrain") },
         { label: "Shooter", text: pitValue("shooter_type") },
         { label: "Max FUEL held", value: function (t) { return num(pitValue("fuel_capacity")(t)); } },
@@ -416,16 +470,25 @@
       return '<div class="a-card">' +
         '<button type="button" class="a-remove" data-remove="' + t.team + '" title="Remove team ' + t.team +
           '" aria-label="Remove team ' + t.team + '"><i class="fa fa-times"></i></button>' +
-        '<div class="a-head">' +
-          (t.info.logo_url ? '<img src="' + esc(t.info.logo_url) + '" alt="">' : "") +
-          '<div class="a-head-text"><h3>Team ' + t.team + "</h3>" +
-            '<div class="a-name">' + (esc(t.info.team_name) || "&nbsp;") + "</div></div>" +
+        '<div class="a-top">' +
+          '<div class="a-photo">' +
+            (photo ? '<img src="' + esc(photo) + '" alt="Robot photo for team ' + t.team + '">' : "No robot photo") +
+          "</div>" +
+          '<div class="a-id">' +
+            '<div class="a-head">' +
+              (t.info.logo_url ? '<img src="' + esc(t.info.logo_url) + '" alt="">' : "") +
+              '<div class="a-head-text"><h3>Team ' + t.team + "</h3>" +
+                '<div class="a-name">' + (esc(t.info.team_name) || "&nbsp;") + "</div></div>" +
+            "</div>" +
+            '<div class="a-grades">' + gradeBox("Scouting", t.gradeScout) + gradeBox("Official", t.gradeOfficial) + "</div>" +
+          "</div>" +
         "</div>" +
-        '<div class="a-photo">' +
-          (photo ? '<img src="' + esc(photo) + '" alt="Robot photo for team ' + t.team + '">' : "No robot photo") +
-        "</div>" +
-        '<div class="a-grades">' + gradeBox("Scouting", t.gradeScout) + gradeBox("Official", t.gradeOfficial) + "</div>" +
-        STAT_GROUPS.map(function (g) {
+        '<div class="a-stats">' + statColumn(0, t, all) + statColumn(1, t, all) + "</div>" +
+      "</div>";
+    }
+    function statColumn(col, t, all) {
+      return '<div class="a-col">' +
+        STAT_GROUPS.filter(function (g) { return g.col === col; }).map(function (g) {
           return '<div class="a-group">' + esc(g.title) + "</div>" +
             g.stats.map(function (stat) { return statRow(stat, t, bestValue(stat, all)); }).join("");
         }).join("") +
