@@ -24,7 +24,7 @@ no build/lint/test tooling in this repo — don't introduce one unless asked.
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
 `contact_me.js`, plus the vendored `jqBootstrapValidation.js`). Everything specific to a page
-(`scout.html`, `query.html`, `alliance.html`, `playoffs.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
+(`scout.html`, `query.html`, `alliance.html`, `playoffs.html`, `bracket.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -74,6 +74,8 @@ Key tables/functions to know when touching 1307scout:
   value.
 - `playoff_picks` — the alliances on `playoffs.html`, one row per filled spot (slot 1 is the
   captain). Staff write, the team reads, and the page polls it so every screen stays current.
+  `bracket.html` reads it too, and works out each result from `official_matches_combined`
+  (`sf1`-`sf13` and `f1`), matching alliances on team numbers. It stores nothing of its own.
 - `photo_cleanup_queue` — photo files nothing uses any more, queued by triggers on the entry
   tables. SQL can't delete Storage files, so `scout.html` and `portal.html` call
   `photo_cleanup_paths()` and remove them through the Storage API.

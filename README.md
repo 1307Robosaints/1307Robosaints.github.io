@@ -32,6 +32,9 @@ ratings and the other derived stats are calculated. Update it whenever that math
   team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
   a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in
   the Alliance View. To change the table's stats, edit `COLUMNS` in the page.
+- `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
+  Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
+  it only advances once an event syncs. The match layout is `MATCHES` in the page.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;

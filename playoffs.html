@@ -91,7 +91,6 @@
       .p-layout { grid-template-columns: minmax(400px, 440px) minmax(0, 1fr); align-items: start; }
       .p-board { position: sticky; top: 84px; max-height: calc(100vh - 94px); overflow-y: auto; padding-right: 2px; }
       .p-next { position: sticky; top: 0; z-index: 4; }
-      .p-alliance { scroll-margin-top: 4.5rem; }
       .p-scroll { max-height: calc(100vh - 134px); }
     }
   </style>
@@ -152,6 +151,7 @@
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -173,6 +173,7 @@
       <div class="p-event">
         <label for="eventPick">Event</label>
         <select id="eventPick" class="custom-select custom-select-sm"></select>
+        <a class="btn btn-outline-primary btn-sm" id="bracketLink" href="/bracket.html">Bracket</a>
       </div>
     </div>
     <div id="loadError"></div>
@@ -484,6 +485,7 @@
     var eventLoad = 0;
     async function loadEvent() {
       var thisLoad = ++eventLoad, id = eventId;
+      $("bracketLink").href = "/bracket.html?event=" + encodeURIComponent(id);
       picksLoad++;   // ignore any refresh still running for the previous event
       picks = [];
       chosenSpot = null;
@@ -668,12 +670,21 @@
       if (canEdit) {
         $("nextLabel").textContent = target ? spotLabel(target) : "all spots are filled";
         $("clearAll").hidden = !picks.length;
-        // On a short screen the board scrolls, so keep the spot being filled in view
         var spotKey = target ? target.join() : "";
-        var active = $("board").querySelector(".p-alliance.active");
-        if (active && spotKey !== shownTarget) active.scrollIntoView({ block: "nearest" });
+        if (spotKey !== shownTarget) keepTargetInView();
         shownTarget = spotKey;
       }
+    }
+    // On a short screen the board scrolls by itself, so keep the spot being filled in view. Only
+    // the panel moves: scrollIntoView would also move the page, away from the table on a phone.
+    function keepTargetInView() {
+      var panel = document.querySelector(".p-board");
+      var active = $("board").querySelector(".p-alliance.active");
+      if (!active || panel.scrollHeight <= panel.clientHeight) return;
+      var box = active.getBoundingClientRect(), view = panel.getBoundingClientRect();
+      var top = view.top + $("addForm").offsetHeight + 8;   // the Next bar stays pinned over the panel
+      if (box.top < top) panel.scrollTop -= top - box.top;
+      else if (box.bottom > view.bottom) panel.scrollTop += box.bottom - view.bottom + 8;
     }
 
     function headHtml() {
