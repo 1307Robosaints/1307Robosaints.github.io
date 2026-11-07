@@ -155,13 +155,113 @@
     }
     .event-search-empty { padding: .6rem .75rem; color: var(--muted); font-size: .88rem; }
 
-    /* Guest view */
+    /* Guest view: the code-entry card, then (once a code loads) the same two-pane
+       team-list + detail layout as query.html's Team Database, just scoped to the
+       code's events/teams instead of the whole database. */
     .guest-card {
       background: var(--white);
       border: 1px solid var(--line);
       border-top: 3px solid var(--blue);
       padding: 2rem;
       max-width: 460px; margin: 2rem auto;
+    }
+    .guest-wrap { max-width: 1200px; margin: 0 auto; }
+
+    .q-layout {
+      display: grid;
+      grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 991px) { .q-layout { grid-template-columns: 1fr; } }
+
+    .q-panel {
+      min-width: 0;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 1rem;
+    }
+
+    .team-list { border-top: 1px solid var(--line); }
+    .team-row {
+      display: flex; align-items: center; gap: .75rem;
+      padding: .5rem .35rem; border-bottom: 1px solid var(--line);
+      cursor: pointer; font-size: .9rem;
+    }
+    .team-row:hover { background: var(--tint); }
+    .team-row.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
+    .team-row .tr-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .team-row .tr-name .team-name-sub { color: var(--muted); font-size: .85em; }
+    .tier-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      margin-right: 3px; vertical-align: middle; flex: none;
+    }
+    .list-scroll { max-height: 70vh; overflow-y: auto; }
+
+    .detail-card {
+      position: relative; min-width: 0;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 1.5rem; min-height: 320px;
+    }
+    .detail-head { padding-right: 210px; display: flex; gap: .9rem; align-items: center; }
+    .detail-head h2 { margin-bottom: .15rem; }
+    .team-logo {
+      width: 56px; height: 56px; object-fit: contain; flex: none;
+      background: var(--paper); border: 1px solid var(--line);
+    }
+    .team-logo-sm {
+      width: 20px; height: 20px; object-fit: contain; vertical-align: middle;
+      margin-right: .4rem; background: var(--paper); border: 1px solid var(--line);
+    }
+    .rating-group { position: absolute; top: 1.25rem; right: 1.25rem; display: flex; gap: .5rem; }
+    .rating-wrap { width: 92px; text-align: center; }
+    .rating-box {
+      height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    }
+    .rating-letter { font-family: var(--display); font-size: 2.3rem; font-weight: 700; line-height: 1; }
+    .rating-caption { font-size: .64rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+    .rating-meta { font-size: .74rem; color: var(--muted); margin-top: .35rem; white-space: nowrap; }
+
+    .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
+    .src-badge {
+      font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
+      font-weight: 700; padding: .15rem .5rem; margin-left: .5rem;
+      border-radius: 3px; vertical-align: middle;
+    }
+    .src-badge.scout { background: #eaf0ff; color: #1B4DB1; }
+    .src-badge.api   { background: #e7f7ee; color: #1a7f4b; }
+
+    .tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; margin-top: 1rem; }
+    .tile { border: 1px solid var(--line); padding: .6rem .75rem; background: var(--paper); }
+    .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--navy); font-weight: 700; line-height: 1.2; }
+    .tile .k { font-size: .75rem; color: var(--muted); line-height: 1.3; }
+
+    .info-grid { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; font-size: .92rem; margin: 0; }
+    .info-grid dt { color: var(--muted); font-weight: 500; }
+    .info-grid dd { margin: 0; word-break: break-word; }
+
+    .match-table { font-size: .86rem; }
+    .match-table th { background: var(--navy); color: #fff; font-weight: 500; border: 0; white-space: nowrap; }
+    .match-table td { border-top: 1px solid var(--line); white-space: nowrap; }
+    .match-table tbody tr:nth-child(even) { background: var(--paper); }
+
+    .empty-detail { color: var(--muted); text-align: center; padding: 3rem 1rem; }
+
+    @media (max-width: 575px) {
+      .detail-card { padding: 1rem; }
+      .detail-head { padding-right: 0; flex-wrap: wrap; }
+      .rating-group { position: static; margin: .9rem 0 0; width: 100%; }
+      .rating-wrap { width: 84px; }
+      .rating-box { height: 68px; }
+      .rating-letter { font-size: 1.9rem; }
+      .info-grid { grid-template-columns: 1fr; gap: .1rem .75rem; }
+      .info-grid dt { margin-top: .5rem; }
+      .tile-grid { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); }
+      .list-scroll { max-height: 48vh; }
     }
 
     /* Toast notifications (bottom-right pop-ups created by toast() in the script) */
@@ -340,16 +440,31 @@
   <!-- ══════════════════════════════════════════════════════════
        GUEST VIEW (signed in, but not staff or student)
   ══════════════════════════════════════════════════════════ -->
-  <div class="container" id="guestView" style="display:none;">
-    <div class="guest-card mt-5">
-      <h1 style="font-size:1.5rem;">View Shared Data</h1>
-      <p class="text-muted">Enter the share code you received from Team 1307.</p>
-      <div class="form-group">
-        <label for="guestCode">Share code</label>
-        <input type="text" id="guestCode" class="form-control" maxlength="32" placeholder="Enter code">
+  <div class="container" id="guestView" style="display:none; padding-top:2rem;">
+    <div class="guest-wrap">
+      <div class="guest-card mt-3">
+        <h1 style="font-size:1.5rem;">View Shared Data</h1>
+        <p class="text-muted">Enter the 8-digit share code you received from Team 1307.</p>
+        <div class="form-group">
+          <label for="guestCode">Share code</label>
+          <input type="text" id="guestCode" class="form-control" maxlength="8" inputmode="numeric" pattern="[0-9]*" placeholder="Enter code">
+        </div>
+        <button class="btn btn-primary" id="guestLoad">View data</button>
+        <div id="guestMsg" class="mt-3"></div>
       </div>
-      <button class="btn btn-primary" id="guestLoad">View data</button>
-      <div id="guestResult" class="mt-3"></div>
+
+      <!-- Shown once a code loads: the same team-list + detail layout as the Team Database
+           page, but scoped to only the events/teams the code allows. -->
+      <div class="q-layout" id="guestData" style="display:none; margin-top:1.5rem;">
+        <div class="q-panel">
+          <input type="text" id="gTeamSearch" class="form-control form-control-sm mb-2" placeholder="Search team # or name">
+          <div class="text-muted mb-2" id="gTeamCount" style="font-size:.82rem;"></div>
+          <div class="list-scroll"><div class="team-list" id="gTeamRows"></div></div>
+        </div>
+        <div class="detail-card" id="gDetail">
+          <div class="empty-detail">Select a team from the list.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -528,6 +643,21 @@
     }
 
     // ── GUEST VIEW ───────────────────────────────────────────────────
+    // Mirrors the Team Database page (query.html): a team list on the left, a detail card
+    // on the right with the same ratings/pit/match-history layout — just scoped to only the
+    // events/teams the share code allows, via the one get_shared_scouting() RPC below.
+
+    // Letter-grade colors, same as query.html. NR ("needs 3+ matches") is decided client-side;
+    // every other grade comes straight from the scoped percentile get_shared_scouting() computes.
+    var G_TIERS = {
+      S: { color: "#D4AF37", ink: "#2b2100" }, A: { color: "#1a7f4b", ink: "#ffffff" },
+      B: { color: "#1B4DB1", ink: "#ffffff" }, C: { color: "#6c3fb5", ink: "#ffffff" },
+      D: { color: "#e67e22", ink: "#ffffff" }, F: { color: "#c0392b", ink: "#ffffff" },
+      NR: { color: "#9a9a9c", ink: "#ffffff" }
+    };
+    var G_MIN_RATED_MATCHES = 3;
+    var gPayload = null, gSelected = null, gEventsById = {};
+
     if (!isTeam) {
       get("guestView").style.display = "";
       // Use the code from the link (or one saved before sign-in) and load it right away
@@ -536,28 +666,211 @@
       get("guestLoad").addEventListener("click", function () {
         loadGuest(get("guestCode").value.trim());
       });
+      get("gTeamSearch").addEventListener("input", renderGuestList);
+      get("gTeamRows").addEventListener("click", function (e) {
+        var row = e.target.closest(".team-row[data-team]");
+        if (row) openGuestTeam(parseInt(row.dataset.team, 10));
+      });
       return;   // guests never reach the team code below
     }
 
-    // Ask the database for the entries a share code allows, and draw them as a table.
-    // (A function declaration, so it's available above even though it's written here.)
+    function gTierFor(block) {
+      if (!block || (block.matches || 0) < G_MIN_RATED_MATCHES) {
+        return { tier: "NR", matches: block ? block.matches : 0, avg: null, pct: null };
+      }
+      return { tier: block.grade, matches: block.matches, avg: block.avg_points != null ? block.avg_points : block.avg_score, pct: block.pct };
+    }
+    function gEvName(id) { var e = gEventsById[id]; return e ? e.name : "—"; }
+
+    // Ask the database for the slice of data a share code allows (events, fields, teams with
+    // their grades, matches, pit entries, official results — all already scoped server-side).
     async function loadGuest(code) {
       if (!code) return;
+      var msg = get("guestMsg");
+      msg.innerHTML = "";
+      get("guestData").style.display = "none";
       var r = await sb.rpc("get_shared_scouting", { p_code: code });
-      var el = get("guestResult");
-      if (r.error || !r.data) { el.innerHTML = '<div class="alert alert-danger">Code not found or access has been revoked.</div>'; return; }
-      if (!r.data.length) { el.innerHTML = '<div class="alert alert-warning">No entries match this code yet.</div>'; return; }
-      // Build table from keys in first row's data object
-      var dataKeys = Object.keys(r.data[0].data || {});
-      var headers = ["Team","Match","Event"].concat(dataKeys.map(function(k){ return k.replace(/_/g," "); }));
-      var rows = r.data.map(function(row) {
-        var cells = [row.team_number, row.match_number || "—", esc(row.event_name)];
-        dataKeys.forEach(function(k){ cells.push(esc(row.data[k])); });
-        return "<tr>" + cells.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
+      if (r.error || !r.data) { msg.innerHTML = '<div class="alert alert-danger">Code not found or access has been revoked.</div>'; return; }
+      gPayload = r.data;
+      gEventsById = {};
+      (gPayload.events || []).forEach(function (e) { gEventsById[e.id] = e; });
+      if (!gPayload.teams || !gPayload.teams.length) {
+        msg.innerHTML = '<div class="alert alert-warning">No data matches this code yet.</div>';
+        return;
+      }
+      get("guestData").style.display = "";
+      gSelected = null;
+      renderGuestList();
+      get("gDetail").innerHTML = '<div class="empty-detail">Select a team from the list.</div>';
+    }
+
+    function renderGuestList() {
+      var q = get("gTeamSearch").value.trim().toLowerCase();
+      var rows = (gPayload.teams || []).filter(function (t) {
+        if (!q) return true;
+        var hay = (String(t.team_number) + " " + (t.team_name || "")).toLowerCase();
+        return hay.indexOf(q) !== -1;
+      }).sort(function (a, b) { return a.team_number - b.team_number; });
+
+      get("gTeamRows").innerHTML = rows.length
+        ? rows.map(function (t) {
+            var gScout = gTierFor(t.scout), gOff = gTierFor(t.official);
+            var dots = '<span class="tier-dot" style="background:' + G_TIERS[gScout.tier].color + ';" title="Scouting: ' + gScout.tier + '"></span>' +
+              '<span class="tier-dot" style="background:' + G_TIERS[gOff.tier].color + ';" title="Official: ' + gOff.tier + '"></span>';
+            var logoImg = t.logo_url ? '<img class="team-logo-sm" src="' + esc(t.logo_url) + '" alt="">' : "";
+            var nameSuffix = t.team_name ? ' <span class="team-name-sub">' + esc(t.team_name) + '</span>' : "";
+            return '<div data-team="' + t.team_number + '" class="team-row' + (gSelected === t.team_number ? " selected" : "") + '">' +
+              '<div class="tr-name">' + dots + logoImg + "<strong>" + t.team_number + "</strong>" + nameSuffix + "</div>" +
+              "</div>";
+          }).join("")
+        : '<div class="text-muted text-center py-3">No teams match.</div>';
+      get("gTeamCount").textContent = rows.length + (rows.length === 1 ? " team" : " teams");
+    }
+
+    function gCell(v, f, data) {
+      data = data || {};
+      if (f.allow_unsure && data[f.key + "__unsure"]) return "Unsure";
+      if (v == null || v === "") return "—";
+      if (f.field_type === "boolean") return v ? "Yes" : "No";
+      if (f.field_type === "image") return '<a href="' + esc(v) + '" target="_blank"><img src="' + esc(v) + '" style="height:40px;width:40px;object-fit:cover;"></a>';
+      var html = esc(v);
+      if (f.field_type === "choice" && v === "Other" && data[f.key + "__other_note"]) {
+        html += ' <span class="text-muted" style="font-size:.85em;">(' + esc(data[f.key + "__other_note"]) + ')</span>';
+      }
+      if (f.reg_limit != null && Number(v) > Number(f.reg_limit)) {
+        html += ' <span class="reg-flag" title="Exceeds the ' + esc(f.reg_limit) + ' limit">Over limit</span>';
+      }
+      return html;
+    }
+    function gFmtDate(d) {
+      if (!d) return "—";
+      return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+    function gMatchLabel(r) {
+      if (r.comp_level === "qm") return "Qual " + r.match_number;
+      if (r.comp_level === "sf") return "Playoff " + (r.set_number || r.match_number);
+      return "Final " + r.match_number;
+    }
+    function gOfficialHtml(rows) {
+      var head = '<h3 class="section-title">Official results<span class="src-badge api">API</span></h3>';
+      if (!rows.length) return head + '<p class="text-muted">No official match data in this code’s scope.</p>';
+      var wins = 0, losses = 0, ties = 0, total = 0, n = 0;
+      rows.forEach(function (r) {
+        if (r.alliance_score == null || r.opponent_score == null) return;
+        total += r.alliance_score; n++;
+        if (r.alliance_score > r.opponent_score) wins++;
+        else if (r.alliance_score < r.opponent_score) losses++;
+        else ties++;
       });
-      el.innerHTML = '<div class="table-responsive"><table class="table entry-table"><thead><tr>' +
-        headers.map(function(h){ return "<th>" + esc(h) + "</th>"; }).join("") +
-        "</tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
+      var body = rows.map(function (r) {
+        var played = r.alliance_score != null && r.opponent_score != null;
+        var result = !played ? "—" : r.alliance_score > r.opponent_score ? "W" : r.alliance_score < r.opponent_score ? "L" : "T";
+        return "<tr><td>" + esc(gEvName(r.event_id)) + "</td><td>" + esc(gMatchLabel(r)) + "</td>" +
+          "<td>" + esc(r.alliance) + "</td>" +
+          "<td>" + (played ? r.alliance_score + " – " + r.opponent_score : "—") + "</td>" +
+          "<td>" + result + "</td></tr>";
+      }).join("");
+      return head +
+        '<p class="text-muted mb-2" style="font-size:.9rem;">Record ' + wins + "-" + losses + "-" + ties +
+        " · " + n + " matches played" +
+        (n ? " · avg alliance score " + (total / n).toFixed(1) : "") + "</p>" +
+        '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+        "<th>Event</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>";
+    }
+
+    function openGuestTeam(team) {
+      gSelected = team;
+      renderGuestList();
+      if (window.innerWidth < 992) {
+        get("gDetail").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      var t = (gPayload.teams || []).find(function (x) { return x.team_number === team; });
+      if (!t) return;
+      var mFields = (gPayload.fields || []).filter(function (f) { return (f.scope || "match") === "match"; });
+      var pFields = (gPayload.fields || []).filter(function (f) { return f.scope === "pit"; });
+      var matches = (gPayload.matches || []).filter(function (m) { return m.team_number === team; })
+        .sort(function (a, b) { return (a.match_number || 0) - (b.match_number || 0); });
+      var pitRows = (gPayload.pit || []).filter(function (p) { return p.team_number === team; })
+        .sort(function (a, b) { return new Date(b.updated_at) - new Date(a.updated_at); });
+      var pit = pitRows[0] || null;
+      var officialRows = (gPayload.official || []).filter(function (o) { return o.team_number === team; })
+        .sort(function (a, b) { return new Date(a.played_at || 0) - new Date(b.played_at || 0); });
+
+      renderGuestDetail(team, t, gTierFor(t.scout), gTierFor(t.official), mFields, pFields, matches, pit, officialRows);
+    }
+
+    function renderGuestDetail(team, t, gScout, gOff, mFields, pFields, matches, pit, officialRows) {
+      var tiles = [
+        ["Scouted matches", matches.length],
+        ["Official matches", officialRows.length],
+        ["Avg pts / match (scouted)", gScout.avg == null ? "—" : gScout.avg],
+        ["Avg alliance score (official)", gOff.avg == null ? "—" : gOff.avg]
+      ];
+
+      var paramsHtml;
+      if (!pit) {
+        paramsHtml = '<p class="text-muted">No pit data yet.</p>';
+      } else {
+        var rows = pFields.map(function (f) {
+          var v = pit.data ? pit.data[f.key] : null;
+          var unsure = f.allow_unsure && pit.data && pit.data[f.key + "__unsure"];
+          if ((v == null || v === "") && !unsure) return "";
+          return "<dt>" + esc(f.label) + "</dt><dd>" + gCell(v, f, pit.data) + "</dd>";
+        }).join("");
+        paramsHtml = (rows
+            ? '<dl class="info-grid">' + rows + "</dl>"
+            : '<p class="text-muted">Pit entry has no values filled in.</p>') +
+          '<p class="text-muted mt-2 mb-0" style="font-size:.8rem;">Last pit scouted at ' +
+          esc(gEvName(pit.event_id)) + " · " + gFmtDate(pit.updated_at) + "</p>";
+      }
+
+      var matchCols = ["Event", "Match"].concat(mFields.map(function (f) { return f.label; }));
+      var matchRows = matches.map(function (m) {
+        return "<tr><td>" + esc(gEvName(m.event_id)) + "</td><td>" + (m.match_number || "—") + "</td>" +
+          mFields.map(function (f) { return "<td>" + gCell(m.data ? m.data[f.key] : null, f, m.data) + "</td>"; }).join("") +
+          "</tr>";
+      }).join("");
+
+      var logoHtml = t.logo_url ? '<img class="team-logo" src="' + esc(t.logo_url) + '" alt="">' : "";
+
+      function rbox(label, g) {
+        var c = G_TIERS[g.tier];
+        var meta = g.tier === "NR" ? "Not rated" : (g.matches + (g.matches === 1 ? " match" : " matches"));
+        return '<div class="rating-wrap">' +
+          '<div class="rating-box" style="background:' + c.color + ';color:' + c.ink + ';">' +
+            '<span class="rating-letter">' + g.tier + '</span>' +
+            '<span class="rating-caption">' + esc(label) + '</span>' +
+          '</div>' +
+          '<div class="rating-meta">' + meta + '</div>' +
+        '</div>';
+      }
+      function basis(label, unit, g) {
+        if (g.tier === "NR") return label + ": needs at least " + G_MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far).";
+        return label + ": avg " + g.avg + " " + unit + ".";
+      }
+
+      get("gDetail").innerHTML =
+        '<div class="rating-group">' + rbox("Scouting", gScout) + rbox("Official", gOff) + '</div>' +
+        '<div class="detail-head">' +
+          logoHtml +
+          '<div>' +
+            "<h2>Team " + team + (t.team_name ? ' <small class="text-muted">' + esc(t.team_name) + '</small>' : "") + "</h2>" +
+            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis("Scouting", "pts", gScout)) + "</p>" +
+            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis("Official", "alliance pts", gOff)) + "</p>" +
+          '</div>' +
+        "</div>" +
+        '<div class="tile-grid">' +
+          tiles.map(function (x) { return '<div class="tile"><div class="v">' + esc(x[1]) + '</div><div class="k">' + esc(x[0]) + "</div></div>"; }).join("") +
+        "</div>" +
+        '<h3 class="section-title">Robot parameters<span class="src-badge scout">Scouted</span></h3>' + paramsHtml +
+        gOfficialHtml(officialRows) +
+        '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
+        (matches.length
+          ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+              matchCols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
+            "</tr></thead><tbody>" + matchRows + "</tbody></table></div>"
+          : '<p class="text-muted">No match data yet.</p>');
     }
 
     // ── TEAM VIEW ────────────────────────────────────────────────────

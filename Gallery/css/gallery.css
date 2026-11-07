@@ -43,3 +43,48 @@ body {
 #navbarlogo{
     height: 5vh;
 }
+
+/* Gallery thumbnails */
+.gallery-thumb-link {
+  cursor: pointer;
+}
+.gallery-thumb-link img {
+  object-fit: cover;
+  width: 100%;
+  height: 220px;
+  background: #e9ecef;
+}
+
+/* Lightbox / carousel modal */
+.gallery-lightbox-dialog {
+  max-width: 90vw;
+}
+.gallery-lightbox-content {
+  background: transparent;
+  border: none;
+}
+.gallery-lightbox-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  color: #fff;
+  opacity: 0.9;
+  font-size: 2rem;
+  z-index: 10;
+  text-shadow: none;
+}
+.gallery-lightbox-close:hover {
+  opacity: 1;
+}
+#galleryCarousel .carousel-item {
+  display: none;
+}
+#galleryCarousel .carousel-item.active {
+  display: block;
+}
+#galleryCarousel img {
+  max-height: 85vh;
+  width: 100%;
+  object-fit: contain;
+  margin: 0 auto;
+}

@@ -292,6 +292,22 @@ update public.events set event_tier = 'championship'
 
 alter table public.scouting_entries add column if not exists data jsonb not null default '{}'::jsonb;
 
+-- An 8-digit numeric code is short enough to read aloud or type from a printed handout, unlike
+-- the old 24-character hex code. Collisions are vanishingly unlikely at this team's scale, but
+-- the loop guards against one anyway instead of letting the unique constraint fail the insert.
+create or replace function public.gen_share_code() returns text
+language plpgsql as $$
+declare
+  c text;
+begin
+  loop
+    c := lpad(floor(random() * 100000000)::int::text, 8, '0');
+    exit when not exists (select 1 from public.share_codes where code = c);
+  end loop;
+  return c;
+end;
+$$;
+
 -- Share codes: each can scope to several events and/or several teams at once (arrays, so a
 -- code for a whole alliance or a multi-event invite doesn't need to be recreated per
 -- event/team), revocable, optional expiry. created_by ties the code to the staff account that
@@ -299,7 +315,7 @@ alter table public.scouting_entries add column if not exists data jsonb not null
 -- get_shared_scouting() in section 10, which is how a QR scan or pasted code shows up here).
 create table if not exists public.share_codes (
   id uuid primary key default gen_random_uuid(),
-  code text not null unique default substr(replace(gen_random_uuid()::text,'-','') || replace(gen_random_uuid()::text,'-',''), 1, 24),
+  code text not null unique default public.gen_share_code(),
   label text not null check (char_length(label) between 1 and 80),
   event_ids uuid[] not null default '{}',
   team_numbers int[] not null default '{}',
@@ -364,6 +380,9 @@ end $$;
 alter table public.share_codes drop constraint if exists share_codes_check;
 alter table public.share_codes add constraint share_codes_check
   check (cardinality(event_ids) > 0 or cardinality(team_numbers) > 0);
+
+-- Re-point an existing table (created before the 8-digit code format) at the new default.
+alter table public.share_codes alter column code set default public.gen_share_code();
 
 
 -- =====================================================================
@@ -1089,17 +1108,26 @@ create policy "staff deletes scouting photos" on storage.objects for delete to a
 
 
 -- =====================================================================
--- 10. Guest access: a valid, unrevoked, unexpired code returns matching entries (read-only)
+-- 10. Guest access: a valid, unrevoked, unexpired code returns the same slice of data the
+--     Team Database page (query.html) shows, scoped to the code's events/teams, as one jsonb
+--     blob — events, active form fields, every team that has any data in scope (not just one),
+--     raw match/pit/official rows, and the same S–F scouting/official grades query.html computes
+--     (team_ratings()/team_official_ratings()), recomputed here over just the scoped rows so a
+--     guest's percentile is relative to the slice they were given, not the whole team database.
+--     Reuses the scoring helpers from section 9 (jnum/jbool/rebuilt_*_points/pit_capability/
+--     event_tier_weight) so the math can't drift from the real ratings.
 -- =====================================================================
 drop function if exists public.get_shared_scouting(text);
 create or replace function public.get_shared_scouting(p_code text)
-returns table (event_name text, event_date date, team_number int, match_number int,
-               data jsonb, created_at timestamptz)
+returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
   v_id uuid;
+  v_event_ids uuid[];
+  v_team_numbers int[];
+  v_result jsonb;
 begin
-  select c.id into v_id
+  select c.id, c.event_ids, c.team_numbers into v_id, v_event_ids, v_team_numbers
   from public.share_codes c
   where c.code = p_code
     and not c.revoked
@@ -1107,7 +1135,7 @@ begin
   limit 1;
 
   if v_id is null then
-    return;
+    return null;
   end if;
 
   -- Every successful lookup counts as one "use" of the code, whether it came from a pasted
@@ -1117,16 +1145,199 @@ begin
      set use_count = use_count + 1, last_used_at = now()
    where id = v_id;
 
-  return query
-    select e.name, e.event_date, s.team_number, s.match_number, s.data, s.created_at
-    from public.share_codes c
-    join public.scouting_entries s
-      on (cardinality(c.event_ids) = 0 or s.event_id = any(c.event_ids))
-     and (cardinality(c.team_numbers) = 0 or s.team_number = any(c.team_numbers))
-    join public.events e on e.id = s.event_id
-    where c.id = v_id
-    order by e.event_date nulls last, s.team_number, s.match_number nulls last
-    limit 1000;
+  with
+  scoped_matches as (
+    select s.* from public.scouting_entries s
+    where (cardinality(v_event_ids) = 0 or s.event_id = any(v_event_ids))
+      and (cardinality(v_team_numbers) = 0 or s.team_number = any(v_team_numbers))
+  ),
+  scoped_pit as (
+    select p.* from public.pit_entries p
+    where (cardinality(v_event_ids) = 0 or p.event_id = any(v_event_ids))
+      and (cardinality(v_team_numbers) = 0 or p.team_number = any(v_team_numbers))
+  ),
+  scoped_official as (
+    select o.* from public.official_match_teams o
+    where (cardinality(v_event_ids) = 0 or o.event_id = any(v_event_ids))
+      and (cardinality(v_team_numbers) = 0 or o.team_number = any(v_team_numbers))
+  ),
+  -- Scouting grade, same math as team_ratings() (section 9) but over scoped_matches/scoped_pit
+  -- instead of every match, and with no is_staff()/is_student() gate (the code already proved
+  -- access to exactly this slice).
+  rate_entries as (
+    select m.team_number, m.data as d,
+           public.rebuilt_fuel_points(m.data)  as fuel_pts,
+           public.rebuilt_tower_points(m.data) as tower_pts,
+           public.rebuilt_auto_points(m.data)  as auto_pts,
+           coalesce(m.data ->> 'teleop_role', 'Scorer') not in ('Defense', 'Feeder') as scoring_match
+    from scoped_matches m
+    where m.data ?| array['stuck_on_field','foul_or_card','auto_fuel_hub','teleop_fuel_hub','auto_tower','teleop_tower']
+  ),
+  rate_agg as (
+    select e.team_number,
+      count(*)::int as matches,
+      avg(e.fuel_pts + e.tower_pts) as avg_points,
+      avg(e.fuel_pts) filter (where e.scoring_match) as fuel_avg,
+      avg(e.tower_pts) as tower_avg,
+      avg(e.auto_pts) as auto_avg,
+      avg(case public.jbool(e.d, 'auto_mobility') when true then 1 when false then 0 end) as mobility_rate,
+      avg(public.jnum(e.d, 'shooter_accuracy')) as accuracy_avg,
+      avg(coalesce(public.jnum(e.d, 'teleop_fuel_per_volley'),
+                   public.jnum(e.d, 'teleop_fuel_hub') / nullif(public.jnum(e.d, 'teleop_volleys'), 0))) as fpv_avg,
+      avg(case when coalesce(public.jbool(e.d, 'robot_disabled'), false) then 1 else 0 end)::numeric as dis_rate,
+      avg(case when coalesce(public.jbool(e.d, 'broke_down'), false) then 1 else 0 end)::numeric as broke_rate,
+      avg(case when coalesce(public.jbool(e.d, 'stuck_on_field'), false) then 1 else 0 end)::numeric as stuck_rate,
+      avg(case when coalesce(public.jbool(e.d, 'foul_or_card'), false) then 1 else 0 end)::numeric as foul_rate
+    from rate_entries e
+    group by e.team_number
+  ),
+  rate_pit as (
+    select distinct on (p.team_number) p.team_number, public.pit_capability(p.data) as cap
+    from scoped_pit p
+    order by p.team_number, p.updated_at desc
+  ),
+  rate_base as (
+    select a.*, pit.cap,
+      case when a.fuel_avg  is not null then (cume_dist() over (partition by (a.fuel_avg  is not null) order by a.fuel_avg))::numeric end as p_fuel,
+      case when a.tower_avg is not null then (cume_dist() over (partition by (a.tower_avg is not null) order by a.tower_avg))::numeric end as p_tower,
+      case when a.auto_avg  is not null then (cume_dist() over (partition by (a.auto_avg  is not null) order by a.auto_avg))::numeric end as p_auto,
+      case when a.fpv_avg   is not null then (cume_dist() over (partition by (a.fpv_avg   is not null) order by a.fpv_avg))::numeric end as p_fpv
+    from rate_agg a
+    left join rate_pit pit on pit.team_number = a.team_number
+  ),
+  rate_comp as (
+    select b.*,
+      b.p_fuel as c_fuel,
+      b.p_tower as c_climb,
+      coalesce(0.8 * b.p_auto + 0.2 * b.mobility_rate, b.p_auto) as c_auto,
+      (select avg(x) from (values (b.p_fpv), ((b.accuracy_avg - 1) / 4)) v(x)) as c_eff,
+      greatest(0, 1 - (b.dis_rate + 0.6 * b.broke_rate + 0.4 * b.stuck_rate)) as c_rel,
+      greatest(0, 1 - b.foul_rate) as c_disc,
+      b.cap as c_pit
+    from rate_base b
+  ),
+  rate_scored as (
+    select c.*,
+      100 * (select sum(w * x) / sum(w)
+               from (values (32, c.c_fuel), (16, c.c_climb), (9, c.c_auto), (11, c.c_eff),
+                            (16, c.c_rel), (5, c.c_disc), (11, c.c_pit)) v(w, x)
+              where x is not null) as raw_score
+    from rate_comp c
+  ),
+  rate_ranked as (
+    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    from rate_scored s
+  ),
+  scout_grades as (
+    select r.team_number, r.matches,
+           round(r.avg_points, 2) as avg_points,
+           round(r.raw_score, 1) as score,
+           case when r.pct >= .90 then 'S' when r.pct >= .75 then 'A' when r.pct >= .50 then 'B'
+                when r.pct >= .25 then 'C' when r.pct >= .10 then 'D' else 'F' end as grade,
+           round(r.pct, 3) as pct
+    from rate_ranked r
+  ),
+  -- Official grade, same math as team_official_ratings() (section 9) over scoped_official.
+  off_weighted as (
+    select o.team_number, o.alliance_score, o.opponent_score,
+           public.event_tier_weight(e.event_tier) as w
+    from scoped_official o
+    join public.events e on e.id = o.event_id
+    where o.alliance_score is not null and o.opponent_score is not null
+  ),
+  off_agg as (
+    select m.team_number,
+      count(*)::int as matches,
+      count(*) filter (where m.alliance_score > m.opponent_score)::int as wins,
+      count(*) filter (where m.alliance_score < m.opponent_score)::int as losses,
+      count(*) filter (where m.alliance_score = m.opponent_score)::int as ties,
+      sum(m.alliance_score * m.w) / sum(m.w) as avg_score,
+      sum((case when m.alliance_score > m.opponent_score then 1
+                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate
+    from off_weighted m
+    group by m.team_number
+  ),
+  off_ranked as (
+    select a.*, (cume_dist() over (order by a.avg_score))::numeric as p_score
+    from off_agg a
+  ),
+  off_scored as (
+    select r.*, 100 * (0.6 * r.p_score + 0.4 * r.win_rate) as raw_score
+    from off_ranked r
+  ),
+  off_pct as (
+    select s.*, (cume_dist() over (order by s.raw_score))::numeric as pct
+    from off_scored s
+  ),
+  official_grades as (
+    select p.team_number, p.matches,
+           round(p.avg_score, 2) as avg_score,
+           round(p.raw_score, 1) as score,
+           case when p.pct >= .90 then 'S' when p.pct >= .75 then 'A' when p.pct >= .50 then 'B'
+                when p.pct >= .25 then 'C' when p.pct >= .10 then 'D' else 'F' end as grade,
+           round(p.pct, 3) as pct
+    from off_pct p
+  ),
+  all_teams as (
+    select team_number from scoped_matches
+    union
+    select team_number from scoped_pit
+    union
+    select team_number from scoped_official
+  )
+  select jsonb_build_object(
+    'events', coalesce((
+      select jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name, 'event_date', e.event_date))
+      from public.events e
+      where cardinality(v_event_ids) = 0 or e.id = any(v_event_ids)
+    ), '[]'::jsonb),
+    'fields', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'key', f.key, 'label', f.label, 'field_type', f.field_type,
+        'scope', coalesce(f.scope, 'match'), 'required', f.required,
+        'reg_limit', f.reg_limit, 'allow_unsure', f.allow_unsure, 'sort_order', f.sort_order
+      ) order by f.sort_order)
+      from public.scout_fields f
+      where f.active
+    ), '[]'::jsonb),
+    'teams', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'team_number', t.team_number,
+        'team_name', ti.team_name,
+        'logo_url', ti.logo_url,
+        'scout', case when sg.team_number is not null then to_jsonb(sg) - 'team_number' end,
+        'official', case when og.team_number is not null then to_jsonb(og) - 'team_number' end
+      ))
+      from all_teams t
+      left join public.team_info ti    on ti.team_number = t.team_number
+      left join scout_grades sg        on sg.team_number = t.team_number
+      left join official_grades og     on og.team_number = t.team_number
+    ), '[]'::jsonb),
+    'matches', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'event_id', m.event_id, 'team_number', m.team_number, 'match_number', m.match_number,
+        'data', m.data, 'created_at', m.created_at
+      ))
+      from scoped_matches m
+    ), '[]'::jsonb),
+    'pit', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'event_id', p.event_id, 'team_number', p.team_number, 'data', p.data, 'updated_at', p.updated_at
+      ))
+      from scoped_pit p
+    ), '[]'::jsonb),
+    'official', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'event_id', o.event_id, 'team_number', o.team_number, 'match_key', o.match_key,
+        'comp_level', o.comp_level, 'set_number', o.set_number, 'match_number', o.match_number,
+        'alliance', o.alliance, 'alliance_score', o.alliance_score,
+        'opponent_score', o.opponent_score, 'played_at', o.played_at
+      ))
+      from scoped_official o
+    ), '[]'::jsonb)
+  ) into v_result;
+
+  return v_result;
 end;
 $$;
 
@@ -1209,13 +1420,19 @@ begin
   end if;
 end $$;
 
--- Sign someone out everywhere
+-- Sign someone out everywhere. Deleting the auth.sessions row alone only blocks
+-- session_live() for RLS -- it doesn't stop the browser's own background token
+-- refresh, which (while the refresh token is still unrevoked) happily mints a
+-- brand-new session and silently restores full access. Revoking every refresh
+-- token for the user first is what actually makes the kick stick.
 create or replace function public.staff_kick(target uuid)
 returns void language plpgsql security definer set search_path = '' as $$
 declare v_email text;
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
   if target = auth.uid() then raise exception 'You cannot kick yourself.'; end if;
+  update auth.refresh_tokens set revoked = true
+    where user_id = target::text and revoked = false;
   delete from auth.sessions where user_id = target;
   select email into v_email from auth.users where id = target;
   perform public.log_action('kick', 'auth.sessions', target::text,
