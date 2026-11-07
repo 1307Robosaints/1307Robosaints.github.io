@@ -187,16 +187,23 @@
 
         const slide = document.createElement("div");
         slide.className = "carousel-item" + (index === 0 ? " active" : "");
-        slide.innerHTML = `<img src="" data-full="${photo.full}" alt="">`;
+        slide.innerHTML = `<img data-thumb="${photo.thumb}" data-full="${photo.full}" alt="">`;
         carouselInner.appendChild(slide);
       });
 
       const lightbox = document.getElementById("galleryLightbox");
       const carousel = $("#galleryCarousel");
 
+      // Shows the thumbnail right away (the grid already loaded it), then swaps in the full photo
+      // once it arrives, since some are over 10 MB. Keep slide images free of a src="" attribute:
+      // browsers report an empty src as the page's own URL, so it can't mean "not loaded yet".
       function loadSlideImage(index) {
         const img = carouselInner.children[index].querySelector("img");
-        if (!img.src) img.src = img.dataset.full;
+        if (img.hasAttribute("src")) return;
+        img.src = img.dataset.thumb;
+        const full = new Image();
+        full.onload = () => { img.src = full.src; };
+        full.src = img.dataset.full;
       }
 
       grid.addEventListener("click", (e) => {

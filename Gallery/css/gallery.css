@@ -76,12 +76,6 @@ body {
 .gallery-lightbox-close:hover {
   opacity: 1;
 }
-#galleryCarousel .carousel-item {
-  display: none;
-}
-#galleryCarousel .carousel-item.active {
-  display: block;
-}
 #galleryCarousel img {
   max-height: 85vh;
   width: 100%;
