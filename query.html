@@ -32,6 +32,10 @@
     .team-table tbody tr { cursor: pointer; }
     .team-table tbody tr:hover { background: var(--tint); }
     .team-table tbody tr.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
+    .tier-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      margin-right: 3px; vertical-align: middle;
+    }
     .list-scroll { max-height: 70vh; overflow-y: auto; }
 
     .detail-card {
@@ -81,6 +85,7 @@
       font-size: .74rem;
       color: var(--muted);
       margin-top: .35rem;
+      white-space: nowrap;
     }
 
     .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
@@ -346,8 +351,11 @@
       var rows = teamList().filter(function (r) { return !q || String(r.team).indexOf(q) !== -1; });
       $("teamRows").innerHTML = rows.length
         ? rows.map(function (r) {
+            var gs = scoutGradeFor(r.team), go = officialGradeFor(r.team);
+            var dots = '<span class="tier-dot" style="background:' + TIERS[gs.tier].color + ';" title="Scouting: ' + gs.tier + '"></span>' +
+              '<span class="tier-dot" style="background:' + TIERS[go.tier].color + ';" title="Official: ' + go.tier + '"></span>';
             return '<tr data-team="' + r.team + '" class="' + (selected === r.team ? "selected" : "") + '">' +
-              "<td><strong>" + r.team + "</strong></td>" +
+              "<td>" + dots + "<strong>" + r.team + "</strong></td>" +
               "<td>" + r.scouted + "</td>" +
               "<td>" + r.official + "</td>" +
               "<td>" + (pitSet.has(r.team) ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + "</td>" +
@@ -392,13 +400,13 @@
 
     function ratingBox(label, g) {
       var c = TIERS[g.tier];
-      var metaExtra = g.tier === "NR" ? " · not rated" : "";
+      var meta = g.tier === "NR" ? "Not rated" : (g.matches + (g.matches === 1 ? " match" : " matches"));
       return '<div class="rating-wrap">' +
         '<div class="rating-box" style="background:' + c.color + ';color:' + c.ink + ';">' +
           '<span class="rating-letter">' + g.tier + '</span>' +
           '<span class="rating-caption">' + esc(label) + '</span>' +
         '</div>' +
-        '<div class="rating-meta">' + g.matches + (g.matches === 1 ? " match" : " matches") + metaExtra + '</div>' +
+        '<div class="rating-meta">' + meta + '</div>' +
       '</div>';
     }
 

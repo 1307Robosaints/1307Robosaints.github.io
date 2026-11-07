@@ -107,6 +107,12 @@
     .badge-inactive { background: var(--line); color: var(--muted); padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
     .badge-revoked  { background: #c0392b; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
 
+    /* Access-level select on the Members tab — colored so levels are tellable apart at a glance */
+    select.level-staff   { background: #eaf0ff; border-color: #1B4DB1; color: #1B4DB1; font-weight: 600; }
+    select.level-mentor  { background: #f3ecff; border-color: #6c3fb5; color: #6c3fb5; font-weight: 600; }
+    select.level-student { background: #e7f7ee; border-color: #1a7f4b; color: #1a7f4b; font-weight: 600; }
+    select.level-guest   { background: #f2f2f2; border-color: #9a9a9c; color: #6c6c6e; font-weight: 600; }
+
     .btn-icon {
       background: none; border: 1px solid var(--line); color: var(--muted);
       padding: .2rem .5rem; font-size: .8rem; cursor: pointer; clip-path: none;
@@ -383,8 +389,8 @@
             <input type="number" id="cTeam" class="form-control" min="1" max="99999" placeholder="e.g. 254">
           </div>
           <div class="form-group col-md-2">
-            <label for="cExpiry">Expires <small class="text-muted">(optional)</small></label>
-            <input type="datetime-local" id="cExpiry" class="form-control">
+            <label for="cExpiry">Expires <small class="text-muted">(optional, through end of day)</small></label>
+            <input type="date" id="cExpiry" class="form-control">
           </div>
           <div class="form-group col-md-2 d-flex align-items-end">
             <button class="btn btn-primary w-100" id="cSave">Create Code</button>
@@ -536,9 +542,11 @@
     function fmt(date) {
     return fmtEventDate(date, { month: "short", day: "numeric", year: "numeric" });
     }
+    // Expiry is always saved as 23:59:59 local on the chosen day (see cSave), so showing just
+    // the date is clearer than showing a time that's the same 11:59 PM for every code.
     function fmtDT(dt) {
       if (!dt) return "—";
-      return new Date(dt).toLocaleString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" });
+      return new Date(dt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
     }
 
     // ── Tabs ─────────────────────────────────────────────────────────
@@ -847,9 +855,13 @@
       var expiry  = document.getElementById("cExpiry").value || null;
       if (!label) { toast("Label is required.", true); return; }
       if (!eventId && !team) { toast("Scope at least one event or team number.", true); return; }
+      // The date picker only gives a day ("2027-03-06"), not a time. A code that "expires 3/6"
+      // should still work all day on 3/6 — treat the chosen day as valid through its last
+      // moment (local time), not its first. Picking midnight of that day was the bug: it made
+      // the code expire right as the day started, which looked like it expired a day early.
       var r = await sb.from("share_codes").insert({
         label, event_id: eventId, team_number: team,
-        expires_at: expiry ? new Date(expiry).toISOString() : null
+        expires_at: expiry ? new Date(expiry + "T23:59:59").toISOString() : null
       }).select().single();
       if (r.error) { toast(r.error.message || "Couldn't create code.", true); return; }
       ["cLabel","cTeam","cExpiry"].forEach(function(id){ document.getElementById(id).value = ""; });
@@ -912,7 +924,7 @@
       var self = m.user_id === meUid;
 
       var sel = document.createElement("select");
-      sel.className = "custom-select custom-select-sm";
+      sel.className = "custom-select custom-select-sm level-" + m.level;
       sel.disabled = self;
       LEVELS.forEach(function (l) {
         var o = document.createElement("option");
@@ -923,6 +935,7 @@
       sel.onchange = async function () {
         var r = await sb.rpc("staff_set_level", { target: m.user_id, new_level: sel.value });
         if (r.error) { memFlash(false, r.error.message); sel.value = m.level; return; }
+        sel.className = "custom-select custom-select-sm level-" + sel.value;
         memFlash(true, m.email + " is now " + sel.value + ".");
         loadMembers();
       };
