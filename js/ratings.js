@@ -173,8 +173,9 @@
       any ? sb.from("pit_entries").select("team_number,data,updated_at").in("team_number", teams)
           .order("updated_at", { ascending: false }) : { data: [] },
       any ? pagedRows(function () {
-        return sb.from("official_match_teams").select("team_number,event_id,alliance_score,opponent_score")
-          .in("team_number", teams).order("event_id").order("match_key").order("team_number");
+        return sb.rpc("official_match_teams_for", { p_teams: teams })
+          .select("team_number,event_id,alliance_score,opponent_score")
+          .order("event_id").order("match_key").order("team_number");
       }) : { data: [] }
     ]);
     var d = {

@@ -152,6 +152,7 @@
               <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
@@ -253,6 +254,7 @@
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/alliance.js"></script>
+  <script src="/js/opr.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -368,6 +370,8 @@
         show: function (v, t) { return t.record.wins + "-" + t.record.losses + "-" + t.record.ties; } },
       { group: "Official", key: "allianceScore", label: "Avg score", title: "Average alliance score, which includes its partners", show: oneDecimal,
         value: function (t) { return t.record ? t.record.avgScore : null; } },
+      { group: "Official", key: "opr", label: "OPR", title: "Estimated points this team adds to its alliance, from this event's qualification matches (see How Ratings Work)", show: oneDecimal,
+        value: function (t) { return eventOpr.teams[t.team] && eventOpr.teams[t.team].score != null ? eventOpr.teams[t.team].score : null; } },
 
       { group: "Robot", key: "drivetrain", label: "Drivetrain", text: true, value: pitText("drivetrain") },
       { group: "Robot", key: "shooter", label: "Shooter", text: true, value: pitText("shooter_type") },
@@ -404,6 +408,7 @@
 
     var ratings = [], officialRatings = [], testTeams = new Set(), teamInfo = {};
     var entriesByTeam = {}, pitByTeam = {}, gamesByTeam = {};
+    var eventOpr = { teams: {}, fields: [] };   // js/opr.js, for this event's qualification matches
 
     // ── Spots on the board ───────────────────────────────────────────
     function currentEvent() { return events.find(function (e) { return e.id === eventId; }) || null; }
@@ -504,9 +509,14 @@
         pagedRows(function () {
           return sb.from("scouting_entries").select("team_number").eq("event_id", id).order("id");
         }),
-        sb.from("pit_entries").select("team_number").eq("event_id", id)
+        sb.from("pit_entries").select("team_number").eq("event_id", id),
+        pagedRows(function () {
+          return sb.from("official_matches_combined").select("match_key,comp_level,red_teams,blue_teams,red_score,blue_score")
+            .eq("event_id", id).eq("comp_level", "qm").order("match_key");
+        })
       ]);
       if (thisLoad !== eventLoad) return;   // a different event was chosen while this was loading
+      eventOpr = RSOpr.compute(first[7].data || []);
 
       ratings = first[0].data || [];
       officialRatings = first[1].data || [];
@@ -530,8 +540,9 @@
               .order("updated_at", { ascending: false })
           : { data: [] },
         teams.length ? pagedRows(function () {
-          return sb.from("official_match_teams").select("team_number,event_id,alliance_score,opponent_score")
-            .in("team_number", teams).order("event_id").order("match_key").order("team_number");
+          return sb.rpc("official_match_teams_for", { p_teams: teams })
+            .select("team_number,event_id,alliance_score,opponent_score")
+            .order("event_id").order("match_key").order("team_number");
         }) : { data: [] }
       ]);
       if (thisLoad !== eventLoad) return;

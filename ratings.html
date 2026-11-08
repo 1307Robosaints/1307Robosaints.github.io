@@ -83,6 +83,7 @@
               <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
@@ -305,6 +306,62 @@
         <li><strong>Alliance points.</strong> The number on each alliance adds up the season Avg pts / match of its first three teams, and leaves out any team with no scouted data.</li>
       </ul>
 
+      <h2 id="opr">Estimated contribution (OPR)</h2>
+      <p>
+        Official scores cover a whole alliance. OPR (offensive power rating) estimates how much of
+        that one team adds. It treats each alliance's number as the sum of its three robots' numbers,
+        then finds the per-team values that best fit every qualification match at the event.
+      </p>
+      <ul>
+        <li><strong>Every score field gets one.</strong> Each number FRC Events or TBA reports for an alliance, such as FUEL counts or foul points, gets its own estimate, alongside the total score.</li>
+        <li><strong>Steady early in an event.</strong> With only a few matches there's no unique answer, so each estimate is pulled gently toward the event average. The pull is worth about one match, and it fades as matches are played.</li>
+        <li><strong>Needs 3 matches.</strong> A team with fewer qualification matches at the event gets no estimate.</li>
+        <li><strong>Per event, never blended.</strong> The Team Database shows one column per event, with the team's rank there. Playoff Selection shows the current event's total. OPR isn't part of either rating.</li>
+        <li><strong>Limits.</strong> It can't tell a strong robot from a lucky schedule after only a few matches. Defense and partners still affect it.</li>
+      </ul>
+
+      <h2 id="vision">Vision estimates</h2>
+      <p>
+        A program on a team laptop reads match video and saves an estimate for each robot. It reads
+        the scoreboard and the clock from the stream overlay, follows each robot's bumpers on the wide
+        shot, and tells robots apart by reading their bumper numbers. These numbers are shown in their
+        own Vision section and never enter a rating.
+      </p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Stat</th><th>How it's worked out</th></tr></thead>
+        <tbody>
+          <tr><td>Estimated FUEL scored</td><td>Every rise in the alliance's score is split between its robots. A robot in its own alliance zone just before counts most, one elsewhere counts a little, and one out of view counts in between. The end of auto and the end of the match are skipped, since TOWER points land then. The split is then scaled to the official FUEL points: the alliance score minus each robot's official TOWER points and the foul points.</td></tr>
+          <tr><td>Left starting zone (auto)</td><td>The robot crossed its alliance-zone line during auto.</td></tr>
+          <tr><td>Distance driven</td><td>Second-by-second movement on the field, skipping gaps and impossible jumps.</td></tr>
+          <tr><td>Time in each zone</td><td>Seconds the robot was tracked in its own zone, the neutral zone and the opponent's zone.</td></tr>
+          <tr><td>Time stopped</td><td>Seconds in teleop, before endgame, where the robot moved less than 6 inches in a second. A long stop can mean a disabled robot.</td></tr>
+          <tr><td>Close contacts</td><td>Separate times the robot came within 40 inches of an opponent.</td></tr>
+          <tr><td>Confidence</td><td>The share of the match the robot was tracked, cut by up to half when its bumper number was never read. Under 50% is shown as low.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="flags">Match Flags checks</h2>
+      <p>The Match Flags page runs these checks on each played qualification match. Test teams are left out.</p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Flag</th><th>Level</th><th>When it's raised</th></tr></thead>
+        <tbody>
+          <tr><td>Team isn't in this match</td><td>High</td><td>An entry's team isn't in that match's line-up, or the match is past the end of the schedule.</td></tr>
+          <tr><td>TOWER doesn't match</td><td>High</td><td>A scouted auto or endgame TOWER level differs from the official result for that robot.</td></tr>
+          <tr><td>Not scouted</td><td>Medium, or Low with vision</td><td>No one scouted the robot. It's Low when vision covered it with 50% confidence or more.</td></tr>
+          <tr><td>Scouts disagree</td><td>Medium</td><td>Two entries for one robot differ by more than 10 FUEL and 30% of their average, or give different TOWER levels.</td></tr>
+          <tr><td>Alliance FUEL doesn't add up</td><td>Medium</td><td>All three robots are scouted, and their FUEL total is more than 20 points and 35% away from the official FUEL points.</td></tr>
+          <tr><td>FRC Events and TBA disagree</td><td>Medium</td><td>The two sources have different scores for the match.</td></tr>
+          <tr><td>Vision saw the robot stopped</td><td>Medium</td><td>Vision saw a stop of 20 seconds or more, and no scout marked the robot disabled or broken down.</td></tr>
+          <tr><td>FUEL far from usual</td><td>Low</td><td>The entry is more than 15 FUEL and 3 spreads from the team's median at the event, with 3 or more other matches. The spread is 1.48 times the median distance from the median, which matches a standard deviation when there are no outliers.</td></tr>
+          <tr><td>Vision disagrees</td><td>Low</td><td>Vision's FUEL estimate differs from the scouts by more than 15 FUEL and more than half of the larger number, or it disagrees on leaving the starting zone.</td></tr>
+          <tr><td>Vision scoreboard read is off</td><td>Low</td><td>Vision's final score differs from the official score by more than 5, so its numbers for that match may be off.</td></tr>
+        </tbody>
+      </table></div>
+      <p>
+        Who to scout next lists the next three unplayed qualification matches. It highlights the three
+        robots in each with the smallest share of their played matches scouted by a person.
+      </p>
+
       <h2>Other derived stats</h2>
       <p>These appear on the Team Database and Alliance View. They use plain, unweighted numbers, so they won't always match the rating's inputs.</p>
       <div class="table-responsive"><table class="table r-table">
@@ -322,6 +379,7 @@
           <tr><td>Scouting / Official rank</td><td>Position by score among rated teams, leaving out test teams. Teams level on score share a rank.</td></tr>
           <tr><td>All scouted stats</td><td>For every form field: average, low and high for numbers, Yes % for yes/no answers, and each answer's share for choices. Blank answers aren't counted.</td></tr>
           <tr><td>Score breakdown</td><td>The same summary for everything FRC Events or TBA report per match. These are alliance totals unless marked "this robot".</td></tr>
+          <tr><td>Estimated contribution (OPR)</td><td>One team's share of each alliance number, explained <a href="#opr">above</a>.</td></tr>
           <tr><td>Climb rate</td><td>Share of entries with a teleop TOWER level other than None.</td></tr>
           <tr><td>Usual role / Main FUEL source</td><td>The most common answer, with how often it was chosen.</td></tr>
           <tr><td>Combined scouted pts</td><td>On the Alliance View, the sum of each team's Avg pts / match. Official scores aren't added up, because each one already covers a whole alliance.</td></tr>
@@ -330,8 +388,9 @@
 
       <p class="text-muted mt-4" style="font-size:.85rem;">
         The calculations live in <code>team_ratings()</code> and <code>team_official_ratings()</code> in
-        <code>SQL/rebuild_all.sql</code>, and the Team Database applies the final grading. If they
-        change, this page should change with them.
+        <code>SQL/rebuild_all.sql</code>, and the Team Database applies the final grading. OPR is in
+        <code>js/opr.js</code>, the vision estimates in the <code>vision/</code> worker, and the flag checks
+        in <code>flags.html</code>. If they change, this page should change with them.
       </p>
     </div>
   </div>

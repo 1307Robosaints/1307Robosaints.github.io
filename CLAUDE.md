@@ -16,18 +16,22 @@ overview. This file adds the architecture detail the README doesn't go into.
 ## Running it locally
 
 Open any `.html` file directly, or serve the repo root with any static file server. There is
-no build/lint/test tooling in this repo — don't introduce one unless asked.
+no build/lint/test tooling for the website — don't introduce one unless asked. The one exception
+is `vision/`, a separate Python worker (not served by the site) with its own `requirements.txt` and
+`python -m unittest` tests; see `vision/README.md`.
 
 ## Architecture
 
 ### No bundler, inline-script pages
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
-`contact_me.js`, `teams.js`, `ratings.js`, plus the vendored `jqBootstrapValidation.js`).
+`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, plus the vendored `jqBootstrapValidation.js`).
+`opr.js` is component OPR per event, for every numeric field in the official breakdown (Team Database,
+Playoff Selection). `vision.js` holds the labels for the vision worker's per-robot keys.
 `teams.js` handles team names ("1678 Citrus Circuits") and the TBA lookup; `ratings.js` holds the
 grade, alliance-grade and win-chance math, and the loader for it, used by `alliance.html`,
 `playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
-to a page (`scout.html`, `query.html`, `alliance.html`, `matches.html`, `playoffs.html`,
+to a page (`scout.html`, `query.html`, `flags.html`, `alliance.html`, `matches.html`, `playoffs.html`,
 `bracket.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
@@ -64,8 +68,9 @@ list), written to be safe to re-run end-to-end in the Supabase SQL editor agains
 project or an existing one (tables are `create if not exists`, functions `create or replace`,
 policies dropped and recreated). When changing the data model, edit this file directly rather
 than writing a new migration file — the other files in `SQL/` (`import_*.sql`,
-`link_battle_of_the_bay.sql`, `prune_non_ne_teams.sql`) are one-off **data** imports and
-cleanups (new events, FRC/TBA event-code links, removing non-New England events/teams), kept
+`link_battle_of_the_bay.sql`, `prune_non_ne_teams.sql`, `prune_2027_events.sql`) are one-off
+**data** imports and cleanups (new events, FRC/TBA event-code links, removing non-New England
+events/teams, removing 2027 events), kept
 only as a record; `rebuild_all.sql` doesn't depend on them and re-running it does
 not re-run them.
 
@@ -84,6 +89,13 @@ Key tables/functions to know when touching 1307scout:
   can't know: `playoff_tiebreaks` (who won a tied match) and `playoff_lineups` (who sits out on a
   4-team alliance). `events.alliance_size` overrides the 3-or-4 rule for an event.
 - `match_schedule` — hand edits for `matches.html`, laid over the official schedule by `match_key`.
+- `vision_matches` / `vision_robots` (section 8j) — written only by the vision worker in `vision/`
+  (Python, runs on a team laptop with the service role key; see `vision/README.md`). Team reads,
+  nobody writes through the API. Estimates only: no rating reads them. The per-robot keys in
+  `vision_robots.data` must stay in step across `vision/rsvision/metrics.py`, `js/vision.js` and `ratings.html`.
+- `match_flag_reviews` — what a team member decided about a flag on `flags.html` (fine, fixed,
+  rescout). The flags themselves are computed in that page's script, not stored; the rules are
+  documented on `ratings.html#flags`. `team_number` 0 means a match- or alliance-level flag.
 - `team_info` — staff-set `team_name`/`logo_url`, plus `tba_name`/`tba_logo_url` written by the
   `team-names` Edge Function (this one is in the repo, under `supabase/functions/`). Pages read
   `display_name` and `display_logo`, which prefer what staff set.
@@ -98,7 +110,9 @@ Key tables/functions to know when touching 1307scout:
   through `share_code_attempts`.
 - `official_matches` / the per-team views in section 8 — official FRC Events + The Blue Alliance
   results, written only by the `official-sync` Edge Function (service role); staff/students can
-  read, nobody writes through the normal API. `match_key` format: `qm12` (qualification 12),
+  read, nobody writes through the normal API. The table holds a full season, so look up a
+  team's rows with `official_match_teams_for(int[])` (uses the team-array indexes), not by
+  filtering the `official_match_teams` view on `team_number`. `match_key` format: `qm12` (qualification 12),
   `sf8m1` (playoff set 8 match 1), `f1m2` (finals match 2).
 - Team ratings (explained for users on `ratings.html`, which must change with the math): there are **two independent ratings** kept deliberately separate — one derived
   from human scouting data, one from synced official results (`team_official_ratings()`,

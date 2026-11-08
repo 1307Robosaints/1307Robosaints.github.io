@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Match Flags – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .f-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .f-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .f-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .f-intro h1::after { display: none; }
+    .f-intro p { font-size: .92rem; max-width: none; margin: 0; }
+    .f-controls { display: flex; align-items: flex-end; gap: .5rem; flex-wrap: wrap; }
+    .f-controls label { display: block; margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); }
+    .f-controls select { width: auto; max-width: 260px; }
+    .f-controls .custom-control-label { font-size: .85rem; color: var(--ink, #222); font-weight: 400; }
+    .f-note { font-size: .82rem; color: var(--muted); margin: 0 0 .6rem; }
+    .f-section { font-size: 1.05rem; margin: 1.3rem 0 .45rem; }
+    .f-section::after { display: none; }
+
+    .f-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .5rem; margin-bottom: .5rem; }
+    .f-tile { background: var(--white); border: 1px solid var(--line); padding: .5rem .7rem; }
+    .f-tile b { display: block; font-family: var(--display); font-size: 1.35rem; color: var(--navy); line-height: 1.2; }
+    .f-tile span { font-size: .78rem; color: var(--muted); }
+
+    /* Who to scout next */
+    .f-next { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: .6rem; }
+    .f-next-card { background: var(--white); border: 1px solid var(--line); padding: .45rem .7rem; }
+    .f-next-card h3 { font-size: .95rem; margin: 0 0 .3rem; }
+    .f-next-card h3::after { display: none; }
+    .f-next-team { display: flex; gap: .5rem; align-items: center; font-size: .86rem; padding: .12rem 0; border-bottom: 1px solid var(--line); }
+    .f-next-team:last-child { border-bottom: 0; }
+    .f-next-team .dot { width: .6rem; height: .6rem; flex: none; }
+    .f-next-team .dot.red { background: #c0392b; }
+    .f-next-team .dot.blue { background: var(--blue); }
+    .f-next-team strong { font-family: var(--display); min-width: 3.2rem; }
+    .f-next-team .cov { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .f-next-team.priority { background: #fff7e6; }
+    .f-next-team.priority .cov { color: #a35200; font-weight: 600; }
+
+    /* Flag list */
+    .f-match { background: var(--white); border: 1px solid var(--line); margin-bottom: .6rem; }
+    .f-match-head { display: flex; align-items: center; gap: .5rem .8rem; flex-wrap: wrap; padding: .35rem .7rem; background: var(--tint); }
+    .f-match-head h3 { font-size: 1rem; margin: 0; }
+    .f-match-head h3::after { display: none; }
+    .f-match-head .f-score { color: var(--muted); font-size: .84rem; }
+    .f-match-head .f-links { margin-left: auto; display: flex; gap: .35rem; }
+    .f-match-head .btn { font-size: .78rem; padding: .1rem .5rem; }
+    .f-flag { display: flex; gap: .6rem; align-items: flex-start; padding: .45rem .7rem; border-top: 1px solid var(--line); flex-wrap: wrap; }
+    .f-flag.reviewed { opacity: .6; }
+    .f-sev { flex: none; width: 4.4rem; text-align: center; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .1rem 0; color: #fff; }
+    .f-sev.high { background: #c0392b; }
+    .f-sev.medium { background: #e67e22; }
+    .f-sev.low { background: #9a9a9c; }
+    .f-what { flex: 1; min-width: 14rem; font-size: .9rem; }
+    .f-what strong { font-family: var(--display); }
+    .f-what .f-detail { display: block; color: var(--muted); font-size: .84rem; }
+    .f-what .f-review { display: block; font-size: .8rem; color: #1a7f4b; margin-top: .1rem; }
+    .f-what .f-review.rescout { color: #a35200; }
+    .f-actions { display: flex; gap: .3rem; flex-wrap: wrap; }
+    .f-actions .btn { font-size: .76rem; padding: .08rem .45rem; }
+    .f-empty { padding: 2rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+
+    /* Coverage grid */
+    .f-cov { background: var(--white); font-size: .84rem; }
+    .f-cov td, .f-cov th { padding: .2rem .4rem; text-align: center; border-top: 1px solid var(--line); }
+    .f-cov thead th { background: var(--navy); color: #fff; font-weight: 500; border: 0; }
+    .f-cov td.human, .f-legend .human { background: #e7f7ee; color: #1a7f4b; font-weight: 600; }
+    .f-cov td.vision, .f-legend .vision { background: #fff3e0; color: #a35200; }
+    .f-cov td.none, .f-legend .none { background: #f3f3f4; color: #8a8a8c; }
+    .f-legend span { display: inline-block; padding: 0 .4rem; margin-right: .4rem; font-size: .8rem; }
+    details > summary { cursor: pointer; font-weight: 600; margin: 1rem 0 .4rem; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <div class="f-page">
+    <div class="f-intro">
+      <div>
+        <h1>Match Flags</h1>
+        <p class="text-muted">Matches whose scouting data may be wrong or missing, checked against official results and vision data. Review the flags, then mark each one.</p>
+      </div>
+      <div class="f-controls">
+        <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
+        <div><label for="sevPick">Show</label>
+          <select id="sevPick" class="custom-select custom-select-sm">
+            <option value="low">All flags</option>
+            <option value="medium">High and medium</option>
+            <option value="high">High only</option>
+          </select></div>
+        <div><label for="kindPick">Kind</label>
+          <select id="kindPick" class="custom-select custom-select-sm">
+            <option value="">Every kind</option>
+            <option value="check">Scouting checks</option>
+            <option value="coverage">Coverage</option>
+            <option value="vision">Vision</option>
+          </select></div>
+        <div class="custom-control custom-checkbox mb-1">
+          <input type="checkbox" class="custom-control-input" id="showReviewed">
+          <label class="custom-control-label" for="showReviewed">Show reviewed</label>
+        </div>
+      </div>
+    </div>
+    <p class="f-note" id="sourceNote"></p>
+    <div id="loadError"></div>
+
+    <div class="f-tiles" id="tiles"></div>
+
+    <h2 class="f-section">Who to scout next</h2>
+    <p class="f-note">The next unplayed qualification matches. Highlighted robots have the fewest matches scouted by a person at this event.</p>
+    <div class="f-next" id="next"></div>
+
+    <h2 class="f-section">Flags</h2>
+    <div id="flags"><div class="f-empty">Loading…</div></div>
+
+    <details id="coverageBox">
+      <summary>Coverage by match</summary>
+      <p class="f-legend"><span class="human">Scouted by a person</span><span class="vision">Vision only</span><span class="none">Not covered</span></p>
+      <div class="table-responsive" id="coverage"></div>
+    </details>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/vision.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var R = RSRatings, num = R.num, mean = R.mean;
+    var POLL_MS = 60000;
+    var SEV_RANK = { high: 3, medium: 2, low: 1 };
+
+    // ── Flag rules. The thresholds are explained beside each check. ──────
+    // Each kind is "check" (data looks wrong), "coverage" (data is missing) or "vision".
+    var KINDS = {
+      wrong_match: "check", no_match_number: "check", tower_auto: "check", tower_end: "check",
+      scout_disagree: "check", outlier: "check", alliance_fuel_red: "check", alliance_fuel_blue: "check",
+      sources_disagree: "check", not_scouted: "coverage",
+      vision_fuel: "vision", vision_auto: "vision", vision_stopped: "vision", vision_score: "vision", vision_failed: "vision"
+    };
+    var TOWER = { Level1: "L1", Level2: "L2", Level3: "L3", None: "None" };   // official per-robot values
+    var END_POINTS = { L1: 10, L2: 20, L3: 30 }, AUTO_L1_POINTS = 15;          // 2026 manual, Table 6-4
+    var STOPPED_SECONDS = 20;   // vision saw the robot stopped this long, before endgame
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ── Access gate: team members ────────────────────────────────────
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+
+    var events = [], eventId = null;
+    var official = {}, edits = {}, entries = [], visionMatches = {}, visionRobots = {}, reviews = {}, testTeams = new Set();
+
+    // ── Match keys (same format as the official sync: qm12, sf5m1, f1m2) ──
+    function qualNumber(key) { var m = /^qm(\d+)$/.exec(key || ""); return m ? +m[1] : null; }
+    function matchLabel(key) {
+      var m = /^qm(\d+)$|^sf(\d+)m(\d+)$|^f1m(\d+)$/.exec(key || "");
+      if (!m) return key === "none" ? "No match number" : key;
+      return m[1] ? "Qual " + m[1] : m[2] ? "Playoff " + m[2] : "Final " + m[4];
+    }
+    function isPlayed(m) {
+      return m && m.red_score != null && m.blue_score != null && m.red_score >= 0 && m.blue_score >= 0 &&
+        (m.red_score > 0 || m.blue_score > 0);
+    }
+    // Official line-up, with any hand edit from Our Matches laid over it
+    function lineup(key) {
+      var o = official[key], e = edits[key];
+      if (!o && !e) return null;
+      return { red: (e || o).red_teams || [], blue: (e || o).blue_teams || [] };
+    }
+    function quals() {
+      return Object.keys(Object.assign({}, official, edits)).filter(qualNumber)
+        .sort(function (a, b) { return qualNumber(a) - qualNumber(b); });
+    }
+
+    // Scouted FUEL points for one entry (1 point per FUEL, as in rebuilt_fuel_points())
+    function fuelOf(e) { return (num(e.data.auto_fuel_hub) || 0) + (num(e.data.teleop_fuel_hub) || 0); }
+    function median(vals) {
+      var a = vals.slice().sort(function (x, y) { return x - y; }), n = a.length;
+      return n ? (n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2) : null;
+    }
+    function entriesFor(key, team) {
+      var n = qualNumber(key);
+      return entries.filter(function (e) { return e.match_number === n && e.team_number === team; });
+    }
+
+    // ── Loading ──────────────────────────────────────────────────────
+    var loadCount = 0;
+    async function load() {
+      var thisLoad = ++loadCount, id = eventId;
+      var results = await Promise.all([
+        R.pagedRows(function () {
+          return sb.from("official_matches_combined")
+            .select("match_key,comp_level,red_teams,blue_teams,red_score,blue_score,red_breakdown,blue_breakdown,scores_agree")
+            .eq("event_id", id).order("match_key");
+        }),
+        sb.from("match_schedule").select("match_key,red_teams,blue_teams").eq("event_id", id),
+        R.pagedRows(function () {
+          return sb.from("scouting_entries").select("id,team_number,match_number,data").eq("event_id", id).order("id");
+        }),
+        sb.from("vision_matches").select("match_key,status,matches_official,final_red,final_blue,notes").eq("event_id", id),
+        R.pagedRows(function () {
+          return sb.from("vision_robots").select("match_key,team_number,data,confidence").eq("event_id", id)
+            .order("match_key").order("team_number");
+        }),
+        sb.from("match_flag_reviews").select("match_key,team_number,flag_type,status,note,reviewed_at").eq("event_id", id),
+        sb.from("test_teams").select("team_number")
+      ]);
+      if (thisLoad !== loadCount) return;   // a different event was chosen meanwhile
+      var failed = results.filter(function (r) { return r.error; });
+      if (failed.length) {
+        failed.forEach(function (r) { console.warn("Match Flags:", r.error.message); });
+        $("loadError").innerHTML = '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some data couldn\'t be loaded, so flags may be missing or wrong. It will keep trying.</div>';
+      } else {
+        $("loadError").innerHTML = "";
+      }
+      official = {}; (results[0].data || []).forEach(function (m) { official[m.match_key] = m; });
+      edits = {}; (results[1].data || []).forEach(function (m) { edits[m.match_key] = m; });
+      testTeams = new Set((results[6].data || []).map(function (t) { return t.team_number; }));
+      entries = (results[2].data || []).filter(function (e) { return R.isThisSeason(e) && !testTeams.has(e.team_number); });
+      visionMatches = {}; (results[3].data || []).forEach(function (m) { visionMatches[m.match_key] = m; });
+      visionRobots = {}; (results[4].data || []).forEach(function (v) { visionRobots[v.match_key + "|" + v.team_number] = v; });
+      reviews = {}; (results[5].data || []).forEach(function (r) { reviews[r.match_key + "|" + r.team_number + "|" + r.flag_type] = r; });
+      render();
+    }
+
+    // ── Working out the flags ────────────────────────────────────────
+    function buildFlags() {
+      var flags = [];
+      function add(key, team, type, sev, title, detail) {
+        flags.push({ id: key + "|" + team + "|" + type, match_key: key, team: team, type: type, kind: KINDS[type],
+          sev: sev, title: title, detail: detail || "", review: reviews[key + "|" + team + "|" + type] || null });
+      }
+      var schedule = quals(), lastQual = schedule.length ? qualNumber(schedule[schedule.length - 1]) : 0;
+
+      // Entries that don't line up with the schedule (usually a typo in the team or match number)
+      entries.forEach(function (e) {
+        if (e.match_number == null) {
+          add("none", e.team_number, "no_match_number", "low", "Entry has no match number",
+            "It can't be checked against official results until it has one.");
+          return;
+        }
+        var key = "qm" + e.match_number, lu = lineup(key);
+        if (lu && lu.red.indexOf(e.team_number) === -1 && lu.blue.indexOf(e.team_number) === -1) {
+          add(key, e.team_number, "wrong_match", "high", "Team " + e.team_number + " isn't in this match",
+            "Red " + lu.red.join(", ") + " · Blue " + lu.blue.join(", ") + ". Check the team or match number on the entry.");
+        } else if (!lu && lastQual && e.match_number > lastQual) {
+          add(key, e.team_number, "wrong_match", "medium", "This match isn't on the schedule",
+            "The schedule ends at Qual " + lastQual + ". Check the match number.");
+        }
+      });
+
+      // Each team's FUEL at this event, for spotting a number far from its usual
+      var fuelByTeam = {};
+      entries.forEach(function (e) {
+        if (e.match_number != null) (fuelByTeam[e.team_number] = fuelByTeam[e.team_number] || []).push({ n: e.match_number, v: fuelOf(e) });
+      });
+
+      schedule.forEach(function (key) {
+        var m = official[key];
+        if (!isPlayed(m)) return;
+        var lu = lineup(key);
+        if (m.scores_agree === false) {
+          add(key, 0, "sources_disagree", "medium", "FRC Events and TBA have different scores",
+            "Check the official result before trusting either. The site uses the FRC Events score.");
+        }
+        var vm = visionMatches[key];
+        if (vm && vm.status === "failed") {
+          add(key, 0, "vision_failed", "low", "Vision couldn't process this match", vm.notes || "");
+        } else if (vm && vm.matches_official === false) {
+          add(key, 0, "vision_score", "low", "Vision's scoreboard read doesn't match the official score",
+            "Read " + vm.final_red + "–" + vm.final_blue + ", official " + m.red_score + "–" + m.blue_score +
+            ". Vision numbers for this match may be off.");
+        }
+
+        ["red", "blue"].forEach(function (color) {
+          var bd = m[color + "_breakdown"] || null, teams = lu ? lu[color] : m[color + "_teams"];
+          var stationTeams = m[color + "_teams"] || [];   // the breakdown's Robot1..3 follow official station order
+          var allScouted = teams.length > 0, scoutedFuel = 0;
+
+          teams.forEach(function (team) {
+            if (testTeams.has(team)) { allScouted = false; return; }
+            var es = entriesFor(key, team), v = visionRobots[key + "|" + team];
+            var visionOk = v && Number(v.confidence) >= RSVision.LOW_CONFIDENCE;
+            if (!es.length) {
+              allScouted = false;
+              add(key, team, "not_scouted", visionOk ? "low" : "medium", "Not scouted",
+                visionOk ? "Vision covered it, with " + Math.round(v.confidence * 100) + "% confidence."
+                         : v ? "Vision data is low confidence, so a person should watch it." : "No vision data either.");
+              return;
+            }
+            var fuels = es.map(fuelOf), avgFuel = mean(fuels);
+            scoutedFuel += avgFuel;
+
+            // TOWER levels: the official breakdown records these per robot, so they must agree
+            var station = stationTeams.indexOf(team) + 1;
+            if (bd && station) {
+              [["auto_tower", "autoTowerRobot", "tower_auto", "auto"], ["teleop_tower", "endGameTowerRobot", "tower_end", "endgame"]]
+                .forEach(function (c) {
+                  var off = TOWER[bd[c[1] + station]];
+                  if (!off) return;
+                  var wrong = es.filter(function (e) { return e.data[c[0]] != null && e.data[c[0]] !== "" && e.data[c[0]] !== off; });
+                  if (wrong.length) {
+                    add(key, team, c[2], "high", "TOWER (" + c[3] + ") doesn't match the official result",
+                      "Scouted " + wrong.map(function (e) { return e.data[c[0]]; }).join(", ") + ", official " + off + ".");
+                  }
+                });
+            }
+
+            // Two scouts on one robot should roughly agree
+            if (es.length >= 2) {
+              var spread = Math.max.apply(null, fuels) - Math.min.apply(null, fuels);
+              var towers = Array.from(new Set(es.map(function (e) { return e.data.teleop_tower; }).filter(Boolean)));
+              if (spread > Math.max(10, 0.3 * avgFuel) || towers.length > 1) {
+                add(key, team, "scout_disagree", "medium", "Scouts disagree",
+                  "FUEL " + fuels.join(", ") + (towers.length > 1 ? " · TOWER " + towers.join(", ") : "") + ".");
+              }
+            }
+
+            // A FUEL count far from the team's other matches here is often a typo
+            var others = (fuelByTeam[team] || []).filter(function (x) { return x.n !== qualNumber(key); }).map(function (x) { return x.v; });
+            if (others.length >= 3) {
+              var med = median(others);
+              var mad = median(others.map(function (x) { return Math.abs(x - med); }));
+              if (Math.abs(avgFuel - med) > Math.max(15, 3 * 1.4826 * mad)) {
+                add(key, team, "outlier", "low", "FUEL is far from this team's usual",
+                  "Scouted " + Math.round(avgFuel) + ", median " + Math.round(med) + " over " + others.length + " other matches. A typo?");
+              }
+            }
+
+            // Vision against the scouts, only when vision is confident
+            if (visionOk && v.data) {
+              var vf = num(v.data.fuel_est);
+              if (vf != null && Math.abs(vf - avgFuel) > Math.max(15, 0.5 * Math.max(vf, avgFuel))) {
+                add(key, team, "vision_fuel", "low", "Vision's FUEL estimate differs from the scouts",
+                  "Vision about " + Math.round(vf) + ", scouted " + Math.round(avgFuel) + ".");
+              }
+              if (typeof v.data.auto_left_zone === "boolean" &&
+                  es.some(function (e) { return typeof e.data.auto_mobility === "boolean" && e.data.auto_mobility !== v.data.auto_left_zone; })) {
+                add(key, team, "vision_auto", "low", "Vision disagrees on leaving the starting zone",
+                  "Vision says " + (v.data.auto_left_zone ? "it left" : "it didn't leave") + " in auto.");
+              }
+              var still = num(v.data.longest_still_s);
+              if (still != null && still >= STOPPED_SECONDS &&
+                  !es.some(function (e) { return e.data.robot_disabled === true || e.data.broke_down === true; })) {
+                add(key, team, "vision_stopped", "medium", "Vision saw the robot stopped",
+                  "Stopped for " + Math.round(still) + " s before endgame, but no scout marked it disabled or broken down.");
+              }
+            }
+          });
+
+          // The alliance's scouted FUEL against the official score, once all three robots are scouted.
+          // Official FUEL = score − TOWER points (per robot, from the breakdown) − foul points.
+          if (allScouted && bd && stationTeams.length) {
+            var tower = 0, known = true;
+            stationTeams.forEach(function (t, i) {
+              var a = TOWER[bd["autoTowerRobot" + (i + 1)]], e = TOWER[bd["endGameTowerRobot" + (i + 1)]];
+              if (!a || !e) known = false;
+              tower += (a === "L1" ? AUTO_L1_POINTS : 0) + (END_POINTS[e] || 0);
+            });
+            var fouls = typeof bd.foulPoints === "number" ? bd.foulPoints : null;
+            if (known) {
+              var offFuel = m[color + "_score"] - tower - (fouls || 0);
+              if (Math.abs(scoutedFuel - offFuel) > Math.max(20, 0.35 * Math.abs(offFuel))) {
+                add(key, 0, "alliance_fuel_" + color, "medium", color.charAt(0).toUpperCase() + color.slice(1) + " alliance FUEL doesn't add up",
+                  "Scouts total " + Math.round(scoutedFuel) + ", official about " + Math.round(offFuel) +
+                  (fouls == null ? " (may include foul points)" : "") + ". One of the three entries is probably off.");
+              }
+            }
+          }
+        });
+      });
+      return flags;
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    function coverageOf(key, team) {
+      if (entriesFor(key, team).length) return "human";
+      var v = visionRobots[key + "|" + team];
+      return v && Number(v.confidence) >= RSVision.LOW_CONFIDENCE ? "vision" : "none";
+    }
+    function playedQuals() { return quals().filter(function (k) { return isPlayed(official[k]); }); }
+    function teamUrl(t) { return "/query.html?team=" + t; }
+    function videoUrl(key) {
+      var ev = events.find(function (e) { return e.id === eventId; }) || {};
+      return ev.tba_event_key ? "https://www.thebluealliance.com/match/" + ev.tba_event_key + "_" + key : null;
+    }
+
+    function tilesHtml(flags) {
+      var open = flags.filter(function (f) { return !f.review || f.review.status === "rescout"; });
+      var counts = { human: 0, vision: 0, none: 0 }, total = 0;
+      playedQuals().forEach(function (key) {
+        var lu = lineup(key);
+        lu.red.concat(lu.blue).forEach(function (t) {
+          if (testTeams.has(t)) return;
+          counts[coverageOf(key, t)]++; total++;
+        });
+      });
+      var pct = function (n) { return total ? " (" + Math.round(100 * n / total) + "%)" : ""; };
+      var bySev = function (sev) { return open.filter(function (f) { return f.sev === sev; }).length; };
+      return [
+        [bySev("high"), "High flags open"], [bySev("medium"), "Medium flags open"], [bySev("low"), "Low flags open"],
+        [counts.human + pct(counts.human), "Robot-matches scouted by a person"],
+        [counts.vision + pct(counts.vision), "Covered by vision only"],
+        [counts.none + pct(counts.none), "Not covered at all"]
+      ].map(function (t) { return '<div class="f-tile"><b>' + t[0] + "</b><span>" + t[1] + "</span></div>"; }).join("");
+    }
+
+    function nextHtml() {
+      var played = playedQuals();
+      var upcoming = quals().filter(function (k) { return !isPlayed(official[k]); }).slice(0, 3);
+      if (!upcoming.length) return '<div class="f-empty">No unplayed qualification matches on the schedule.</div>';
+      var scouted = function (t) { return played.filter(function (k) { return entriesFor(k, t).length; }).length; };
+      var playedBy = function (t) {
+        return played.filter(function (k) { var lu = lineup(k); return lu.red.concat(lu.blue).indexOf(t) !== -1; }).length;
+      };
+      return upcoming.map(function (key) {
+        var lu = lineup(key);
+        var rows = lu.red.map(function (t) { return ["red", t]; }).concat(lu.blue.map(function (t) { return ["blue", t]; }))
+          .map(function (x) {
+            var p = playedBy(x[1]), sc = scouted(x[1]);
+            return { color: x[0], team: x[1], played: p, scouted: sc, share: p ? sc / p : 0 };
+          });
+        // The three least-covered robots are the priority
+        var order = rows.slice().sort(function (a, b) { return a.share - b.share || a.scouted - b.scouted; });
+        var priority = new Set(order.slice(0, 3).map(function (r) { return r.team; }));
+        return '<div class="f-next-card"><h3>' + esc(matchLabel(key)) + "</h3>" +
+          rows.map(function (r) {
+            return '<div class="f-next-team' + (priority.has(r.team) ? " priority" : "") + '"><span class="dot ' + r.color + '"></span>' +
+              '<strong><a href="' + teamUrl(r.team) + '">' + r.team + "</a></strong>" +
+              '<span class="cov">' + (r.played ? r.scouted + " of " + r.played + " scouted" : "first match") + "</span></div>";
+          }).join("") + "</div>";
+      }).join("");
+    }
+
+    function reviewText(r) {
+      if (!r) return "";
+      var label = { ok: "Marked as fine", fixed: "Marked as fixed", rescout: "Needs a rescout" }[r.status];
+      return '<span class="f-review' + (r.status === "rescout" ? " rescout" : "") + '">' + label + " · " +
+        esc(new Date(r.reviewed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) +
+        (r.note ? " · " + esc(r.note) : "") + "</span>";
+    }
+    function flagHtml(f) {
+      var done = f.review && f.review.status !== "rescout";
+      var attr = ' data-match="' + esc(f.match_key) + '" data-team="' + f.team + '" data-type="' + esc(f.type) + '"';
+      return '<div class="f-flag' + (done ? " reviewed" : "") + '">' +
+        '<span class="f-sev ' + f.sev + '">' + f.sev + "</span>" +
+        '<div class="f-what">' + (f.team ? '<strong><a href="' + teamUrl(f.team) + '">' + f.team + "</a></strong> · " : "") +
+          esc(f.title) + '<span class="f-detail">' + esc(f.detail) + "</span>" + reviewText(f.review) + "</div>" +
+        '<div class="f-actions">' +
+          '<button type="button" class="btn btn-outline-success"' + attr + ' data-status="ok">Looks fine</button>' +
+          '<button type="button" class="btn btn-outline-primary"' + attr + ' data-status="fixed">Fixed</button>' +
+          '<button type="button" class="btn btn-outline-warning"' + attr + ' data-status="rescout">Needs rescout</button>' +
+          (f.review ? '<button type="button" class="btn btn-outline-secondary"' + attr + ' data-status="clear">Undo</button>' : "") +
+        "</div></div>";
+    }
+    function flagsHtml(flags) {
+      var minSev = SEV_RANK[$("sevPick").value], kind = $("kindPick").value, showReviewed = $("showReviewed").checked;
+      var shown = flags.filter(function (f) {
+        return SEV_RANK[f.sev] >= minSev && (!kind || f.kind === kind) &&
+          (showReviewed || !f.review || f.review.status === "rescout");
+      });
+      if (!shown.length) {
+        return '<div class="f-empty">' + (flags.length ? "Nothing matches these filters." : "No flags. Every played match checks out.") + "</div>";
+      }
+      var byMatch = {};
+      shown.forEach(function (f) { (byMatch[f.match_key] = byMatch[f.match_key] || []).push(f); });
+      // Newest match first, so the matches just played are at the top
+      var keys = Object.keys(byMatch).sort(function (a, b) {
+        return (qualNumber(b) || (b === "none" ? -1 : 0)) - (qualNumber(a) || (a === "none" ? -1 : 0));
+      });
+      return keys.map(function (key) {
+        var m = official[key], url = qualNumber(key) ? videoUrl(key) : null;
+        var list = byMatch[key].sort(function (a, b) { return SEV_RANK[b.sev] - SEV_RANK[a.sev] || a.team - b.team; });
+        return '<section class="f-match"><div class="f-match-head"><h3>' + esc(matchLabel(key)) + "</h3>" +
+          (isPlayed(m) ? '<span class="f-score">Red ' + m.red_score + " – Blue " + m.blue_score + "</span>" : "") +
+          '<span class="f-links">' + (url ? '<a class="btn btn-outline-primary" href="' + esc(url) + '" target="_blank" rel="noopener"><i class="fa fa-play"></i> Watch on TBA</a>' : "") +
+          "</span></div>" + list.map(flagHtml).join("") + "</section>";
+      }).join("");
+    }
+
+    function coverageHtml() {
+      var played = playedQuals();
+      if (!played.length) return '<p class="text-muted">No played qualification matches yet.</p>';
+      return '<table class="table f-cov"><thead><tr><th>Match</th><th colspan="3">Red</th><th colspan="3">Blue</th></tr></thead><tbody>' +
+        played.map(function (key) {
+          var lu = lineup(key);
+          return "<tr><th>" + esc(matchLabel(key)) + "</th>" + lu.red.concat(lu.blue).map(function (t) {
+            return '<td class="' + coverageOf(key, t) + '">' + t + "</td>";
+          }).join("") + "</tr>";
+        }).join("") + "</tbody></table>";
+    }
+
+    var lastFlags = [];
+    function render() {
+      lastFlags = buildFlags();
+      $("tiles").innerHTML = tilesHtml(lastFlags);
+      $("next").innerHTML = nextHtml();
+      $("flags").innerHTML = flagsHtml(lastFlags);
+      $("coverage").innerHTML = coverageHtml();
+      var ev = events.find(function (e) { return e.id === eventId; }) || {};
+      $("sourceNote").textContent = (ev.frc_event_code || ev.tba_event_key)
+        ? "Checks use official results synced from FRC/TBA" + (ev.official_synced_at ? ", last at " + new Date(ev.official_synced_at).toLocaleString() : "") + ", and vision data where the worker has run."
+        : "This event isn't linked to FRC or TBA, so only coverage and schedule checks can run. Staff can link it in the Staff Portal.";
+    }
+
+    // ── Reviewing a flag ─────────────────────────────────────────────
+    $("flags").addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-status]");
+      if (!btn) return;
+      var match = btn.dataset.match, team = Number(btn.dataset.team), type = btn.dataset.type, status = btn.dataset.status;
+      var id = match + "|" + team + "|" + type, r;
+      if (status === "clear") {
+        r = await sb.from("match_flag_reviews").delete()
+          .eq("event_id", eventId).eq("match_key", match).eq("team_number", team).eq("flag_type", type);
+        if (!r.error) delete reviews[id];
+      } else {
+        var note = status === "rescout" ? (window.prompt("Note for whoever rescouts it (optional):", "") || "").slice(0, 300) : "";
+        var row = { event_id: eventId, match_key: match, team_number: team, flag_type: type, status: status,
+          note: note || null, reviewed_by: s.user.id, reviewed_at: new Date().toISOString() };
+        r = await sb.from("match_flag_reviews").upsert(row, { onConflict: "event_id,match_key,team_number,flag_type" });
+        if (!r.error) reviews[id] = row;
+      }
+      if (r.error) { alert("Couldn't save that: " + r.error.message); return; }
+      render();
+    });
+    ["sevPick", "kindPick", "showReviewed"].forEach(function (id) {
+      $(id).addEventListener("change", function () { $("flags").innerHTML = flagsHtml(lastFlags); });
+    });
+    $("eventPick").addEventListener("change", function () { eventId = this.value; load(); });
+
+    // ── Start ────────────────────────────────────────────────────────
+    var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key")
+      .order("event_date", { ascending: false, nullsFirst: false });
+    if (r.error) { $("flags").innerHTML = '<div class="f-empty">Couldn\'t load the events. Try refreshing the page.</div>'; return; }
+    events = r.data || [];
+    if (!events.length) { $("flags").innerHTML = '<div class="f-empty">No events yet. Staff can add one in the Staff Portal.</div>'; return; }
+    $("eventPick").innerHTML = events.map(function (ev) {
+      return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
+    }).join("");
+    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    $("eventPick").value = eventId;
+    await load();
+    setInterval(function () { if (!document.hidden) load(); }, POLL_MS);
+  })();
+  </script>
+</body>
+</html>

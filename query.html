@@ -145,6 +145,7 @@
     }
     .src-badge.scout { background: #eaf0ff; color: #1B4DB1; }
     .src-badge.api   { background: #e7f7ee; color: #1a7f4b; }
+    .src-badge.vision { background: #fff3e0; color: #a35200; }
 
     .tile-grid {
       display: grid;
@@ -265,6 +266,7 @@
               <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
@@ -370,6 +372,8 @@
   <script src="/js/auth.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/alliance.js"></script>
+  <script src="/js/opr.js"></script>
+  <script src="/js/vision.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -722,14 +726,15 @@
           .order("match_number", { ascending: true, nullsFirst: false }),
         sb.from("pit_entries").select("*").eq("team_number", team)
           .order("updated_at", { ascending: false }),
-        sb.from("official_match_teams")
+        // Through the team indexes; filtering the official_match_teams view by team times out
+        sb.rpc("official_match_teams_for", { p_teams: [team] })
           .select("event_id,match_key,comp_level,set_number,match_number,alliance,station,alliance_score,opponent_score,played_at,breakdown")
-          .eq("team_number", team)
           .order("played_at", { ascending: true, nullsFirst: false }),
         // Who was on each alliance, for the partner and opponent columns
         sb.from("official_matches_combined")
           .select("event_id,match_key,red_teams,blue_teams,sources,scores_agree")
-          .or("red_teams.cs.{" + team + "},blue_teams.cs.{" + team + "}")
+          .or("red_teams.cs.{" + team + "},blue_teams.cs.{" + team + "}"),
+        sb.from("vision_robots").select("event_id,match_key,alliance,data,confidence").eq("team_number", team)
       ]);
       if (selected !== team) return;   // clicked another team while this one loaded
       summary = results[0].error ? [] : (results[0].data || []);
@@ -746,7 +751,29 @@
 
       // A failed request would otherwise read as a team with no data or no rating
       var failed = results.slice(0, 5).some(function (r) { return r.error; });
-      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pits, officialRows, officialErr, lineups, failed);
+      if (results[7].error) console.warn("Vision data unavailable:", results[7].error.message);
+      var extra = { vision: results[7].data || [], opr: await loadOpr(officialRows) };
+      if (selected !== team) return;
+      renderDetail(team, scoutGradeFor(team), officialGradeFor(team), matches, pits, officialRows, officialErr, lineups, failed, extra);
+    }
+
+    // Component OPR (js/opr.js) needs every qualification match at each of the team's events,
+    // not just the team's own. Returns [{ event_id, result }], oldest event first.
+    async function loadOpr(officialRows) {
+      var ids = Array.from(new Set(playedMatches(officialRows).map(function (r) { return r.event_id; })));
+      if (!ids.length) return [];
+      var rows = [], size = 1000;
+      for (var from = 0; ; from += size) {
+        var r = await sb.from("official_matches_combined")
+          .select("event_id,match_key,comp_level,red_teams,blue_teams,red_score,blue_score,red_breakdown,blue_breakdown")
+          .in("event_id", ids).eq("comp_level", "qm").order("event_id").order("match_key").range(from, from + size - 1);
+        if (r.error) { console.warn("OPR data unavailable:", r.error.message); return []; }
+        rows = rows.concat(r.data || []);
+        if ((r.data || []).length < size) break;
+      }
+      return ids.map(function (id) {
+        return { event_id: id, result: RSOpr.compute(rows.filter(function (m) { return m.event_id === id; })) };
+      }).sort(function (a, b) { return evTime(a.event_id) - evTime(b.event_id); });
     }
 
     function matchLabel(r) {
@@ -1077,7 +1104,62 @@
         : "";
     }
 
-    function officialHtml(rows, err, team, lineups) {
+    // One column per event: the team's estimate for every score field, and its rank there
+    function oprHtml(team, opr) {
+      var events = (opr || []).filter(function (e) { return e.result.teams[team] && e.result.teams[team].score != null; });
+      if (!events.length) return "";
+      var paths = [];
+      events.forEach(function (e) {
+        e.result.fields.forEach(function (f) { if (paths.indexOf(f) === -1) paths.push(f); });
+      });
+      function cellFor(e, f) {
+        var v = f ? e.result.teams[team].fields[f] : e.result.teams[team].score;
+        if (v == null) return "<td>—</td>";
+        var rk = RSOpr.rankOf(e.result, team, f);
+        return "<td>" + v.toFixed(1) + (rk ? ' <span class="text-muted" style="font-size:.85em;">(' + rk.rank + " of " + rk.of + ")</span>" : "") + "</td>";
+      }
+      function label(f) { return f.split(".").map(prettyKey).join(": "); }
+      var body = "<tr><td><strong>Total score</strong></td>" + events.map(function (e) { return cellFor(e, null); }).join("") + "</tr>" +
+        paths.map(function (f) {
+          return "<tr><td>" + esc(label(f)) + "</td>" + events.map(function (e) { return cellFor(e, f); }).join("") + "</tr>";
+        }).join("");
+      return statBlock("Estimated contribution (OPR)", '<span class="src-badge api">API</span>',
+        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Field</th>' +
+          events.map(function (e) { return "<th>" + esc(evName(e.event_id)) + "</th>"; }).join("") +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>" +
+        '<p class="insight-note mb-3">How much of each alliance number this team adds, estimated from every qualification ' +
+          "match at the event. The rank is among teams there, highest first. " +
+          '<a href="/ratings.html#opr">How this is worked out</a></p>');
+    }
+
+    // Vision worker estimates (vision_robots). Shown on their own, never mixed into a rating.
+    function visionHtml(rows) {
+      if (!rows.length) return "";
+      rows = rows.slice().sort(function (a, b) {
+        return (evTime(a.event_id) - evTime(b.event_id)) || a.match_key.localeCompare(b.match_key, undefined, { numeric: true });
+      });
+      var body = RSVision.FIELDS.map(function (f) {
+        var vals = rows.map(function (r) { return r.data ? r.data[f[0]] : null; });
+        if (f[2] === "share") vals = vals.map(function (v) { return v == null ? v : Math.round(Number(v) * 100); });
+        return statRowHtml(f[1] + (f[2] === "share" ? " (%)" : ""), vals);
+      }).join("");
+      var cols = RSVision.FIELDS.slice(0, 6);
+      var perMatch = rows.map(function (r) {
+        var low = Number(r.confidence) < RSVision.LOW_CONFIDENCE;
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + esc(r.match_key) + "</td>" +
+          "<td>" + Math.round(Number(r.confidence) * 100) + "%" + (low ? ' <span class="reg-flag">Low</span>' : "") + "</td>" +
+          cols.map(function (f) { return "<td>" + RSVision.fmt(f[2], r.data ? r.data[f[0]] : null) + "</td>"; }).join("") + "</tr>";
+      }).join("");
+      return '<h3 class="section-title">Vision estimates<span class="src-badge vision">Vision</span></h3>' +
+        statTableHtml("Matches", body) +
+        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Match</th><th>Confidence</th>' +
+          cols.map(function (f) { return "<th>" + esc(f[1]) + "</th>"; }).join("") +
+        "</tr></thead><tbody>" + perMatch + "</tbody></table></div>" +
+        '<p class="insight-note mb-3">Read by computer from match video, so treat these as estimates. ' +
+          "They aren't part of either rating. " + '<a href="/ratings.html#vision">How vision estimates work</a></p>';
+    }
+
+    function officialHtml(rows, err, team, lineups, opr) {
       var head = '<h3 class="section-title">Official results<span class="src-badge api">API</span></h3>';
       if (err) return head + accessNotice(err, "official match data");
       if (!rows.length) {
@@ -1113,7 +1195,7 @@
         (n
           ? tileGrid(officialInsightTiles(played)) + eventBreakdownHtml(played) +
             '<p class="insight-note mb-3">Official results are for the whole alliance, so they reflect a team\'s partners too.</p>' +
-            scoreBreakdownHtml(played)
+            scoreBreakdownHtml(played) + oprHtml(team, opr)
           : "") +
         '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Level</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
@@ -1153,7 +1235,8 @@
       $("allianceActions").innerHTML = allianceActionsHtml(selected);
     });
 
-    function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups, failed) {
+    function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups, failed, extra) {
+      extra = extra || { vision: [], opr: [] };
       var mFields = fieldsFor("match"), pFields = fieldsFor("pit");
       var pit = pits[0] || null;   // newest first
 
@@ -1241,7 +1324,8 @@
         '<h3 class="section-title">Robot parameters<span class="src-badge scout">Scouted</span></h3>' + paramsHtml +
         pitHistoryHtml(pits, pFields) +
 
-        officialHtml(officialRows || [], officialErr, team, lineups) +
+        officialHtml(officialRows || [], officialErr, team, lineups, extra.opr) +
+        visionHtml(extra.vision) +
         '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
         (matches.length
           ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
@@ -1256,6 +1340,9 @@
     renderList();
     // Names from TBA for teams that don't have one yet
     if (await RSTeams.fillMissing(sb, teamList().map(function (r) { return r.team; }), teamInfoByNumber)) renderList();
+    // query.html?team=1307 opens that team, e.g. from the Match Flags page
+    var linkTeam = Number(new URLSearchParams(location.search).get("team"));
+    if (Number.isInteger(linkTeam) && linkTeam >= 1 && linkTeam <= 99999) openTeam(linkTeam);
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
     function fmtEventDate(d, opts) {

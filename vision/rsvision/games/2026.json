@@ -1,0 +1,49 @@
+{
+  "season": 2026,
+  "name": "REBUILT",
+  "_verify": "Field sizes are approximate. Check length, width and alliance_zone_depth against the 2026 field drawings before trusting zone times or the starting-zone check.",
+  "field": {
+    "length_in": 651.2,
+    "width_in": 317.7,
+    "alliance_zone_depth_in": 158.6
+  },
+  "timing": {
+    "auto_s": 20,
+    "teleop_s": 140,
+    "endgame_s": 30
+  },
+  "landmarks": [
+    { "name": "Corner: red wall, scoring-table side", "x": 0, "y": 0 },
+    { "name": "Corner: red wall, far side", "x": 0, "y": "W" },
+    { "name": "Corner: blue wall, far side", "x": "L", "y": "W" },
+    { "name": "Corner: blue wall, scoring-table side", "x": "L", "y": 0 },
+    { "name": "Center line, scoring-table side", "x": "L/2", "y": 0 },
+    { "name": "Center line, far side", "x": "L/2", "y": "W" },
+    { "name": "Red zone line, scoring-table side", "x": "D", "y": 0 },
+    { "name": "Red zone line, far side", "x": "D", "y": "W" },
+    { "name": "Blue zone line, scoring-table side", "x": "L-D", "y": 0 },
+    { "name": "Blue zone line, far side", "x": "L-D", "y": "W" }
+  ],
+  "breakdown_keys": {
+    "auto_tower": "autoTowerRobot",
+    "end_tower": "endGameTowerRobot",
+    "fouls": "foulPoints"
+  },
+  "tower_points": {
+    "auto": { "Level1": 15 },
+    "end": { "Level1": 10, "Level2": 20, "Level3": 30 }
+  },
+  "attribution": {
+    "lookback_s": [1, 4],
+    "own_zone_weight": 1.0,
+    "other_zone_weight": 0.15,
+    "unseen_weight": 0.5,
+    "skip_windows_s": [[20, 25], [157, 175]]
+  },
+  "motion": {
+    "max_speed_in_s": 240,
+    "still_in_per_s": 6,
+    "contact_in": 40,
+    "start_line_margin_in": 12
+  }
+}

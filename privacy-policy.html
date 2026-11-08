@@ -79,6 +79,7 @@
                 <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
                 <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
@@ -150,6 +151,16 @@
             submit is stored in our file storage and is publicly viewable by its link, the same way
             a photo posted to the team's own social media would be.
           </li>
+          <li>
+            <strong>Match flag reviews:</strong> on the Match Flags page, team members can mark a flagged
+            match as fine, fixed, or needing a rescout, with an optional note. We record who marked it and when.
+          </li>
+          <li>
+            <strong>Match video:</strong> a program on a team laptop reads publicly posted FRC match videos
+            to estimate where each robot drove and what it scored. Only those numbers about robots are saved
+            to 1307scout, never images. Downloaded videos stay on that laptop and are used only for the
+            team's scouting, never republished.
+          </li>
         </ul>
 
         <h2>Information collected automatically</h2>
@@ -198,6 +209,7 @@
           <li><strong>hCaptcha</strong> — checks that sign-in and account forms are used by a person. It receives technical information about your browser and device when you use those forms.</li>
           <li><strong>Google</strong> — handles sign-in if you choose "Continue with Google", and shows the map on the Contact page, which loads from Google when you open that page.</li>
           <li><strong>FIRST FRC Events API</strong> and <strong>The Blue Alliance</strong> — public competition results we display; we don't send them any of your personal information.</li>
+          <li><strong>YouTube</strong> — hosts the public match videos the team's vision program downloads. Nothing about you is sent to it.</li>
           <li><strong>GitHub Pages</strong> — hosts this website.</li>
           <li>Google Fonts, Font Awesome, and the Supabase, EmailJS, and QR code libraries we load from cdnjs.cloudflare.com and cdn.jsdelivr.net — these serve static font and script files and, as far as we configure them, don't track you.</li>
         </ul>
@@ -217,8 +229,8 @@
           history, the same way old match videos or spreadsheets would be, unless the account that
           entered them is banned or deleted. Account information is kept while your account is active.
           You can delete your own account at any time, or ask us to delete it or your personal information
-          for you. When an account is banned or deleted, its scouting entries, pit entries and photos are
-          removed; a pit entry a teammate has since edited stays, because it counts as theirs. Our
+          for you. When an account is banned or deleted, its scouting entries, pit entries, match flag reviews and
+          photos are removed; a pit entry a teammate has since edited stays, because it counts as theirs. Our
           staff-only audit log keeps a record of removed entries, including their contents, as a history
           of changes to the data. Audit log records are deleted after six months. Deleting a scouting or pit
           entry, or replacing its photo, also deletes the photo file, though cached copies can take up to an
@@ -231,7 +243,7 @@
           <li>Ask us to see, correct, or delete the personal information we hold about you.</li>
           <li>
             Delete your own account from the My Account page at any time. This also removes the scouting
-            entries, pit entries and photos you entered.
+            entries, pit entries, match flag reviews and photos you entered.
           </li>
           <li>Ask a staff member to sign you out of every device, or to ban or delete your account.</li>
           <li>Decline to use the contact form or 1307scout — the rest of the site needs no account.</li>

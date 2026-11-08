@@ -21,6 +21,7 @@
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
 --  8h  Playoff picks, tiebreaks, line-ups   8i  Match schedule edits
+--  8j  Vision data + match flag reviews
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 --  17  Check query
@@ -64,6 +65,9 @@
 -- District Championship or the FIRST Championship counts for more than
 -- the same result at a regular qualifier, and an off-season result
 -- counts for a little less.
+--
+-- Vision update: section 8j adds vision_matches / vision_robots, written only by the vision
+-- worker (vision/ folder, service role), and match_flag_reviews for the Match Flags page.
 -- =====================================================================
 
 
@@ -784,6 +788,14 @@ create table if not exists public.official_matches (
 );
 create index if not exists official_matches_event_idx  on public.official_matches (event_id, match_key);
 create index if not exists official_matches_lookup_idx on public.official_matches (event_id, comp_level, match_number);
+-- Find a team's matches without reading every row (official_match_teams_for(), and the
+-- "red_teams contains" filters pages send to official_matches_combined).
+create index if not exists official_matches_red_teams_idx  on public.official_matches using gin (red_teams);
+create index if not exists official_matches_blue_teams_idx on public.official_matches using gin (blue_teams);
+-- Everything but the score breakdowns, so whole-table totals (ratings, counts) can read this
+-- small index instead of the much larger table rows that hold the breakdown JSON.
+create index if not exists official_matches_slim_idx on public.official_matches (event_id, match_key, source)
+  include (comp_level, set_number, match_number, played_at, red_teams, blue_teams, red_score, blue_score);
 alter table public.official_matches enable row level security;
 
 drop policy if exists "team reads official matches" on public.official_matches;
@@ -793,28 +805,32 @@ create policy "team reads official matches" on public.official_matches for selec
 -- 8a. One row per match. FRC Events is the authority for scores; TBA fills in when FRC has
 --     nothing yet. sources shows where the row came from; scores_agree is false if the two
 --     sources disagree.
+--     Built from a "primary" row p (the FRC row, or the TBA row when FRC has none) plus the
+--     other source's row s. Event, match and team columns come straight from p, so filters on
+--     them (event_id, comp_level, red_teams contains ...) use the indexes above instead of
+--     joining the whole table first.
 create or replace view public.official_matches_combined with (security_invoker = true) as
 select
-  coalesce(f.event_id, t.event_id)         as event_id,
-  coalesce(f.match_key, t.match_key)       as match_key,
-  coalesce(f.comp_level, t.comp_level)     as comp_level,
-  coalesce(f.set_number, t.set_number)     as set_number,
-  coalesce(f.match_number, t.match_number) as match_number,
-  coalesce(f.played_at, t.played_at)       as played_at,
-  coalesce(f.red_teams, t.red_teams)       as red_teams,
-  coalesce(f.blue_teams, t.blue_teams)     as blue_teams,
-  coalesce(f.red_score, t.red_score)       as red_score,
-  coalesce(f.blue_score, t.blue_score)     as blue_score,
-  coalesce(t.red_breakdown, f.red_breakdown)   as red_breakdown,
-  coalesce(t.blue_breakdown, f.blue_breakdown) as blue_breakdown,
-  case when f.id is not null and t.id is not null then 'frc+tba'
-       when f.id is not null then 'frc' else 'tba' end as sources,
-  case when f.id is not null and t.id is not null
-       then f.red_score is not distinct from t.red_score and f.blue_score is not distinct from t.blue_score
+  p.event_id,
+  p.match_key,
+  p.comp_level,
+  p.set_number,
+  p.match_number,
+  coalesce(p.played_at, s.played_at)       as played_at,
+  p.red_teams,
+  p.blue_teams,
+  coalesce(p.red_score, s.red_score)       as red_score,
+  coalesce(p.blue_score, s.blue_score)     as blue_score,
+  coalesce(s.red_breakdown, p.red_breakdown)   as red_breakdown,    -- s is the TBA row when both exist
+  coalesce(s.blue_breakdown, p.blue_breakdown) as blue_breakdown,
+  case when s.id is not null then 'frc+tba' else p.source end as sources,
+  case when s.id is not null
+       then p.red_score is not distinct from s.red_score and p.blue_score is not distinct from s.blue_score
        end as scores_agree
-from (select * from public.official_matches where source = 'frc') f
-full join (select * from public.official_matches where source = 'tba') t
-  on t.event_id = f.event_id and t.match_key = f.match_key;
+from public.official_matches p
+left join public.official_matches s
+  on s.event_id = p.event_id and s.match_key = p.match_key and s.source <> p.source
+where p.source = 'frc' or s.id is null;
 
 -- 8b. One row per team per PLAYED match: the shape the team rating reads.
 create or replace view public.official_team_matches with (security_invoker = true) as
@@ -869,6 +885,33 @@ cross join lateral (
 where t.team_number is not null
 order by m.event_id, m.match_key, t.team_number,
          (m.red_score is not null) desc, (m.source = 'frc') desc;
+
+-- 8c2. official_match_teams for just the given teams. Filtering the view by team_number
+--      still unpacks every match in the table first; this finds the teams' matches through
+--      the red/blue team indexes. Same columns and rules as the view. Runs as the caller, so
+--      the table's row-level security still applies.
+create or replace function public.official_match_teams_for(p_teams int[])
+returns setof public.official_match_teams
+language sql stable set search_path = '' as $$
+  select distinct on (m.event_id, m.match_key, t.team_number)
+    m.event_id, m.match_key, m.comp_level, m.set_number, m.match_number, m.played_at, m.source,
+    t.team_number, t.alliance, t.station,
+    case t.alliance when 'red' then m.red_score  else m.blue_score end,
+    case t.alliance when 'red' then m.blue_score else m.red_score  end,
+    case t.alliance when 'red' then m.red_breakdown else m.blue_breakdown end
+  from public.official_matches m
+  cross join lateral (
+    select u.team as team_number, 'red'::text as alliance, u.ord::int as station
+      from unnest(m.red_teams) with ordinality as u(team, ord)
+    union all
+    select u.team, 'blue', u.ord::int
+      from unnest(m.blue_teams) with ordinality as u(team, ord)
+  ) t
+  where (m.red_teams && p_teams or m.blue_teams && p_teams)
+    and t.team_number = any(p_teams)
+  order by m.event_id, m.match_key, t.team_number,
+           (m.red_score is not null) desc, (m.source = 'frc') desc;
+$$;
 
 -- 8d. Per-team official summary (matches played, wins, average alliance score)
 --     for the Team Database list.
@@ -1096,6 +1139,85 @@ create policy "team edits match schedule" on public.match_schedule for update to
   using ((select public.is_staff()) or (select public.is_student()))
   with check (updated_by = auth.uid());
 create policy "team deletes match schedule" on public.match_schedule for delete to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+
+
+-- =====================================================================
+-- 8j. Vision data and match flags
+--
+--    vision_matches / vision_robots are written only by the vision worker
+--    (vision/ in this repo), which runs on a team laptop and connects with the
+--    service role key. It reads match video, the on-screen scoreboard, and
+--    where each robot drove. Nobody writes these through the normal API.
+--    Vision numbers are estimates and stay a separate source: no rating reads them.
+--
+--    match_flag_reviews records what a team member decided about a flag on the
+--    Match Flags page (flags.html): it looks fine, it was fixed, or it needs a
+--    rescout. The flags themselves are worked out on that page from the data
+--    already here. team_number 0 means a flag about the whole match or alliance.
+-- =====================================================================
+create table if not exists public.vision_matches (
+  event_id         uuid not null references public.events(id) on delete cascade,
+  match_key        text not null check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  status           text not null check (status in ('ok', 'partial', 'failed')),
+  video_url        text check (char_length(video_url) <= 500),
+  score_timeline   jsonb,      -- [[seconds into the match, red score, blue score], ...]
+  final_red        int,
+  final_blue       int,
+  matches_official boolean,    -- false when the scoreboard read doesn't match the official final score
+  wide_shot_share  numeric check (wide_shot_share between 0 and 1),   -- share of the match the field was in view
+  model_version    text check (char_length(model_version) <= 80),
+  notes            text check (char_length(notes) <= 500),
+  processed_at     timestamptz not null default now(),
+  primary key (event_id, match_key)
+);
+create table if not exists public.vision_robots (
+  event_id    uuid not null,
+  match_key   text not null,
+  team_number int  not null check (team_number between 1 and 99999),
+  alliance    text not null check (alliance in ('red', 'blue')),
+  data        jsonb not null default '{}'::jsonb,   -- per-robot metrics, see vision/README.md
+  confidence  numeric not null check (confidence between 0 and 1),
+  primary key (event_id, match_key, team_number),
+  foreign key (event_id, match_key) references public.vision_matches(event_id, match_key) on delete cascade
+);
+create index if not exists vision_robots_team_idx on public.vision_robots (team_number);
+alter table public.vision_matches enable row level security;
+alter table public.vision_robots  enable row level security;
+
+drop policy if exists "team reads vision matches" on public.vision_matches;
+drop policy if exists "team reads vision robots"  on public.vision_robots;
+create policy "team reads vision matches" on public.vision_matches for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "team reads vision robots" on public.vision_robots for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+
+create table if not exists public.match_flag_reviews (
+  id          bigint generated always as identity primary key,
+  event_id    uuid not null references public.events(id) on delete cascade,
+  match_key   text not null check (char_length(match_key) <= 12),
+  team_number int  not null default 0 check (team_number between 0 and 99999),
+  flag_type   text not null check (flag_type ~ '^[a-z_]{1,40}$'),
+  status      text not null check (status in ('ok', 'fixed', 'rescout')),
+  note        text check (char_length(note) <= 300),
+  reviewed_by uuid default auth.uid() references auth.users(id) on delete set null,
+  reviewed_at timestamptz not null default now(),
+  unique (event_id, match_key, team_number, flag_type)
+);
+alter table public.match_flag_reviews enable row level security;
+
+drop policy if exists "team reads flag reviews"   on public.match_flag_reviews;
+drop policy if exists "team adds flag reviews"    on public.match_flag_reviews;
+drop policy if exists "team edits flag reviews"   on public.match_flag_reviews;
+drop policy if exists "team deletes flag reviews" on public.match_flag_reviews;
+create policy "team reads flag reviews" on public.match_flag_reviews for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "team adds flag reviews" on public.match_flag_reviews for insert to authenticated
+  with check (((select public.is_staff()) or (select public.is_student())) and reviewed_by = auth.uid());
+create policy "team edits flag reviews" on public.match_flag_reviews for update to authenticated
+  using ((select public.is_staff()) or (select public.is_student()))
+  with check (reviewed_by = auth.uid());
+create policy "team deletes flag reviews" on public.match_flag_reviews for delete to authenticated
   using ((select public.is_staff()) or (select public.is_student()));
 
 
@@ -1951,6 +2073,9 @@ grant select, insert, update, delete on public.playoff_picks    to authenticated
 grant select, insert, update, delete on public.playoff_tiebreaks to authenticated;
 grant select, insert, update, delete on public.playoff_lineups  to authenticated;
 grant select, insert, update, delete on public.match_schedule   to authenticated;
+grant select, insert, update, delete on public.match_flag_reviews to authenticated;
+grant select on public.vision_matches            to authenticated;
+grant select on public.vision_robots             to authenticated;
 grant select on public.official_matches          to authenticated;
 grant select on public.official_matches_combined to authenticated;
 grant select on public.official_team_matches     to authenticated;
@@ -1968,6 +2093,7 @@ revoke all on function public.team_points_summary()        from public, anon;
 revoke all on function public.team_official_ratings()      from public, anon;
 revoke all on function public.event_tier_weight(text)      from public, anon;
 revoke all on function public.team_official_summary()      from public, anon;
+revoke all on function public.official_match_teams_for(int[])  from public, anon;
 revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
@@ -1987,6 +2113,7 @@ grant execute on function public.team_ratings()               to authenticated;
 grant execute on function public.team_official_ratings()      to authenticated;
 grant execute on function public.event_tier_weight(text)      to authenticated;
 grant execute on function public.team_official_summary()      to authenticated;
+grant execute on function public.official_match_teams_for(int[])  to authenticated;
 grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
 grant execute on function public.staff_list_share_codes()     to authenticated;
@@ -2296,6 +2423,9 @@ begin
       format('%s line-up: team %s sits out %s for alliance %s', v_verb, v_row ->> 'sits_out', v_row ->> 'match_key', v_row ->> 'alliance_number')
     when 'match_schedule' then
       format('%s schedule: %s, red %s, blue %s', v_verb, v_row ->> 'match_key', v_row ->> 'red_teams', v_row ->> 'blue_teams')
+    when 'match_flag_reviews' then
+      format('%s flag review: %s, team %s, %s marked %s', v_verb, v_row ->> 'match_key', v_row ->> 'team_number',
+        v_row ->> 'flag_type', v_row ->> 'status')
     when 'staff_members' then
       format('%s staff member %s', v_verb,
         coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'))
@@ -2321,6 +2451,7 @@ drop trigger if exists audit_playoff_picks  on public.playoff_picks;
 drop trigger if exists audit_playoff_tiebreaks on public.playoff_tiebreaks;
 drop trigger if exists audit_playoff_lineups on public.playoff_lineups;
 drop trigger if exists audit_match_schedule on public.match_schedule;
+drop trigger if exists audit_flag_reviews   on public.match_flag_reviews;
 drop trigger if exists audit_staff_members  on public.staff_members;
 drop trigger if exists audit_member_grants  on public.member_grants;
 create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
@@ -2333,6 +2464,7 @@ create trigger audit_playoff_picks after insert or update or delete on public.pl
 create trigger audit_playoff_tiebreaks after insert or update or delete on public.playoff_tiebreaks for each row execute function public.audit_row_change();
 create trigger audit_playoff_lineups after insert or update or delete on public.playoff_lineups for each row execute function public.audit_row_change();
 create trigger audit_match_schedule after insert or update or delete on public.match_schedule   for each row execute function public.audit_row_change();
+create trigger audit_flag_reviews   after insert or update or delete on public.match_flag_reviews for each row execute function public.audit_row_change();
 create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
 create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
 
@@ -2402,6 +2534,7 @@ begin
   get diagnostics v_match = row_count;
   delete from public.pit_entries where scouted_by = target;
   get diagnostics v_pit = row_count;
+  delete from public.match_flag_reviews where reviewed_by = target;
 
   select coalesce(array_agg(o.name), '{}') into v_paths
     from storage.objects o
@@ -2430,8 +2563,9 @@ with expected(kind, name) as (values
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
   ('table','team_info'), ('table','playoff_picks'), ('table','playoff_tiebreaks'), ('table','playoff_lineups'), ('table','match_schedule'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
+  ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
-  ('view','official_match_teams'),
+  ('view','official_match_teams'), ('function','official_match_teams_for'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
   ('function','session_live'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),

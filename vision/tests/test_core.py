@@ -1,0 +1,185 @@
+"""Tests for the parts that don't need video or a GPU. Run from vision/: python -m unittest"""
+import random
+import unittest
+from collections import Counter
+
+from rsvision import config, metrics, timeline
+
+G = config.game(2026)
+L, W, D = G["field"]["length_in"], G["field"]["width_in"], G["field"]["alliance_zone_depth_in"]
+
+
+def fake_samples(auto_start=12.0, pause=3.0, red_rate=0.5, blue_rate=0.3, noise=0.1, seed=1):
+    """Scoreboard reads at 2 per second, with some unreadable and some badly misread."""
+    rnd = random.Random(seed)
+    teleop_start = auto_start + 20 + pause
+    out = []
+    t = 0.0
+    while t < teleop_start + 150:
+        if t < auto_start:
+            m, clock = None, 20
+        elif t <= auto_start + 20:
+            m, clock = t - auto_start, int(round(20 - (t - auto_start)))
+        elif t < teleop_start:
+            m, clock = 20, 140
+        elif t <= teleop_start + 140:
+            m, clock = 20 + t - teleop_start, int(round(140 - (t - teleop_start)))
+        else:
+            m, clock = 160, 0
+        red = int((m or 0) * red_rate) if m is not None else 0
+        blue = int((m or 0) * blue_rate) if m is not None else 0
+        if rnd.random() < noise:
+            red = rnd.choice([None, red + 80])
+        if rnd.random() < noise:
+            clock = rnd.choice([None, 99])
+        out.append((t, red, blue, clock))
+        t += 0.5
+    return out, teleop_start
+
+
+class TimelineTests(unittest.TestCase):
+    def test_clock_found_despite_noise(self):
+        samples, teleop_start = fake_samples()
+        c = timeline.find_clock(samples)
+        self.assertAlmostEqual(c.auto_start, 12.0, delta=0.6)
+        self.assertAlmostEqual(c.teleop_start, teleop_start, delta=0.6)
+        self.assertIsNone(c.to_match(c.auto_start + 21.5))   # the pause between auto and teleop
+        self.assertAlmostEqual(c.to_match(c.teleop_start + 10), 30, delta=0.01)
+
+    def test_scores_never_drop_and_ignore_spikes(self):
+        samples, _ = fake_samples()
+        c = timeline.find_clock(samples)
+        tl = timeline.score_timeline(samples, c)
+        self.assertEqual(len(tl), 161)
+        reds = [r[1] for r in tl]
+        self.assertEqual(reds, sorted(reds))
+        self.assertAlmostEqual(tl[-1][1], 80, delta=3)   # 160 s x 0.5, the +80 misreads filtered out
+        self.assertAlmostEqual(tl[-1][2], 48, delta=3)
+
+    def test_no_clock(self):
+        self.assertIsNone(timeline.find_clock([(t, 0, 0, None) for t in range(100)]))
+
+    def test_parse_clock(self):
+        self.assertEqual(timeline.parse_clock("2:15"), 135)
+        self.assertEqual(timeline.parse_clock("0:07"), 7)
+        self.assertEqual(timeline.parse_clock("45"), 45)
+        self.assertIsNone(timeline.parse_clock("2:1"))
+        self.assertIsNone(timeline.parse_clock(""))
+
+    def test_agrees(self):
+        self.assertTrue(timeline.agrees(100, 80, 104, 80))
+        self.assertFalse(timeline.agrees(100, 80, 120, 80))
+        self.assertIsNone(timeline.agrees(None, 80, 120, 80))
+
+
+def path(color, x0, x1, t0=0, t1=160, y=150.0, step=0.5):
+    """A robot driving in a straight line from x0 to x1 between t0 and t1."""
+    k = metrics.Tracklet(random.randint(0, 10 ** 9), color)
+    t = t0
+    while t <= t1:
+        k.t.append(t)
+        k.xy.append((x0 + (x1 - x0) * (t - t0) / max(t1 - t0, 1e-9), y))
+        t += step
+    return k
+
+
+class IdentityTests(unittest.TestCase):
+    def test_number_read_picks_closest_team(self):
+        self.assertEqual(metrics.match_number("1307", [1307, 1729, 5687])[0], 1307)
+        self.assertEqual(metrics.match_number("130", [1307, 1729, 5687])[0], 1307)
+        self.assertIsNone(metrics.match_number("99", [1307, 1729, 5687]))
+        self.assertIsNone(metrics.match_number("17", [1729, 1797, 5687]))   # too close to call
+
+    def test_stitch_joins_a_broken_track(self):
+        a = path("red", 50, 100, 0, 30)
+        b = path("red", 105, 200, 31, 60)          # starts 1 s later, nearby
+        c = path("red", 600, 600, 31, 60)          # starts 1 s later, far away
+        chains = metrics.stitch([a, b, c])
+        self.assertEqual(len(chains), 2)
+        self.assertIn([a, b], chains)
+
+    def test_votes_then_deduction(self):
+        lineup = {"red": [1, 2, 3], "blue": [4, 5, 6]}
+        r1, r2, r3 = path("red", 0, 300, y=50), path("red", 0, 300, y=150), path("red", 0, 300, y=250)
+        r1.votes[1] += 5
+        r2.votes[2] += 3
+        r2.votes[1] += 1                           # a weaker, wrong read
+        tracks, ids = metrics.team_tracks([r1, r2, r3], lineup)
+        self.assertEqual(set(tracks), {1, 2, 3})   # 3 had no reads but was the only one left
+        self.assertEqual(ids[1], 1.0)
+        self.assertEqual(ids[3], 0.0)
+        self.assertAlmostEqual(float(tracks[3][1][0][1]), 250)
+
+
+class MetricsTests(unittest.TestCase):
+    def test_left_zone_distance_and_zones(self):
+        k = path("red", 20, D + 100, 0, 20)        # drives out in auto, then sits still
+        k2 = path("red", D + 100, D + 100, 20.5, 160)
+        times = k.t + k2.t
+        xy = k.xy + k2.xy
+        m = metrics.robot_metrics(times, xy, "red", G)
+        self.assertTrue(m["auto_left_zone"])
+        self.assertAlmostEqual(m["auto_distance_ft"], (D + 80) / 12, delta=1.5)
+        self.assertGreater(m["neutral_zone_s"], 130)
+        self.assertGreaterEqual(m["longest_still_s"], 100)   # parked from 21 s until endgame
+        self.assertGreater(m["visible_share"], 0.95)
+
+    def test_blue_stays_home(self):
+        k = path("blue", L - 30, L - 40, 0, 20)
+        m = metrics.robot_metrics(k.t, k.xy, "blue", G)
+        self.assertFalse(m["auto_left_zone"])
+        self.assertLess(m["visible_share"], 0.2)
+
+    def test_contacts(self):
+        secs = {1: {s: (300.0, 100.0) for s in range(10)}, 4: {s: (320.0, 100.0) for s in range(3, 6)}}
+        c = metrics.contacts(secs, {1: "red", 4: "blue"}, 40)
+        self.assertEqual(c[1], 1)
+        self.assertEqual(c[4], 1)
+
+    def test_official_fuel(self):
+        bd = {"autoTowerRobot1": "Level1", "autoTowerRobot2": "None", "autoTowerRobot3": "None",
+              "endGameTowerRobot1": "Level3", "endGameTowerRobot2": "Level1", "endGameTowerRobot3": "None",
+              "foulPoints": 5}
+        self.assertEqual(metrics.official_fuel(120, bd, G), 120 - 15 - 30 - 10 - 5)
+        self.assertIsNone(metrics.official_fuel(120, {"foulPoints": 5}, G))
+
+    def test_fuel_goes_to_the_robot_in_its_zone(self):
+        # Robot 1 sits in red's zone the whole match; 2 is in the neutral zone; 3 is never seen
+        secs = {1: {s: (60.0, 100.0) for s in range(161)}, 2: {s: (L / 2, 100.0) for s in range(161)}}
+        tl = [[s, s, 0] for s in range(161)]           # red scores 1 a second
+        out = metrics.attribute_fuel(tl, "red", secs, [1, 2, 3], G, total=100)
+        self.assertGreater(out[1][0], out[3][0])
+        self.assertGreater(out[3][0], out[2][0])
+        self.assertAlmostEqual(sum(v[1] for v in out.values()), 100, delta=0.5)
+
+    def test_confidence(self):
+        self.assertEqual(metrics.confidence(1.0, 1.0), 1.0)
+        self.assertEqual(metrics.confidence(0.8, 0.0), 0.4)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class RobotRowsTest(unittest.TestCase):
+    def test_end_to_end_rows(self):
+        from rsvision import pipeline
+        lineup = {"red": [1307, 1729, 5687], "blue": [4, 5, 6]}
+        ks = []
+        for i, team in enumerate(lineup["red"]):
+            k = path("red", 40, 120, y=60.0 + 90 * i)
+            k.votes[team] += 2
+            ks.append(k)
+        b = path("blue", L - 40, L - 200, y=150)
+        b.votes[4] += 2
+        ks.append(b)
+        bd = {f"autoTowerRobot{i}": "None" for i in (1, 2, 3)}
+        bd.update({f"endGameTowerRobot{i}": "None" for i in (1, 2, 3)})
+        official = {"red_score": 100, "blue_score": 40, "red_breakdown": bd, "blue_breakdown": bd}
+        tl = [[s, int(s * 100 / 160), int(s * 40 / 160)] for s in range(161)]
+        rows = pipeline.robot_rows(ks, lineup, tl, official, G)
+        by = {r["team_number"]: r for r in rows}
+        self.assertEqual(set(by), {1307, 1729, 5687, 4})
+        self.assertAlmostEqual(sum(by[t]["data"]["fuel_est"] for t in lineup["red"]), 100, delta=0.5)
+        self.assertTrue(all(0 <= r["confidence"] <= 1 for r in rows))
+        self.assertEqual(by[4]["alliance"], "blue")

@@ -42,14 +42,14 @@ insert into public.events (name, location, event_date, frc_event_code, tba_event
 select v.name, v.location, v.event_date::date, v.frc_event_code, v.tba_event_key
 from (values
   ('CT State Championship ''26',       'Glastonbury High School, Glastonbury, CT',            '2026-05-17', 'CTGLA',   '2026ctgla'),
-  ('BattleCry at WPI 1 ''26',          'WPI - Harrington Auditorium, Worcester, MA',          '2026-05-30', 'MAWOR1',  '2026mawor1'),
+  ('BattleCry at WPI 1 ''26',          'WPI - Harrington Auditorium, Worcester, MA',          '2026-05-30', 'MAWOR1',  '2026bc'),
   ('MA State Championship ''26',       'Merrimack College - Lawler Rink, North Andover, MA',  '2026-05-30', 'MANOR',   '2026manor'),
-  ('BattleCry at WPI 2 ''26',          'WPI - Harrington Auditorium, Worcester, MA',          '2026-06-06', 'MAWOR2',  '2026mawor2'),
-  ('Where is Wolcott Invitational ''26','Wolcott High School, Wolcott, CT',                   '2026-06-12', 'CTWOL',   '2026ctwol'),
-  ('New England Robotics Derby ''26',  'Billerica Memorial High School, Billerica, MA',       '2026-10-09', 'MABIL1',  '2026mabil1'),
-  ('Mayhem in Merrimack ''26',         'Merrimack High School, Merrimack, NH',                '2026-10-10', 'NHMER',   '2026nhmer'),
+  ('BattleCry at WPI 2 ''26',          'WPI - Harrington Auditorium, Worcester, MA',          '2026-06-06', 'MAWOR2',  '2026bc2'),
+  ('Where is Wolcott Invitational ''26','Wolcott High School, Wolcott, CT',                   '2026-06-12', 'CTWOL',   '2026wiwi'),
+  ('New England Robotics Derby ''26',  'Billerica Memorial High School, Billerica, MA',       '2026-10-09', 'MABIL1',  '2026matb'),
+  ('Mayhem in Merrimack ''26',         'Merrimack High School, Merrimack, NH',                '2026-10-10', 'NHMER',   '2026nhmm'),
   ('CyberKnight Invitational ''26',    'Southington High School, Southington, CT',            '2026-10-17', 'CTSOU',   '2026ctsou'),
-  ('RiverRage 29 ''26',                'Manchester Memorial High School, Manchester, NH',     '2026-10-24', 'NHMAN',   '2026nhman'),
+  ('RiverRage 29 ''26',                'Manchester Memorial High School, Manchester, NH',     '2026-10-24', 'NHMAN',   '2026nhrr'),
   ('Girls Behind the Glass ''26',      'Prospect Mountain High School, Alton, NH',            '2026-11-08', 'NHALT1',  '2026nhalt1')
 ) as v(name, location, event_date, frc_event_code, tba_event_key)
 where not exists (

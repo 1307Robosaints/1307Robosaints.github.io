@@ -37,25 +37,25 @@ from (values
   -- (CMPTX) is where Einstein finals are recorded, so that row is named for Einstein rather
   -- than repeating "FIRST Championship" — the tier badge already says "Championship".
   ('Einstein ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CMPTX',      '2026cmptx',      'championship'),
-  ('Archimedes ''26',  'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'ARCHIMEDES', '2026archimedes', 'championship'),
-  ('Curie ''26',       'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CURIE',      '2026curie',      'championship'),
-  ('Daly ''26',        'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'DALY',       '2026daly',       'championship'),
-  ('Galileo ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'GALILEO',    '2026galileo',    'championship'),
-  ('Hopper ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'HOPPER',     '2026hopper',     'championship'),
-  ('Johnson ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'JOHNSON',    '2026johnson',    'championship'),
-  ('Milstein ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'MILSTEIN',   '2026milstein',   'championship'),
-  ('Newton ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'NEWTON',     '2026newton',     'championship'),
+  ('Archimedes ''26',  'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'ARCHIMEDES', '2026arc', 'championship'),
+  ('Curie ''26',       'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'CURIE',      '2026cur',      'championship'),
+  ('Daly ''26',        'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'DALY',       '2026dal',       'championship'),
+  ('Galileo ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'GALILEO',    '2026gal',    'championship'),
+  ('Hopper ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'HOPPER',     '2026hop',     'championship'),
+  ('Johnson ''26',     'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'JOHNSON',    '2026joh',    'championship'),
+  ('Milstein ''26',    'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'MILSTEIN',   '2026mil',   'championship'),
+  ('Newton ''26',      'George R. Brown Convention Center, Houston, TX', '2026-05-01', 'NEWTON',     '2026new',     'championship'),
 
   -- 2027 FIRST Championship, Houston (Wed 4/28 - Sat 5/1, 2027)
   ('Einstein ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CMPTX',      '2027cmptx',      'championship'),
-  ('Archimedes ''27',  'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'ARCHIMEDES', '2027archimedes', 'championship'),
-  ('Curie ''27',       'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CURIE',      '2027curie',      'championship'),
-  ('Daly ''27',        'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'DALY',       '2027daly',       'championship'),
-  ('Galileo ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'GALILEO',    '2027galileo',    'championship'),
-  ('Hopper ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'HOPPER',     '2027hopper',     'championship'),
-  ('Johnson ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'JOHNSON',    '2027johnson',    'championship'),
-  ('Milstein ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'MILSTEIN',   '2027milstein',   'championship'),
-  ('Newton ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'NEWTON',     '2027newton',     'championship')
+  ('Archimedes ''27',  'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'ARCHIMEDES', '2027arc', 'championship'),
+  ('Curie ''27',       'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'CURIE',      '2027cur',      'championship'),
+  ('Daly ''27',        'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'DALY',       '2027dal',       'championship'),
+  ('Galileo ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'GALILEO',    '2027gal',    'championship'),
+  ('Hopper ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'HOPPER',     '2027hop',     'championship'),
+  ('Johnson ''27',     'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'JOHNSON',    '2027joh',    'championship'),
+  ('Milstein ''27',    'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'MILSTEIN',   '2027mil',   'championship'),
+  ('Newton ''27',      'George R. Brown Convention Center, Houston, TX', '2027-04-30', 'NEWTON',     '2027new',     'championship')
 ) as v(name, location, event_date, frc_event_code, tba_event_key, event_tier)
 where not exists (
   select 1 from public.events e

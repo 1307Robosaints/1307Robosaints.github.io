@@ -20,11 +20,19 @@ is in the 1307scout menu and on the home page, grouped as Scouting, Competition 
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
   parameters, full stats for every form field, the official score breakdown, match line-ups, pit
   history, insights (win %, margins, recent form, per-event results, scoring averages, and a
-  rating breakdown), and two independent ratings (one from human scouting, one from synced official
+  rating breakdown), each event's OPR estimate for every official score field (`js/opr.js`), the
+  vision worker's estimates when it has run, and two independent ratings (one from human scouting, one from synced official
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).
   A team's card shows its name and logo, and buttons to add it to the red or blue alliance. Every
   match row links to that match in the Alliance View, and every event is tagged with its level
   (Qualifier, District Champs, Worlds, Off-season) from the tier set in the Staff Portal.
+  `query.html?team=1307` opens a team directly.
+- `flags.html` — Match Flags: for one event, every played qualification match whose scouting data
+  may be wrong or missing. Entries are checked against the schedule, the official per-robot TOWER
+  results, the alliance's official FUEL points, other scouts, the team's usual numbers and the
+  vision data. Robots nobody scouted are flagged too, at a lower level when vision covered them. Any
+  team member can mark a flag as fine, fixed or needing a rescout (`match_flag_reviews`). The page
+  also lists who to scout next, by lowest coverage, and a coverage grid. The rules are on `ratings.html`.
 - `matches.html` — Our Matches: every match one team (1307 unless changed) has at an event, read from
   the synced FRC/TBA schedule. Upcoming matches show partners and opponents with grades, scouted
   points and win chance; played ones collapse to a one-line result. Any team member can add a match
@@ -40,8 +48,8 @@ is in the 1307scout menu and on the home page, grouped as Scouting, Competition 
   team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
   a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in
   the Alliance View. Alliances have 3 teams, or 4 at district championships and the FIRST
-  Championship; staff can switch any event with the 4-team toggle. To change the table's stats,
-  edit `COLUMNS` in the page.
+  Championship; staff can switch any event with the 4-team toggle. The table includes each team's
+  OPR for the event. To change the table's stats, edit `COLUMNS` in the page.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
   it only advances once an event syncs. When official scores are tied, staff click who won the
@@ -87,6 +95,13 @@ a page open, and turns itself off 4 days after the event date. `SQL/rebuild_all.
 and pg_net and schedules the job. The one manual step is storing `sync_secret` in the Vault (section 15).
 The check query at the end of that file shows if either is missing, and the Staff Portal warns if a
 run is failing.
+
+**Vision worker** (`vision/`): a Python program that runs on a team laptop with a GPU, not on the
+website. It reads match video from the links on The Blue Alliance. It reads the scoreboard overlay
+for a score timeline, and tracks robots by their bumpers with a YOLO model the team trains. It saves
+per-robot estimates to `vision_matches` and `vision_robots` with the service role key. Setup, event
+calibration, model training and the meaning of every number are in `vision/README.md`. Without a
+trained model it still reads the scoreboard.
 
 ## Contact form
 
