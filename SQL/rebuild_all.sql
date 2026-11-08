@@ -350,8 +350,9 @@ language plpgsql security definer set search_path = '' as $$
 declare
   v_secret text;
 begin
-  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'sync_secret';
-  if v_secret is null then
+  -- Trimmed, because a space or line break pasted in with the secret makes official-sync refuse it
+  select btrim(decrypted_secret, E' \t\r\n') into v_secret from vault.decrypted_secrets where name = 'sync_secret';
+  if v_secret is null or v_secret = '' then
     raise exception 'Vault secret sync_secret is missing (see section 15).';
   end if;
   return net.http_post(
