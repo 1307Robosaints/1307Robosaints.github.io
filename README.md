@@ -12,8 +12,10 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 `privacy-policy.html`, `terms-of-service.html`, and `ratings.html`, which explains how team
 ratings and the other derived stats are calculated. Update it whenever that math changes.
 
-**1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). Every page
-is in the 1307scout menu and on the home page, grouped as Scouting, Competition day, and Help/admin:
+**1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). The 1307scout
+menu is kept short, ordered by use: Team Database, Our Matches, Alliance View, Scout, then the two
+playoff pages and (staff) the Staff Portal. Every page is on the 1307scout home page; Match Flags and
+How Ratings Work are linked only from there (and from the pages that reference them):
 - `1307scout.html` — landing/command-center page, links out based on your access level.
 - `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
   free account can use a share code here to view a limited slice of data.

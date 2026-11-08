@@ -356,17 +356,14 @@
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
                 <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
-                <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
-                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
-                <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
                 <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+                <div class="dropdown-divider" data-role="team" hidden></div>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
+                <div class="dropdown-divider" data-role="staff" hidden></div>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
             </li>
@@ -579,20 +576,19 @@
 
     document.getElementById("greetingEmail").textContent = user.email;
 
-    // ── Tiles, grouped the same way as the 1307scout menu ────────
+    // ── Tiles: the menu's pages in the same order, then the tools that are only linked from here ──
     function tile(href, icon, title, desc, cls) {
       return { href: href, icon: icon, title: title, desc: desc, cls: cls || "" };
     }
     var groups = [];
     if (isTeam) {
-      groups.push({ label: "Scouting", tiles: [
-        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event"),
+      groups.push({ label: "Most used", tiles: [
         tile("/query.html", "fa-database", "Team Database", "Match history, robot parameters, official results, event rankings, and ratings"),
-        tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing, and who to scout next")
-      ] });
-      groups.push({ label: "Competition day", tiles: [
         tile("/matches.html", "fa-calendar", "Our Matches", "Every match today, with partners, opponents, and win chance"),
         tile("/alliance.html", "fa-columns", "Alliance View", "Compare red and blue alliances, six robots side by side"),
+        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event")
+      ] });
+      groups.push({ label: "Playoffs", tiles: [
         tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Track alliances as they form and rank the teams still available"),
         tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results")
       ] });
@@ -601,9 +597,12 @@
         tile("/scout.html", "fa-search", "View shared data", "Enter a share code from Team 1307")
       ] });
     }
-    groups.push({ label: isStaff ? "Help and admin" : "Help", tiles: [
+    // Not in the menu, to keep it short
+    groups.push({ label: "More tools", tiles: (isTeam ? [
+      tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next")
+    ] : []).concat([
       tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance, and the other numbers are worked out")
-    ].concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, members, and the audit log", "staff-tile")] : []) });
+    ]).concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, members, and the audit log", "staff-tile")] : []) });
 
     var area = document.getElementById("primaryTiles");
     groups.forEach(function (g, i) {

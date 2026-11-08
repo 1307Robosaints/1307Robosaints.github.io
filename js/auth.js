@@ -64,6 +64,9 @@
       var dd = a.closest(".dropdown");
       if (dd) dd.querySelector(".dropdown-toggle").classList.add("active");
     });
+    // 1307scout pages left out of the short menu still highlight it
+    var scoutToggle = document.getElementById("navScout");
+    if (scoutToggle && /\/(flags|ratings)(\.html)?$/.test(here)) scoutToggle.classList.add("active");
   }
 
   function renderNav(session, level) {
