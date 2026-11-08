@@ -34,7 +34,7 @@ Playoff Selection). `vision.js` holds the labels for the vision worker's per-rob
 grade, alliance-grade and win-chance math, and the loader for it, used by `alliance.html`,
 `playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
 to a page (`scout.html`, `query.html`, `flags.html`, `alliance.html`, `matches.html`, `playoffs.html`,
-`bracket.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
+`bracket.html`, `strategy.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -91,6 +91,9 @@ Key tables/functions to know when touching 1307scout:
   can't know: `playoff_tiebreaks` (who won a tied match) and `playoff_lineups` (who sits out on a
   4-team alliance). `events.alliance_size` overrides the 3-or-4 rule for an event.
 - `match_schedule` — hand edits for `matches.html`, laid over the official schedule by `match_key`.
+- `match_strategies` (section 8k) — one `strategy.html` plan per match (`plan` jsonb: line-up
+  override, robot spots, drawn strokes), any team member reads/writes, last save wins. Kept after
+  the match for review; the page locks a played match's plan until someone clicks Edit.
 - `vision_matches` / `vision_robots` (section 8j) — written only by the vision worker in `vision/`
   (Python, runs on a team laptop with the service role key; see `vision/README.md`). Team reads,
   nobody writes through the API. Estimates only: no rating reads them. The per-robot keys in

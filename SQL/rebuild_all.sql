@@ -21,7 +21,7 @@
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
 --  8h  Playoff picks, tiebreaks, line-ups   8i  Match schedule edits
---  8j  Vision data + match flag reviews
+--  8j  Vision data + match flag reviews     8k  Match strategy plans
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 --  17  Check query
@@ -68,6 +68,9 @@
 --
 -- Vision update: section 8j adds vision_matches / vision_robots, written only by the vision
 -- worker (vision/ folder, service role), and match_flag_reviews for the Match Flags page.
+--
+-- Strategy update: section 8k adds match_strategies, the field-map plan for each match drawn on
+-- the Match Strategy page (strategy.html), kept so the team can look back at plans that worked.
 -- =====================================================================
 
 
@@ -1305,6 +1308,40 @@ create policy "team deletes flag reviews" on public.match_flag_reviews for delet
 
 
 -- =====================================================================
+-- 8k. Match strategy plans (strategy.html)
+--
+--    One plan per match: where each robot starts and what was drawn on the
+--    field map. plan is the page's own JSON ({ teams, robots, strokes }); the
+--    database only checks that it's an object of a sane size. Any team member
+--    can make, change or remove a plan, and the last save wins. Plans stay
+--    after the match is played, so the team can review the ones that worked.
+-- =====================================================================
+create table if not exists public.match_strategies (
+  event_id   uuid not null references public.events(id) on delete cascade,
+  match_key  text not null check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  plan       jsonb not null check (jsonb_typeof(plan) = 'object' and octet_length(plan::text) <= 300000),
+  updated_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  primary key (event_id, match_key)
+);
+alter table public.match_strategies enable row level security;
+
+drop policy if exists "team reads match strategies"   on public.match_strategies;
+drop policy if exists "team adds match strategies"    on public.match_strategies;
+drop policy if exists "team edits match strategies"   on public.match_strategies;
+drop policy if exists "team deletes match strategies" on public.match_strategies;
+create policy "team reads match strategies" on public.match_strategies for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "team adds match strategies" on public.match_strategies for insert to authenticated
+  with check (((select public.is_staff()) or (select public.is_student())) and updated_by = auth.uid());
+create policy "team edits match strategies" on public.match_strategies for update to authenticated
+  using ((select public.is_staff()) or (select public.is_student()))
+  with check (updated_by = auth.uid());
+create policy "team deletes match strategies" on public.match_strategies for delete to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+
+
+-- =====================================================================
 -- 9. Team rating (the S-F grade). Plain-language version for users: ratings.html.
 --    Keep that page in step with any change to the math below.
 --
@@ -2385,6 +2422,7 @@ grant select, insert, update, delete on public.playoff_tiebreaks to authenticate
 grant select, insert, update, delete on public.playoff_lineups  to authenticated;
 grant select, insert, update, delete on public.match_schedule   to authenticated;
 grant select, insert, update, delete on public.match_flag_reviews to authenticated;
+grant select, insert, update, delete on public.match_strategies to authenticated;
 grant select on public.vision_matches            to authenticated;
 grant select on public.vision_robots             to authenticated;
 grant select on public.official_matches          to authenticated;
@@ -2747,6 +2785,8 @@ begin
       format('%s line-up: team %s sits out %s for alliance %s', v_verb, v_row ->> 'sits_out', v_row ->> 'match_key', v_row ->> 'alliance_number')
     when 'match_schedule' then
       format('%s schedule: %s, red %s, blue %s', v_verb, v_row ->> 'match_key', v_row ->> 'red_teams', v_row ->> 'blue_teams')
+    when 'match_strategies' then
+      format('%s strategy plan: %s', v_verb, v_row ->> 'match_key')
     when 'match_flag_reviews' then
       format('%s flag review: %s, team %s, %s marked %s', v_verb, v_row ->> 'match_key', v_row ->> 'team_number',
         v_row ->> 'flag_type', v_row ->> 'status')
@@ -2776,6 +2816,7 @@ drop trigger if exists audit_playoff_tiebreaks on public.playoff_tiebreaks;
 drop trigger if exists audit_playoff_lineups on public.playoff_lineups;
 drop trigger if exists audit_match_schedule on public.match_schedule;
 drop trigger if exists audit_flag_reviews   on public.match_flag_reviews;
+drop trigger if exists audit_match_strategies on public.match_strategies;
 drop trigger if exists audit_staff_members  on public.staff_members;
 drop trigger if exists audit_member_grants  on public.member_grants;
 create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
@@ -2789,6 +2830,8 @@ create trigger audit_playoff_tiebreaks after insert or update or delete on publi
 create trigger audit_playoff_lineups after insert or update or delete on public.playoff_lineups for each row execute function public.audit_row_change();
 create trigger audit_match_schedule after insert or update or delete on public.match_schedule   for each row execute function public.audit_row_change();
 create trigger audit_flag_reviews   after insert or update or delete on public.match_flag_reviews for each row execute function public.audit_row_change();
+-- Plans save as people draw, so only making and removing one is logged, not every change
+create trigger audit_match_strategies after insert or delete on public.match_strategies for each row execute function public.audit_row_change();
 create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
 create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
 
@@ -2887,7 +2930,7 @@ with expected(kind, name) as (values
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
   ('table','team_info'), ('table','playoff_picks'), ('table','playoff_tiebreaks'), ('table','playoff_lineups'), ('table','match_schedule'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
-  ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'),
+  ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'), ('table','match_strategies'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'), ('function','official_match_teams_for'), ('function','official_lineups_for'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),

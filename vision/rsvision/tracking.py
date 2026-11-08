@@ -63,7 +63,7 @@ class Observer:
             k.xy.append((float(fx), float(fy)))
             if t_match - self.last_ocr.get(tid, -99) >= self.ocr_every_s:
                 self.last_ocr[tid] = t_match
-                text, c = read_bumper(frame, box)
+                text, c = read_bumper(frame, box, color)
                 hit = match_number(text, self.lineup.get(color, []), c) if text else None
                 if hit:
                     k.votes[hit[0]] += hit[1]

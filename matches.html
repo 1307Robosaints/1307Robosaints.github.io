@@ -129,6 +129,7 @@
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <div class="dropdown-divider" data-role="team" hidden></div>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
@@ -257,6 +258,7 @@
 
     var events = [], eventId = null, team = OUR_TEAM;
     var official = {}, edits = {};      // by match_key
+    var planned = new Set();            // matches with a saved plan on Match Strategy
     var data = null, dataTeams = "";    // ratings data, and which teams it covers
     var editingKey = null, scrolledFor = null;
     try { team = Number(localStorage.getItem(TEAM_KEY)) || OUR_TEAM; } catch (e) {}
@@ -317,9 +319,12 @@
             .select("match_key,red_teams,blue_teams,red_score,blue_score,played_at")
             .eq("event_id", id).order("match_key");
         }),
-        sb.from("match_schedule").select("match_key,red_teams,blue_teams,scheduled_at").eq("event_id", id)
+        sb.from("match_schedule").select("match_key,red_teams,blue_teams,scheduled_at").eq("event_id", id),
+        sb.from("match_strategies").select("match_key").eq("event_id", id)
       ]);
       if (thisLoad !== loadCount) return;   // a different event was chosen meanwhile
+      if (results[2].error) console.warn("Our Matches: plans:", results[2].error.message);   // plan links are optional
+      results = results.slice(0, 2).concat([{ data: results[2].error ? [] : results[2].data }]);
       if (results.some(function (r) { return r.error; })) {
         results.forEach(function (r) { if (r.error) console.warn("Our Matches:", r.error.message); });
         $("loadError").innerHTML = '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Couldn\'t load the schedule. It may be out of date, and it will keep trying.</div>';
@@ -330,6 +335,7 @@
       (results[0].data || []).forEach(function (m) { official[m.match_key] = m; });
       edits = {};
       (results[1].data || []).forEach(function (m) { edits[m.match_key] = m; });
+      planned = new Set((results[2].data || []).map(function (p) { return p.match_key; }));
       await loadRatings(thisLoad);
     }
     // Grades, points and win chance need each team's data. Only refetched when the teams change.
@@ -378,6 +384,14 @@
       return '<a class="btn btn-outline-primary btn-sm" href="/alliance.html?red=' + m.red_teams.join(",") + "&blue=" + m.blue_teams.join(",") +
         '" title="Open this match in the Alliance View"><i class="fa fa-columns"></i> Alliance View</a>';
     }
+    // Upcoming matches can always get a plan; played ones link only to a plan that was saved
+    function planLink(m, played) {
+      var has = planned.has(m.match_key);
+      if (played && !has) return "";
+      return '<a class="btn btn-' + (has ? "" : "outline-") + 'primary btn-sm" href="/strategy.html?event=' + encodeURIComponent(eventId) +
+        "&match=" + encodeURIComponent(m.match_key) + '" title="' + (has ? "Open this match's strategy plan" : "Plan this match on the field map") +
+        '"><i class="fa fa-map-o"></i> ' + (has ? "Plan" : "Make a plan") + "</a>";
+    }
     function editButton(m) {
       return '<button type="button" class="btn btn-outline-secondary btn-sm" data-edit="' + esc(m.match_key) + '" title="Change this match"><i class="fa fa-pencil"></i><span class="sr-only">Edit</span></button>';
     }
@@ -394,7 +408,7 @@
           '<span class="m-src">' + sourceText(m) + "</span>" +
           '<span class="m-chance" title="An estimate from past results, not a prediction. Needs 3+ matches for all six teams.">' +
             (ours == null ? "Win chance needs more data" : "<strong>" + Math.round(ours * 100) + "%</strong> win chance") + "</span>" +
-          '<span class="m-actions">' + allianceLink(m) + editButton(m) + "</span>" +
+          '<span class="m-actions">' + planLink(m, false) + allianceLink(m) + editButton(m) + "</span>" +
         "</div>" +
         '<div class="m-sides">' +
           (usRed ? sideHtml("red", m.red_teams, true) + sideHtml("blue", m.blue_teams, false)
@@ -411,7 +425,7 @@
         "<strong>" + esc(matchLabel(m.match_key)) + "</strong>" +
         '<span class="m-res">' + res + " " + us + "–" + them + "</span>" +
         '<span class="m-who">with ' + partners.join(", ") + " vs " + opponents.join(", ") + "</span>" +
-        '<span class="m-actions">' + allianceLink(m) + editButton(m) + "</span></div>";
+        '<span class="m-actions">' + planLink(m, true) + allianceLink(m) + editButton(m) + "</span></div>";
     }
     function render() {
       if (!data) return;

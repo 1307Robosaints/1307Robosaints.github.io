@@ -41,6 +41,7 @@ How Ratings Work are linked only from there (and from the pages that reference t
   the synced FRC/TBA schedule. Upcoming matches show partners and opponents with grades, scouted
   points and win chance; played ones collapse to a one-line result. Any team member can add a match
   the sync doesn't have or fix a line-up (`match_schedule`), and go back to the official version.
+  Each match links to its Match Strategy plan (played matches only when one was saved).
 - `alliance.html` — Alliance View: compares up to six teams picked on the Team Database, as a row
   of 3 cards per alliance, all on one screen with no scrolling on a widescreen display (phones and
   tablets stack the cards). Picks are kept in that browser (`js/alliance.js`), so each person and
@@ -48,6 +49,18 @@ How Ratings Work are linked only from there (and from the pages that reference t
   which is how every match listing opens a match here. To change which stats are compared, edit
   `STAT_GROUPS` in the page.
   Each alliance also gets a grade and an estimated win chance, explained on `ratings.html`.
+- `strategy.html` — Match Strategy: a field map with each match's teams in their driver stations
+  (from the synced schedule, with Our Matches edits, or typed in by hand). Drag robots to their
+  starting spots and turn them, then draw on the field with a pen or arrows in six colors. The
+  eraser removes the lines it touches; Clear removes all drawing, one color, just arrows or
+  freehand lines, or puts the robots back. Flip turns the map to read from either end. Each plan
+  is saved with its match (`match_strategies`) for the whole team as it's drawn; other screens
+  showing it pick up changes within 15 seconds, and the last save wins. Once the match is played,
+  the plan locks and shows the result beside it, for reviewing what worked (Edit unlocks it), and
+  the match list can be narrowed to matches with a plan. Plans for a custom line-up aren't a real
+  match, so they stay in that browser. `strategy.html?event=<id>&match=qm12` opens one plan, which
+  is how Our Matches links to it. Plans download as a picture. The map is a plain field unless
+  someone picks a field picture, or `FIELD_IMAGE` in the page is set for the season.
 - `playoffs.html` — Playoff Selection: staff enter an event's alliances as they form, and the whole
   team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
   a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in

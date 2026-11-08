@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Match Strategy – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .s-page { max-width: 1200px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .s-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .s-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .s-intro h1::after { display: none; }
+    .s-intro p { font-size: .92rem; max-width: none; margin: 0; }
+    .s-controls { display: flex; align-items: flex-end; gap: .5rem; flex-wrap: wrap; }
+    .s-controls label { display: block; margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); }
+    .s-controls select { width: auto; max-width: 320px; }
+
+    /* Toolbar */
+    .s-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .9rem; padding: .45rem .6rem; background: var(--white); border: 1px solid var(--line); border-bottom: 0; }
+    .s-group { display: flex; align-items: center; gap: .25rem; }
+    .s-group .s-label { font-size: .72rem; font-weight: 600; color: var(--muted); margin-right: .15rem; }
+    .s-tool { border: 1px solid var(--line); background: var(--white); color: var(--ink); padding: .25rem .55rem; font-size: .85rem; line-height: 1.3; cursor: pointer; }
+    .s-tool:hover { background: var(--tint); }
+    .s-tool.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .s-tool:disabled { opacity: .45; cursor: default; background: var(--white); color: var(--muted); border-color: var(--line); }
+    .s-swatch { width: 1.6rem; height: 1.6rem; border: 2px solid #b8c2d3; cursor: pointer; padding: 0; }
+    .s-swatch.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--white) inset; }
+    .s-width { display: inline-block; background: currentColor; border-radius: 4px; width: 1.1rem; vertical-align: middle; }
+    .s-tools .dropdown-item { font-size: .88rem; }
+    .s-dot { display: inline-block; width: .8rem; height: .8rem; border: 1px solid #999; margin-right: .35rem; vertical-align: -1px; }
+
+    /* Field */
+    .s-field-wrap { background: #2b2f36; border: 1px solid var(--line); }
+    #field { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #field.tool-move { cursor: default; }
+    #field.tool-pen, #field.tool-arrow { cursor: crosshair; }
+    #field.tool-erase { cursor: cell; }
+    #field .robot { cursor: grab; }
+    #field.tool-pen .robot, #field.tool-arrow .robot, #field.tool-erase .robot { cursor: inherit; }
+    #field .rot-handle { cursor: alias; }
+    #field.locked .robot { cursor: default; }
+    .s-under { display: flex; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; margin-top: .35rem; }
+    .s-hint { font-size: .8rem; color: var(--muted); margin: 0; }
+    .s-status { font-size: .8rem; color: #1a7f4b; }
+    .s-status.bad { color: #c0392b; }
+    .s-controls .s-planned { padding-bottom: .2rem; }
+    .s-controls .s-planned label { font-size: .82rem; font-weight: 400; color: var(--ink); }
+    .s-played { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; padding: .4rem .7rem; margin-bottom: .5rem; background: var(--tint); border-left: 4px solid var(--blue); font-size: .88rem; }
+    .s-played .btn { font-size: .78rem; padding: .1rem .5rem; }
+
+    /* Line-up */
+    .s-lineup { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .9rem; }
+    @media (max-width: 640px) { .s-lineup { grid-template-columns: 1fr; } }
+    .s-side { background: var(--white); border: 1px solid var(--line); border-top: 3px solid #c0392b; padding: .5rem .7rem .6rem; }
+    .s-side.blue { border-top-color: var(--blue); }
+    .s-side h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #c0392b; margin: 0 0 .35rem; }
+    .s-side.blue h2 { color: var(--blue); }
+    .s-side h2::after { display: none; }
+    .s-slot { display: flex; align-items: center; gap: .5rem; padding: .15rem 0; }
+    .s-slot label { width: 3.6rem; margin: 0; font-size: .78rem; font-weight: 600; color: var(--muted); }
+    .s-slot input { width: 5.5rem; }
+    .s-slot .s-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .86rem; color: var(--muted); }
+    .s-lineup-note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
+    .s-msg { font-size: .85rem; color: #c0392b; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="s-page">
+    <div class="s-intro">
+      <div>
+        <h1>Match Strategy</h1>
+        <p class="text-muted">Set each robot's starting spot and draw the plan. Each plan is saved with its match for the whole team, so you can look back at the ones that worked.</p>
+      </div>
+      <div class="s-controls">
+        <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
+        <div><label for="matchPick">Match</label><select id="matchPick" class="custom-select custom-select-sm"></select></div>
+        <div class="custom-control custom-checkbox s-planned">
+          <input type="checkbox" class="custom-control-input" id="plannedOnly">
+          <label class="custom-control-label" for="plannedOnly">Only matches with a plan</label>
+        </div>
+      </div>
+    </div>
+    <div id="loadError"></div>
+    <div class="s-played" id="matchInfo" hidden></div>
+
+    <!-- Toolbar -->
+    <div class="s-tools" role="toolbar" aria-label="Drawing tools">
+      <div class="s-group" id="toolGroup">
+        <button type="button" class="s-tool" data-tool="move" title="Move and turn robots (V)"><i class="fa fa-arrows"></i> Robots</button>
+        <button type="button" class="s-tool" data-tool="pen" title="Draw freehand (P)"><i class="fa fa-pencil"></i> Pen</button>
+        <button type="button" class="s-tool" data-tool="arrow" title="Draw a straight arrow (A)"><i class="fa fa-long-arrow-right"></i> Arrow</button>
+        <button type="button" class="s-tool" data-tool="erase" title="Erase the lines you touch (E)"><i class="fa fa-eraser"></i> Eraser</button>
+      </div>
+      <div class="s-group" id="colorGroup"><span class="s-label">Color</span></div>
+      <div class="s-group" id="widthGroup"><span class="s-label">Line</span></div>
+      <div class="s-group">
+        <button type="button" class="s-tool" id="undoBtn" title="Undo (Ctrl+Z)"><i class="fa fa-undo"></i> Undo</button>
+        <div class="dropdown">
+          <button type="button" class="s-tool dropdown-toggle" id="clearBtn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-trash-o"></i> Clear</button>
+          <div class="dropdown-menu" aria-labelledby="clearBtn" id="clearMenu"></div>
+        </div>
+      </div>
+      <div class="s-group ml-auto">
+        <button type="button" class="s-tool" id="flipBtn" title="Turn the field around, to see it from the other end"><i class="fa fa-refresh"></i> Flip</button>
+        <button type="button" class="s-tool" id="saveImgBtn" title="Download the plan as a picture"><i class="fa fa-download"></i> Image</button>
+        <div class="dropdown">
+          <button type="button" class="s-tool dropdown-toggle" id="fieldBtn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Use a picture of this season's field"><i class="fa fa-picture-o"></i></button>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="fieldBtn">
+            <button type="button" class="dropdown-item" id="fieldImgPick">Use a field picture…</button>
+            <button type="button" class="dropdown-item" id="fieldImgClear">Plain field</button>
+          </div>
+        </div>
+        <input type="file" id="fieldImgFile" accept="image/*" hidden>
+      </div>
+    </div>
+
+    <div class="s-field-wrap">
+      <svg id="field" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Field map with driver stations and robots"></svg>
+    </div>
+    <div class="s-under"><p class="s-hint" id="hint"></p><span class="s-status" id="saveStatus" role="status"></span></div>
+
+    <!-- Line-up -->
+    <div class="s-lineup">
+      <section class="s-side red"><h2>Red alliance</h2><div id="slotsRed"></div></section>
+      <section class="s-side blue"><h2>Blue alliance</h2><div id="slotsBlue"></div></section>
+    </div>
+    <p class="s-lineup-note" id="lineupNote"></p>
+    <div class="s-msg" id="msg" role="status"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var NS = "http://www.w3.org/2000/svg";
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ── Access gate: team members only ───────────────────────────────
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+
+    // ── Settings ─────────────────────────────────────────────────────
+    // A season's field picture can be set here for everyone (a path in this repo, e.g.
+    // "/img/field-2027.png", drawn over the field area only). Anyone can also pick their own.
+    var FIELD_IMAGE = "";
+    var OUR_TEAM = 1307;
+    var PLAN_PREFIX = "rs_strategy:";       // + event id + ":" + match key: this browser's copy
+    var LAST_KEY = "rs_strategy_last";      // event and match last opened
+    var VIEW_KEY = "rs_strategy_view";      // flip, tool, color, width
+    var FIELD_IMG_KEY = "rs_strategy_field";
+    var UNDO_MAX = 60;
+    var SAVE_DELAY = 800;                    // save this long after the last change
+    var RETRY_MS = 10000;                    // retry a failed save
+    var POLL_MS = 15000;                     // pick up a teammate's changes to the open plan
+    var MATCH_POLL_MS = 60000;               // scores, so a plan locks once its match is played
+    var uid = s.user.id;
+
+    // Field units are inches: the field is about 651" x 317", with a driver-station strip at each end
+    var FW = 651, H = 317, DS = 70, W = FW + DS * 2;
+    var ROBOT = 36;                          // robot with bumpers, inches square
+    var COLORS = [
+      { id: "yellow", hex: "#f5c400", name: "Yellow" },
+      { id: "red", hex: "#e03131", name: "Red" },
+      { id: "blue", hex: "#3b7bff", name: "Blue" },
+      { id: "green", hex: "#2fb344", name: "Green" },
+      { id: "white", hex: "#ffffff", name: "White" },
+      { id: "black", hex: "#111111", name: "Black" }
+    ];
+    var WIDTHS = [{ w: 3, name: "Thin" }, { w: 6, name: "Medium" }, { w: 12, name: "Thick" }];
+    var SLOTS = ["red1", "red2", "red3", "blue1", "blue2", "blue3"];
+
+    // ── State ────────────────────────────────────────────────────────
+    var events = [], eventId = null, matches = [], matchKey = "custom";
+    var teamInfo = {};
+    var plan = null, undo = [];
+    var view = { flip: false, tool: "move", color: "yellow", width: 6 };
+    try { Object.assign(view, JSON.parse(localStorage.getItem(VIEW_KEY)) || {}); } catch (e) {}
+    var fieldImg = FIELD_IMAGE;
+    try { fieldImg = localStorage.getItem(FIELD_IMG_KEY) || FIELD_IMAGE; } catch (e) {}
+    var selected = null;                     // robot slot picked with the Robots tool
+    var drag = null;                         // what the pointer is doing right now
+    var planKeys = new Set();                // matches at this event that have a saved plan
+    var serverStamp = null;                  // updated_at of the plan as last read or saved
+    var unlocked = false;                    // Edit was clicked on a played match's plan
+
+    // ── Geometry ─────────────────────────────────────────────────────
+    // Plans store field coordinates; Flip turns the drawing 180°, so the same plan reads from either end.
+    function toView(x, y) { return view.flip ? [W - x, H - y] : [x, y]; }
+    var fromView = toView;                   // a 180° turn undoes itself
+    function stationBox(slot) {
+      var side = slot.slice(0, -1), n = Number(slot.slice(-1));
+      // Station 1 is on each alliance's left as its drivers face the field
+      var row = side === "red" ? n - 1 : 3 - n;
+      return { x: side === "red" ? 0 : W - DS, y: row * H / 3, w: DS, h: H / 3 };
+    }
+    function startSpot(slot) {
+      var b = stationBox(slot), red = slot[0] === "r";
+      return { x: red ? DS + 60 : W - DS - 60, y: b.y + b.h / 2, a: red ? 0 : 180 };
+    }
+    function svgPoint(e) {
+      var svg = $("field"), pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+      return fromView(p.x, p.y);
+    }
+    function distToSegment(p, a, b) {
+      var dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy;
+      var t = len ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len)) : 0;
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    }
+
+    // ── Plans: one per match, saved to match_strategies for the whole team ──
+    // A custom line-up isn't a real match, so its plan stays in this browser only. A match's plan
+    // is also copied to this browser until the server has it, so nothing is lost offline.
+    function blankPlan() {
+      var robots = {};
+      SLOTS.forEach(function (sl) { robots[sl] = startSpot(sl); });
+      return { teams: null, robots: robots, strokes: [] };   // teams null = the match's line-up
+    }
+    function normalize(p) {
+      var out = Object.assign(blankPlan(), p || {});
+      SLOTS.forEach(function (sl) { if (!out.robots[sl]) out.robots[sl] = startSpot(sl); });
+      return out;
+    }
+    // Nothing drawn, line-up untouched, robots at their stations: no plan worth keeping
+    function isBlank(p) {
+      if (p.strokes.length || p.teams) return false;
+      return SLOTS.every(function (sl) {
+        var a = p.robots[sl], b = startSpot(sl);
+        return a.x === b.x && a.y === b.y && a.a === b.a;
+      });
+    }
+    function shared() { return matchKey !== "custom" && eventId !== "none"; }
+    function localKey() { return PLAN_PREFIX + eventId + ":" + matchKey; }
+    function readLocal() {
+      try {
+        var v = JSON.parse(localStorage.getItem(localKey()));
+        if (!v) return null;
+        return v.robots ? { plan: v, savedAt: null } : v;   // copies from before plans were shared are the bare plan
+      } catch (e) { return null; }
+    }
+    function writeLocal() {
+      try { localStorage.setItem(localKey(), JSON.stringify({ plan: plan, savedAt: new Date().toISOString() })); return true; }
+      catch (e) { return false; }
+    }
+    function dropLocal(key) { try { localStorage.removeItem(key); } catch (e) {} }
+    function setStatus(text, bad) {
+      var n = $("saveStatus");
+      n.textContent = text || "";
+      n.classList.toggle("bad", !!bad);
+    }
+
+    // Saves wait for a pause in changes, then go one at a time, in order
+    var pendingJob = null, saveTimer = null, saving = false;
+    function savePlan() {
+      var kept = writeLocal();
+      if (!shared()) {
+        setStatus(kept ? "Saved in this browser only (custom line-up)" : "This browser won't keep it (storage is full or blocked)", !kept);
+        return;
+      }
+      pendingJob = { event: eventId, match: matchKey, key: localKey(), plan: JSON.parse(JSON.stringify(plan)) };
+      setStatus("Saving…");
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(runSave, SAVE_DELAY);
+    }
+    async function runSave() {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      if (!pendingJob) return;
+      if (saving) { saveTimer = setTimeout(runSave, 300); return; }
+      var job = pendingJob, blank = isBlank(job.plan), r;
+      pendingJob = null;
+      saving = true;
+      if (blank) {
+        r = await sb.from("match_strategies").delete().eq("event_id", job.event).eq("match_key", job.match);
+      } else {
+        r = await sb.from("match_strategies").upsert({
+          event_id: job.event, match_key: job.match, plan: job.plan, updated_by: uid, updated_at: new Date().toISOString()
+        }).select("updated_at").single();
+      }
+      saving = false;
+      var current = job.event === eventId && job.match === matchKey;
+      if (r.error) {
+        console.warn("Strategy:", r.error.message);
+        if (!pendingJob) pendingJob = job;   // try again, unless there's a newer change to send
+        if (current) setStatus("Not saved for the team yet. It's kept in this browser and will keep trying.", true);
+        saveTimer = setTimeout(runSave, RETRY_MS);
+        return;
+      }
+      if (blank) planKeys.delete(job.match); else planKeys.add(job.match);
+      if (!pendingJob || pendingJob.key !== job.key) dropLocal(job.key);   // the server has it now
+      if (current) {
+        serverStamp = blank ? null : r.data.updated_at;
+        if (!pendingJob) setStatus(blank ? "Nothing to save: the plan is empty" : "Saved for the team");
+      }
+      fillMatchPick();
+    }
+    function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) {} }
+    function checkpoint() {
+      undo.push(JSON.stringify(plan));
+      if (undo.length > UNDO_MAX) undo.shift();
+      updateButtons();
+    }
+    function changed() { savePlan(); render(); }
+    function say(t) { $("msg").textContent = t || ""; }
+
+    // A played match's plan is shown as it was, until someone clicks Edit
+    function locked() {
+      var m = currentMatch();
+      return !!(m && isPlayed(m) && !unlocked);
+    }
+
+    // ── Line-up ──────────────────────────────────────────────────────
+    function currentMatch() { return matches.find(function (m) { return m.match_key === matchKey; }) || null; }
+    function matchTeams() {
+      var m = currentMatch();
+      return { red: m ? (m.red_teams || []).slice(0, 3) : [], blue: m ? (m.blue_teams || []).slice(0, 3) : [] };
+    }
+    function teams() { return plan && plan.teams ? plan.teams : matchTeams(); }
+    function teamFor(slot) {
+      var t = teams()[slot.slice(0, -1)] || [];
+      return t[Number(slot.slice(-1)) - 1] || null;
+    }
+    function nameFor(t) { return t ? RSTeams.name(teamInfo[t]) : ""; }
+
+    // ── Drawing the field ────────────────────────────────────────────
+    function el(tag, attrs, text) {
+      var n = document.createElementNS(NS, tag);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function rectView(x, y, w, h) {
+      var a = toView(x, y), b = toView(x + w, y + h);
+      return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), width: Math.abs(w), height: Math.abs(h) };
+    }
+    function drawBase(g) {
+      var f = rectView(DS, 0, FW, H);
+      g.appendChild(el("rect", Object.assign({ fill: "#565c66" }, f)));
+      if (fieldImg) {
+        g.appendChild(el("image", Object.assign({ href: fieldImg, preserveAspectRatio: "none",
+          transform: view.flip ? "rotate(180 " + W / 2 + " " + H / 2 + ")" : "" }, f)));
+      } else {
+        // A plain grid every 4 feet, with the center line and alliance ends marked
+        for (var x = DS + 48; x < W - DS; x += 48) {
+          var a = toView(x, 0);
+          g.appendChild(el("line", { x1: a[0], y1: 0, x2: a[0], y2: H, stroke: "rgba(255,255,255,.08)", "stroke-width": 1 }));
+        }
+        for (var y = 48; y < H; y += 48) {
+          g.appendChild(el("line", { x1: DS, y1: toView(0, y)[1], x2: W - DS, y2: toView(0, y)[1], stroke: "rgba(255,255,255,.08)", "stroke-width": 1 }));
+        }
+        g.appendChild(el("line", { x1: W / 2, y1: 0, x2: W / 2, y2: H, stroke: "rgba(255,255,255,.5)", "stroke-width": 2, "stroke-dasharray": "8 6" }));
+        g.appendChild(el("rect", Object.assign({ fill: "rgba(224,49,49,.14)" }, rectView(DS, 0, 156, H))));
+        g.appendChild(el("rect", Object.assign({ fill: "rgba(59,123,255,.14)" }, rectView(W - DS - 156, 0, 156, H))));
+      }
+      g.appendChild(el("rect", Object.assign({ fill: "none", stroke: "#cfd5de", "stroke-width": 3 }, f)));
+
+      // Driver stations, with the team in each
+      SLOTS.forEach(function (sl) {
+        var b = stationBox(sl), r = rectView(b.x, b.y, b.w, b.h), red = sl[0] === "r";
+        var t = teamFor(sl), name = nameFor(t), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+        g.appendChild(el("rect", Object.assign({ fill: red ? "#8f1d1d" : "#173f8f", stroke: "#2b2f36", "stroke-width": 2 }, r)));
+        g.appendChild(el("text", { x: cx, y: r.y + 15, "text-anchor": "middle", fill: "rgba(255,255,255,.7)", "font-size": 11, "font-family": "sans-serif" },
+          (red ? "Red " : "Blue ") + sl.slice(-1)));
+        g.appendChild(el("text", { x: cx, y: cy + 8, "text-anchor": "middle", fill: "#fff", "font-size": t ? 22 : 16, "font-weight": 700, "font-family": "Chakra Petch, sans-serif" },
+          t ? String(t) : "—"));
+        if (name) {
+          var short = name.length > 11 ? name.slice(0, 10) + "…" : name;
+          var tx = el("text", { x: cx, y: cy + 26, "text-anchor": "middle", fill: "rgba(255,255,255,.8)", "font-size": 10, "font-family": "sans-serif" }, short);
+          tx.appendChild(el("title", {}, name));
+          g.appendChild(tx);
+        }
+      });
+    }
+    function strokePath(st) {
+      return st.pts.map(function (p, i) { var v = toView(p[0], p[1]); return (i ? "L" : "M") + v[0].toFixed(1) + " " + v[1].toFixed(1); }).join("");
+    }
+    function arrowHead(st) {
+      var a = toView(st.pts[0][0], st.pts[0][1]), b = toView(st.pts[st.pts.length - 1][0], st.pts[st.pts.length - 1][1]);
+      var ang = Math.atan2(b[1] - a[1], b[0] - a[0]), len = 10 + st.w * 2.2, spread = 0.45;
+      return [b, [b[0] - len * Math.cos(ang - spread), b[1] - len * Math.sin(ang - spread)],
+                 [b[0] - len * Math.cos(ang + spread), b[1] - len * Math.sin(ang + spread)]]
+        .map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    }
+    function hexFor(id) { return (COLORS.find(function (c) { return c.id === id; }) || COLORS[0]).hex; }
+    function drawStroke(g, st) {
+      var hex = hexFor(st.color);
+      var grp = el("g", {});
+      grp.appendChild(el("path", { d: strokePath(st), fill: "none", stroke: hex, "stroke-width": st.w, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+      if (st.tool === "arrow" && st.pts.length > 1) grp.appendChild(el("polygon", { points: arrowHead(st), fill: hex }));
+      g.appendChild(grp);
+      return grp;
+    }
+    function drawRobot(g, sl) {
+      var r = plan.robots[sl], red = sl[0] === "r", t = teamFor(sl);
+      var v = toView(r.x, r.y), a = r.a + (view.flip ? 180 : 0), half = ROBOT / 2;
+      var grp = el("g", { class: "robot", "data-robot": sl });
+      var body = el("g", { transform: "translate(" + v[0] + " " + v[1] + ") rotate(" + a + ")" });
+      body.appendChild(el("rect", { x: -half, y: -half, width: ROBOT, height: ROBOT, rx: 3,
+        fill: red ? "#e03131" : "#2f6ae0", stroke: sl === selected ? "#f5c400" : "#fff", "stroke-width": sl === selected ? 3 : 1.5,
+        opacity: t ? 1 : 0.55 }));
+      body.appendChild(el("polygon", { points: (half + 9) + ",0 " + (half + 2) + ",-7 " + (half + 2) + ",7", fill: red ? "#ff8a8a" : "#8fb3ff" }));   // front
+      grp.appendChild(body);
+      grp.appendChild(el("text", { x: v[0], y: v[1] + 4, "text-anchor": "middle", fill: "#fff", "font-size": t && t > 9999 ? 9 : 11,
+        "font-weight": 700, "font-family": "sans-serif", "pointer-events": "none" }, t ? String(t) : sl[0].toUpperCase() + sl.slice(-1)));
+      grp.appendChild(el("title", {}, (t ? RSTeams.label(t, teamInfo[t]) : "Empty") + " · " + (red ? "Red " : "Blue ") + sl.slice(-1)));
+      g.appendChild(grp);
+      if (sl === selected && view.tool === "move" && !locked()) {
+        // Drag the handle in front of the robot to turn it
+        var rad = a * Math.PI / 180, hx = v[0] + Math.cos(rad) * (half + 16), hy = v[1] + Math.sin(rad) * (half + 16);
+        g.appendChild(el("line", { x1: v[0], y1: v[1], x2: hx, y2: hy, stroke: "#f5c400", "stroke-width": 2, "pointer-events": "none" }));
+        g.appendChild(el("circle", { class: "rot-handle", "data-rotate": sl, cx: hx, cy: hy, r: 8, fill: "#f5c400", stroke: "#2b2f36", "stroke-width": 2 }));
+      }
+    }
+    var liveStroke = null;                   // the stroke being drawn, redrawn on its own
+    function render() {
+      if (!plan) return;
+      var svg = $("field");
+      svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+      var lock = locked();
+      svg.setAttribute("class", lock ? "locked" : "tool-" + view.tool);
+      svg.textContent = "";
+      var base = el("g", {}), ink = el("g", {}), bots = el("g", {});
+      drawBase(base);
+      plan.strokes.forEach(function (st) { drawStroke(ink, st); });
+      // Lines go under the robots, so a robot can still be grabbed after drawing over it
+      SLOTS.forEach(function (sl) { drawRobot(bots, sl); });
+      svg.appendChild(base); svg.appendChild(ink); svg.appendChild(bots);
+      liveStroke = null;
+      renderLineup();
+      renderClearMenu();
+      renderMatchInfo();
+      updateButtons();
+      $("hint").textContent = lock ? ""
+        : view.tool === "move"
+        ? "Drag a robot to its starting spot. Click it, then drag the yellow handle to turn it."
+        : view.tool === "erase" ? "Drag across a line to erase it. Clear removes everything, one color, or the robots' spots."
+        : view.tool === "arrow" ? "Drag from where a robot goes to where it ends up." : "Draw anywhere on the field.";
+    }
+
+    // ── Toolbar ──────────────────────────────────────────────────────
+    COLORS.forEach(function (c) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "s-swatch"; b.dataset.color = c.id; b.title = c.name;
+      b.style.background = c.hex;
+      b.setAttribute("aria-label", c.name);
+      $("colorGroup").appendChild(b);
+    });
+    WIDTHS.forEach(function (w) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "s-tool"; b.dataset.width = w.w; b.title = w.name;
+      b.innerHTML = '<span class="s-width" style="height:' + Math.max(2, w.w / 2) + 'px"></span><span class="sr-only">' + w.name + "</span>";
+      $("widthGroup").appendChild(b);
+    });
+    function updateButtons() {
+      document.querySelectorAll("[data-tool]").forEach(function (b) { b.classList.toggle("on", b.dataset.tool === view.tool); });
+      document.querySelectorAll("[data-color]").forEach(function (b) { b.classList.toggle("on", b.dataset.color === view.color); });
+      document.querySelectorAll("[data-width]").forEach(function (b) { b.classList.toggle("on", Number(b.dataset.width) === view.width); });
+      var lock = !plan || locked();
+      document.querySelectorAll("#toolGroup button, #colorGroup button, #widthGroup button, #clearBtn")
+        .forEach(function (b) { b.disabled = lock; });
+      document.querySelectorAll("[data-slot]").forEach(function (i) { i.disabled = lock; });
+      $("undoBtn").disabled = lock || !undo.length;
+      $("flipBtn").classList.toggle("on", view.flip);
+    }
+    // The result line above the field, and the Edit button on a played match's plan
+    function resultText(m) {
+      var r = m.red_score, b = m.blue_score;
+      var mine = (m.red_teams || []).indexOf(OUR_TEAM) !== -1 ? "red" : (m.blue_teams || []).indexOf(OUR_TEAM) !== -1 ? "blue" : null;
+      var winner = r > b ? "red" : b > r ? "blue" : null;
+      var score = "Red " + r + " – " + b + " Blue";
+      if (mine) return score + " · " + OUR_TEAM + (winner === mine ? " won" : winner ? " lost" : " tied");
+      return score + " · " + (winner ? (winner === "red" ? "Red" : "Blue") + " won" : "Tie");
+    }
+    function renderMatchInfo() {
+      var m = currentMatch(), box = $("matchInfo");
+      if (!m || !isPlayed(m)) { box.hidden = true; return; }
+      box.hidden = false;
+      box.innerHTML = "<strong>Played:</strong> " + esc(resultText(m)) + ". " +
+        (locked() ? (planKeys.has(matchKey) ? "This is the plan as it was saved." : "No plan was saved for this match.") +
+            ' <button type="button" class="btn btn-outline-secondary btn-sm" id="unlockBtn"><i class="fa fa-pencil"></i> Edit</button>'
+          : "Editing a played match's plan; changes save for the team.");
+    }
+    $("matchInfo").addEventListener("click", function (e) {
+      if (!e.target.closest("#unlockBtn")) return;
+      unlocked = true;
+      render();
+    });
+    function setTool(t) {
+      view.tool = t;
+      if (t !== "move") selected = null;
+      saveView(); render();
+    }
+    function renderClearMenu() {
+      var used = COLORS.filter(function (c) { return plan.strokes.some(function (st) { return st.color === c.id; }); });
+      var html = '<button type="button" class="dropdown-item" data-clear="ink"' + (plan.strokes.length ? "" : " disabled") + ">All drawing</button>";
+      used.forEach(function (c) {
+        html += '<button type="button" class="dropdown-item" data-clear="color:' + c.id + '"><span class="s-dot" style="background:' + c.hex + '"></span>Only ' + c.name.toLowerCase() + " lines</button>";
+      });
+      ["pen", "arrow"].forEach(function (k) {
+        if (plan.strokes.some(function (st) { return st.tool === k; }) && plan.strokes.some(function (st) { return st.tool !== k; })) {
+          html += '<button type="button" class="dropdown-item" data-clear="tool:' + k + '">Only ' + (k === "pen" ? "freehand lines" : "arrows") + "</button>";
+        }
+      });
+      html += '<div class="dropdown-divider"></div>' +
+        '<button type="button" class="dropdown-item" data-clear="robots">Robots back to their stations</button>' +
+        '<button type="button" class="dropdown-item text-danger" data-clear="all">Everything</button>';
+      $("clearMenu").innerHTML = html;
+    }
+    $("clearMenu").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-clear]");
+      if (!b || b.disabled) return;
+      var what = b.dataset.clear;
+      checkpoint();
+      if (what === "ink") plan.strokes = [];
+      else if (what.indexOf("color:") === 0) plan.strokes = plan.strokes.filter(function (st) { return st.color !== what.slice(6); });
+      else if (what.indexOf("tool:") === 0) plan.strokes = plan.strokes.filter(function (st) { return st.tool !== what.slice(5); });
+      else if (what === "robots") plan.robots = blankPlan().robots;
+      else if (what === "all") { var t = plan.teams; plan = blankPlan(); plan.teams = t; }
+      selected = null;
+      changed();
+      say(what === "all" ? "Cleared. Undo brings it back." : "");
+    });
+    document.querySelector(".s-tools").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-tool],[data-color],[data-width]");
+      if (!b) return;
+      if (b.dataset.tool) { setTool(b.dataset.tool); return; }
+      if (b.dataset.color) view.color = b.dataset.color;
+      if (b.dataset.width) view.width = Number(b.dataset.width);
+      if (view.tool === "move" || view.tool === "erase") view.tool = "pen";   // picking a color means drawing next
+      saveView(); render();
+    });
+    function doUndo() {
+      if (!undo.length || locked()) return;
+      plan = JSON.parse(undo.pop());
+      selected = null;
+      changed();
+    }
+    $("undoBtn").addEventListener("click", doUndo);
+    $("flipBtn").addEventListener("click", function () { view.flip = !view.flip; saveView(); render(); });
+
+    // Field picture: kept in this browser; a large one may not fit, and then lasts only this visit
+    $("fieldImgPick").addEventListener("click", function () { $("fieldImgFile").click(); });
+    $("fieldImgFile").addEventListener("change", function () {
+      var file = this.files && this.files[0];
+      this.value = "";
+      if (!file) return;
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        // Shrink it so it fits in browser storage
+        var scale = Math.min(1, 1600 / img.width), c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        fieldImg = c.toDataURL("image/jpeg", 0.85);
+        try { localStorage.setItem(FIELD_IMG_KEY, fieldImg); say(""); }
+        catch (e) { say("That picture is too big to keep in this browser, so it's only used until you leave the page."); }
+        render();
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); say("Couldn't open that picture."); };
+      img.src = url;
+    });
+    $("fieldImgClear").addEventListener("click", function () {
+      try { localStorage.removeItem(FIELD_IMG_KEY); } catch (e) {}
+      fieldImg = FIELD_IMAGE;
+      render();
+    });
+
+    // Download the plan as a PNG
+    $("saveImgBtn").addEventListener("click", function () {
+      var svg = $("field").cloneNode(true);
+      svg.querySelectorAll(".rot-handle").forEach(function (n) { n.remove(); });
+      svg.setAttribute("width", W * 2); svg.setAttribute("height", H * 2);
+      var bg = el("rect", { x: 0, y: 0, width: W, height: H, fill: "#2b2f36" });
+      svg.insertBefore(bg, svg.firstChild);
+      var blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" });
+      var url = URL.createObjectURL(blob), img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas");
+        c.width = W * 2; c.height = H * 2;
+        c.getContext("2d").drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        var a = document.createElement("a");
+        var m = currentMatch();
+        a.download = "strategy-" + (m ? m.match_key : "custom") + ".png";
+        a.href = c.toDataURL("image/png");
+        a.click();
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); say("Couldn't make the picture in this browser."); };
+      img.src = url;
+    });
+
+    // ── Pointer: move robots, draw, erase ────────────────────────────
+    function eraseAt(p) {
+      var r = 6 + view.width;
+      var before = plan.strokes.length;
+      plan.strokes = plan.strokes.filter(function (st) {
+        var reach = r + st.w / 2;
+        if (st.pts.length === 1) return Math.hypot(p[0] - st.pts[0][0], p[1] - st.pts[0][1]) > reach;
+        var pts = st.tool === "arrow" ? [st.pts[0], st.pts[st.pts.length - 1]] : st.pts;
+        for (var i = 1; i < pts.length; i++) if (distToSegment(p, pts[i - 1], pts[i]) <= reach) return false;
+        return true;
+      });
+      return plan.strokes.length !== before;
+    }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    var svgEl = $("field");
+    svgEl.addEventListener("pointerdown", function (e) {
+      if (!plan || e.button > 0 || locked()) return;
+      var p = svgPoint(e), target = e.target;
+      svgEl.setPointerCapture(e.pointerId);
+      if (view.tool === "move") {
+        var rot = target.closest("[data-rotate]"), bot = target.closest("[data-robot]");
+        if (rot) {
+          checkpoint();
+          drag = { kind: "rotate", slot: rot.dataset.rotate, before: undo[undo.length - 1] };
+        } else if (bot) {
+          var sl = bot.dataset.robot, r = plan.robots[sl];
+          checkpoint();
+          selected = sl;
+          drag = { kind: "robot", slot: sl, dx: r.x - p[0], dy: r.y - p[1], before: undo[undo.length - 1] };
+          render();
+        } else if (selected) {
+          selected = null; render();
+        }
+      } else if (view.tool === "erase") {
+        checkpoint();
+        drag = { kind: "erase", before: undo[undo.length - 1] };
+        if (eraseAt(p)) render();
+      } else {
+        checkpoint();
+        var st = { tool: view.tool, color: view.color, w: view.width, pts: [[Math.round(p[0]), Math.round(p[1])]] };
+        plan.strokes.push(st);
+        drag = { kind: "draw", stroke: st };
+        liveStroke = drawStroke(svgEl.children[1], st);
+      }
+      e.preventDefault();
+    });
+    svgEl.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var p = svgPoint(e);
+      if (drag.kind === "robot") {
+        var r = plan.robots[drag.slot];
+        // Robots can sit anywhere on the field, not in the driver stations
+        r.x = Math.round(clamp(p[0] + drag.dx, DS + ROBOT / 2, W - DS - ROBOT / 2));
+        r.y = Math.round(clamp(p[1] + drag.dy, ROBOT / 2, H - ROBOT / 2));
+        render();
+      } else if (drag.kind === "rotate") {
+        var rb = plan.robots[drag.slot];
+        var a = Math.atan2(p[1] - rb.y, p[0] - rb.x) * 180 / Math.PI;
+        if (!e.shiftKey) a = Math.round(a / 15) * 15;   // 15° steps; hold Shift to turn freely
+        rb.a = Math.round(((a % 360) + 360) % 360);
+        render();
+      } else if (drag.kind === "erase") {
+        if (eraseAt(p)) render();
+      } else if (drag.kind === "draw") {
+        var st = drag.stroke, last = st.pts[st.pts.length - 1], q = [Math.round(p[0]), Math.round(p[1])];
+        if (st.tool === "arrow") {
+          st.pts = [st.pts[0], q];
+        } else if (Math.hypot(q[0] - last[0], q[1] - last[1]) >= 2) {
+          st.pts.push(q);
+        }
+        if (liveStroke) liveStroke.remove();
+        liveStroke = drawStroke(svgEl.children[1], st);
+      }
+    });
+    function endDrag() {
+      if (!drag) return;
+      var d = drag;
+      drag = null;
+      if (d.kind === "draw") {
+        var st = d.stroke;
+        // A tap with the arrow tool makes no arrow
+        if (st.tool === "arrow" && (st.pts.length < 2 || Math.hypot(st.pts[1][0] - st.pts[0][0], st.pts[1][1] - st.pts[0][1]) < 6)) {
+          plan.strokes.pop(); undo.pop();
+        }
+      } else if (d.before === JSON.stringify(plan)) {
+        undo.pop();                          // nothing actually changed
+      }
+      changed();
+    }
+    svgEl.addEventListener("pointerup", endDrag);
+    svgEl.addEventListener("pointercancel", endDrag);
+
+    document.addEventListener("keydown", function (e) {
+      if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName) || !plan || locked()) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); doUndo(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var k = e.key.toLowerCase();
+      if (k === "v") setTool("move");
+      else if (k === "p") setTool("pen");
+      else if (k === "a") setTool("arrow");
+      else if (k === "e") setTool("erase");
+      else if (selected && (k === "q" || k === "r")) {   // turn the picked robot 15°
+        checkpoint();
+        var rb = plan.robots[selected];
+        rb.a = (rb.a + (k === "r" ? 15 : -15) + 360) % 360;
+        changed();
+      }
+    });
+
+    // ── Line-up inputs ───────────────────────────────────────────────
+    function slotInputs() {
+      ["red", "blue"].forEach(function (side) {
+        $(side === "red" ? "slotsRed" : "slotsBlue").innerHTML = [1, 2, 3].map(function (n) {
+          var id = "team-" + side + n;
+          return '<div class="s-slot"><label for="' + id + '">' + (side === "red" ? "Red " : "Blue ") + n + "</label>" +
+            '<input type="number" id="' + id + '" class="form-control form-control-sm" data-slot="' + side + n + '" min="1" max="99999" inputmode="numeric">' +
+            '<span class="s-name" data-name="' + side + n + '"></span></div>';
+        }).join("");
+      });
+    }
+    function renderLineup() {
+      SLOTS.forEach(function (sl) {
+        var input = document.querySelector('[data-slot="' + sl + '"]'), t = teamFor(sl);
+        if (document.activeElement !== input) input.value = t || "";
+        var n = document.querySelector('[data-name="' + sl + '"]');
+        n.textContent = nameFor(t);
+        n.title = nameFor(t);
+      });
+      var m = currentMatch();
+      $("lineupNote").innerHTML = plan.teams
+        ? (m ? 'Changed by hand from the match line-up. <a href="#" id="useMatch">Use the match line-up</a>' : "Enter the teams for this plan.")
+        : m ? "From the " + (m.edited ? "edited" : "official") + " schedule. Change a number to plan with different teams."
+        : "Enter the teams for this plan.";
+    }
+    $("lineupNote").addEventListener("click", function (e) {
+      if (e.target.id !== "useMatch" || locked()) return;
+      e.preventDefault();
+      checkpoint();
+      plan.teams = null;
+      changed();
+    });
+    async function lookUpNames(list) {
+      list = list.filter(function (t) { return t && !teamInfo[t]; });
+      if (!list.length) return;
+      var r = await RSTeams.loadInfo(sb, list);
+      Object.assign(teamInfo, r.info);
+      render();
+      if (await RSTeams.fillMissing(sb, list, teamInfo)) render();
+    }
+    function onTeamChange(input) {
+      var sl = input.dataset.slot, side = sl.slice(0, -1), i = Number(sl.slice(-1)) - 1;
+      var v = input.value.trim(), t = v ? Number(v) : null;
+      if (t !== null && !(Number.isInteger(t) && t >= 1 && t <= 99999)) { input.value = teamFor(sl) || ""; say("Team numbers are 1 to 99999."); return; }
+      if (t === teamFor(sl)) return;
+      say("");
+      checkpoint();
+      var cur = teams();
+      plan.teams = { red: [0, 1, 2].map(function (k) { return cur.red[k] || null; }), blue: [0, 1, 2].map(function (k) { return cur.blue[k] || null; }) };
+      plan.teams[side][i] = t;
+      changed();
+      lookUpNames([t]);
+    }
+
+    // ── Events and matches ───────────────────────────────────────────
+    var LEVEL_ORDER = { qm: 0, sf: 1, f: 2 };
+    function parseKey(key) {
+      var m = /^(qm)(\d+)$|^sf(\d+)m(\d+)$|^f1m(\d+)$/.exec(key || "");
+      if (!m) return null;
+      if (m[1]) return { level: "qm", n: +m[2], game: 1 };
+      if (m[3]) return { level: "sf", n: +m[3], game: +m[4] };
+      return { level: "f", n: +m[5], game: 1 };
+    }
+    function matchLabel(key) {
+      var k = parseKey(key);
+      if (!k) return key;
+      return k.level === "qm" ? "Qual " + k.n : k.level === "sf" ? "Playoff " + k.n + (k.game > 1 ? " replay" : "") : "Final " + k.n;
+    }
+    function compareKeys(a, b) {
+      var x = parseKey(a), y = parseKey(b);
+      return LEVEL_ORDER[x.level] - LEVEL_ORDER[y.level] || x.n - y.n || x.game - y.game;
+    }
+    function isPlayed(m) {
+      return m.red_score != null && m.blue_score != null && m.red_score >= 0 && m.blue_score >= 0 &&
+        (m.red_score > 0 || m.blue_score > 0);
+    }
+    var loadCount = 0, byKey = {};
+    function ours(m) { return (m.red_teams || []).concat(m.blue_teams || []).indexOf(OUR_TEAM) !== -1; }
+    // The event's schedule (official, with Our Matches edits laid over it) and which matches have a plan
+    async function fetchMatches() {
+      var thisLoad = ++loadCount, id = eventId;
+      var res = await Promise.all([
+        RSRatings.pagedRows(function () {
+          return sb.from("official_matches_combined")
+            .select("match_key,red_teams,blue_teams,red_score,blue_score").eq("event_id", id).order("match_key");
+        }),
+        sb.from("match_schedule").select("match_key,red_teams,blue_teams").eq("event_id", id),
+        sb.from("match_strategies").select("match_key").eq("event_id", id)
+      ]);
+      if (thisLoad !== loadCount || id !== eventId) return false;
+      if (res.some(function (r) { return r.error; })) {
+        res.forEach(function (r) { if (r.error) console.warn("Strategy:", r.error.message); });
+        $("loadError").innerHTML = '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Couldn\'t load all of this event\'s schedule and plans. It will keep trying.</div>';
+        if (res[0].error && res[1].error && matches.length) return true;   // keep what's already shown
+      } else {
+        $("loadError").innerHTML = "";
+      }
+      byKey = {};
+      (res[0].data || []).forEach(function (m) { byKey[m.match_key] = m; });
+      (res[1].data || []).forEach(function (e) {
+        byKey[e.match_key] = Object.assign({}, byKey[e.match_key] || { match_key: e.match_key }, { red_teams: e.red_teams, blue_teams: e.blue_teams, edited: true });
+      });
+      matches = Object.keys(byKey).filter(parseKey).sort(compareKeys).map(function (k) { return byKey[k]; });
+      if (!res[2].error) {
+        planKeys = new Set((res[2].data || []).map(function (p) { return p.match_key; }));
+        if (pendingJob && pendingJob.event === id) planKeys.add(pendingJob.match);
+      }
+      fillMatchPick();
+      return true;
+    }
+    function fillMatchPick() {
+      var only = $("plannedOnly").checked;
+      var list = matches.filter(function (m) { return !only || planKeys.has(m.match_key) || m.match_key === matchKey; });
+      $("matchPick").innerHTML = '<option value="custom">Custom line-up</option>' + list.map(function (m) {
+        var result = "";
+        if (isPlayed(m)) {
+          var mine = (m.red_teams || []).indexOf(OUR_TEAM) !== -1 ? "red" : ours(m) ? "blue" : null;
+          var us = mine === "red" ? m.red_score : m.blue_score, them = mine === "red" ? m.blue_score : m.red_score;
+          result = mine ? " · " + (us > them ? "W " : us < them ? "L " : "T ") + us + "–" + them : " · " + m.red_score + "–" + m.blue_score;
+        }
+        return '<option value="' + esc(m.match_key) + '">' + (ours(m) ? "★ " : "") + esc(matchLabel(m.match_key)) +
+          " — " + (m.red_teams || []).join(", ") + " vs " + (m.blue_teams || []).join(", ") + result +
+          (planKeys.has(m.match_key) ? " · plan ✓" : "") + "</option>";
+      }).join("");
+      $("matchPick").value = matchKey;
+    }
+    async function loadMatches(preferKey) {
+      if (!(await fetchMatches())) return;
+      // Open the match asked for, else our next match, else the first unplayed one
+      var next = matches.find(function (m) { return ours(m) && !isPlayed(m); }) || matches.find(function (m) { return !isPlayed(m); });
+      matchKey = preferKey && (preferKey === "custom" || byKey[preferKey]) ? preferKey : next ? next.match_key : "custom";
+      fillMatchPick();
+      openPlan();
+      var all = [];
+      matches.forEach(function (m) { all = all.concat(m.red_teams || [], m.blue_teams || []); });
+      lookUpNames(Array.from(new Set(all)));
+    }
+
+    // Opens the current match's plan: the team's saved copy, or this browser's if it's newer (not yet sent)
+    var openCount = 0;
+    async function openPlan() {
+      if (pendingJob) runSave();             // finish saving the plan being left
+      var thisOpen = ++openCount;
+      plan = null; undo = []; selected = null; serverStamp = null; unlocked = false;
+      try { localStorage.setItem(LAST_KEY, JSON.stringify({ event: eventId, match: matchKey })); } catch (e) {}
+      if (eventId !== "none") history.replaceState(null, "", "?event=" + encodeURIComponent(eventId) + "&match=" + encodeURIComponent(matchKey));
+      say("");
+      setStatus(shared() ? "Loading the plan…" : "");
+      updateButtons();
+      var local = readLocal(), server = null, failed = false;
+      if (shared()) {
+        var r = await sb.from("match_strategies").select("plan,updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
+        if (thisOpen !== openCount) return;
+        if (r.error) { console.warn("Strategy:", r.error.message); failed = true; }
+        else server = r.data;
+      }
+      var useLocal = !!local && (!server || (!!local.savedAt && Date.parse(local.savedAt) > Date.parse(server.updated_at)));
+      if (local && !useLocal) dropLocal(localKey());   // a teammate saved since; theirs wins
+      plan = normalize(useLocal ? local.plan : server ? server.plan : null);
+      serverStamp = server ? server.updated_at : null;
+      render();
+      if (useLocal && shared() && !failed) savePlan();   // send what didn't reach the server before
+      else setStatus(failed ? "Couldn't load the team's plan. Showing this browser's copy, if any." :
+        !shared() ? "Custom line-ups are kept in this browser only" : server ? "Saved for the team" : "", failed);
+      var t = teams();
+      lookUpNames((t.red || []).concat(t.blue || []));
+    }
+    $("matchPick").addEventListener("change", function () { matchKey = this.value; openPlan(); });
+    $("eventPick").addEventListener("change", function () { eventId = this.value; loadMatches(null); });
+    $("plannedOnly").addEventListener("change", fillMatchPick);
+
+    // A teammate's changes to the open plan show up here, unless this screen has its own unsaved ones
+    async function pollPlan() {
+      if (document.hidden || !plan || !shared() || drag || pendingJob || saving) return;
+      var open = openCount;
+      var r = await sb.from("match_strategies").select("plan,updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
+      if (r.error || open !== openCount || drag || pendingJob || saving) return;
+      var stamp = r.data ? r.data.updated_at : null;
+      if (stamp === serverStamp) return;
+      plan = normalize(r.data ? r.data.plan : null);
+      serverStamp = stamp;
+      undo = []; selected = null;
+      if (r.data) planKeys.add(matchKey); else planKeys.delete(matchKey);
+      render();
+      fillMatchPick();
+      setStatus("Updated by a teammate");
+    }
+    setInterval(pollPlan, POLL_MS);
+    setInterval(async function () {
+      if (document.hidden || eventId === "none" || drag) return;
+      if (await fetchMatches()) render();   // new scores lock a just-played match's plan
+    }, MATCH_POLL_MS);
+    window.addEventListener("beforeunload", function (e) {
+      if (pendingJob || saving) { runSave(); e.preventDefault(); e.returnValue = ""; }
+    });
+
+    // ── Start ────────────────────────────────────────────────────────
+    slotInputs();
+    document.querySelector(".s-lineup").addEventListener("change", function (e) {
+      if (e.target.dataset.slot) onTeamChange(e.target);
+    });
+    // ?event=<id>&match=qm12 opens a plan directly (Our Matches links here); else the last one opened
+    var params = new URLSearchParams(location.search), last = {};
+    try { last = JSON.parse(localStorage.getItem(LAST_KEY)) || {}; } catch (e) {}
+    if (params.get("event")) last = { event: params.get("event"), match: params.get("match") };
+    var r = await sb.from("events").select("id,name,event_date,is_default_event").order("event_date", { ascending: false, nullsFirst: false });
+    if (r.error) {
+      $("loadError").innerHTML = '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Couldn\'t load the events. Try refreshing the page.</div>';
+      return;
+    }
+    events = r.data || [];
+    if (!events.length) {
+      // No events yet: still usable with a custom line-up
+      $("eventPick").innerHTML = '<option value="none">No events</option>';
+      $("eventPick").disabled = true;
+      eventId = "none";
+      $("matchPick").innerHTML = '<option value="custom">Custom line-up</option>';
+      openPlan();
+      return;
+    }
+    $("eventPick").innerHTML = events.map(function (ev) {
+      return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
+    }).join("");
+    var lastEvent = events.find(function (ev) { return ev.id === last.event; });
+    eventId = (lastEvent || events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    $("eventPick").value = eventId;
+    await loadMatches(lastEvent ? last.match : null);
+  })();
+  </script>
+</body>
+</html>
