@@ -1282,12 +1282,17 @@ create policy "team deletes flag reviews" on public.match_flag_reviews for delet
 --    Not graded (informational only): main FUEL source, volley count, notes, robot photo.
 --    To change the weights, edit the numbers in the (w, c) list near the end of team_ratings().
 --
---    team_official_ratings(): a single-metric ranking (no components to
---    blend) from FRC Events / TBA results — 60% average alliance score
---    (ranked against other teams), 40% win rate (a tie counts as half a win),
---    with each match first weighted by its event's tier (event_tier_weight(),
---    just above the function): 2.0x at the FIRST Championship, 1.5x at a
---    District Championship, 1.0x at a regular qualifier, 0.75x off-season.
+--    team_official_ratings(): a single-metric ranking from FRC Events / TBA
+--    results. The score is the team's OPR: about how many points it adds to
+--    its alliance per match, worked out from qualification matches at each
+--    event (official_opr_fill()), then averaged across events weighted by
+--    matches played and by event tier (event_tier_weight()): 2.0x at the
+--    FIRST Championship, 1.5x at a District Championship, 1.0x at a regular
+--    qualifier, 0.75x off-season. Chosen over the earlier 60% alliance score +
+--    40% win rate blend after testing both on the full 2026 season: OPR
+--    separates a team from its partners, so a weak robot carried by strong
+--    partners (often in playoffs) no longer rates high. Record and average
+--    alliance score are still returned as plain stats.
 -- =====================================================================
 create or replace function public.jnum(d jsonb, k text) returns numeric
 language sql immutable set search_path = '' as $$
@@ -1465,12 +1470,120 @@ language sql immutable set search_path = '' as $$
   end
 $$;
 
--- Official rating: the same shape and grading rule as team_ratings(), but scored purely from
--- synced FRC Events / TBA results — 60% average alliance score (ranked against other teams)
--- plus 40% win rate (a tie counts as half a win), with each match weighted by how strong its
--- event is (event_tier_weight() above). Entirely independent of scouting data.
--- This computes it from every match; pages read the cached copy through team_official_ratings()
--- (the official rating cache, below).
+-- Per-event OPR, one row per team per event, rebuilt by official_opr_fill() during
+-- refresh_official_cache(). Read by official_ratings_compute() and get_shared_scouting().
+-- Row-level security on with no policies: only those functions read it.
+create table if not exists public.official_opr_cache (
+  event_id    uuid not null references public.events(id) on delete cascade,
+  team_number int  not null,
+  opr         double precision not null,   -- points this team adds to its alliance per match
+  matches     int  not null,               -- qualification matches it played at the event
+  primary key (event_id, team_number)
+);
+alter table public.official_opr_cache enable row level security;
+revoke all on public.official_opr_cache from anon, authenticated;
+
+-- OPR for every event at once, from played qualification matches. The same model as
+-- js/opr.js: each alliance's score is the sum of its three robots' numbers, solved by least
+-- squares with a pull of 1 match's worth toward the event's average robot (so a team with few
+-- matches stays near average instead of swinging wildly). Solved by conjugate gradient, which
+-- reaches the exact answer in at most one step per team at the event; every event is solved
+-- side by side, so each step is a few set-based statements over all of them.
+create or replace function public.official_opr_fill() returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_ridge constant double precision := 1;
+  v_tol   constant double precision := 1e-6;   -- squared residual, in points^2
+begin
+  drop table if exists pg_temp.opr_all, pg_temp.opr_app, pg_temp.opr_vec, pg_temp.opr_ev;
+
+  -- One row per alliance in a played qualification match
+  create temp table opr_all on commit drop as
+  select c.event_id, c.match_key || ':r' as aid, c.red_score::double precision as score, c.red_teams as teams
+    from public.official_matches_combined c
+   where c.comp_level = 'qm' and c.red_score is not null and c.blue_score is not null
+  union all
+  select c.event_id, c.match_key || ':b', c.blue_score::double precision, c.blue_teams
+    from public.official_matches_combined c
+   where c.comp_level = 'qm' and c.red_score is not null and c.blue_score is not null;
+
+  -- One row per robot on each alliance
+  create temp table opr_app on commit drop as
+  select distinct a.event_id, a.aid, t.team as team_number
+    from opr_all a cross join lateral unnest(a.teams) as t(team)
+   where t.team is not null and t.team > 0;
+
+  -- Per event: the average robot (alliance average / 3) and the solver's running numbers
+  create temp table opr_ev on commit drop as
+  select event_id, avg(score) / 3 as mu, 0::double precision as rs,
+         0::double precision as rs_new, 0::double precision as pap
+    from opr_all group by event_id;
+
+  -- Per team per event: matches, right-hand side b, answer x, residual r, direction p, A*p
+  create temp table opr_vec on commit drop as
+  select ap.event_id, ap.team_number, count(*)::int as n,
+         sum(a.score) + v_ridge * e.mu as b,
+         e.mu as x, 0::double precision as r, e.mu as p, 0::double precision as ap
+    from opr_app ap
+    join opr_all a on a.event_id = ap.event_id and a.aid = ap.aid
+    join opr_ev e on e.event_id = ap.event_id
+   group by ap.event_id, ap.team_number, e.mu;
+  create unique index on opr_vec (event_id, team_number);
+  create index on opr_app (event_id, aid);
+
+  -- A*p, where A = ridge*I + (robot-alliance matrix)^T (robot-alliance matrix):
+  -- each robot's A*p is ridge*p plus the sum of p over every alliance it was on.
+  -- Run once with p = x (the starting guess) to get the first residual.
+  for i in 0..400 loop
+    with alliance_sum as (
+      select ap.event_id, ap.aid, sum(v.p) as sp
+        from opr_app ap join opr_vec v on v.event_id = ap.event_id and v.team_number = ap.team_number
+       group by ap.event_id, ap.aid
+    ), robot_sum as (
+      select ap.event_id, ap.team_number, sum(s.sp) as m
+        from opr_app ap join alliance_sum s on s.event_id = ap.event_id and s.aid = ap.aid
+       group by ap.event_id, ap.team_number
+    )
+    update opr_vec v set ap = v_ridge * v.p + rsum.m
+      from robot_sum rsum where rsum.event_id = v.event_id and rsum.team_number = v.team_number;
+
+    if i = 0 then
+      -- Starting residual r = b - A*x, first direction p = r
+      update opr_vec set r = b - ap, p = b - ap;
+      update opr_ev e set rs = s.v
+        from (select event_id, sum(r * r) as v from opr_vec group by event_id) s
+       where s.event_id = e.event_id;
+    else
+      update opr_ev e set pap = s.v
+        from (select event_id, sum(p * ap) as v from opr_vec group by event_id) s
+       where s.event_id = e.event_id;
+      -- Step along p; events already solved take a step of 0
+      update opr_vec v set x = v.x + st.alpha * v.p, r = v.r - st.alpha * v.ap
+        from (select event_id, case when rs > v_tol and pap > 0 then rs / pap else 0 end as alpha
+                from opr_ev) st
+       where st.event_id = v.event_id;
+      update opr_ev e set rs_new = s.v
+        from (select event_id, sum(r * r) as v from opr_vec group by event_id) s
+       where s.event_id = e.event_id;
+      update opr_vec v set p = v.r + (case when e.rs > v_tol then e.rs_new / e.rs else 0 end) * v.p
+        from opr_ev e where e.event_id = v.event_id;
+      update opr_ev set rs = rs_new;
+    end if;
+    exit when not exists (select 1 from opr_ev where rs > v_tol);
+  end loop;
+
+  delete from public.official_opr_cache;
+  insert into public.official_opr_cache (event_id, team_number, opr, matches)
+  select event_id, team_number, x, n from opr_vec;
+end $$;
+
+-- Official rating, scored purely from synced FRC Events / TBA results (entirely independent of
+-- scouting data). score = the team's OPR averaged over its events, each event weighted by
+-- qualification matches played x event_tier_weight(). A team needs 3 qualification matches for
+-- an OPR-based score; with fewer, score/grade/percentile are null and pages show it as not rated.
+-- Record and average alliance score (tier-weighted) are plain stats alongside it.
+-- This computes it from the OPR cache; pages read the cached result through
+-- team_official_ratings() (the official rating cache, below).
 create or replace function public.official_ratings_compute()
 returns table (team_number int, matches int, wins int, losses int, ties int,
                avg_alliance_score numeric, score numeric, grade text, percentile numeric)
@@ -1488,27 +1601,34 @@ language sql stable security definer set search_path = '' as $$
       count(*) filter (where m.alliance_score < m.opponent_score)::int as losses,
       count(*) filter (where m.alliance_score = m.opponent_score)::int as ties,
       sum(m.alliance_score * m.w) / sum(m.w) as avg_score,
-      sum((case when m.alliance_score > m.opponent_score then 1
-                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate,
       exists (select 1 from public.test_teams tt where tt.team_number = m.team_number) as is_test
     from weighted m
     group by m.team_number
   ),
-  ranked as (
-    select a.*, (cume_dist() over (partition by a.is_test order by a.avg_score))::numeric as p_score
-    from agg a
+  opr as (
+    select c.team_number,
+           sum(c.opr * public.event_tier_weight(e.event_tier) * c.matches)
+             / sum(public.event_tier_weight(e.event_tier) * c.matches) as rating,
+           sum(c.matches) as qual_matches
+    from public.official_opr_cache c
+    join public.events e on e.id = c.event_id
+    group by c.team_number
   ),
   scored as (
-    select r.*, 100 * (0.6 * r.p_score + 0.4 * r.win_rate) as raw_score
-    from ranked r
+    select a.*, case when o.qual_matches >= 3 then o.rating end as rating
+    from agg a left join opr o on o.team_number = a.team_number
   ),
   pct as (
-    select s.*, (cume_dist() over (partition by s.is_test order by s.raw_score))::numeric as pct
+    -- Test teams and unrated teams are ranked in their own groups
+    select s.*, case when s.rating is not null then
+             (cume_dist() over (partition by s.is_test, s.rating is null order by s.rating))::numeric
+           end as pct
     from scored s
   )
   select p.team_number, p.matches, p.wins, p.losses, p.ties,
-         round(p.avg_score, 2), round(p.raw_score, 1),
-         case when p.pct >= .90 then 'S' when p.pct >= .75 then 'A' when p.pct >= .50 then 'B'
+         round(p.avg_score, 2), round(p.rating::numeric, 1),
+         case when p.pct is null then null
+              when p.pct >= .90 then 'S' when p.pct >= .75 then 'A' when p.pct >= .50 then 'B'
               when p.pct >= .25 then 'C' when p.pct >= .10 then 'D' else 'F' end,
          round(p.pct, 3)
   from pct p;
@@ -1580,6 +1700,7 @@ begin
   end if;
   -- Taken before reading, so a write during the refresh leaves the cache marked out of date
   v_stamp := nextval('public.official_cache_seq');
+  perform public.official_opr_fill();
   delete from public.official_ratings_cache;
   insert into public.official_ratings_cache select * from public.official_ratings_compute();
   delete from public.official_summary_cache;
@@ -1960,7 +2081,8 @@ begin
            round(r.pct, 3) as pct
     from rate_ranked r
   ),
-  -- Official grade, same math as team_official_ratings() (section 9) over scoped_official.
+  -- Official grade, same math as team_official_ratings() (section 9): OPR from the cache for the
+  -- code's events, ranked among the code's teams. Record and average score from scoped_official.
   off_weighted as (
     select o.team_number, o.alliance_score, o.opponent_score,
            public.event_tier_weight(e.event_tier) as w
@@ -1975,29 +2097,37 @@ begin
       count(*) filter (where m.alliance_score < m.opponent_score)::int as losses,
       count(*) filter (where m.alliance_score = m.opponent_score)::int as ties,
       sum(m.alliance_score * m.w) / sum(m.w) as avg_score,
-      sum((case when m.alliance_score > m.opponent_score then 1
-                when m.alliance_score = m.opponent_score then .5 else 0 end) * m.w) / sum(m.w) as win_rate,
       exists (select 1 from public.test_teams tt where tt.team_number = m.team_number) as is_test
     from off_weighted m
     group by m.team_number
   ),
-  off_ranked as (
-    select a.*, (cume_dist() over (partition by a.is_test order by a.avg_score))::numeric as p_score
-    from off_agg a
+  off_opr as (
+    select c.team_number,
+           sum(c.opr * public.event_tier_weight(e.event_tier) * c.matches)
+             / sum(public.event_tier_weight(e.event_tier) * c.matches) as rating,
+           sum(c.matches) as qual_matches
+    from public.official_opr_cache c
+    join public.events e on e.id = c.event_id
+    where (cardinality(v_event_ids) = 0 or c.event_id = any(v_event_ids))
+      and c.team_number in (select a.team_number from off_agg a)
+    group by c.team_number
   ),
   off_scored as (
-    select r.*, 100 * (0.6 * r.p_score + 0.4 * r.win_rate) as raw_score
-    from off_ranked r
+    select a.*, case when o.qual_matches >= 3 then o.rating end as rating
+    from off_agg a left join off_opr o on o.team_number = a.team_number
   ),
   off_pct as (
-    select s.*, (cume_dist() over (partition by s.is_test order by s.raw_score))::numeric as pct
+    select s.*, case when s.rating is not null then
+             (cume_dist() over (partition by s.is_test, s.rating is null order by s.rating))::numeric
+           end as pct
     from off_scored s
   ),
   official_grades as (
     select p.team_number, p.matches,
            round(p.avg_score, 2) as avg_score,
-           round(p.raw_score, 1) as score,
-           case when p.pct >= .90 then 'S' when p.pct >= .75 then 'A' when p.pct >= .50 then 'B'
+           round(p.rating::numeric, 1) as score,
+           case when p.pct is null then null
+                when p.pct >= .90 then 'S' when p.pct >= .75 then 'A' when p.pct >= .50 then 'B'
                 when p.pct >= .25 then 'C' when p.pct >= .10 then 'D' else 'F' end as grade,
            round(p.pct, 3) as pct
     from off_pct p
@@ -2213,6 +2343,7 @@ revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.official_ratings_compute()   from public, anon, authenticated;
 revoke all on function public.official_summary_compute()   from public, anon, authenticated;
 revoke all on function public.refresh_official_cache(boolean) from public, anon, authenticated;
+revoke all on function public.official_opr_fill()          from public, anon, authenticated;
 revoke all on function public.official_cache_touch()       from public, anon, authenticated;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
@@ -2698,6 +2829,7 @@ with expected(kind, name) as (values
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('table','official_ratings_cache'), ('table','official_summary_cache'), ('function','refresh_official_cache'),
+  ('table','official_opr_cache'), ('function','official_opr_fill'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
   ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),

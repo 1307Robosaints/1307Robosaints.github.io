@@ -32,14 +32,16 @@
     }
     return "F";
   }
+  // A rated row has enough matches and a score (an official score needs 3 qualification matches)
+  function isRated(r) { return !!r && r.matches >= MIN_RATED_MATCHES && r.score != null; }
   function ratedRows(rows, testTeams) {
-    return rows.filter(function (r) { return !testTeams.has(r.team_number) && r.matches >= MIN_RATED_MATCHES; });
+    return rows.filter(function (r) { return !testTeams.has(r.team_number) && isRated(r); });
   }
   // Same tiers and rules as query.html: where a team's score ranks among rated teams
   function gradeFor(rows, team, testTeams) {
     if (testTeams.has(team)) return "TEST";
     var me = rows.find(function (r) { return r.team_number === team; });
-    if (!me || me.matches < MIN_RATED_MATCHES) return "NR";
+    if (!isRated(me)) return "NR";
     var rated = ratedRows(rows, testTeams), score = Number(me.score);
     return tierFor(rated.filter(function (r) { return Number(r.score) <= score; }).length / rated.length);
   }
@@ -105,7 +107,7 @@
     return 1 / (1 + Math.exp(-1.702 * gap / Math.sqrt(variance)));
   }
   function hasMatches(t, source, testTeams) {
-    return !testTeams.has(t.team) && !!t[source] && t[source].matches >= MIN_RATED_MATCHES;
+    return !testTeams.has(t.team) && isRated(t[source]);
   }
   // Scouted points are per robot, so the three robots add up, and so do their variances.
   function scoutedChance(red, blue, testTeams) {
@@ -117,16 +119,19 @@
     var variance = all.reduce(function (s, t) { return s + matchVariance(pointsPerMatch(t.rows)); }, 0);
     return chanceFromGap(sum(red) - sum(blue), variance);
   }
-  // Official scores already cover a whole alliance, so each side is the average of its teams.
+  // The official score is OPR (points a robot adds per match), so an alliance's expected score
+  // is its three OPRs added up. Each side's variance is the average variance of its teams'
+  // alliance scores, since those already describe a whole alliance's swing.
   function officialChance(red, blue, testTeams) {
     var all = red.concat(blue);
     if (!all.every(function (t) { return hasMatches(t, "official", testTeams); })) return null;
-    var avg = function (teams, value) {
-      return teams.reduce(function (s, t) { return s + value(t); }, 0) / teams.length;
+    var sum = function (teams) {
+      return teams.reduce(function (s, t) { return s + num(t.official.score); }, 0);
     };
-    var score = function (t) { return num(t.official.avg_alliance_score); };
-    var spread = function (t) { return matchVariance(t.officialScores); };
-    return chanceFromGap(avg(red, score) - avg(blue, score), avg(red, spread) + avg(blue, spread));
+    var avgSpread = function (teams) {
+      return teams.reduce(function (s, t) { return s + matchVariance(t.officialScores); }, 0) / teams.length;
+    };
+    return chanceFromGap(sum(red) - sum(blue), avgSpread(red) + avgSpread(blue));
   }
   // Red's chance overall and from each source, or null until all six teams have data.
   // red and blue are team objects from load().team().

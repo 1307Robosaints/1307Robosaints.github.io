@@ -336,7 +336,7 @@
       { group: "Ratings", key: "scouting", label: "Scouting", html: true, title: "Scouting rating score, all season. Teams with under 3 scouted matches aren't rated.",
         value: function (t) { return t.gradeScout === "NR" ? null : num(t.scout.score); },
         show: function (v, t) { return gradeHtml(t.gradeScout, v); } },
-      { group: "Ratings", key: "official", label: "Official", html: true, title: "Official rating score, all season. Teams with under 3 official matches aren't rated.",
+      { group: "Ratings", key: "official", label: "Official", html: true, title: "Official rating: OPR, the points a team adds to its alliance per match, all season. Teams with under 3 qualification matches aren't rated.",
         value: function (t) { return t.gradeOfficial === "NR" ? null : num(t.official.score); },
         show: function (v, t) { return gradeHtml(t.gradeOfficial, v); } },
 

@@ -120,7 +120,7 @@
         <thead><tr><th></th><th>Scouting rating</th><th>Official rating</th></tr></thead>
         <tbody>
           <tr><th>Built from</th><td>Match and pit entries from our own scouts</td><td>Match results synced from FRC Events and The Blue Alliance</td></tr>
-          <tr><th>Measures</th><td>What this robot did on its own</td><td>How its alliances did, partners included</td></tr>
+          <tr><th>Measures</th><td>What this robot did on its own</td><td>About how many points this team adds to its alliance per match (OPR)</td></tr>
           <tr><th>Seasons</th><td>This season's form only (2026 REBUILT)</td><td>Every synced match</td></tr>
           <tr><th>Updates</th><td>As soon as an entry is saved</td><td>Within about a minute of a sync</td></tr>
         </tbody>
@@ -133,8 +133,9 @@
 
       <h2>Letter grades</h2>
       <p>
-        Both ratings turn into a letter the same way. Each team gets a score from 0 to 100, then
-        the grade comes from the share of rated teams with the same score or lower. A grade is a
+        Both ratings turn into a letter the same way. Each team gets a score (0 to 100 for
+        scouting, points per match for official), then the grade comes from the share of rated
+        teams with the same score or lower. A grade is a
         ranking among the teams in our database, not a measure against all of FRC.
       </p>
       <div class="table-responsive"><table class="table r-table">
@@ -146,7 +147,7 @@
           <tr><td><span class="chip" style="background:#6c3fb5;">C</span></td><td>25% to 50%</td><td>Next 25%</td></tr>
           <tr><td><span class="chip" style="background:#e67e22;">D</span></td><td>10% to 25%</td><td>Next 15%</td></tr>
           <tr><td><span class="chip" style="background:#c0392b;">F</span></td><td>Under 10%</td><td>Bottom 10%</td></tr>
-          <tr><td><span class="chip" style="background:#9a9a9c;">NR</span></td><td colspan="2">Not rated: fewer than 3 matches of that kind of data</td></tr>
+          <tr><td><span class="chip" style="background:#9a9a9c;">NR</span></td><td colspan="2">Not rated: fewer than 3 matches of that kind of data (for the official rating, 3 qualification matches)</td></tr>
           <tr><td><span class="chip" style="background:#17a2b8;">T</span></td><td colspan="2">Test team: tagged by staff and left out of the grading</td></tr>
         </tbody>
       </table></div>
@@ -212,12 +213,17 @@
         <div class="calc">(32×80 + 16×60 + 16×90 + 11×70 + 9×50 + 5×100) ÷ 89 = <strong>75.1</strong></div>
       </div>
 
-      <h2>The official rating</h2>
-      <p>A simpler score, from results only:</p>
-      <div class="calc block">Score = 60% × average alliance score (ranked) + 40% × win rate</div>
+      <h2 id="official-rating">The official rating</h2>
       <p>
-        For this rating a tie counts as half a win. Each match is also weighted by the tier staff
-        set on its event, because results against a tougher field say more about a team:
+        One number, from results only: the team's <a href="#opr">OPR</a>, which estimates how many
+        points it adds to its alliance each match. An OPR of 64 means "about 64 points per match,
+        on top of its partners". It's worked out from the qualification matches at each event, then
+        averaged across the team's events:
+      </p>
+      <div class="calc block">Score = average of the team's event OPRs, each weighted by matches played × event tier</div>
+      <p>
+        Results against a tougher field say more about a team, so each event also counts by the
+        tier staff set on it:
       </p>
       <div class="table-responsive"><table class="table r-table">
         <thead><tr><th>Event tier</th><th>Match weight</th></tr></thead>
@@ -229,11 +235,21 @@
         </tbody>
       </table></div>
       <div class="example">
-        <strong>Example.</strong> A team won 5 of 10 matches at a qualifier and 4 of 5 at a District Championship.
-        <div class="calc">Win rate = (5×1 + 4×1.5) ÷ (10×1 + 5×1.5) = 11 ÷ 17.5 = <strong>62.86%</strong></div>
-        If its average alliance score ranks at 70%:
-        <div class="calc">Score = 0.6×70 + 0.4×62.86 = <strong>67.1</strong></div>
+        <strong>Example.</strong> A team had an OPR of 60 over 12 matches at a qualifier, and 80 over 10 matches at a District Championship.
+        <div class="calc">Score = (60×12×1 + 80×10×1.5) ÷ (12×1 + 10×1.5) = 1920 ÷ 27 = <strong>71.1</strong> points per match</div>
       </div>
+      <p>
+        Playoff matches aren't used, and neither is win rate. Both depend heavily on partners: a
+        robot picked onto a dominant alliance wins and scores a lot without doing much itself.
+        Record and average alliance score are still shown next to the rating as plain stats.
+      </p>
+      <p>
+        <strong>Why OPR.</strong> This replaced an earlier score (60% average alliance score + 40%
+        win rate) after both were tested on the full 2026 season. Built from matches before the FIRST
+        Championship, OPR picked the winner of 76% of Championship qualification matches, against 71%
+        for the old score, and its grades matched an independent rating (Statbotics EPA) far more
+        often. Adjusting OPR for how high each event or week scored was tested too, and made it worse.
+      </p>
 
       <h2>Reading ratings carefully</h2>
       <ul>
@@ -241,7 +257,7 @@
         <li><strong>Three matches is a low bar.</strong> A rated team may still have very little data behind it, so check the match counts.</li>
         <li><strong>A match scouted twice counts once.</strong> When several scouts enter the same team, event and match number, the rating averages their entries into one match, and if they disagree on something like "disabled", it counts as half. Entries with no match number can't be paired, so each counts on its own. Tables that say Entries, and the stats on the Alliance View, still use every entry, so they can differ slightly from the rating.</li>
         <li><strong>Scouted numbers are estimates.</strong> FUEL counts are approximate, and accuracy is a scout's judgment.</li>
-        <li><strong>Official results include partners.</strong> A strong team on weak alliances can look worse than it is, and the reverse is also true.</li>
+        <li><strong>OPR separates teams from partners, but not perfectly.</strong> With few matches it can't tell a strong robot from a lucky schedule, and it can't see defense. Check the match count beside the grade.</li>
         <li><strong>Capability scores describe a robot's design,</strong> not how well it performs. A swerve drive scores higher than tank whether or not it's driven well.</li>
         <li><strong>Share codes are ranked differently.</strong> A guest's grades are worked out among only the teams in that share code, so they can differ from the Team Database.</li>
         <li><strong>Test teams don't affect real teams.</strong> They're ranked in their own group at every step, so a dummy team can't move anyone's score or grade. Teams with fewer than 3 matches are not graded, but they are still counted when each part is ranked.</li>
@@ -267,8 +283,8 @@
       <div class="table-responsive"><table class="table r-table">
         <thead><tr><th></th><th>Scouted</th><th>Official</th></tr></thead>
         <tbody>
-          <tr><th>Expected score</th><td>The three robots' Avg pts / match, added up</td><td>The average of the three teams' Avg alliance score</td></tr>
-          <tr><th>Uncertainty</th><td>The three robots' variances, added up</td><td>The average of the three teams' variances</td></tr>
+          <tr><th>Expected score</th><td>The three robots' Avg pts / match, added up</td><td>The three teams' OPRs (official rating scores), added up</td></tr>
+          <tr><th>Uncertainty</th><td>The three robots' variances, added up</td><td>The average of the three teams' alliance-score variances</td></tr>
         </tbody>
       </table></div>
       <p>
@@ -291,7 +307,7 @@
         <li><strong>It hasn't been tested against real results yet,</strong> so a 70% isn't proven to mean winning 7 times out of 10.</li>
         <li><strong>It only knows past scores.</strong> It can't see defense, strategy, match-ups, penalties or a robot that was just repaired.</li>
         <li><strong>It treats robots as independent,</strong> so it misses alliances that work especially well or badly together.</li>
-        <li><strong>Scouted points are estimates</strong> and leave out penalty points, and official scores include past partners.</li>
+        <li><strong>Scouted points are estimates</strong> and leave out penalty points, and OPR is still an estimate from alliance totals.</li>
       </ul>
 
       <h2 id="playoff-selection">Playoff Selection ranking</h2>
@@ -317,7 +333,7 @@
         <li><strong>Every score field gets one.</strong> Each number FRC Events or TBA reports for an alliance, such as FUEL counts or foul points, gets its own estimate, alongside the total score.</li>
         <li><strong>Steady early in an event.</strong> With only a few matches there's no unique answer, so each estimate is pulled gently toward the event average. The pull is worth about one match, and it fades as matches are played.</li>
         <li><strong>Needs 3 matches.</strong> A team with fewer qualification matches at the event gets no estimate.</li>
-        <li><strong>Per event, never blended.</strong> The Team Database shows one column per event, with the team's rank there. Playoff Selection shows the current event's total. OPR isn't part of either rating.</li>
+        <li><strong>Per event, then the official rating.</strong> The Team Database shows one column per event, with the team's rank there, and Playoff Selection shows the current event's total. The official rating is the total-score OPR averaged over the team's events, as described <a href="#official-rating">above</a>. It never touches the scouting rating.</li>
         <li><strong>Limits.</strong> It can't tell a strong robot from a lucky schedule after only a few matches. Defense and partners still affect it.</li>
       </ul>
 
@@ -383,7 +399,8 @@
           <tr><td>Estimated contribution (OPR)</td><td>One team's share of each alliance number, explained <a href="#opr">above</a>.</td></tr>
           <tr><td>Climb rate</td><td>Share of entries with a teleop TOWER level other than None.</td></tr>
           <tr><td>Usual role / Main FUEL source</td><td>The most common answer, with how often it was chosen.</td></tr>
-          <tr><td>Combined scouted pts</td><td>On the Alliance View, the sum of each team's Avg pts / match. Official scores aren't added up, because each one already covers a whole alliance.</td></tr>
+          <tr><td>Combined scouted pts</td><td>On the Alliance View, the sum of each team's Avg pts / match.</td></tr>
+          <tr><td>OPR (pts added / match)</td><td>On the Alliance View and Team Database, the team's official rating score, explained <a href="#official-rating">above</a>.</td></tr>
         </tbody>
       </table></div>
 

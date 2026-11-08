@@ -122,9 +122,11 @@ Key tables/functions to know when touching 1307scout:
   than 1000 rows now, so pages read them with `.range()` paging. `match_key` format: `qm12` (qualification 12),
   `sf8m1` (playoff set 8 match 1), `f1m2` (finals match 2).
 - Team ratings (explained for users on `ratings.html`, which must change with the math): there are **two independent ratings** kept deliberately separate — one derived
-  from human scouting data, one from synced official results (`team_official_ratings()`,
-  weighted per-match by the event's `event_tier` via `event_tier_weight()` — districts/
-  championships count more than a regular qualifier, off-season counts a little less). See the
+  from human scouting data, one from synced official results (`team_official_ratings()`: the
+  team's qualification-match OPR per event, from `official_opr_fill()` into `official_opr_cache`,
+  averaged with each event weighted by matches × `event_tier_weight()` — districts/
+  championships count more than a regular qualifier, off-season counts a little less; its
+  `score` column is that OPR in points per match, null under 3 qual matches). See the
   comment on `team_ratings()`/section 9 in `rebuild_all.sql` for the reasoning before changing
   either rating.
 - `official-sync` is a separate Supabase Edge Function (not in this repo) that needs its own

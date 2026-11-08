@@ -769,10 +769,12 @@
     }
 
     function gTierFor(block) {
-      if (!block || (block.matches || 0) < G_MIN_RATED_MATCHES) {
+      // No grade means no score yet (an official score needs 3 qualification matches)
+      if (!block || (block.matches || 0) < G_MIN_RATED_MATCHES || !block.grade) {
         return { tier: "NR", matches: block ? block.matches : 0, avg: null, pct: null };
       }
-      return { tier: block.grade, matches: block.matches, avg: block.avg_points != null ? block.avg_points : block.avg_score, pct: block.pct };
+      return { tier: block.grade, matches: block.matches, avg: block.avg_points != null ? block.avg_points : block.avg_score,
+               score: block.score, pct: block.pct };
     }
     function gEvName(id) { var e = gEventsById[id]; return e ? e.name : "—"; }
 
@@ -943,9 +945,10 @@
           '<div class="rating-meta">' + meta + '</div>' +
         '</div>';
       }
-      function basis(label, unit, g) {
+      // value: what the grade is built on, e.g. "avg 41 pts"
+      function basis(label, value, g) {
         if (g.tier === "NR") return label + ": needs at least " + G_MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far).";
-        return label + ": avg " + g.avg + " " + unit + ".";
+        return label + ": " + value + ".";
       }
 
       get("gDetail").innerHTML =
@@ -954,8 +957,8 @@
           logoHtml +
           '<div>' +
             "<h2>" + team + (t.team_name ? ' <small class="text-muted">' + esc(t.team_name) + '</small>' : "") + "</h2>" +
-            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis("Scouting", "pts", gScout)) + "</p>" +
-            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis("Official", "alliance pts", gOff)) + "</p>" +
+            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis("Scouting", "avg " + gScout.avg + " pts", gScout)) + "</p>" +
+            '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basis("Official", "adds about " + gOff.score + " pts per match (OPR)", gOff)) + "</p>" +
             '<p class="mb-0" style="font-size:.85rem;"><a href="/ratings.html">How ratings work</a></p>' +
           '</div>' +
         "</div>" +

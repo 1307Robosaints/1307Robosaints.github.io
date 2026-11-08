@@ -350,7 +350,9 @@
           value: function (t) { return t.official && t.official.matches ? t.official.wins / t.official.matches : null; },
           show: function (v, t) { return t.official.wins + "-" + t.official.losses + "-" + t.official.ties; } },
         { label: "Avg alliance score", show: oneDecimal,
-          value: function (t) { return t.official ? num(t.official.avg_alliance_score) : null; } }
+          value: function (t) { return t.official ? num(t.official.avg_alliance_score) : null; } },
+        { label: "OPR (pts added / match)", show: oneDecimal,
+          value: function (t) { return t.official ? num(t.official.score) : null; } }
       ] },
       { title: "Robot", col: 1, stats: [
         { label: "Drivetrain", text: pitValue("drivetrain") },

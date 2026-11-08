@@ -569,6 +569,7 @@
     // Grades used for sort/filter, ranked worst-to-best. TEST sits below NR so test teams
     // (shown only when the checkbox is on) don't clutter the top of a grade-sorted list.
     var TIER_RANK = { TEST: -1, NR: 0, F: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
+    function gradeSortValue(g) { return g.pct != null ? 1 + g.pct : TIER_RANK[g.tier]; }
 
     // Sort fields default to the direction that puts the most useful rows first:
     // ascending for team #/name, descending (best/most first) for everything else.
@@ -616,8 +617,9 @@
           case "name": va = a.name.toLowerCase(); vb = b.name.toLowerCase(); break;
           case "scouted": va = a.scouted; vb = b.scouted; break;
           case "official": va = a.official; vb = b.official; break;
-          case "scoutGrade": va = TIER_RANK[a.gScout.tier]; vb = TIER_RANK[b.gScout.tier]; break;
-          case "offGrade": va = TIER_RANK[a.gOff.tier]; vb = TIER_RANK[b.gOff.tier]; break;
+          // Rated teams by percentile (so the best S comes first), then not rated, then test teams
+          case "scoutGrade": va = gradeSortValue(a.gScout); vb = gradeSortValue(b.gScout); break;
+          case "offGrade": va = gradeSortValue(a.gOff); vb = gradeSortValue(b.gOff); break;
           case "pit": va = a.hasPit ? 1 : 0; vb = b.hasPit ? 1 : 0; break;
           default: va = a.team; vb = b.team;
         }
@@ -709,12 +711,13 @@
 
     function officialGradeFor(team) {
       var pool = officialRatings.filter(function (r) { return !testTeamSet.has(r.team_number); });
-      var rated = pool.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
+      // The official score is OPR, which needs 3 qualification matches; without it a team isn't rated
+      var rated = pool.filter(function (r) { return r.matches >= MIN_RATED_MATCHES && r.score != null; });
       var me = officialRatings.find(function (r) { return r.team_number === team; });
       if (testTeamSet.has(team)) {
         return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
       }
-      if (!me || me.matches < MIN_RATED_MATCHES) {
+      if (!me || me.matches < MIN_RATED_MATCHES || me.score == null) {
         return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
       }
       var avg = Number(me.avg_alliance_score);
@@ -725,7 +728,7 @@
       for (var i = 0; i < CUTS.length; i++) {
         if (pct >= CUTS[i][0]) { tier = CUTS[i][1]; break; }
       }
-      return { tier: tier, matches: me.matches, avg: avg, n: rated.length, pct: pct };
+      return { tier: tier, matches: me.matches, avg: avg, opr: score, n: rated.length, pct: pct };
     }
 
     function ratingBox(label, g) {
@@ -741,14 +744,15 @@
       '</div>';
     }
 
-    function basisText(label, unit, g) {
+    // value: what the grade is built on, e.g. "avg 41 pts" or "adds about 64 pts per match (OPR)"
+    function basisText(label, value, g) {
       if (g.tier === "TEST") {
         return label + ": tagged as a test team — excluded from the rated-teams comparison.";
       }
       if (g.tier === "NR") {
         return label + ": needs at least " + MIN_RATED_MATCHES + " matches to be rated (" + g.matches + " so far).";
       }
-      return label + ": avg " + g.avg + " " + unit + ". Rated at or above " + Math.round(g.pct * 100) + "% of " + g.n + " rated teams.";
+      return label + ": " + value + ". Rated at or above " + Math.round(g.pct * 100) + "% of " + g.n + " rated teams.";
     }
 
     // ── Team detail ──────────────────────────────────────────────────
@@ -995,7 +999,7 @@
     ];
     // Position among rated teams, using the same pool as the letter grade
     function rankText(rows, team) {
-      var pool = rows.filter(function (r) { return !testTeamSet.has(r.team_number) && r.matches >= MIN_RATED_MATCHES; });
+      var pool = rows.filter(function (r) { return !testTeamSet.has(r.team_number) && r.matches >= MIN_RATED_MATCHES && r.score != null; });
       var me = pool.find(function (r) { return r.team_number === team; });
       if (!me) return null;
       var ahead = pool.filter(function (r) { return Number(r.score) > Number(me.score); }).length;
@@ -1007,7 +1011,7 @@
       var tiles = [];
       if (me) tiles.push(["Scouting score (0–100)", me.score]);
       if (rankText(summary, team)) tiles.push(["Scouting rank", rankText(summary, team)]);
-      if (off) tiles.push(["Official score (0–100)", off.score]);
+      if (off && off.score != null) tiles.push(["Official OPR (pts added / match)", off.score]);
       if (rankText(officialRatings, team)) tiles.push(["Official rank", rankText(officialRatings, team)]);
       var parts = me && me.components ? me.components : {};
       var rows = RATING_PARTS.filter(function (p) { return parts[p[0]] != null; }).map(function (p) {
@@ -1307,8 +1311,8 @@
         tiles.push([f.label, Math.round(100 * yes / known.length) + "%"]);
       });
 
-      var basisScout = basisText("Scouting", "pts", gScout);
-      var basisOff = basisText("Official", "alliance pts", gOff);
+      var basisScout = basisText("Scouting", "avg " + gScout.avg + " pts", gScout);
+      var basisOff = basisText("Official", "adds about " + gOff.opr + " pts per match (OPR)", gOff);
 
       // Robot parameters from the latest pit entry
       var paramsHtml;
