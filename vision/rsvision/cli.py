@@ -86,6 +86,24 @@ def cmd_frames(a):
     print(f"Saved {n} frames to {out}")
 
 
+def cmd_prelabel(a):
+    """Draft bumper labels for the saved frames, to review in Roboflow instead of drawing them."""
+    from . import prelabel
+    images = a.images or config.WORK / "dataset" / "images"
+    if not os.path.isdir(images):
+        raise SystemExit(f"No frames at {images}. Save some with the frames command first.")
+    if a.model:
+        finder = prelabel.Yolo(a.model, conf=a.conf or 0.25)
+    else:
+        try:
+            finder = prelabel.Dino(a.dino, a.prompt, conf=a.conf or 0.2)
+        except ImportError:
+            raise SystemExit('Grounding DINO needs transformers: pip install "transformers>=4.45,<5"')
+    done, empty, skipped = prelabel.run(images, finder, overwrite=a.overwrite, preview=a.preview)
+    print(f"Labeled {done} frames. No robots found in {empty} (listed in no_robots.txt). "
+          f"Kept {skipped} existing label files.")
+
+
 def cmd_train(a):
     from ultralytics import YOLO
     model = YOLO(a.model)
@@ -155,6 +173,16 @@ def main(argv=None):
     s.add_argument("--every", type=float, default=2.0, help="seconds between frames")
     s.add_argument("--out")
     s.set_defaults(fn=cmd_frames)
+
+    s = sub.add_parser("prelabel", help="draft bumper labels for saved frames, to review in Roboflow")
+    s.add_argument("--images", help="frames folder (default work/dataset/images)")
+    s.add_argument("--model", help="a trained bumper model to use instead of Grounding DINO")
+    s.add_argument("--dino", default="IDEA-Research/grounding-dino-base", help="Grounding DINO model id")
+    s.add_argument("--prompt", default="robot.", help="what Grounding DINO looks for")
+    s.add_argument("--conf", type=float, help="lowest confidence kept (0.2 DINO, 0.25 trained model)")
+    s.add_argument("--overwrite", action="store_true", help="replace existing label files")
+    s.add_argument("--preview", help="also save frames with the boxes drawn to this folder")
+    s.set_defaults(fn=cmd_prelabel)
 
     s = sub.add_parser("train", help="train the bumper detector")
     s.add_argument("--data", required=True, help="data.yaml from the labeling export")
