@@ -19,7 +19,14 @@ The worker runs on a team laptop (built for the laptop RTX 4070, 8 GB) and never
    partial read still picks the right one.
 3. **Who's who.** Broken tracks are joined when a robot could have driven from one to the
    next. Each joined track takes the team its number reads point to. A track never read is
-   assigned only when exactly one team of that color is left.
+   then matched by **look**: tracks whose numbers read clearly save the robot's appearance (a
+   ResNet-18 image vector, taken at four rotations so heading doesn't matter) to a per-season
+   gallery, `work/appearance/<season>.npz`. An unread track takes the alliance team it looks
+   most like, if the match is close and clearly ahead of the next team. Looks from the same
+   event count first, since robots change between events. Last, a track still unassigned
+   takes the only team of its color left. Each match's tracks are kept in `work/tracks/`,
+   and `run` finishes with a second pass over its partial matches, so a match run early still
+   benefits from looks learned in later ones.
 4. **Numbers.** These come from the field positions. Every rise in an alliance's score is split
    between its robots, weighted by whether each was in its own alliance zone just before. The
    split is then scaled to the official FUEL points: the score minus per-robot TOWER points and
@@ -35,10 +42,11 @@ What ends up in `vision_robots.data` (labels in `js/vision.js`, explained on `ra
 | `own_zone_s`, `neutral_zone_s`, `opp_zone_s` | Seconds tracked in each zone |
 | `still_s`, `longest_still_s` | Seconds stopped in teleop before endgame, total and longest |
 | `contacts` | Separate close contacts with an opponent |
-| `visible_share`, `id_share` | Share of the match tracked, and share identified by number |
+| `visible_share`, `id_share`, `look_share` | Share of the match tracked, and shares identified by number and by look |
 
-`confidence` is the share tracked, discounted by up to half when the robot was never read by
-number. The website treats anything under 0.5 as low confidence.
+`confidence` is the share tracked, discounted by up to half when the robot wasn't identified;
+identifying by look counts 0.6 as much as by number. The website treats anything under 0.5
+as low confidence.
 
 ## Setup (once)
 
@@ -76,8 +84,15 @@ For a step-by-step version with a check after each step and fixes for common pro
 4. Process: `python run.py run --event 2026nhrr` for every played qualification match, or
    `--matches qm12,qm13` for some. Add `--scoreboard-only` for Phase 1 alone, `--no-upload` to
    test, and `--debug` to keep every read in `work\debug\`.
+5. Later, after more matches or events have been run, `python run.py identify --event 2026nhrr`
+   redoes who's who for every saved match with the robot looks learned since. It needs no
+   video and takes seconds.
 
-Re-running a match replaces its saved rows.
+Re-running a match replaces its saved rows, and its looks in the gallery.
+
+`python run.py appearances --season 2026` lists the looks learned for each team. Add
+`--rebuild` to clear them and relearn from every saved match (after changing the bumper model
+or the OCR), or `--reset` to clear them.
 
 ## Training the bumper model (Phase 2)
 
@@ -100,6 +115,11 @@ There's no model in the repo. Until there is, `run` reads only the scoreboard.
 Bumpers look the same every season, so the model carries over. The game-specific parts are
 the field zones, scoring rules and timing in `rsvision/games/<season>.json`. Copy the file to
 the new season's number each January and update it.
+
+Robot looks don't carry over: every team builds a new robot. They're kept per season, so the
+first event of a new season starts with an empty gallery and fills it as it runs. Nothing
+needs doing, but old seasons' `work\appearance\<season>.npz` files and `work\tracks\` folders
+can be deleted to save space.
 
 ## Checking accuracy
 

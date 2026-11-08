@@ -59,8 +59,11 @@ How Ratings Work are linked only from there (and from the pages that reference t
   the plan locks and shows the result beside it, for reviewing what worked (Edit unlocks it), and
   the match list can be narrowed to matches with a plan. Plans for a custom line-up aren't a real
   match, so they stay in that browser. `strategy.html?event=<id>&match=qm12` opens one plan, which
-  is how Our Matches links to it. Plans download as a picture. The map is a plain field unless
-  someone picks a field picture, or `FIELD_IMAGE` in the page is set for the season.
+  is how Our Matches links to it. Plans download as a picture. The map draws the 2026 REBUILT
+  field to scale: HUBs, BUMPs, TRENCHes, TOWERs, DEPOTs, OUTPOSTs, the robot starting lines and the
+  starting FUEL, from the `GAME` block in the page (replace it for a new season). Robots start
+  behind their starting line. The Field menu can hide the structures (a plain grid), or use a
+  field picture instead, which can also be set for everyone with `FIELD_IMAGE`.
 - `playoffs.html` — Playoff Selection: staff enter an event's alliances as they form, and the whole
   team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
   a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in

@@ -355,6 +355,13 @@
         shot, and tells robots apart by reading their bumper numbers. These numbers are shown in their
         own Vision section and never enter a rating.
       </p>
+      <p>
+        Bumper numbers are often too small or blurry to read on a broadcast. When a robot's number
+        can't be read, the program compares how the robot looks with how that team's robot looked in
+        other matches of the season where its number was read clearly. Matches from the same event
+        count first, since robots change between events. If that doesn't settle it either, a robot is
+        only identified when it's the one team on its alliance left.
+      </p>
       <div class="table-responsive"><table class="table r-table">
         <thead><tr><th>Stat</th><th>How it's worked out</th></tr></thead>
         <tbody>
@@ -364,7 +371,8 @@
           <tr><td>Time in each zone</td><td>Seconds the robot was tracked in its own zone, the neutral zone and the opponent's zone.</td></tr>
           <tr><td>Time stopped</td><td>Seconds in teleop, before endgame, where the robot moved less than 6 inches in a second. A long stop can mean a disabled robot.</td></tr>
           <tr><td>Close contacts</td><td>Separate times the robot came within 40 inches of an opponent.</td></tr>
-          <tr><td>Confidence</td><td>The share of the match the robot was tracked, cut by up to half when its bumper number was never read. Under 50% is shown as low.</td></tr>
+          <tr><td>Identified by number, by look</td><td>The share of the robot's tracked time it was identified by reading its bumper number, and by how it looks. The rest was by being the only team left.</td></tr>
+          <tr><td>Confidence</td><td>The share of the match the robot was tracked, cut by up to half when it wasn't identified. Being identified by look counts a little over half as much as by bumper number. Under 50% is shown as low.</td></tr>
         </tbody>
       </table></div>
 

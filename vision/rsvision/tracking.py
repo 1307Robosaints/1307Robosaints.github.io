@@ -16,6 +16,8 @@ class Tracker:
         self.imgsz, self.conf = imgsz, conf
         self.colors = {i: ("red" if "red" in n.lower() else "blue" if "blue" in n.lower() else None)
                        for i, n in self.model.names.items()}
+        from .appearance import Embedder
+        self.embedder = Embedder()
 
     def reset(self):
         # A fresh tracker for each match, so IDs don't carry over from the last one
@@ -41,11 +43,12 @@ class Tracker:
 class Observer:
     """Collects tracklets for one match: field positions plus bumper-number votes."""
 
-    def __init__(self, lineup, field_bounds, ocr_every_s=1.0):
+    def __init__(self, lineup, field_bounds, ocr_every_s=1.0, embedder=None):
         self.lineup = lineup
         self.tracklets = {}
         self.last_ocr = {}
         self.ocr_every_s = ocr_every_s
+        self.embedder = embedder   # appearance.Embedder: also saves the robot's look at each read
         self.L, self.W = field_bounds
 
     def add(self, t_match, frame, detections, H, project):
@@ -67,6 +70,11 @@ class Observer:
                 hit = match_number(text, self.lineup.get(color, []), c) if text else None
                 if hit:
                     k.votes[hit[0]] += hit[1]
+                if self.embedder:
+                    h, w = frame.shape[:2]
+                    v = self.embedder(frame[max(0, int(y1)):min(h, int(y2)), max(0, int(x1)):min(w, int(x2))])
+                    if v is not None:
+                        k.looks.append(v)
 
     def all(self):
         return [k for k in self.tracklets.values() if len(k.t) >= 3]

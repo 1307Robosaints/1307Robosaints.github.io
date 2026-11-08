@@ -15,7 +15,8 @@
     ["still_s",          "Total time stopped before endgame (s)", "sec"],
     ["contacts",         "Close contacts with opponents",       "count"],
     ["visible_share",    "Share of match tracked",              "share"],
-    ["id_share",         "Share identified by bumper number",   "share"]
+    ["id_share",         "Share identified by bumper number",   "share"],
+    ["look_share",       "Share identified by look",            "share"]
   ];
   function fmt(kind, v) {
     if (v == null || v === "") return "—";

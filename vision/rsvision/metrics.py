@@ -19,6 +19,7 @@ class Tracklet:
     t: list = field(default_factory=list)        # match seconds
     xy: list = field(default_factory=list)       # field inches
     votes: Counter = field(default_factory=Counter)   # team number -> bumper-number read score
+    looks: list = field(default_factory=list)    # appearance vectors (appearance.Embedder), about 1 a second
 
     @property
     def start(self):
@@ -90,12 +91,28 @@ def stitch(tracklets, max_gap_s=4.0, max_speed=240.0, slack_in=36.0):
     return chains
 
 
-def assign_teams(chains, lineup):
-    """Gives each chain a team from its alliance's line-up.
+LOOK_MIN = 0.80      # lowest look similarity that can identify a robot
+LOOK_MARGIN = 0.03   # and how far it must beat the next-best team on the alliance
 
-    Chains with bumper-number votes are assigned strongest first; two chains seen at the
-    same time can't be the same robot. A chain with no votes is assigned only when exactly
-    one team of its color could still be it. Returns ({chain index: team}, {chain index: voted}).
+
+def _votes(ch):
+    votes = Counter()
+    for k in ch:
+        votes.update(k.votes)
+    return votes
+
+
+def assign_teams(chains, lineup, look=None):
+    """Gives each chain a team from its alliance's line-up, in three steps:
+
+    1. "number": chains with bumper-number votes, strongest first. Two chains seen at the
+       same time can't be the same robot.
+    2. "look": with look(chain, team) -> similarity (appearance.Gallery.matcher), an unread
+       chain takes the team whose robot it looks most like, when the match is close enough
+       and clearly better than the next team.
+    3. "left": a chain still unassigned takes the only team of its color it could still be.
+
+    Returns ({chain index: team}, {chain index: "number" | "look" | "left"}).
     """
     def span(ch):
         return min(k.start for k in ch), max(k.end for k in ch)
@@ -104,48 +121,86 @@ def assign_teams(chains, lineup):
         a, b = span(chains[i]), span(chains[j])
         return a[0] < b[1] - 0.5 and b[0] < a[1] - 0.5
 
-    owner, voted = {}, {}
+    owner, how = {}, {}
     taken = defaultdict(list)   # team -> chain indexes
+
+    def free(i):
+        return [t for t in lineup.get(chains[i][0].color, []) if not any(clash(i, j) for j in taken[t])]
+
+    def give(i, team, why):
+        owner[i], how[i] = team, why
+        taken[team].append(i)
+
     offers = []
     for i, ch in enumerate(chains):
-        votes = Counter()
-        for k in ch:
-            votes.update(k.votes)
-        for team, score in votes.items():
+        for team, score in _votes(ch).items():
             if team in lineup.get(ch[0].color, []):
                 offers.append((score, i, team))
     for score, i, team in sorted(offers, reverse=True):
-        if i in owner or any(clash(i, j) for j in taken[team]):
-            continue
-        owner[i], voted[i] = team, True
-        taken[team].append(i)
-    for i, ch in enumerate(chains):
-        if i in owner:
-            continue
-        free = [t for t in lineup.get(ch[0].color, []) if not any(clash(i, j) for j in taken[t])]
-        if len(free) == 1:
-            owner[i], voted[i] = free[0], False
-            taken[free[0]].append(i)
-    return owner, voted
+        if i not in owner and not any(clash(i, j) for j in taken[team]):
+            give(i, team, "number")
+
+    if look is not None:
+        offers = []
+        for i, ch in enumerate(chains):
+            if i in owner:
+                continue
+            sims = sorted(((s, t) for t in free(i) if (s := look(ch, t)) is not None), reverse=True)
+            if sims and sims[0][0] >= LOOK_MIN and \
+                    (len(sims) == 1 or sims[0][0] - sims[1][0] >= LOOK_MARGIN):
+                offers.append((sims[0][0], i, sims[0][1]))
+        for sim, i, team in sorted(offers, reverse=True):
+            if i not in owner and not any(clash(i, j) for j in taken[team]):
+                give(i, team, "look")
+
+    for i in range(len(chains)):
+        if i not in owner and len(f := free(i)) == 1:
+            give(i, f[0], "left")
+    return owner, how
 
 
-def team_tracks(tracklets, lineup):
-    """{team: (times, xy)} plus {team: share of its tracked time identified by number}."""
+def identify(tracklets, lineup, look=None):
+    """Joins tracklets and assigns teams: (chains, owner, how), as in assign_teams."""
     chains = stitch(tracklets)
-    owner, voted = assign_teams(chains, lineup)
-    pts, id_time, all_time = defaultdict(list), Counter(), Counter()
+    owner, how = assign_teams(chains, lineup, look)
+    return chains, owner, how
+
+
+def sure_chains(chains, owner, how, min_score=1.0, dominance=2.0):
+    """[(team, chain)] identified by number beyond reasonable doubt: enough read score, and
+    well ahead of any other team's. Only these teach the appearance gallery, so one bad read
+    doesn't spread to other matches."""
+    out = []
+    for i, team in owner.items():
+        if how[i] != "number":
+            continue
+        votes = _votes(chains[i]).most_common()
+        top = dict(votes).get(team, 0)
+        rest = max((s for t, s in votes if t != team), default=0)
+        if top >= min_score and top >= dominance * rest:
+            out.append((team, chains[i]))
+    return out
+
+
+def team_tracks(tracklets, lineup, look=None):
+    """{team: (times, xy)}, plus each team's share of tracked time identified by number, and
+    by look."""
+    chains, owner, how = identify(tracklets, lineup, look)
+    pts, all_time = defaultdict(list), Counter()
+    by = {"number": Counter(), "look": Counter()}
     for i, team in owner.items():
         for k in chains[i]:
             pts[team] += list(zip(k.t, k.xy))
             dur = max(k.end - k.start, 0.1)
             all_time[team] += dur
-            if voted[i]:
-                id_time[team] += dur
+            if how[i] in by:
+                by[how[i]][team] += dur
     tracks = {}
     for team, p in pts.items():
         p.sort(key=lambda x: x[0])
         tracks[team] = (np.array([x[0] for x in p]), np.array([x[1] for x in p], dtype=float))
-    return tracks, {t: id_time[t] / all_time[t] for t in all_time}
+    return (tracks, {t: by["number"][t] / all_time[t] for t in all_time},
+            {t: by["look"][t] / all_time[t] for t in all_time})
 
 
 # ── Per-robot numbers ─────────────────────────────────────────────
@@ -288,6 +343,8 @@ def attribute_fuel(timeline, color, secs_by_team, teams, g, total=None):
     return out
 
 
-def confidence(visible_share, id_share):
-    """0-1: how much of the match the robot was tracked, discounted when it was never read by number."""
-    return round(float(np.clip(visible_share * (0.5 + 0.5 * id_share), 0, 1)), 3)
+def confidence(visible_share, id_share, look_share=0.0):
+    """0-1: how much of the match the robot was tracked, discounted by up to half when it
+    wasn't identified. Identifying by look counts for less than by number."""
+    known = min(1.0, id_share + 0.6 * look_share)
+    return round(float(np.clip(visible_share * (0.5 + 0.5 * known), 0, 1)), 3)

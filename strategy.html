@@ -180,10 +180,12 @@
         <button type="button" class="s-tool" id="flipBtn" title="Turn the field around, to see it from the other end"><i class="fa fa-refresh"></i> Flip</button>
         <button type="button" class="s-tool" id="saveImgBtn" title="Download the plan as a picture"><i class="fa fa-download"></i> Image</button>
         <div class="dropdown">
-          <button type="button" class="s-tool dropdown-toggle" id="fieldBtn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Use a picture of this season's field"><i class="fa fa-picture-o"></i></button>
+          <button type="button" class="s-tool dropdown-toggle" id="fieldBtn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="How the field is drawn"><i class="fa fa-picture-o"></i> Field</button>
           <div class="dropdown-menu dropdown-menu-right" aria-labelledby="fieldBtn">
+            <button type="button" class="dropdown-item" id="fieldElements"></button>
+            <div class="dropdown-divider"></div>
             <button type="button" class="dropdown-item" id="fieldImgPick">Use a field picture…</button>
-            <button type="button" class="dropdown-item" id="fieldImgClear">Plain field</button>
+            <button type="button" class="dropdown-item" id="fieldImgClear" hidden>Stop using the field picture</button>
           </div>
         </div>
         <input type="file" id="fieldImgFile" accept="image/*" hidden>
@@ -274,8 +276,23 @@
     var MATCH_POLL_MS = 60000;               // scores, so a plan locks once its match is played
     var uid = s.user.id;
 
-    // Field units are inches: the field is about 651" x 317", with a driver-station strip at each end
-    var FW = 651, H = 317, DS = 70, W = FW + DS * 2;
+    // ── This season's field: 2026 REBUILT ────────────────────────────
+    // Inches, from the red alliance wall (x) and the scoring-table side (y). Taken from the game
+    // manual, the field acceptance checklist and the official AprilTag positions. Blue's elements
+    // are red's turned 180° about the field center. Replace this block for a new game.
+    var GAME = {
+      length: 651.2, width: 317.7,
+      zoneDepth: 158.6,                                  // alliance zone, up to the robot starting line
+      hub: { x: 182.1, y: 158.85, size: 47 },
+      bumps: { depth: 44.4, spans: [[62.35, 135.35], [182.35, 255.35]] },      // either side of the hub
+      trenches: { depth: 47, spans: [[0, 62.35], [255.35, 317.7]] },          // guardrail to bump; drive under
+      tower: { y: 170.2, width: 39, depth: 45.2 },       // in the wall between stations 2 and 3
+      depot: { y1: 61.7, y2: 103.7, depth: 27, fuel: 24 },   // along the wall, 47" from the tower base
+      outpost: { width: 71, fuel: 24 },                  // behind the wall, in the corner past station 3
+      fuelBox: { depth: 72, width: 206 }                 // neutral-zone FUEL, split by a 2" gap
+    };
+    // Plan coordinates add a driver-station strip (DS) at each end of the field
+    var FW = GAME.length, H = GAME.width, DS = 70, W = FW + DS * 2;
     var ROBOT = 36;                          // robot with bumpers, inches square
     var COLORS = [
       { id: "yellow", hex: "#f5c400", name: "Yellow" },
@@ -292,7 +309,7 @@
     var events = [], eventId = null, matches = [], matchKey = "custom";
     var teamInfo = {};
     var plan = null, undo = [];
-    var view = { flip: false, tool: "move", color: "yellow", width: 6 };
+    var view = { flip: false, tool: "move", color: "yellow", width: 6, elements: true };
     try { Object.assign(view, JSON.parse(localStorage.getItem(VIEW_KEY)) || {}); } catch (e) {}
     var fieldImg = FIELD_IMAGE;
     try { fieldImg = localStorage.getItem(FIELD_IMG_KEY) || FIELD_IMAGE; } catch (e) {}
@@ -306,15 +323,21 @@
     // Plans store field coordinates; Flip turns the drawing 180°, so the same plan reads from either end.
     function toView(x, y) { return view.flip ? [W - x, H - y] : [x, y]; }
     var fromView = toView;                   // a 180° turn undoes itself
+    // Station 1 is on each alliance's left as its drivers face the field (the scoring-table side);
+    // the outpost takes the far corner, past station 3
     function stationBox(slot) {
-      var side = slot.slice(0, -1), n = Number(slot.slice(-1));
-      // Station 1 is on each alliance's left as its drivers face the field
-      var row = side === "red" ? n - 1 : 3 - n;
-      return { x: side === "red" ? 0 : W - DS, y: row * H / 3, w: DS, h: H / 3 };
+      var side = slot.slice(0, -1), n = Number(slot.slice(-1)), out = GAME.outpost.width, h = (H - out) / 3;
+      var y = side === "red" ? (n - 1) * h : out + (3 - n) * h;
+      return { x: side === "red" ? 0 : W - DS, y: y, w: DS, h: h };
     }
+    function outpostBox(side) {
+      var out = GAME.outpost.width;
+      return side === "red" ? { x: 0, y: H - out, w: DS, h: out } : { x: W - DS, y: 0, w: DS, h: out };
+    }
+    // Robots start just behind their robot starting line, in line with their station
     function startSpot(slot) {
-      var b = stationBox(slot), red = slot[0] === "r";
-      return { x: red ? DS + 60 : W - DS - 60, y: b.y + b.h / 2, a: red ? 0 : 180 };
+      var b = stationBox(slot), red = slot[0] === "r", back = GAME.zoneDepth - ROBOT / 2 - 2;
+      return { x: Math.round(red ? DS + back : W - DS - back), y: Math.round(b.y + b.h / 2), a: red ? 0 : 180 };
     }
     function svgPoint(e) {
       var svg = $("field"), pt = svg.createSVGPoint();
@@ -453,14 +476,67 @@
       var a = toView(x, y), b = toView(x + w, y + h);
       return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), width: Math.abs(w), height: Math.abs(h) };
     }
+    // A rectangle given in field inches for the red side; "blue" turns it 180° to blue's end
+    function fieldRect(side, fx, fy, w, h) {
+      if (side === "blue") { fx = GAME.length - fx - w; fy = GAME.width - fy - h; }
+      return rectView(DS + fx, fy, w, h);
+    }
+    function label(g, r, text, size) {
+      size = size || 8;
+      g.appendChild(el("text", { x: r.x + r.width / 2, y: r.y + r.height / 2 + size * 0.35, "text-anchor": "middle",
+        fill: "rgba(255,255,255,.85)", "font-size": size, "font-weight": 700, "letter-spacing": ".5",
+        "font-family": "sans-serif", "pointer-events": "none" }, text));
+    }
+    // This season's structures and where the FUEL starts
+    function drawGame(g) {
+      var defs = el("defs", {}), pat = el("pattern", { id: "fuel", patternUnits: "userSpaceOnUse", width: 6.2, height: 6.2 });
+      pat.appendChild(el("circle", { cx: 3.1, cy: 3.1, r: 2.9, fill: "#f2c94c", stroke: "#9c7b16", "stroke-width": 0.6 }));
+      defs.appendChild(pat);
+      g.appendChild(defs);
+      var hub = GAME.hub, half = hub.size / 2;
+      ["red", "blue"].forEach(function (side) {
+        var red = side === "red", tint = red ? "#e03131" : "#3b7bff", dark = red ? "#7d1d1d" : "#1d3f86";
+        // Alliance zone and its robot starting line
+        g.appendChild(el("rect", Object.assign({ fill: red ? "rgba(224,49,49,.12)" : "rgba(59,123,255,.12)" }, fieldRect(side, 0, 0, GAME.zoneDepth, H))));
+        g.appendChild(el("rect", Object.assign({ fill: tint }, fieldRect(side, GAME.zoneDepth - 2, 0, 2, H))));
+        // Trenches (drive under), bumps (drive over), hub
+        GAME.trenches.spans.forEach(function (sp) {
+          var r = fieldRect(side, hub.x - GAME.trenches.depth / 2, sp[0], GAME.trenches.depth, sp[1] - sp[0]);
+          g.appendChild(el("rect", Object.assign({ fill: "rgba(0,0,0,.28)", stroke: "#cfd5de", "stroke-width": 1.5, "stroke-dasharray": "5 3" }, r)));
+          label(g, r, "TRENCH", 7.5);
+        });
+        GAME.bumps.spans.forEach(function (sp) {
+          var r = fieldRect(side, hub.x - GAME.bumps.depth / 2, sp[0], GAME.bumps.depth, sp[1] - sp[0]);
+          g.appendChild(el("rect", Object.assign({ fill: "#6b7280", stroke: tint, "stroke-width": 1.5, rx: 2 }, r)));
+          label(g, r, "BUMP");
+        });
+        var hr = fieldRect(side, hub.x - half, hub.y - half, hub.size, hub.size);
+        g.appendChild(el("rect", Object.assign({ fill: dark, stroke: "#fff", "stroke-width": 2 }, hr)));
+        label(g, hr, "HUB", 10);
+        // Tower in the alliance wall, depot along it
+        var t = GAME.tower, tr = fieldRect(side, 0, t.y - t.width / 2, t.depth, t.width);
+        g.appendChild(el("rect", Object.assign({ fill: dark, stroke: "#fff", "stroke-width": 1.5 }, tr)));
+        label(g, tr, "TOWER", 8);
+        var d = GAME.depot, dr = fieldRect(side, 0, d.y1, d.depth, d.y2 - d.y1);
+        g.appendChild(el("rect", Object.assign({ fill: "url(#fuel)", stroke: tint, "stroke-width": 1.5 }, dr)));
+        label(g, fieldRect(side, d.depth, d.y1, 30, d.y2 - d.y1), "DEPOT", 7);
+      });
+      // Neutral-zone FUEL, a box either side of the gap down the middle
+      var fb = GAME.fuelBox, fx = GAME.length / 2 - fb.depth / 2, gap = 2, each = (fb.width - gap) / 2, top = H / 2 - fb.width / 2;
+      [top, top + each + gap].forEach(function (y) {
+        g.appendChild(el("rect", Object.assign({ fill: "url(#fuel)" }, fieldRect("red", fx, y, fb.depth, each))));
+      });
+    }
     function drawBase(g) {
       var f = rectView(DS, 0, FW, H);
       g.appendChild(el("rect", Object.assign({ fill: "#565c66" }, f)));
       if (fieldImg) {
         g.appendChild(el("image", Object.assign({ href: fieldImg, preserveAspectRatio: "none",
           transform: view.flip ? "rotate(180 " + W / 2 + " " + H / 2 + ")" : "" }, f)));
+      } else if (view.elements) {
+        drawGame(g);
       } else {
-        // A plain grid every 4 feet, with the center line and alliance ends marked
+        // A plain grid every 4 feet, with the alliance zones marked
         for (var x = DS + 48; x < W - DS; x += 48) {
           var a = toView(x, 0);
           g.appendChild(el("line", { x1: a[0], y1: 0, x2: a[0], y2: H, stroke: "rgba(255,255,255,.08)", "stroke-width": 1 }));
@@ -468,24 +544,36 @@
         for (var y = 48; y < H; y += 48) {
           g.appendChild(el("line", { x1: DS, y1: toView(0, y)[1], x2: W - DS, y2: toView(0, y)[1], stroke: "rgba(255,255,255,.08)", "stroke-width": 1 }));
         }
+        g.appendChild(el("rect", Object.assign({ fill: "rgba(224,49,49,.14)" }, fieldRect("red", 0, 0, GAME.zoneDepth, H))));
+        g.appendChild(el("rect", Object.assign({ fill: "rgba(59,123,255,.14)" }, fieldRect("blue", 0, 0, GAME.zoneDepth, H))));
+      }
+      if (!fieldImg) {
         g.appendChild(el("line", { x1: W / 2, y1: 0, x2: W / 2, y2: H, stroke: "rgba(255,255,255,.5)", "stroke-width": 2, "stroke-dasharray": "8 6" }));
-        g.appendChild(el("rect", Object.assign({ fill: "rgba(224,49,49,.14)" }, rectView(DS, 0, 156, H))));
-        g.appendChild(el("rect", Object.assign({ fill: "rgba(59,123,255,.14)" }, rectView(W - DS - 156, 0, 156, H))));
       }
       g.appendChild(el("rect", Object.assign({ fill: "none", stroke: "#cfd5de", "stroke-width": 3 }, f)));
+
+      // Outposts (human player, FUEL in the chute) in the corner of each alliance area
+      ["red", "blue"].forEach(function (side) {
+        var b = outpostBox(side), r = rectView(b.x, b.y, b.w, b.h);
+        g.appendChild(el("rect", Object.assign({ fill: side === "red" ? "#5c1616" : "#13306b", stroke: "#2b2f36", "stroke-width": 2 }, r)));
+        g.appendChild(el("text", { x: r.x + r.width / 2, y: r.y + r.height / 2 - 2, "text-anchor": "middle", fill: "rgba(255,255,255,.8)",
+          "font-size": 10, "font-weight": 700, "font-family": "sans-serif" }, "OUTPOST"));
+        g.appendChild(el("text", { x: r.x + r.width / 2, y: r.y + r.height / 2 + 12, "text-anchor": "middle", fill: "rgba(255,255,255,.6)",
+          "font-size": 9, "font-family": "sans-serif" }, GAME.outpost.fuel + " FUEL"));
+      });
 
       // Driver stations, with the team in each
       SLOTS.forEach(function (sl) {
         var b = stationBox(sl), r = rectView(b.x, b.y, b.w, b.h), red = sl[0] === "r";
         var t = teamFor(sl), name = nameFor(t), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
         g.appendChild(el("rect", Object.assign({ fill: red ? "#8f1d1d" : "#173f8f", stroke: "#2b2f36", "stroke-width": 2 }, r)));
-        g.appendChild(el("text", { x: cx, y: r.y + 15, "text-anchor": "middle", fill: "rgba(255,255,255,.7)", "font-size": 11, "font-family": "sans-serif" },
+        g.appendChild(el("text", { x: cx, y: r.y + 14, "text-anchor": "middle", fill: "rgba(255,255,255,.7)", "font-size": 11, "font-family": "sans-serif" },
           (red ? "Red " : "Blue ") + sl.slice(-1)));
-        g.appendChild(el("text", { x: cx, y: cy + 8, "text-anchor": "middle", fill: "#fff", "font-size": t ? 22 : 16, "font-weight": 700, "font-family": "Chakra Petch, sans-serif" },
+        g.appendChild(el("text", { x: cx, y: cy + 9, "text-anchor": "middle", fill: "#fff", "font-size": t ? 22 : 16, "font-weight": 700, "font-family": "Chakra Petch, sans-serif" },
           t ? String(t) : "—"));
         if (name) {
           var short = name.length > 11 ? name.slice(0, 10) + "…" : name;
-          var tx = el("text", { x: cx, y: cy + 26, "text-anchor": "middle", fill: "rgba(255,255,255,.8)", "font-size": 10, "font-family": "sans-serif" }, short);
+          var tx = el("text", { x: cx, y: cy + 25, "text-anchor": "middle", fill: "rgba(255,255,255,.8)", "font-size": 10, "font-family": "sans-serif" }, short);
           tx.appendChild(el("title", {}, name));
           g.appendChild(tx);
         }
@@ -581,6 +669,9 @@
       document.querySelectorAll("[data-slot]").forEach(function (i) { i.disabled = lock; });
       $("undoBtn").disabled = lock || !undo.length;
       $("flipBtn").classList.toggle("on", view.flip);
+      $("fieldElements").innerHTML = '<i class="fa fa-' + (view.elements ? "check-" : "") + 'square-o fa-fw"></i> Show structures and FUEL';
+      $("fieldElements").disabled = !!fieldImg;
+      $("fieldImgClear").hidden = !fieldImg;
     }
     // The result line above the field, and the Edit button on a played match's plan
     function resultText(m) {
@@ -678,6 +769,11 @@
       };
       img.onerror = function () { URL.revokeObjectURL(url); say("Couldn't open that picture."); };
       img.src = url;
+    });
+    // Structures and starting FUEL on or off (the plain field shows a grid instead)
+    $("fieldElements").addEventListener("click", function () {
+      view.elements = !view.elements;
+      saveView(); render();
     });
     $("fieldImgClear").addEventListener("click", function () {
       try { localStorage.removeItem(FIELD_IMG_KEY); } catch (e) {}

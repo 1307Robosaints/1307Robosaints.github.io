@@ -385,6 +385,17 @@ This processes every played qualification match and uploads the results. Re-runn
 replaces its old rows, so it's always safe to run again. One bad video doesn't stop the rest.
 The summary line counts how many failed.
 
+Robots whose bumper numbers read clearly teach the worker how they look. When the run finishes,
+it goes back over the matches with unidentified robots and matches them by look. It prints
+lines such as `qm4: 3 -> 5 robots`.
+
+Later in the event, after more matches have been run, this redoes who's who for every match
+with everything learned since. It doesn't need the videos and takes seconds:
+
+```
+python run.py identify --event 2026nhrr
+```
+
 ### 5.7 Check the website
 
 - **Match Flags** shows a *Vision scoreboard read is off* flag for any match whose read final
@@ -407,7 +418,14 @@ python run.py run --event <tba key>
 
 During the event, run `download` and then `run` again every so often. TBA usually posts match
 videos within a few minutes to an hour. To avoid redoing finished matches, name the new ones,
-for example `--matches qm31,qm32,qm33`.
+for example `--matches qm31,qm32,qm33`. Then run `python run.py identify --event <tba key>`,
+so earlier matches pick up the robot looks learned from the new ones.
+
+**At the start of each season:** robot looks are kept per season in
+`work\appearance\<season>.npz`, so the first event of a new season starts fresh on its own.
+Check what's been learned with `python run.py appearances --season 2027`. Old seasons' files,
+and old `work\tracks\` folders, can be deleted. After retraining the bumper model mid-season,
+run the event again from video, then `python run.py appearances --season <year> --rebuild`.
 
 Before leaving for an event:
 
@@ -593,3 +611,5 @@ None of these are committed. Back up `models` and `work\calib` if you want to ke
 | `work\calib\` | One calibration and reference frame per event. |
 | `work\dataset\`, `work\train\` | Training frames and training runs. |
 | `work\debug\` | Debug output from `--debug` runs. |
+| `work\tracks\` | Each processed match's robot tracks, so `identify` can redo who's who without video. |
+| `work\appearance\` | Each team's robot looks, one file per season. |

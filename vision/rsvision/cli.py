@@ -128,8 +128,12 @@ def cmd_run(a):
     keys = _match_keys(db, event, a.matches)
     if a.video and len(keys) != 1:
         raise SystemExit("--video needs exactly one match in --matches.")
+    gallery = None
+    if tracker:
+        from .appearance import Gallery
+        gallery = Gallery(_season(event))
     api_key = os.environ.get("TBA_API_KEY", "")
-    done = failed = 0
+    done, failed, partial = 0, 0, []
     for key in keys:
         print(f"{key}:")
         try:
@@ -137,15 +141,88 @@ def cmd_run(a):
             if not video:
                 print("  no video: none on TBA yet, or TBA_API_KEY isn't set (or pass --video)")
                 continue
-            row, robots = pipeline.process(db, event, key, video, g, tracker, upload=not a.no_upload, debug=a.debug)
+            row, robots = pipeline.process(db, event, key, video, g, tracker, upload=not a.no_upload,
+                                           debug=a.debug, gallery=gallery)
             print(f"  {row['status']}: {len(robots)} robots" + (f" - {row.get('notes')}" if row.get("notes") else ""))
             done += 1
+            if tracker and row["status"] == "partial":
+                partial.append((key, len(robots)))
         except KeyboardInterrupt:
             raise
         except Exception as e:   # one bad video shouldn't stop the rest
             failed += 1
             print(f"  failed: {e}")
     print(f"Finished: {done} processed, {failed} failed.")
+    if partial:
+        # Matches run early didn't have the looks learned from later ones yet
+        print("Second pass: matching unread robots by look, now that every match has been seen.")
+        _reidentify(db, event, g, gallery, partial, a.no_upload, a.debug)
+
+
+def _reidentify(db, event, g, gallery, keys_found, no_upload, debug):
+    """Reruns who's who for [(match key, robots found before)], saving only when it finds more."""
+    from . import pipeline
+    for key, before in keys_found:
+        out = pipeline.reidentify(db, event, key, g, gallery, upload=False, debug=False)
+        if out is None:
+            print(f"{key}: no saved tracks. Run it from video first.")
+            continue
+        row, robots = out
+        if len(robots) > before:
+            pipeline.reidentify(db, event, key, g, gallery, upload=not no_upload, debug=debug)
+            print(f"{key}: {before} -> {len(robots)} robots")
+        else:
+            print(f"{key}: still {len(robots)} robots")
+
+
+def cmd_identify(a):
+    """Redoes who's who from saved tracks, without the video: after more matches or events have
+    taught the gallery more looks, or after a gallery rebuild."""
+    from . import pipeline
+    from .appearance import Gallery
+    db = _db()
+    event = db.event(a.event)
+    g = config.game(_season(event))
+    gallery = Gallery(_season(event))
+    folder = config.WORK / "tracks" / event["tba_event_key"]
+    keys = sorted(p.stem for p in folder.glob("*.pkl")) if a.matches == "all" else _match_keys(db, event, a.matches)
+    if not keys:
+        raise SystemExit(f"No saved tracks for {a.event}. Run the event from video first.")
+    for key in keys:
+        out = pipeline.reidentify(db, event, key, g, gallery, upload=not a.no_upload, debug=a.debug)
+        if out is None:
+            print(f"{key}: no saved tracks")
+            continue
+        row, robots = out
+        how = {"number": 0, "look": 0, "left": 0}
+        for r in robots:
+            d = r["data"]
+            how["number" if d["id_share"] > 0 else "look" if d["look_share"] > 0 else "left"] += 1
+        print(f"{key}: {row['status']}, {len(robots)} robots "
+              f"({how['number']} by number, {how['look']} by look, {how['left']} by elimination)")
+
+
+def cmd_appearances(a):
+    """Shows, clears or rebuilds a season's robot looks."""
+    from . import pipeline
+    from .appearance import Gallery
+    gallery = Gallery(a.season)
+    if a.reset or a.rebuild:
+        gallery.reset()
+        print(f"Cleared the {a.season} looks.")
+    if a.rebuild:
+        # Every saved match of the season, oldest event folder first
+        n = 0
+        for folder in sorted((config.WORK / "tracks").glob(f"{a.season}*")):
+            for p in sorted(folder.glob("*.pkl")):
+                saved = pipeline.load_tracks(folder.name, p.stem)
+                n += gallery.learn(folder.name, p.stem, saved["tracklets"], saved["lineup"])
+        gallery.save()
+        print(f"Rebuilt from saved tracks: {n} looks.")
+    s = gallery.summary()
+    print(f"{a.season}: {len(s)} teams, {len(gallery.entries)} looks ({gallery.path})")
+    for team, (n, matches, events) in s.items():
+        print(f"  {team:>5}: {n} looks from {matches} matches at {events} event(s)")
 
 
 def main(argv=None):
@@ -200,6 +277,19 @@ def main(argv=None):
     s.add_argument("--no-upload", action="store_true", help="don't write to Supabase")
     s.add_argument("--debug", action="store_true", help="save everything to work/debug/")
     s.set_defaults(fn=cmd_run)
+
+    s = sub.add_parser("identify", help="redo who's who from saved tracks, using robot looks (no video)")
+    s.add_argument("--event", required=True)
+    s.add_argument("--matches", default="all", help="'all' saved matches, or a comma list")
+    s.add_argument("--no-upload", action="store_true", help="don't write to Supabase")
+    s.add_argument("--debug", action="store_true", help="save everything to work/debug/")
+    s.set_defaults(fn=cmd_identify)
+
+    s = sub.add_parser("appearances", help="show, clear or rebuild a season's robot looks")
+    s.add_argument("--season", type=int, required=True)
+    s.add_argument("--reset", action="store_true", help="clear the season's looks")
+    s.add_argument("--rebuild", action="store_true", help="clear, then relearn from every saved match")
+    s.set_defaults(fn=cmd_appearances)
 
     a = p.parse_args(argv)
     a.fn(a)

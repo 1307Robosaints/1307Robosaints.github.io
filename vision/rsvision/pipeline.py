@@ -4,11 +4,14 @@
      score timeline, and check the final score against the official one.            [Phase 1]
   2. Robot pass (10 frames a second, match time only): on wide-shot frames, detect and track
      bumpers, map them onto the field, and read bumper numbers now and then.          [Phase 2]
-  3. Work out who's who, the per-robot numbers, and the FUEL split, then save.
+  3. Work out who's who (bumper numbers, then robot looks, then elimination), the per-robot
+     numbers, and the FUEL split, then save. The tracks are kept in work/tracks/, so step 3
+     can be redone later (reidentify) once more robots' looks are known.
 
 Without a trained bumper model, step 2 is skipped and only the scoreboard data is saved.
 """
 import json
+import pickle
 
 from . import VERSION, config, field, metrics, timeline
 from .ocr import Scoreboard
@@ -31,7 +34,8 @@ def scoreboard_pass(video_path, calib, g, log=print):
 def robot_pass(video_path, clock, calib, g, lineup, tracker, log=print):
     from .tracking import Observer
     wide = field.WideShot(calib)
-    obs = Observer(lineup, (g["field"]["length_in"], g["field"]["width_in"]))
+    obs = Observer(lineup, (g["field"]["length_in"], g["field"]["width_in"]),
+                   embedder=getattr(tracker, "embedder", None))
     tracker.reset()
     seen = total = 0
     for t, frame in frames(video_path, TRACK_FPS, start_s=max(0, clock.auto_start - 1), end_s=clock.end + 1):
@@ -48,7 +52,27 @@ def robot_pass(video_path, clock, calib, g, lineup, tracker, log=print):
     return obs.all(), (seen / total if total else 0.0)
 
 
-def process(db, event, match_key, video_path, g, tracker=None, upload=True, debug=False, log=print):
+def tracks_path(event_key, match_key):
+    return config.WORK / "tracks" / event_key / f"{match_key}.pkl"
+
+
+def save_tracks(event_key, match_key, saved):
+    """Everything identification needs, so it can be redone later without the video."""
+    p = tracks_path(event_key, match_key)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(pickle.dumps(saved))
+
+
+def load_tracks(event_key, match_key):
+    """What save_tracks wrote for a match, or None. Only reads files this worker wrote."""
+    p = tracks_path(event_key, match_key)
+    return pickle.loads(p.read_bytes()) if p.exists() else None
+
+
+def process(db, event, match_key, video_path, g, tracker=None, upload=True, debug=False, log=print,
+            gallery=None):
+    """Runs one match from video. With a gallery, the match's clearly read robots teach it
+    their looks, and unread robots are matched against it."""
     official = db.official_matches(event["id"]).get(match_key)
     if not official:
         raise SystemExit(f"{match_key} isn't in the official data for {event['tba_event_key']}. Has the event synced?")
@@ -76,19 +100,21 @@ def process(db, event, match_key, video_path, g, tracker=None, upload=True, debu
     if end_note:
         log(f"  {end_note}")
 
-    robots = []
     if tracker is None:
         row.update(status="partial", notes="Scoreboard only: no bumper model yet.")
+        if end_note:
+            row["notes"] += " " + end_note
+        robots = []
     else:
         tracklets, wide_share = robot_pass(video_path, clock, calib, g, lineup, tracker, log)
         row["wide_shot_share"] = round(wide_share, 3)
-        robots = robot_rows(tracklets, lineup, tl, official, g)
-        found = len(robots)
-        row["status"] = "ok" if found == len(lineup["red"]) + len(lineup["blue"]) else "partial"
-        if row["status"] == "partial":
-            row["notes"] = f"Identified {found} of {len(lineup['red']) + len(lineup['blue'])} robots."
-    if end_note:
-        row["notes"] = " ".join(n for n in (row.get("notes"), end_note) if n)
+        saved = {"row": dict(row), "tl": tl, "lineup": lineup, "official": official,
+                 "tracklets": tracklets, "end_note": end_note, "samples": samples}
+        save_tracks(event["tba_event_key"], match_key, saved)
+        if gallery is not None:
+            gallery.learn(event["tba_event_key"], match_key, tracklets, lineup)
+            gallery.save()
+        row, robots = finish(saved, g, gallery, event["tba_event_key"])
 
     if debug:
         save_debug(event["tba_event_key"], match_key, row, robots, samples, g)
@@ -97,8 +123,34 @@ def process(db, event, match_key, video_path, g, tracker=None, upload=True, debu
     return row, robots
 
 
-def robot_rows(tracklets, lineup, tl, official, g):
-    tracks, id_share = metrics.team_tracks(tracklets, lineup)
+def finish(saved, g, gallery, event_key):
+    """The match row and robot rows from a match's saved tracks."""
+    row, lineup = dict(saved["row"]), saved["lineup"]
+    look = gallery.matcher(event_key) if gallery is not None else None
+    robots = robot_rows(saved["tracklets"], lineup, saved["tl"], saved["official"], g, look)
+    expected = len(lineup["red"]) + len(lineup["blue"])
+    row["status"] = "ok" if len(robots) == expected else "partial"
+    notes = [f"Identified {len(robots)} of {expected} robots."] if row["status"] == "partial" else []
+    row["notes"] = " ".join(notes + ([saved["end_note"]] if saved["end_note"] else [])) or None
+    return row, robots
+
+
+def reidentify(db, event, match_key, g, gallery, upload=True, debug=False):
+    """Redoes who's who for a match from its saved tracks, with the gallery as it is now.
+    None when the match has no saved tracks (run it from video first)."""
+    saved = load_tracks(event["tba_event_key"], match_key)
+    if saved is None:
+        return None
+    row, robots = finish(saved, g, gallery, event["tba_event_key"])
+    if debug:
+        save_debug(event["tba_event_key"], match_key, row, robots, saved["samples"], g)
+    if upload:
+        db.save_match(event["id"], row, robots)
+    return row, robots
+
+
+def robot_rows(tracklets, lineup, tl, official, g, look=None):
+    tracks, id_share, look_share = metrics.team_tracks(tracklets, lineup, look)
     length = g["timing"]["auto_s"] + g["timing"]["teleop_s"]
     color_of = {t: c for c in ("red", "blue") for t in lineup[c]}
     secs = {t: metrics.per_second(times, xy, length) for t, (times, xy) in tracks.items()}
@@ -113,10 +165,12 @@ def robot_rows(tracklets, lineup, tl, official, g):
         data = metrics.robot_metrics(times, xy, color_of[team], g)
         data["contacts"] = touch[team]
         data["id_share"] = round(id_share.get(team, 0.0), 3)
+        data["look_share"] = round(look_share.get(team, 0.0), 3)
         if team in fuel:
             data["fuel_share"], data["fuel_est"] = fuel[team]
         rows.append({"team_number": team, "alliance": color_of[team], "data": data,
-                     "confidence": metrics.confidence(data["visible_share"], data["id_share"])})
+                     "confidence": metrics.confidence(data["visible_share"], data["id_share"],
+                                                      data["look_share"])})
     return rows
 
 

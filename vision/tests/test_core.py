@@ -114,11 +114,58 @@ class IdentityTests(unittest.TestCase):
         r1.votes[1] += 5
         r2.votes[2] += 3
         r2.votes[1] += 1                           # a weaker, wrong read
-        tracks, ids = metrics.team_tracks([r1, r2, r3], lineup)
+        tracks, ids, looks = metrics.team_tracks([r1, r2, r3], lineup)
         self.assertEqual(set(tracks), {1, 2, 3})   # 3 had no reads but was the only one left
         self.assertEqual(ids[1], 1.0)
         self.assertEqual(ids[3], 0.0)
+        self.assertEqual(looks[3], 0.0)
         self.assertAlmostEqual(float(tracks[3][1][0][1]), 250)
+
+    def test_look_identifies_unread_robots(self):
+        # 9997 and 9991 on one alliance: a "999" read can't separate them, their looks can
+        lineup = {"red": [78, 9997, 9991], "blue": []}
+        a, b, c = path("red", 0, 300, y=50), path("red", 0, 300, y=150), path("red", 0, 300, y=250)
+        a.votes[78] += 3
+        sims = {(id(b), 9997): 0.92, (id(b), 9991): 0.70, (id(c), 9997): 0.88, (id(c), 9991): 0.86}
+        look = lambda ch, team: sims.get((id(ch[0]), team))
+        chains, owner, how = metrics.identify([a, b, c], lineup, look)
+        got = {chains[i][0] is b and "b" or chains[i][0] is c and "c" or "a": (t, how[i]) for i, t in owner.items()}
+        self.assertEqual(got["a"], (78, "number"))
+        self.assertEqual(got["b"], (9997, "look"))
+        self.assertEqual(got["c"], (9991, "left"))   # too close to call by look, but the only one left
+        # Without looks, b and c stay unknown
+        _, owner, _ = metrics.identify([a, b, c], lineup)
+        self.assertEqual(len(owner), 1)
+
+    def test_only_clear_reads_teach_looks(self):
+        lineup = {"red": [1, 2, 3], "blue": []}
+        clear, weak, mixed = path("red", 0, 300, y=50), path("red", 0, 300, y=150), path("red", 0, 300, y=250)
+        clear.votes[1] += 3
+        weak.votes[2] += 0.4
+        mixed.votes[3] += 2
+        mixed.votes[1] += 1.5
+        chains, owner, how = metrics.identify([clear, weak, mixed], lineup)
+        self.assertEqual([t for t, _ in metrics.sure_chains(chains, owner, how)], [1])
+
+    def test_gallery_roundtrip(self):
+        import tempfile
+        import numpy as np
+        from rsvision import appearance
+        with tempfile.TemporaryDirectory() as d:
+            gal = appearance.Gallery(2026, path=f"{d}/2026.npz")
+            lineup = {"red": [1, 2, 3], "blue": []}
+            k = path("red", 0, 300, y=50)
+            k.votes[1] += 3
+            k.looks = [np.eye(8, dtype=np.float16)[0]]
+            self.assertEqual(gal.learn("2026test", "qm1", [k], lineup), 1)
+            self.assertEqual(gal.learn("2026test", "qm1", [k], lineup), 1)   # a re-run replaces, not adds
+            gal.save()
+            again = appearance.Gallery(2026, path=f"{d}/2026.npz")
+            self.assertEqual(len(again.entries), 1)
+            self.assertAlmostEqual(again.score(np.eye(8)[0], 1, "2026test"), 1.0, places=3)
+            self.assertIsNone(again.score(np.eye(8)[0], 2, "2026test"))   # no looks for team 2 yet
+            again.reset()
+            self.assertFalse((appearance.Path(d) / "2026.npz").exists())
 
 
 class MetricsTests(unittest.TestCase):
