@@ -167,6 +167,61 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(metrics.confidence(0.8, 0.0), 0.4)
 
 
+class PrelabelTests(unittest.TestCase):
+    """Pre-labeling's checks, on drawn frames. The detectors themselves need a GPU and aren't tested."""
+
+    @staticmethod
+    def frame(bumper_bgr=None):
+        import numpy as np
+        f = np.full((1080, 1920, 3), 70, np.uint8)            # gray carpet
+        if bumper_bgr:
+            import cv2
+            cv2.rectangle(f, (500, 500), (600, 600), bumper_bgr, 8)   # a bumper ring
+        return f
+
+    class Finder:
+        def __init__(self, dets):
+            self.dets = dets
+
+        def robots(self, frame):
+            return self.dets
+
+    def test_yolo_line(self):
+        from rsvision import prelabel
+        self.assertEqual(prelabel.yolo_line(1, (0, 0, 960, 540), 1920, 1080),
+                         "1 0.250000 0.250000 0.500000 0.500000")
+
+    def test_bumper_color(self):
+        from rsvision import prelabel
+        box = (490, 490, 610, 610)
+        self.assertEqual(prelabel.bumper_color(self.frame((30, 30, 220)), box), "red")
+        self.assertEqual(prelabel.bumper_color(self.frame((200, 80, 20)), box), "blue")
+        self.assertIsNone(prelabel.bumper_color(self.frame(), box))   # no fabric: a logo or person
+
+    def test_graphics_screen(self):
+        import numpy as np
+        from rsvision import prelabel
+        self.assertFalse(prelabel.graphics_screen(self.frame((30, 30, 220))))
+        results = np.zeros((1080, 1920, 3), np.uint8)
+        results[:, :960] = (200, 80, 20)
+        results[:, 960:] = (30, 30, 220)
+        self.assertTrue(prelabel.graphics_screen(results))
+
+    def test_label_frame_filters(self):
+        from rsvision import prelabel
+        f = self.frame((30, 30, 220))
+        robot = (490, 490, 610, 610)
+        dets = [
+            (robot, 0.3, None),
+            ((500, 500, 560, 560), 0.2, None),     # part of the same robot
+            ((0, 0, 1920, 1080), 0.5, None),       # the whole field
+            (robot, 0.6, "skip"),                  # a person found there first wins
+        ]
+        self.assertEqual(prelabel.label_frame(f, self.Finder(dets)), [])
+        out = prelabel.label_frame(f, self.Finder(dets[:3]))
+        self.assertEqual([(c, b) for c, b, _ in out], [("red", robot)])
+
+
 if __name__ == "__main__":
     unittest.main()
 

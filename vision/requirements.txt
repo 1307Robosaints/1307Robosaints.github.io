@@ -5,3 +5,4 @@ opencv-python>=4.9,<5
 numpy>=1.26,<3
 requests>=2.31,<3
 yt-dlp>=2025.1.1
+# Optional, only for "python run.py prelabel" (Grounding DINO): pip install "transformers>=4.45,<5"

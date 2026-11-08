@@ -451,23 +451,70 @@ anyone can label, and matches from the same event look alike.
 Then go through the folder and delete close-ups, replays, crowd shots and frames with no
 robots. Aim for **300 to 500** good wide-shot frames.
 
-### 7.2 Label them
+### 7.2 Draft the labels automatically
+
+The laptop can draw a first pass of boxes, so people fix boxes instead of drawing every one.
+It uses Grounding DINO, a model that finds objects from a text description, with no training.
+
+Install it once, with the environment on:
+
+```
+pip install "transformers>=4.45,<5"
+```
+
+Then:
+
+```
+python run.py prelabel --preview work\prelabel-preview
+```
+
+- The first run downloads the model, about 1 GB. After that it takes about a second a frame.
+- It writes a label file for each frame to `work\dataset\labels`, plus `work\dataset\data.yaml`.
+- Frames where it found no robots get no label file and are listed in
+  `work\dataset_no_robots.txt`. Most are results screens, title cards or close-ups. Delete them
+  from `work\dataset\images`.
+- `--preview` saves copies with the boxes drawn, so you can skim them in Explorer first.
+- Label files that already exist are kept, so hand fixes aren't lost. Add `--overwrite` to
+  replace them.
+
+**What to expect:** it boxes roughly half the robots, and almost every box it draws is a real
+robot with the right color. Expect to add the boxes it missed, and to delete the odd box on a
+field structure, ball rack or person. It does worst on side-angle shots and picture-in-picture
+views. `--conf 0.1` finds more robots but also more junk.
+
+**Once you have a first model** (7.4 and 7.5), use it to draft the next batch instead. It's
+much better than Grounding DINO at this:
+
+```
+python run.py prelabel --model models\bumpers.pt --overwrite
+```
+
+Only use `--overwrite` on new frames that haven't been reviewed yet, or run it on a separate
+folder with `--images`.
+
+### 7.3 Review them
 
 Roboflow is the easiest option, and its free plan is enough. CVAT also works.
 
 1. Make a free Roboflow account and create an **Object Detection** project.
 2. Create two classes, spelled exactly `red_bumper` and `blue_bumper`.
-3. Upload the frames.
-4. On each frame, draw a box around **each visible bumper side** of every robot. The box should
-   be tight around the colored bumper fabric, including the number. Label it red or blue.
-   - A robot showing a front and a side gets two boxes.
-   - Box partly hidden bumpers too, as long as you can tell it's a bumper.
-5. **Save time first.** Roboflow Universe has public FRC bumper datasets. Search "FRC bumpers",
-   and add one to the project if its class names can be mapped to these two.
-6. Generate a dataset version with the default **train/valid split**, around 80/20. Export it in
+3. Upload the **whole `work\dataset` folder** (images, labels and `data.yaml` together).
+   Roboflow reads the label files and shows the drafted boxes. Check that the boxes appear
+   on a few frames before going on.
+4. Go through each frame. **Each robot gets one box around its bumpers**: the whole ring of
+   bumper fabric you can see, including the number, not mechanisms sticking out past it.
+   Label it red or blue.
+   - Fix boxes that are too loose or tight, delete wrong ones, and add missed robots.
+   - Box partly hidden robots too, as long as you can tell it's a robot.
+   - Don't box one robot twice (once per bumper side). The tracker treats two boxes seen at
+     the same moment as two different robots.
+5. Generate a dataset version with the default **train/valid split**, around 80/20. Export it in
    **YOLOv8** or **YOLO11** format and download the zip.
 
-### 7.3 Train
+Roboflow Universe also has public FRC bumper datasets. Most label each bumper side separately,
+which doesn't match the one-box-per-robot rule above, so check before adding one.
+
+### 7.4 Train
 
 Unzip the export somewhere outside the repo, for example `$HOME\Documents\bumpers-data`. Then:
 
@@ -486,7 +533,7 @@ correct, or give a `path:` line with the full folder.
 When it finishes, check `work\train\bumpers\results.png`. The `mAP50` curve should level off
 above about 0.8. Lower than that usually means more or better-labeled frames are needed.
 
-### 7.4 Install the model
+### 7.5 Install the model
 
 ```
 Copy-Item work\train\bumpers\weights\best.pt models\bumpers.pt
@@ -495,7 +542,7 @@ Copy-Item work\train\bumpers\weights\best.pt models\bumpers.pt
 `models\*.pt` is in `.gitignore`. Back the model up somewhere safe, such as the team's shared
 drive, since it isn't in the repo.
 
-### 7.5 Test the full pipeline
+### 7.6 Test the full pipeline
 
 ```
 python run.py run --event 2026nhrr --matches qm1 --no-upload --debug

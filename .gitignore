@@ -4,4 +4,7 @@ vision/.env
 vision/work/
 vision/.venv/
 vision/models/*.pt
+# Model weights libraries download into whatever folder they run from. GitHub rejects files over 100 MB.
+*.pt
+weights/
 __pycache__/

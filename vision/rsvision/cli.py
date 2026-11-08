@@ -96,12 +96,12 @@ def cmd_prelabel(a):
         finder = prelabel.Yolo(a.model, conf=a.conf or 0.25)
     else:
         try:
-            finder = prelabel.Dino(a.dino, a.prompt, conf=a.conf or 0.2)
+            finder = prelabel.Dino(a.dino, a.prompt, conf=a.conf or 0.15)
         except ImportError:
             raise SystemExit('Grounding DINO needs transformers: pip install "transformers>=4.45,<5"')
-    done, empty, skipped = prelabel.run(images, finder, overwrite=a.overwrite, preview=a.preview)
-    print(f"Labeled {done} frames. No robots found in {empty} (listed in no_robots.txt). "
-          f"Kept {skipped} existing label files.")
+    done, empty, skipped, report = prelabel.run(images, finder, overwrite=a.overwrite, preview=a.preview)
+    print(f"Labeled {done} frames. Kept {skipped} existing label files.")
+    print(f"No robots found in {empty}, listed in {report}. Most are results screens or close-ups to delete.")
 
 
 def cmd_train(a):
@@ -178,8 +178,8 @@ def main(argv=None):
     s.add_argument("--images", help="frames folder (default work/dataset/images)")
     s.add_argument("--model", help="a trained bumper model to use instead of Grounding DINO")
     s.add_argument("--dino", default="IDEA-Research/grounding-dino-base", help="Grounding DINO model id")
-    s.add_argument("--prompt", default="robot.", help="what Grounding DINO looks for")
-    s.add_argument("--conf", type=float, help="lowest confidence kept (0.2 DINO, 0.25 trained model)")
+    s.add_argument("--prompt", default="a robot.", help="what Grounding DINO looks for")
+    s.add_argument("--conf", type=float, help="lowest confidence kept (0.15 DINO, 0.25 trained model)")
     s.add_argument("--overwrite", action="store_true", help="replace existing label files")
     s.add_argument("--preview", help="also save frames with the boxes drawn to this folder")
     s.set_defaults(fn=cmd_prelabel)

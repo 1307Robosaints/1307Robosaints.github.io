@@ -85,12 +85,17 @@ There's no model in the repo. Until there is, `run` reads only the scoreboard.
 
 1. Save frames to label: `python run.py frames --video work\videos\2026nhrr\qm1.mp4 --every 2`.
    Take them from several events and matches. Leave out close-ups.
-2. Label them in Roboflow or CVAT with two box classes, `red_bumper` and `blue_bumper`. Draw
-   one box per visible bumper side. Public FRC bumper datasets on Roboflow Universe can give
-   a head start. 300 to 500 labeled frames is a reasonable first goal.
-3. Export in YOLO format, then train:
+2. Draft labels: `python run.py prelabel`. Grounding DINO (needs `pip install transformers`)
+   finds robots from a text prompt, and a color check keeps the ones with red or blue bumpers
+   and gives the class. Once a model exists, `--model models\bumpers.pt` drafts better.
+   Labels go to `work\dataset\labels` in YOLO format. It finds about half the robots, and
+   nearly all its boxes are right.
+3. Upload `work\dataset` to Roboflow (or CVAT) and fix the drafts. Two classes, `red_bumper`
+   and `blue_bumper`, and **one box per robot** around its bumpers. Two boxes on one robot
+   would look like two robots to `assign_teams`. 300 to 500 labeled frames is a reasonable first goal.
+4. Export in YOLO format, then train:
    `python run.py train --data path\to\data.yaml`. Batch 6 at 1280 px fits in 8 GB.
-4. Copy `work\train\bumpers\weights\best.pt` to `models\bumpers.pt`.
+5. Copy `work\train\bumpers\weights\best.pt` to `models\bumpers.pt`.
 
 Bumpers look the same every season, so the model carries over. The game-specific parts are
 the field zones, scoring rules and timing in `rsvision/games/<season>.json`. Copy the file to
