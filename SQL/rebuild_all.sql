@@ -389,8 +389,11 @@ revoke all on function public.run_auto_sync() from public, anon, authenticated;
 -- sync secret), so this sends the same request auto-sync does. A press within 60 seconds of the
 -- last one gets that request back instead of a new one, so a room full of buttons can't flood
 -- the FRC/TBA APIs.
+-- The row lock is "for no key update", not "for update": every match row a sync writes takes a key
+-- share lock on its event, and "for update" would wait behind those until the API's statement
+-- timeout. The lock_timeout makes any other wait fail quickly with a clear message instead.
 create or replace function public.resync_default_event() returns jsonb
-language plpgsql security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' set lock_timeout = '3s' as $$
 declare
   v_ev      record;
   v_request bigint;
@@ -399,7 +402,7 @@ begin
     raise exception 'Only team members can resync data.';
   end if;
   select id, name, frc_event_code, tba_event_key, resync_request, resync_requested_at into v_ev
-    from public.events where is_default_event for update;
+    from public.events where is_default_event for no key update;
   if not found then
     raise exception 'No default event is set. Staff can pick one with the star in the Staff Portal.';
   end if;
@@ -413,6 +416,8 @@ begin
   v_request := public.official_sync_request(v_ev.id);
   update public.events set resync_request = v_request, resync_requested_at = now() where id = v_ev.id;
   return jsonb_build_object('request_id', v_request, 'event_id', v_ev.id, 'event_name', v_ev.name, 'reused', false);
+exception when lock_not_available then
+  raise exception 'The default event is busy being updated. Try Resync again in a few seconds.';
 end $$;
 revoke all on function public.resync_default_event() from public, anon;
 grant execute on function public.resync_default_event() to authenticated;

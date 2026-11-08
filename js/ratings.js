@@ -186,7 +186,7 @@
           .order("updated_at", { ascending: false }) : { data: [] },
       any ? pagedRows(function () {
         return sb.rpc("official_match_teams_for", { p_teams: teams })
-          .select("team_number,event_id,alliance_score,opponent_score")
+          .select("team_number,event_id,match_key,alliance_score,opponent_score")   // match_key too: PostgREST only sorts a function result by selected columns
           .order("event_id").order("match_key").order("team_number");
       }) : { data: [] }
     ]);
