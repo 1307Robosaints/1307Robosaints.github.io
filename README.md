@@ -65,8 +65,11 @@ How Ratings Work are linked only from there (and from the pages that reference t
   behind their starting line. The Field menu can hide the structures (a plain grid), or use a
   field picture instead, which can also be set for everyone with `FIELD_IMAGE`.
 - `playoffs.html` — Playoff Selection: staff enter an event's alliances as they form, and the whole
-  team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
-  a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in
+  team sees them update. Once FRC Events (or TBA) publishes the alliances, every sync replaces them
+  with the official ones (the `official-alliances` Edge Function), and the board says so. Beside
+  them, every team at the event that hasn't been picked is ranked in a sortable table, official data
+  first: the official rating (the default sort), then the scouting rating, official results, scouted
+  stats, and pit data. Each alliance has Red and Blue buttons that open it in
   the Alliance View. Alliances have 3 teams, or 4 at district championships and the FIRST
   Championship; staff can switch any event with the 4-team toggle. The table includes each team's
   OPR for the event, its estimated AUTO and teleop FUEL there (component OPR), and its official
@@ -74,7 +77,8 @@ How Ratings Work are linked only from there (and from the pages that reference t
   numbers. To change the table's stats, edit `COLUMNS` in the page.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
-  it only advances once an event syncs. When official scores are tied, staff click who won the
+  it only advances once an event syncs. With fewer than 8 alliances, an empty alliance is a bye: the
+  alliance it would have played moves on without playing. When official scores are tied, staff click who won the
   tiebreaker. On a 4-team alliance staff click who sits out each match (the 3rd pick by default).
   The match layout is `MATCHES` in the page.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,

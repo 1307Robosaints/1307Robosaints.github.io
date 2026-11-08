@@ -241,6 +241,14 @@
         .map(function (p) { return p.team_number; });
     }
     function teamLabel(t) { return RSTeams.label(t, teamInfo[t]); }
+    // Fewer than 8 alliances: once every alliance above it has at least 3 teams, an empty alliance
+    // is a bye (alliance 0 below), and whoever it would have played moves on without playing.
+    var BYE = 0;
+    function isBye(n) {
+      if (!picks.length || teamsOf(n).length) return false;
+      for (var a = 1; a < n; a++) if (teamsOf(a).length < 3) return false;
+      return true;
+    }
 
     // ── Working out the bracket ──────────────────────────────────────
     // Unplayed matches can come through as null, 0-0 or TBA's -1, so none of those count as played.
@@ -292,7 +300,7 @@
     function resolveBracket() {
       var results = {};
       function allianceFor(side) {
-        if (side.seed) return side.seed;
+        if (side.seed) return isBye(side.seed) ? BYE : side.seed;
         if (side.won) return results[side.won].winner;
         return results[side.lost].loser;
       }
@@ -302,6 +310,14 @@
         var r = results[m.n] = { key: key, red: allianceFor(m.red), blue: allianceFor(m.blue), winner: null, loser: null, flag: "" };
         if (r.red != null) r.redTeams = plannedTeams(r.red, key);
         if (r.blue != null) r.blueTeams = plannedTeams(r.blue, key);
+        if (r.red === BYE || r.blue === BYE) {
+          var other = r.red === BYE ? r.blue : r.red;
+          if (other == null) return;               // waiting on an earlier match
+          r.bye = true;
+          r.winner = other;
+          r.loser = BYE;
+          return;
+        }
         var list = games[key];
         if (!list || r.red == null || r.blue == null) return;
         var g = list[list.length - 1];   // a replay replaces the earlier result
@@ -323,7 +339,9 @@
       });
 
       var f = { red: allianceFor(FINAL.red), blue: allianceFor(FINAL.blue), redWins: 0, blueWins: 0, scores: [], winner: null, flag: "" };
-      if (f.red != null && f.blue != null) {
+      if ((f.red === BYE || f.blue === BYE) && f.red != null && f.blue != null) {
+        f.winner = f.red === BYE ? f.blue : f.red;
+      } else if (f.red != null && f.blue != null) {
         (games.f1 || []).forEach(function (g) {
           var sides = sidesFor(f.red, f.blue, g);
           if (!sides) { f.flag = "Official teams don't match"; return; }
@@ -370,6 +388,7 @@
       if (teams.indexOf(OUR_TEAM) !== -1) cls += " ours";
       var playing = color === "red" ? r.redTeams : r.blueTeams;
       var editable = canEdit && !r.played && r.winner == null;
+      if (alliance === BYE) return '<div class="b-side ' + color + ' lost"><span class="b-wait">Bye</span></div>';
       return '<div class="' + cls + '">' +
         (alliance == null ? "" : '<span class="b-seed" title="Alliance ' + alliance + '">A' + alliance + "</span>") +
         (teams.length ? teamsHtml(alliance, playing, r.key, editable)
@@ -465,6 +484,16 @@
         notes = '<div class="alert alert-warning b-note" role="alert">Some official results list teams that don\'t match ' +
           'the alliances entered, so those matches can\'t advance. Check Playoff Selection.</div>';
       }
+      var byes = [];
+      for (var a = 1; a <= 8; a++) if (isBye(a)) byes.push(a);
+      if (byes.length) {
+        notes += '<p class="text-muted" style="font-size:.8rem;margin:0 0 .3rem;">' + (byes.length === 9 - byes[0] ? "There are only " + (byes[0] - 1) + " alliances" : "Some alliances are empty") +
+          ", so any alliance that would have played an empty one gets a bye and moves on without playing.</p>";
+      }
+      if (picks.some(function (p) { return p.source === "official"; })) {
+        notes += '<p class="text-muted" style="font-size:.8rem;margin:0 0 .3rem;">Alliances are the official ones from FRC Events/TBA, ' +
+          "updated with every sync.</p>";
+      }
       if (canEdit && picks.some(function (p) { return p.slot === 4; })) {
         notes += '<p class="text-muted" style="font-size:.8rem;margin:0 0 .3rem;">On a 4-team alliance, click a ' +
           "captain's teammate to have them sit out that match. Until you do, the 3rd pick sits out.</p>";
@@ -481,7 +510,7 @@
     async function load() {
       var thisLoad = ++loadCount, id = eventId;
       var results = await Promise.all([
-        sb.from("playoff_picks").select("alliance_number,slot,team_number").eq("event_id", id),
+        sb.from("playoff_picks").select("alliance_number,slot,team_number,source").eq("event_id", id),
         sb.from("official_matches_combined")
           .select("match_key,red_teams,blue_teams,red_score,blue_score")
           .eq("event_id", id).in("comp_level", ["sf", "f"]),

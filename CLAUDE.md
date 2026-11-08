@@ -142,6 +142,9 @@ Key tables/functions to know when touching 1307scout:
   Resync data button both send their request through `official_sync_request()`.
   `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
   and the Staff Portal shows that next to the auto-sync status.
+  `official-alliances` (in this repo, `supabase/functions/`) is sent alongside every sync request:
+  it reads the event's alliances from FRC Events (TBA as fallback) and writes them into
+  `playoff_picks` (`source = 'official'`) through `official_set_alliances()`, so the bracket follows them.
   `manage-member` is a separate Edge Function used by the Staff Portal for member management.
   Its deployed slug is `bright-responder`, so that is the name `portal.html` invokes.
   `delete-account` is a separate Edge Function behind the My Account delete button. Both must

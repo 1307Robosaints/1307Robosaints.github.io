@@ -69,6 +69,9 @@
 -- Vision update: section 8j adds vision_matches / vision_robots, written only by the vision
 -- worker (vision/ folder, service role), and match_flag_reviews for the Match Flags page.
 --
+-- Alliances update: playoff_picks.source, and official_set_alliances() (section 8h), which the
+-- official-alliances Edge Function calls after each sync to copy FRC/TBA alliances into the picks.
+--
 -- Strategy update: section 8k adds match_strategies, the field-map plan for each match drawn on
 -- the Match Strategy page (strategy.html), kept so the team can look back at plans that worked.
 -- =====================================================================
@@ -347,7 +350,9 @@ grant execute on function public.set_auto_sync_event(uuid) to authenticated;
 -- Sends one official-sync request for an event through pg_net and returns the request id. Shared
 -- by auto-sync and the Resync data button; not callable from the API. Sends force=true because the
 -- Edge Function otherwise skips events synced under 90 seconds ago. The longer timeout is because
--- pg_net's 5 second default is shorter than a full sync can take.
+-- pg_net's 5 second default is shorter than a full sync can take. It also asks the
+-- official-alliances function for the event's playoff alliances; until that function is deployed,
+-- that second request just fails quietly.
 create or replace function public.official_sync_request(p_event uuid) returns bigint
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -358,6 +363,11 @@ begin
   if v_secret is null or v_secret = '' then
     raise exception 'Vault secret sync_secret is missing (see section 15).';
   end if;
+  perform net.http_post(
+    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/official-alliances',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+    body    := jsonb_build_object('event_id', p_event),
+    timeout_milliseconds := 30000);
   return net.http_post(
     url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/official-sync',
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
@@ -1146,6 +1156,9 @@ create table if not exists public.playoff_picks (
   unique (event_id, team_number)
 );
 alter table public.playoff_picks enable row level security;
+-- 'official' rows were copied from FRC Events or TBA by the official-alliances Edge Function
+alter table public.playoff_picks add column if not exists source text not null default 'manual'
+  check (source in ('manual', 'official'));
 
 drop policy if exists "team reads playoff picks"    on public.playoff_picks;
 drop policy if exists "staff manages playoff picks" on public.playoff_picks;
@@ -1153,6 +1166,51 @@ create policy "team reads playoff picks" on public.playoff_picks for select to a
   using ((select public.is_staff()) or (select public.is_student()));
 create policy "staff manages playoff picks" on public.playoff_picks for all to authenticated
   using ((select public.is_staff())) with check ((select public.is_staff()));
+
+-- Copies an event's official alliances into playoff_picks, so Playoff Selection and the Playoff
+-- Bracket follow them. Called only by the official-alliances Edge Function (service role) after
+-- each sync. p_alliances is [{ "number": 1, "teams": [captain, 1st, 2nd, 3rd?] }, ...].
+-- Only a finished selection is applied (every alliance listed has at least 3 teams), so a
+-- half-published list never wipes picks staff are entering live. Nothing is written when the
+-- picks already match, so a sync every 2 minutes doesn't fill the audit log.
+create or replace function public.official_set_alliances(p_event uuid, p_alliances jsonb)
+returns text language plpgsql security definer set search_path = '' as $$
+declare
+  v_rows jsonb;
+  v_now  jsonb;
+begin
+  if jsonb_typeof(p_alliances) <> 'array' or jsonb_array_length(p_alliances) = 0 then
+    return 'none';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_alliances) a
+    where (a ->> 'number')::int not between 1 and 8
+       or jsonb_array_length(a -> 'teams') not between 3 and 4
+  ) then
+    return 'incomplete';
+  end if;
+  -- One row per spot, in the same shape as the current picks, to compare
+  select coalesce(jsonb_agg(jsonb_build_array((a ->> 'number')::int, t.slot::int, t.team::int)
+                            order by (a ->> 'number')::int, t.slot), '[]'::jsonb)
+    into v_rows
+    from jsonb_array_elements(p_alliances) a
+    cross join lateral jsonb_array_elements_text(a -> 'teams') with ordinality as t(team, slot);
+  select coalesce(jsonb_agg(jsonb_build_array(alliance_number, slot, team_number)
+                            order by alliance_number, slot), '[]'::jsonb)
+    into v_now
+    from public.playoff_picks where event_id = p_event;
+  if v_rows = v_now then
+    update public.playoff_picks set source = 'official' where event_id = p_event and source <> 'official';
+    return 'unchanged';
+  end if;
+  delete from public.playoff_picks where event_id = p_event;
+  insert into public.playoff_picks (event_id, alliance_number, slot, team_number, source)
+    select p_event, (r ->> 0)::int, (r ->> 1)::int, (r ->> 2)::int, 'official'
+    from jsonb_array_elements(v_rows) r;
+  return 'updated';
+end $$;
+revoke all on function public.official_set_alliances(uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.official_set_alliances(uuid, jsonb) to service_role;
 
 -- Alliance size for the event: 3, or 4 with a third round of picks. Blank means the usual rule
 -- (4 at district championships and the FIRST Championship), so only an off-season that changes
@@ -2594,6 +2652,7 @@ on conflict (user_id) do nothing;
 --
 --     Edge Function setup (terminal, or the same in Dashboard > Edge Functions):
 --       supabase functions deploy official-sync --no-verify-jwt
+--       supabase functions deploy official-alliances --no-verify-jwt   (this repo, supabase/functions)
 --       supabase secrets set FRC_API_USER=... FRC_API_TOKEN=... TBA_API_KEY=... SYNC_SECRET=...
 --       (EVENT_TZ is optional; default America/New_York)
 --     The function must be deployed with JWT verification OFF; it checks
@@ -2938,7 +2997,7 @@ with expected(kind, name) as (values
   ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'), ('table','match_strategies'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'), ('function','official_match_teams_for'), ('function','official_lineups_for'),
-  ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
+  ('function','is_staff'), ('function','is_student'), ('function','my_access_level'), ('function','official_set_alliances'),
   ('function','session_live'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),

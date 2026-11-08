@@ -32,6 +32,7 @@
     .p-next label strong { font-family: var(--display); color: var(--navy); }
     .p-next input { width: 6.5rem; }
     .p-msg { font-size: .85rem; color: #c0392b; min-height: 1.3em; margin-bottom: .25rem; }
+    .p-official { font-size: .8rem; color: var(--muted); margin: 0 0 .3rem; padding: .3rem .5rem; background: var(--tint); border-left: 3px solid var(--blue); }
 
     /* One card per alliance */
     .p-alliance { background: var(--white); border: 1px solid var(--line); padding: .4rem .5rem .5rem; margin-bottom: .45rem; }
@@ -198,6 +199,7 @@
           <input type="number" id="addTeam" class="form-control form-control-sm" min="1" max="99999" inputmode="numeric" placeholder="Team #" autocomplete="off">
           <button type="submit" class="btn btn-primary btn-sm">Add</button>
         </form>
+        <p class="p-official" id="officialNote" hidden>These are the official alliances from FRC Events/TBA. They update with every sync, which replaces any change made here.</p>
         <div class="p-msg" id="boardMsg" role="status"></div>
         <div id="board"></div>
       </section>
@@ -347,18 +349,40 @@
       return Object.keys(byMatch).map(function (k) { return mean(byMatch[k]); });
     }
 
-    // Columns of the remaining-teams table, in order. To change what's shown, edit this list.
+    // Columns of the remaining-teams table, in order: official data first, then scouting, then pit.
+    // To change what's shown, edit this list.
     //   value: the number or text sorted on (null always sorts last)
     //   show:  the text displayed. lower: true means a smaller number is better.
     // Ratings cover every event in the season. The other scouted and official columns follow the
     // All season / This event buttons, and pit columns show the team's newest pit entry.
     var COLUMNS = [
-      { group: "Ratings", key: "scouting", label: "Scouting", html: true, title: "Scouting rating score, all season. Teams with under 3 scouted matches aren't rated.",
-        value: function (t) { return t.gradeScout === "NR" ? null : num(t.scout.score); },
-        show: function (v, t) { return gradeHtml(t.gradeScout, v); } },
       { group: "Ratings", key: "official", label: "Official", html: true, title: "Official rating: OPR, the points a team adds to its alliance per match, all season. Teams with under 3 qualification matches aren't rated.",
         value: function (t) { return t.gradeOfficial === "NR" ? null : num(t.official.score); },
         show: function (v, t) { return gradeHtml(t.gradeOfficial, v); } },
+      { group: "Ratings", key: "scouting", label: "Scouting", html: true, title: "Scouting rating score, all season. Teams with under 3 scouted matches aren't rated.",
+        value: function (t) { return t.gradeScout === "NR" ? null : num(t.scout.score); },
+        show: function (v, t) { return gradeHtml(t.gradeScout, v); } },
+
+      { group: "Official", key: "record", label: "Record", title: "Wins-losses-ties. Sorts by win rate.",
+        value: function (t) { return t.record ? t.record.wins / t.record.matches : null; },
+        show: function (v, t) { return t.record.wins + "-" + t.record.losses + "-" + t.record.ties; } },
+      { group: "Official", key: "allianceScore", label: "Avg score", title: "Average alliance score, which includes its partners", show: oneDecimal,
+        value: function (t) { return t.record ? t.record.avgScore : null; } },
+      { group: "Official", key: "opr", label: "OPR", title: "Estimated points this team adds to its alliance, from this event's qualification matches (see How Ratings Work)", show: oneDecimal,
+        value: function (t) { return eventOpr.teams[t.team] && eventOpr.teams[t.team].score != null ? eventOpr.teams[t.team].score : null; } },
+      { group: "Official", key: "offAutoFuel", label: "Auto FUEL", title: "Estimated FUEL this team scores in AUTO, from this event's official FUEL counts (component OPR, see How Ratings Work)", show: oneDecimal,
+        value: function (t) { return fuelOpr(t, "auto"); } },
+      { group: "Official", key: "offTeleFuel", label: "Teleop FUEL", title: "Estimated FUEL this team scores in teleop, from this event's official FUEL counts (component OPR, see How Ratings Work)", show: oneDecimal,
+        value: function (t) { return fuelOpr(t, "teleop"); } },
+      { group: "Official", key: "offAutoClimb", label: "Auto climb", title: "Share of official matches this robot climbed the TOWER in AUTO (FRC reports this per robot)", show: percent,
+        value: function (t) { return shareOf(towerGames(t, "a"), function (g) { return officialTower(g, "a") !== "None"; }); } },
+      { group: "Official", key: "offClimb", label: "Climb rate", title: "Share of official matches this robot climbed the TOWER in the endgame, with its best level (FRC reports this per robot)",
+        value: function (t) { return shareOf(towerGames(t, "e"), function (g) { return officialTower(g, "e") !== "None"; }); },
+        show: function (v, t) {
+          var best = towerGames(t, "e").map(function (g) { return officialTower(g, "e"); })
+            .filter(function (l) { return l !== "None"; }).sort().pop();
+          return percent(v) + (best ? " (" + best + ")" : "");
+        } },
 
       { group: "Scouted", key: "matches", label: "Matches", title: "Matches scouted",
         value: function (t) { return t.perMatch.length; } },
@@ -384,27 +408,6 @@
         } },
       { group: "Scouted", key: "stuck", label: "Stuck", lower: true, show: percent, value: rateOf("stuck_on_field") },
       { group: "Scouted", key: "fouls", label: "Fouls", title: "Share of matches with a foul or card", lower: true, show: percent, value: rateOf("foul_or_card") },
-
-      { group: "Official", key: "record", label: "Record", title: "Wins-losses-ties. Sorts by win rate.",
-        value: function (t) { return t.record ? t.record.wins / t.record.matches : null; },
-        show: function (v, t) { return t.record.wins + "-" + t.record.losses + "-" + t.record.ties; } },
-      { group: "Official", key: "allianceScore", label: "Avg score", title: "Average alliance score, which includes its partners", show: oneDecimal,
-        value: function (t) { return t.record ? t.record.avgScore : null; } },
-      { group: "Official", key: "opr", label: "OPR", title: "Estimated points this team adds to its alliance, from this event's qualification matches (see How Ratings Work)", show: oneDecimal,
-        value: function (t) { return eventOpr.teams[t.team] && eventOpr.teams[t.team].score != null ? eventOpr.teams[t.team].score : null; } },
-      { group: "Official", key: "offAutoFuel", label: "Auto FUEL", title: "Estimated FUEL this team scores in AUTO, from this event's official FUEL counts (component OPR, see How Ratings Work)", show: oneDecimal,
-        value: function (t) { return fuelOpr(t, "auto"); } },
-      { group: "Official", key: "offTeleFuel", label: "Teleop FUEL", title: "Estimated FUEL this team scores in teleop, from this event's official FUEL counts (component OPR, see How Ratings Work)", show: oneDecimal,
-        value: function (t) { return fuelOpr(t, "teleop"); } },
-      { group: "Official", key: "offAutoClimb", label: "Auto climb", title: "Share of official matches this robot climbed the TOWER in AUTO (FRC reports this per robot)", show: percent,
-        value: function (t) { return shareOf(towerGames(t, "a"), function (g) { return officialTower(g, "a") !== "None"; }); } },
-      { group: "Official", key: "offClimb", label: "Climb rate", title: "Share of official matches this robot climbed the TOWER in the endgame, with its best level (FRC reports this per robot)",
-        value: function (t) { return shareOf(towerGames(t, "e"), function (g) { return officialTower(g, "e") !== "None"; }); },
-        show: function (v, t) {
-          var best = towerGames(t, "e").map(function (g) { return officialTower(g, "e"); })
-            .filter(function (l) { return l !== "None"; }).sort().pop();
-          return percent(v) + (best ? " (" + best + ")" : "");
-        } },
 
       { group: "Robot", key: "drivetrain", label: "Drivetrain", text: true, value: pitText("drivetrain") },
       { group: "Robot", key: "shooter", label: "Shooter", text: true, value: pitText("shooter_type") },
@@ -437,7 +440,7 @@
     var saving = false;
     var shownTarget = "";        // the spot the board last scrolled to
     var poolTeams = [];          // every team at this event, picked or not
-    var sortKey = "scouting", sortDir = -1, scope = "season";
+    var sortKey = "official", sortDir = -1, scope = "season";   // official data first
 
     var ratings = [], officialRatings = [], testTeams = new Set(), teamInfo = {};
     var entriesByTeam = {}, pitByTeam = {}, gamesByTeam = {};
@@ -507,7 +510,7 @@
     var picksLoad = 0;
     async function loadPicks() {
       var thisLoad = ++picksLoad;
-      var r = await sb.from("playoff_picks").select("alliance_number,slot,team_number").eq("event_id", eventId);
+      var r = await sb.from("playoff_picks").select("alliance_number,slot,team_number,source").eq("event_id", eventId);
       if (thisLoad !== picksLoad) return;   // a newer load or a save has taken over
       if (r.error) {
         console.warn("Playoff Selection:", r.error.message);
@@ -516,10 +519,11 @@
       }
       var fresh = r.data || [];
       var key = function (list) {
-        return JSON.stringify(list.map(function (p) { return [p.alliance_number, p.slot, p.team_number]; }).sort());
+        return JSON.stringify(list.map(function (p) { return [p.alliance_number, p.slot, p.team_number, p.source]; }).sort());
       };
       if (key(fresh) === key(picks)) return;
       picks = fresh;
+      $("officialNote").hidden = !picks.some(function (p) { return p.source === "official"; });
       render();
     }
 
@@ -529,6 +533,7 @@
       $("bracketLink").href = "/bracket.html?event=" + encodeURIComponent(id);
       picksLoad++;   // ignore any refresh still running for the previous event
       picks = [];
+      $("officialNote").hidden = true;
       chosenSpot = null;
       poolTeams = [];
       say("");
@@ -666,14 +671,14 @@
       if (a == null || b == null) return a == null ? (b == null ? 0 : 1) : -1;   // blanks stay last
       return dir * (typeof a === "string" ? a.localeCompare(b) : a - b);
     }
-    // Ties fall back to the scouting rating, then the official rating, then team number.
+    // Ties fall back to the official rating, then the scouting rating, then team number.
     // The two ratings are only ever compared one after the other, never combined.
     function sortedTeams(list) {
       var col = columnByKey(sortKey), scouting = columnByKey("scouting"), official = columnByKey("official");
       return list.slice().sort(function (x, y) {
         return compareValues(col.value(x), col.value(y), sortDir) ||
-          compareValues(scouting.value(x), scouting.value(y), -1) ||
           compareValues(official.value(x), official.value(y), -1) ||
+          compareValues(scouting.value(x), scouting.value(y), -1) ||
           x.team - y.team;
       });
     }
