@@ -69,7 +69,9 @@ How Ratings Work are linked only from there (and from the pages that reference t
   a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in
   the Alliance View. Alliances have 3 teams, or 4 at district championships and the FIRST
   Championship; staff can switch any event with the 4-team toggle. The table includes each team's
-  OPR for the event. To change the table's stats, edit `COLUMNS` in the page.
+  OPR for the event, its estimated AUTO and teleop FUEL there (component OPR), and its official
+  AUTO and endgame climb rates from FRC's per-robot TOWER data, so a team nobody scouted still has
+  numbers. To change the table's stats, edit `COLUMNS` in the page.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
   it only advances once an event syncs. When official scores are tied, staff click who won the

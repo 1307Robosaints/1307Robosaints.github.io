@@ -344,8 +344,9 @@
         <li><strong>Every score field gets one.</strong> Each number FRC Events or TBA reports for an alliance, such as FUEL counts or foul points, gets its own estimate, alongside the total score.</li>
         <li><strong>Steady early in an event.</strong> With only a few matches there's no unique answer, so each estimate is pulled gently toward the event average. The pull is worth about one match, and it fades as matches are played.</li>
         <li><strong>Needs 3 matches.</strong> A team with fewer qualification matches at the event gets no estimate.</li>
-        <li><strong>Per event, then the official rating.</strong> The Team Database shows one column per event, with the team's rank there, and Playoff Selection shows the current event's total. The official rating is the total-score OPR averaged over the team's events, as described <a href="#official-rating">above</a>. It never touches the scouting rating.</li>
+        <li><strong>Per event, then the official rating.</strong> The Team Database shows one column per event, with the team's rank there, and Playoff Selection shows the current event's total, plus its AUTO and teleop FUEL counts (teleop is the total FUEL count minus AUTO when FRC doesn't report teleop on its own). The official rating is the total-score OPR averaged over the team's events, as described <a href="#official-rating">above</a>. It never touches the scouting rating.</li>
         <li><strong>Limits.</strong> It can't tell a strong robot from a lucky schedule after only a few matches. Defense and partners still affect it.</li>
+        <li><strong>Climbing needs no estimate.</strong> FRC reports each robot's TOWER level on its own, so Playoff Selection's official Auto climb and Climb rate are plain counts of the matches it climbed, with its best endgame level. They follow the All season / This event buttons.</li>
       </ul>
 
       <h2 id="vision">Vision estimates</h2>

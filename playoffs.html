@@ -295,6 +295,27 @@
     function rateOf(key) {
       return function (t) { return shareOf(t.rows, function (r) { return r.data[key] === true; }); };
     }
+    // Official per-robot TOWER level in one played match ("L1".."L3", "None"), or null if not reported
+    var LEVELS = { Level1: "L1", Level2: "L2", Level3: "L3", None: "None" };
+    function officialTower(g, kind) {
+      return g.station ? LEVELS[g[kind + g.station]] || null : null;
+    }
+    function towerGames(t, kind) {
+      return t.games.filter(function (g) { return officialTower(g, kind) != null; });
+    }
+    // This event's component OPR for a FUEL count. Breakdown names change every game, so the field is
+    // found by name: a hub count for auto, and for teleop either its own count or total minus auto.
+    function oprField(re) {
+      return eventOpr.fields.find(function (f) { return re.test(f); }) || null;
+    }
+    function fuelOpr(t, part) {
+      var e = eventOpr.teams[t.team];
+      if (!e) return null;
+      var auto = oprField(/hub.*auto.*count/i), tele = oprField(/hub.*tele.*count/i), total = oprField(/hub.*total.*count/i);
+      if (part === "auto") return auto && e.fields[auto] != null ? e.fields[auto] : null;
+      if (tele) return e.fields[tele] != null ? e.fields[tele] : null;
+      return total && auto && e.fields[total] != null && e.fields[auto] != null ? e.fields[total] - e.fields[auto] : null;
+    }
     function oneDecimal(v) { return v.toFixed(1); }
     function percent(v) { return Math.round(v * 100) + "%"; }
     function pitValue(t, key) {
@@ -371,6 +392,19 @@
         value: function (t) { return t.record ? t.record.avgScore : null; } },
       { group: "Official", key: "opr", label: "OPR", title: "Estimated points this team adds to its alliance, from this event's qualification matches (see How Ratings Work)", show: oneDecimal,
         value: function (t) { return eventOpr.teams[t.team] && eventOpr.teams[t.team].score != null ? eventOpr.teams[t.team].score : null; } },
+      { group: "Official", key: "offAutoFuel", label: "Auto FUEL", title: "Estimated FUEL this team scores in AUTO, from this event's official FUEL counts (component OPR, see How Ratings Work)", show: oneDecimal,
+        value: function (t) { return fuelOpr(t, "auto"); } },
+      { group: "Official", key: "offTeleFuel", label: "Teleop FUEL", title: "Estimated FUEL this team scores in teleop, from this event's official FUEL counts (component OPR, see How Ratings Work)", show: oneDecimal,
+        value: function (t) { return fuelOpr(t, "teleop"); } },
+      { group: "Official", key: "offAutoClimb", label: "Auto climb", title: "Share of official matches this robot climbed the TOWER in AUTO (FRC reports this per robot)", show: percent,
+        value: function (t) { return shareOf(towerGames(t, "a"), function (g) { return officialTower(g, "a") !== "None"; }); } },
+      { group: "Official", key: "offClimb", label: "Climb rate", title: "Share of official matches this robot climbed the TOWER in the endgame, with its best level (FRC reports this per robot)",
+        value: function (t) { return shareOf(towerGames(t, "e"), function (g) { return officialTower(g, "e") !== "None"; }); },
+        show: function (v, t) {
+          var best = towerGames(t, "e").map(function (g) { return officialTower(g, "e"); })
+            .filter(function (l) { return l !== "None"; }).sort().pop();
+          return percent(v) + (best ? " (" + best + ")" : "");
+        } },
 
       { group: "Robot", key: "drivetrain", label: "Drivetrain", text: true, value: pitText("drivetrain") },
       { group: "Robot", key: "shooter", label: "Shooter", text: true, value: pitText("shooter_type") },
@@ -547,7 +581,11 @@
           : { data: [] },
         teams.length ? pagedRows(function () {
           return sb.rpc("official_match_teams_for", { p_teams: teams })
-            .select("team_number,event_id,match_key,alliance_score,opponent_score")   // match_key too: PostgREST only sorts a function result by selected columns
+            // match_key too: PostgREST only sorts a function result by selected columns. The six
+            // breakdown values are each robot's official TOWER level; station says which is this team's.
+            .select("team_number,event_id,match_key,alliance_score,opponent_score,station," +
+              "a1:breakdown->>autoTowerRobot1,a2:breakdown->>autoTowerRobot2,a3:breakdown->>autoTowerRobot3," +
+              "e1:breakdown->>endGameTowerRobot1,e2:breakdown->>endGameTowerRobot2,e3:breakdown->>endGameTowerRobot3")
             .order("event_id").order("match_key").order("team_number");
         }) : { data: [] }
       ]);
@@ -616,6 +654,7 @@
         gradeScout: gradeFor(ratings, team),
         gradeOfficial: gradeFor(officialRatings, team),
         rows: rows,
+        games: (gamesByTeam[team] || []).filter(function (g) { return scope === "season" || g.event_id === eventId; }),
         perMatch: pointsPerMatch(rows),
         record: recordFor(team, official),
         pit: pitByTeam[team] || null
