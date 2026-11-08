@@ -89,12 +89,19 @@ Robot photos uploaded from the Scout page land in a public Supabase Storage buck
 (`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo
 queues the file, and the Scout page and Staff Portal remove it through the Storage API.
 
-**Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA at every 5-minute mark
-of the clock (9:35, 9:40, 9:45...). It runs on the server through `pg_cron`, so nobody has to keep
+**Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA every 2 minutes
+(9:30, 9:32, 9:34...). It runs on the server through `pg_cron`, so nobody has to keep
 a page open, and turns itself off 4 days after the event date. `SQL/rebuild_all.sql` enables pg_cron
 and pg_net and schedules the job. The one manual step is storing `sync_secret` in the Vault (section 15).
 The check query at the end of that file shows if either is missing, and the Staff Portal warns if a
-run is failing.
+run is failing, the job has stopped, or it's still on an old schedule.
+
+**Resync data** is a button on every page that shows official results (Our Matches, Match Flags,
+Playoff Selection, Bracket, Team Database, Alliance View). Any team member can press it. It
+refreshes only the default event (the starred one in the Staff Portal), through
+`resync_default_event()`, which sends the same server-side request auto-sync does, so it works
+for students who can't call `official-sync` directly. Presses within 60 seconds of each other share
+one request. The button is `js/resync.js`.
 
 **Vision worker** (`vision/`): a Python program that runs on a team laptop with a GPU, not on the
 website. It reads match video from the links on The Blue Alliance. It reads the scoreboard overlay

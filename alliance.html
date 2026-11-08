@@ -12,6 +12,7 @@
   <style>
     .a-page { max-width: 1200px; margin: 0 auto; padding: 2rem 15px; }
     .a-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .a-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
 
     .alliance { --team: #c0392b; margin-bottom: 2rem; }
     .alliance.blue { --team: #1B4DB1; }
@@ -223,7 +224,9 @@
           Add teams from the <a href="/query.html">Team Database</a>. The best value in each stat is green. <a href="/ratings.html">How ratings work</a>
         </p>
       </div>
-      <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll">Clear all</button>
+      <div class="a-actions" id="actions">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll">Clear all</button>
+      </div>
     </div>
     <div id="loadError"></div>
     <div id="alliances"><div class="loading-msg">Loading…</div></div>
@@ -263,6 +266,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/alliance.js"></script>
@@ -514,6 +518,7 @@
       if (e.key === Alliance.KEY || e.key === null) load();
     });
 
+    RSResync.mount($("actions"), load);
     await load();
   })();
   </script>

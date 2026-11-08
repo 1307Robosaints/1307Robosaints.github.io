@@ -233,6 +233,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script>
@@ -255,7 +256,7 @@
 
     var OUR_TEAM = 1307;
     var TEAM_KEY = "rs_matches_team";   // the team last viewed, in this browser
-    var POLL_MS = 60000;                // official sync runs every 5 minutes at most
+    var POLL_MS = 60000;                // auto-sync runs every 2 minutes at most
 
     var events = [], eventId = null, team = OUR_TEAM;
     var official = {}, edits = {};      // by match_key
@@ -562,6 +563,12 @@
     }).join("");
     eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
     $("eventPick").value = eventId;
+    RSResync.mount(document.querySelector(".m-controls"), function (done) {
+      var ev = events.find(function (e) { return e.id === done.eventId; });
+      if (ev) ev.official_synced_at = done.syncedAt;
+      dataTeams = "";   // refetch the grades too
+      return load();
+    });
     await load();
 
     setInterval(function () { if (!document.hidden) load(); }, POLL_MS);

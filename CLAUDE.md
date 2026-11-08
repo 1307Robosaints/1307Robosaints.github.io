@@ -25,7 +25,9 @@ is `vision/`, a separate Python worker (not served by the site) with its own `re
 ### No bundler, inline-script pages
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
-`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, plus the vendored `jqBootstrapValidation.js`).
+`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `resync.js`, plus the vendored `jqBootstrapValidation.js`).
+`resync.js` is the "Resync data" button on every page that shows official results; it refreshes only the
+default event, through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
 `opr.js` is component OPR per event, for every numeric field in the official breakdown (Team Database,
 Playoff Selection). `vision.js` holds the labels for the vision worker's per-robot keys.
 `teams.js` handles team names ("1678 Citrus Circuits") and the TBA lookup; `ratings.js` holds the
@@ -133,7 +135,8 @@ Key tables/functions to know when touching 1307scout:
   deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
   Competition-day auto-sync is `events.auto_sync` (one event at a time, set through
-  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 5 minutes.
+  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It and the
+  Resync data button both send their request through `official_sync_request()`.
   `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
   and the Staff Portal shows that next to the auto-sync status.
   `manage-member` is a separate Edge Function used by the Staff Portal for member management.

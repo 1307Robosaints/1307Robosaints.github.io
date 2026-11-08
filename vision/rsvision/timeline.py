@@ -123,14 +123,31 @@ def score_timeline(samples, clock, after_s=6):
     return [[i, int(series["red"][i]), int(series["blue"][i])] for i in range(n)]
 
 
-def agrees(final_red, final_blue, official_red, official_blue, tol=5):
+def reads_to_end(samples, clock, slack=2, after_s=6):
+    """True when both scores were readable within slack seconds of the match end.
+
+    Broadcast videos are often cut a few seconds early, and the overlay can switch away at the
+    buzzer. Then the last read misses late points and can't be compared with the official score.
+    Reads long after the end are ignored: by then the video shows replays or other graphics.
+    """
+    return any(s[1] is not None and s[2] is not None and clock.end - slack <= s[0] <= clock.end + after_s
+               for s in samples)
+
+
+def agrees(final_red, final_blue, official_red, official_blue, red_fouls=0, blue_fouls=0, tol=5):
     """True when the scoreboard's final read is within tol of the official score.
 
-    Scores can change after a match (fouls reviewed), so an exact match isn't required.
+    The overlay usually doesn't show foul points until the results screen, so the read is also
+    accepted against the score without each alliance's foul points. Scores can change after a
+    match too, so an exact match isn't required.
     """
     if None in (final_red, final_blue, official_red, official_blue):
         return None
-    return abs(final_red - official_red) <= tol and abs(final_blue - official_blue) <= tol
+
+    def close(read, official, fouls):
+        return abs(read - official) <= tol or abs(read - (official - (fouls or 0))) <= tol
+
+    return close(final_red, official_red, red_fouls) and close(final_blue, official_blue, blue_fouls)
 
 
 def parse_clock(text):

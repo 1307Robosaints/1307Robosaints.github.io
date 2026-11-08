@@ -42,6 +42,9 @@ number. The website treats anything under 0.5 as low confidence.
 
 ## Setup (once)
 
+For a step-by-step version with a check after each step and fixes for common problems, see
+[SETUP.md](SETUP.md).
+
 1. Install Python 3.11 and the NVIDIA driver (already on the team laptop).
 2. From this folder, make a virtual environment and install PyTorch with CUDA, then the rest:
    ```
@@ -55,22 +58,22 @@ number. The website treats anything under 0.5 as low confidence.
    TBA key. **The service role key skips all row-level security.** Keep it on this laptop.
 4. Run `SQL/rebuild_all.sql` so the `vision_matches` and `vision_robots` tables exist.
 5. Confirm the 2026 score field names match `rsvision/games/2026.json`:
-   `python run.py keys --event 2026nhgrs`. The per-robot TOWER keys and `foulPoints` should be there.
+   `python run.py keys --event 2026nhrr`. The per-robot TOWER keys and `foulPoints` should be there.
    Also check the field sizes in that file against the 2026 field drawings, as noted at its top.
 
 ## Each event
 
 1. Link the event to its TBA key in the Staff Portal and let it sync.
-2. Download the match videos TBA lists: `python run.py download --event 2026nhgrs`.
+2. Download the match videos TBA lists: `python run.py download --event 2026nhrr`.
 3. Calibrate once per event, from a video with a clear wide shot:
    ```
-   python run.py calibrate --event 2026nhgrs --video work\videos\2026nhgrs\qm1.mp4 --at 60
+   python run.py calibrate --event 2026nhrr --video work\videos\2026nhrr\qm1.mp4 --at 60
    ```
    Draw boxes around the red score, blue score and clock. Then click the floor landmarks it
    names: field corners, the center line and the zone lines. Skip any you can't see, with at
    least 4. Press `y` if the magenta outline sits on the field. If the broadcast changes its
    wide shot partway through an event, calibrate again.
-4. Process: `python run.py run --event 2026nhgrs` for every played qualification match, or
+4. Process: `python run.py run --event 2026nhrr` for every played qualification match, or
    `--matches qm12,qm13` for some. Add `--scoreboard-only` for Phase 1 alone, `--no-upload` to
    test, and `--debug` to keep every read in `work\debug\`.
 
@@ -80,7 +83,7 @@ Re-running a match replaces its saved rows.
 
 There's no model in the repo. Until there is, `run` reads only the scoreboard.
 
-1. Save frames to label: `python run.py frames --video work\videos\2026nhgrs\qm1.mp4 --every 2`.
+1. Save frames to label: `python run.py frames --video work\videos\2026nhrr\qm1.mp4 --every 2`.
    Take them from several events and matches. Leave out close-ups.
 2. Label them in Roboflow or CVAT with two box classes, `red_bumper` and `blue_bumper`. Draw
    one box per visible bumper side. Public FRC bumper datasets on Roboflow Universe can give
@@ -98,7 +101,8 @@ the new season's number each January and update it.
 Before trusting a new model or event, compare a few matches by hand:
 
 - **Scoreboard read.** The Match Flags page flags any match where the read final score is off
-  from the official score.
+  from the official score, with or without foul points. Matches whose video ends before the
+  buzzer aren't checked (`matches_official` is null).
 - **Who's who.** Run with `--debug` and check the identities in the JSON for a match you watched.
 - **Agreement with scouts.** Match Flags lists every match where vision and a scout disagree on
   FUEL, leaving the starting zone, or a stopped robot. A model that's often wrong shows up there.

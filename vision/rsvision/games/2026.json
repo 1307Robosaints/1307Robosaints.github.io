@@ -1,7 +1,6 @@
 {
   "season": 2026,
   "name": "REBUILT",
-  "_verify": "Field sizes are approximate. Check length, width and alliance_zone_depth against the 2026 field drawings before trusting zone times or the starting-zone check.",
   "field": {
     "length_in": 651.2,
     "width_in": 317.7,

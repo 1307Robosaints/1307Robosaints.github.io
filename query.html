@@ -299,7 +299,8 @@
   <div class="container" style="padding-top:2rem;">
     <div class="q-wrap">
       <h1 class="mt-4 mb-1">Team Database</h1>
-      <p class="text-muted mb-4" style="font-size:.95rem;">Select a team to see its match history, robot parameters, and rating. <a href="/ratings.html">How ratings work</a></p>
+      <p class="text-muted mb-2" style="font-size:.95rem;">Select a team to see its match history, robot parameters, and rating. <a href="/ratings.html">How ratings work</a></p>
+      <div class="mb-4" id="resyncSlot"></div>
 
       <div class="q-layout">
         <!-- Team list -->
@@ -380,6 +381,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/alliance.js"></script>
   <script src="/js/opr.js"></script>
@@ -1388,6 +1390,13 @@
     renderList();
     // Names from TBA for teams that don't have one yet
     if (await RSTeams.fillMissing(sb, teamList().map(function (r) { return r.team; }), teamInfoByNumber)) renderList();
+    // After a resync, refetch the official lists and the open team
+    RSResync.mount($("resyncSlot"), async function () {
+      listsLoadedAt = 0;
+      await Promise.all([loadRatingLists(), loadOfficial()]);
+      renderList();
+      if (selected != null) await openTeam(selected);
+    });
     // query.html?team=1307 opens that team, e.g. from the Match Flags page
     var linkTeam = Number(new URLSearchParams(location.search).get("team"));
     if (Number.isInteger(linkTeam) && linkTeam >= 1 && linkTeam <= 99999) openTeam(linkTeam);

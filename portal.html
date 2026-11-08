@@ -1055,7 +1055,7 @@
             ((ev.frc_event_code || ev.tba_event_key)
               ? '<button class="btn-icon" title="Sync official matches now" aria-label="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>' +
                 '<button class="btn-icon' + (ev.auto_sync ? ' auto-on' : '') + '" ' +
-                  'title="' + (ev.auto_sync ? "Auto-syncing every 5 minutes — click to stop" : "Auto-sync this event every 5 minutes") + '" ' +
+                  'title="' + (ev.auto_sync ? "Auto-syncing every 2 minutes — click to stop" : "Auto-sync this event every 2 minutes") + '" ' +
                   'onclick="setAutoSync(\'' + ev.id + '\', ' + !!ev.auto_sync + ')"><i class="fa fa-clock-o"></i></button>'
               : '') +
             '<button class="btn-icon" title="Event info" aria-label="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
@@ -1214,19 +1214,23 @@
       loadEvents();
     };
 
-    // Competition-day auto-sync: the server refreshes this one event every 5 minutes (pg_cron
+    // Competition-day auto-sync: the server refreshes this one event every 2 minutes (pg_cron
     // calling run_auto_sync() in rebuild_all.sql), so it keeps running with this page closed.
     window.setAutoSync = async function (id, wasOn) {
       var r = await sb.rpc("set_auto_sync_event", { p_event_id: wasOn ? null : id });
       if (r.error) { toast("Couldn't update auto-sync: " + r.error.message, true); return; }
-      toast(wasOn ? "Auto-sync stopped." : "Auto-sync on. This event now refreshes every 5 minutes.");
+      toast(wasOn ? "Auto-sync stopped." : "Auto-sync on. This event now refreshes every 2 minutes.");
       loadEvents();
     };
     // What's stopping auto-sync, in plain words, or "" if nothing is. The flag alone only says staff
     // asked for it, so this comes from auto_sync_health(), which checks what actually ran.
+    var AUTO_SYNC_SCHEDULE = "*/2 * * * *";   // must match cron.schedule('auto-sync-event', ...) in section 15
     function autoSyncProblem(h) {
       if (h.cron_job === false) return "No scheduled job exists, so nothing will run. Re-run SQL/rebuild_all.sql, or enable pg_cron and pg_net first.";
       if (h.vault_secret === false) return "The sync_secret is missing from the Vault, so every run fails. See section 15 of SQL/rebuild_all.sql.";
+      if (h.schedule && h.schedule !== AUTO_SYNC_SCHEDULE) return "The job still runs on an old schedule (" + h.schedule + "). Re-run SQL/rebuild_all.sql to make it every 2 minutes.";
+      if (h.cron_job && !h.last_run_at) return "The job is scheduled but hasn't run yet. If this lasts more than a few minutes, pg_cron isn't running.";
+      if (h.last_run_at && Date.now() - new Date(h.last_run_at) > 6 * 60000) return "The job hasn't run since " + new Date(h.last_run_at).toLocaleString() + ", so pg_cron may be stopped.";
       if (h.last_run_status === "failed") return "The last scheduled run failed: " + (h.last_run_message || "no details");
       if (h.http_error) return "The last request to official-sync failed: " + h.http_error;
       if (h.http_status === 401) return "official-sync refused the request. The Vault's sync_secret doesn't match the function's SYNC_SECRET.";
@@ -1241,7 +1245,7 @@
       var p = ev.official_sync_note ? parseSyncNote(ev.official_sync_note) : null;
       var last = new Date(p ? p.when : ev.official_synced_at);
       el.innerHTML = '<i class="fa fa-clock-o"></i> Auto-syncing <strong>' + esc(ev.name) + '</strong> ' +
-        'every 5 minutes on the clock (9:35, 9:40, 9:45…). Last sync: ' +
+        'every 2 minutes on the clock (9:30, 9:32, 9:34…). Last sync: ' +
         (ev.official_synced_at || p
           ? esc(last.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))
           : "none yet") + '.';

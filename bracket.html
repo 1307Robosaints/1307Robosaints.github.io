@@ -15,7 +15,7 @@
     .b-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
     .b-intro h1::after { display: none; }
     .b-intro p { font-size: .92rem; max-width: none; margin: 0; }
-    .b-event { display: flex; align-items: center; gap: .5rem; }
+    .b-event { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .b-event label { margin: 0; font-size: .85rem; font-weight: 600; color: var(--muted); }
     .b-event select { width: auto; max-width: 300px; }
     .b-note { font-size: .9rem; }
@@ -183,6 +183,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script>
   (async function () {
@@ -571,6 +572,11 @@
     var first = events.find(function (ev) { return ev.id === wanted; }) ||
       events.find(function (ev) { return ev.is_default_event; }) || events[0];
     $("eventPick").value = eventId = first.id;
+    RSResync.mount(document.querySelector(".b-event"), function (done) {
+      var ev = events.find(function (e) { return e.id === done.eventId; });
+      if (ev) ev.official_synced_at = done.syncedAt;
+      return load();
+    });
     load();
 
     setInterval(function () { if (!document.hidden && !saving) load(); }, POLL_MS);

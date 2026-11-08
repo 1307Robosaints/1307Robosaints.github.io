@@ -301,12 +301,15 @@ end $$;
 revoke all on function public.set_default_event(uuid) from public, anon;
 grant execute on function public.set_default_event(uuid) to authenticated;
 
--- Competition-day auto-sync: the one event refreshed from FRC/TBA every 5 minutes, chosen by
+-- Competition-day auto-sync: the one event refreshed from FRC/TBA every 2 minutes, chosen by
 -- staff with the clock button on an event row. Same one-at-a-time index as the default event.
 -- The schedule itself is a pg_cron job calling run_auto_sync() (see section 15).
 alter table public.events add column if not exists auto_sync boolean not null default false;
 -- The pg_net request the last auto-sync run sent, so auto_sync_health() can read its response.
 alter table public.events add column if not exists auto_sync_request bigint;
+-- The same for the last "Resync data" press (resync_default_event() below).
+alter table public.events add column if not exists resync_request bigint;
+alter table public.events add column if not exists resync_requested_at timestamptz;
 create unique index if not exists events_one_auto_sync_idx
   on public.events ((auto_sync)) where auto_sync;
 
@@ -338,16 +341,33 @@ end $$;
 revoke all on function public.set_auto_sync_event(uuid) from public, anon;
 grant execute on function public.set_auto_sync_event(uuid) to authenticated;
 
--- Called by pg_cron only. Sends force=true because the Edge Function otherwise skips events
--- synced under 90 seconds ago, which would drop a tick right after a manual sync. The longer
--- timeout is because pg_net's 5 second default is shorter than a full sync can take.
--- Turns itself off 4 days after the event, so a forgotten flag can't poll the APIs forever.
+-- Sends one official-sync request for an event through pg_net and returns the request id. Shared
+-- by auto-sync and the Resync data button; not callable from the API. Sends force=true because the
+-- Edge Function otherwise skips events synced under 90 seconds ago. The longer timeout is because
+-- pg_net's 5 second default is shorter than a full sync can take.
+create or replace function public.official_sync_request(p_event uuid) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_secret text;
+begin
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'sync_secret';
+  if v_secret is null then
+    raise exception 'Vault secret sync_secret is missing (see section 15).';
+  end if;
+  return net.http_post(
+    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/official-sync',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+    body    := jsonb_build_object('event_id', p_event, 'force', true),
+    timeout_milliseconds := 60000);
+end $$;
+revoke all on function public.official_sync_request(uuid) from public, anon, authenticated;
+
+-- Called by pg_cron only, every 2 minutes. Turns itself off 4 days after the event, so a
+-- forgotten flag can't poll the APIs forever.
 create or replace function public.run_auto_sync() returns void
 language plpgsql set search_path = '' as $$
 declare
-  v_event   uuid;
-  v_secret  text;
-  v_request bigint;
+  v_event uuid;
 begin
   update public.events set auto_sync = false
     where auto_sync and event_date < (now() at time zone 'America/New_York')::date - 4;
@@ -356,19 +376,64 @@ begin
     where auto_sync and (frc_event_code is not null or tba_event_key is not null);
   if v_event is null then return; end if;
 
-  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'sync_secret';
-  if v_secret is null then
-    raise exception 'Vault secret sync_secret is missing (see section 15).';
-  end if;
-
-  v_request := net.http_post(
-    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/official-sync',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
-    body    := jsonb_build_object('event_id', v_event, 'force', true),
-    timeout_milliseconds := 60000);
-  update public.events set auto_sync_request = v_request where id = v_event;
+  update public.events set auto_sync_request = public.official_sync_request(v_event) where id = v_event;
 end $$;
 revoke all on function public.run_auto_sync() from public, anon, authenticated;
+
+-- The "Resync data" button on the team's pages (js/resync.js): refreshes the default event from
+-- FRC/TBA right now. Students can't call official-sync themselves (it takes a staff login or the
+-- sync secret), so this sends the same request auto-sync does. A press within 60 seconds of the
+-- last one gets that request back instead of a new one, so a room full of buttons can't flood
+-- the FRC/TBA APIs.
+create or replace function public.resync_default_event() returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_ev      record;
+  v_request bigint;
+begin
+  if not (public.is_staff() or public.is_student()) then
+    raise exception 'Only team members can resync data.';
+  end if;
+  select id, name, frc_event_code, tba_event_key, resync_request, resync_requested_at into v_ev
+    from public.events where is_default_event for update;
+  if not found then
+    raise exception 'No default event is set. Staff can pick one with the star in the Staff Portal.';
+  end if;
+  if v_ev.frc_event_code is null and v_ev.tba_event_key is null then
+    raise exception '% isn''t linked to an FRC or TBA code, so there''s nothing to sync. Staff can link it in the Staff Portal.', v_ev.name;
+  end if;
+  if v_ev.resync_request is not null and v_ev.resync_requested_at > now() - interval '60 seconds' then
+    return jsonb_build_object('request_id', v_ev.resync_request, 'event_id', v_ev.id,
+                              'event_name', v_ev.name, 'reused', true);
+  end if;
+  v_request := public.official_sync_request(v_ev.id);
+  update public.events set resync_request = v_request, resync_requested_at = now() where id = v_ev.id;
+  return jsonb_build_object('request_id', v_request, 'event_id', v_ev.id, 'event_name', v_ev.name, 'reused', false);
+end $$;
+revoke all on function public.resync_default_event() from public, anon;
+grant execute on function public.resync_default_event() to authenticated;
+
+-- Whether a Resync data request has finished, and how official-sync answered. Only the button's
+-- own requests: a request id that isn't any event's resync_request reads as finished.
+create or replace function public.resync_status(p_request bigint) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_row record;
+begin
+  if not (public.is_staff() or public.is_student()) then
+    raise exception 'Team members only.';
+  end if;
+  if not exists (select 1 from public.events where resync_request = p_request) then
+    return jsonb_build_object('done', true, 'unknown', true);
+  end if;
+  select status_code, error_msg, left(content, 300) as body into v_row
+    from net._http_response where id = p_request;
+  if not found then return jsonb_build_object('done', false); end if;
+  return jsonb_build_object('done', true, 'status', v_row.status_code,
+                            'error', left(v_row.error_msg, 300), 'body', v_row.body);
+end $$;
+revoke all on function public.resync_status(bigint) from public, anon;
+grant execute on function public.resync_status(bigint) to authenticated;
 
 -- Every part of auto-sync that can fail without anyone seeing it: the cron job, the vault secret,
 -- the job's last run, and the Edge Function's last reply. The Staff Portal shows this next to the
@@ -379,14 +444,15 @@ language plpgsql stable security definer set search_path = '' as $$
 declare
   r       jsonb := '{}'::jsonb;
   v_job   bigint;
+  v_sched text;
   v_req   bigint;
   v_row   record;
 begin
   if auth.uid() is not null and not public.is_staff() then raise exception 'Staff only.'; end if;
 
   begin
-    select jobid into v_job from cron.job where jobname = 'auto-sync-event' and active;
-    r := r || jsonb_build_object('cron_job', v_job is not null);
+    select jobid, schedule into v_job, v_sched from cron.job where jobname = 'auto-sync-event' and active;
+    r := r || jsonb_build_object('cron_job', v_job is not null, 'schedule', v_sched);
     if v_job is not null then
       select status, return_message, start_time into v_row from cron.job_run_details
        where jobid = v_job order by start_time desc limit 1;
@@ -2510,8 +2576,8 @@ on conflict (user_id) do nothing;
 --     To stop it:  select cron.unschedule('official-sync');
 --
 --     Competition-day auto-sync: refreshes the one event staff picked with the
---     clock button in the Staff Portal, at every 5-minute mark of the clock
---     (9:35, 9:40, 9:45...). It does nothing while no event is picked, so it
+--     clock button in the Staff Portal, at every even minute of the clock
+--     (9:30, 9:32, 9:34...). It does nothing while no event is picked, so it
 --     can stay scheduled all season. The block below turns on pg_cron and pg_net
 --     and schedules it every time this file runs. Only step 2's vault secret is
 --     left to do by hand, because a secret can't live in this file. The check
@@ -2529,7 +2595,7 @@ begin
   end;
   if to_regnamespace('cron') is not null then
     -- Same job name replaces the old schedule, so this is safe to re-run
-    perform cron.schedule('auto-sync-event', '*/5 * * * *', 'select public.run_auto_sync()');
+    perform cron.schedule('auto-sync-event', '*/2 * * * *', 'select public.run_auto_sync()');
     -- Rebuilds the official rating cache (section 9) within a minute of any change
     perform cron.schedule('refresh-official-cache', '* * * * *', 'select public.refresh_official_cache()');
   end if;
@@ -2633,7 +2699,8 @@ declare
   v_summary text;
   v_verb    text;
   v_sync_cols constant text[] := array['official_synced_at', 'tba_etag', 'frc_last_modified',
-                                       'official_sync_status', 'official_sync_note', 'auto_sync_request'];
+                                       'official_sync_status', 'official_sync_note', 'auto_sync_request',
+                                       'resync_request', 'resync_requested_at'];
   v_tba_cols constant text[] := array['tba_name', 'tba_logo_url', 'tba_checked_at', 'display_name', 'display_logo'];
 begin
   -- A share-code redemption only bumps its counters. Logging that would add a row per use.
@@ -2642,7 +2709,7 @@ begin
     return NEW;
   end if;
 
-  -- Same for a sync's bookkeeping columns, or auto-sync would add a row every 5 minutes.
+  -- Same for a sync's bookkeeping columns, or auto-sync would add a row every 2 minutes.
   if TG_TABLE_NAME = 'events' and TG_OP = 'UPDATE'
      and to_jsonb(NEW) - v_sync_cols = to_jsonb(OLD) - v_sync_cols then
     return NEW;
@@ -2832,6 +2899,7 @@ with expected(kind, name) as (values
   ('table','official_opr_cache'), ('function','official_opr_fill'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
+  ('function','official_sync_request'), ('function','resync_default_event'), ('function','resync_status'),
   ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),
   ('function','photo_cleanup_paths'), ('function','photo_is_orphaned'), ('function','photo_in_use'),
   ('function','log_action'), ('function','purge_old_audit_log'), ('function','staff_search_audit_log'),

@@ -65,8 +65,16 @@ def process(db, event, match_key, video_path, g, tracker=None, upload=True, debu
         return row, []
 
     row.update(score_timeline=tl, final_red=tl[-1][1], final_blue=tl[-1][2])
-    row["matches_official"] = timeline.agrees(row["final_red"], row["final_blue"], official["red_score"], official["blue_score"])
-    log(f"  scoreboard final {row['final_red']}-{row['final_blue']}, official {official['red_score']}-{official['blue_score']}")
+    # foulPoints is what each alliance got from the other side's fouls
+    fouls = {c: (official.get(f"{c}_breakdown") or {}).get(g["breakdown_keys"]["fouls"]) for c in ("red", "blue")}
+    reached_end = timeline.reads_to_end(samples, clock)
+    row["matches_official"] = timeline.agrees(row["final_red"], row["final_blue"], official["red_score"],
+                                              official["blue_score"], fouls["red"], fouls["blue"]) if reached_end else None
+    log(f"  scoreboard final {row['final_red']}-{row['final_blue']}, official {official['red_score']}-{official['blue_score']}"
+        f" (fouls {fouls['red'] or 0}-{fouls['blue'] or 0})")
+    end_note = None if reached_end else "Video ends before the match does, so the final score isn't checked."
+    if end_note:
+        log(f"  {end_note}")
 
     robots = []
     if tracker is None:
@@ -79,6 +87,8 @@ def process(db, event, match_key, video_path, g, tracker=None, upload=True, debu
         row["status"] = "ok" if found == len(lineup["red"]) + len(lineup["blue"]) else "partial"
         if row["status"] == "partial":
             row["notes"] = f"Identified {found} of {len(lineup['red']) + len(lineup['blue'])} robots."
+    if end_note:
+        row["notes"] = " ".join(n for n in (row.get("notes"), end_note) if n)
 
     if debug:
         save_debug(event["tba_event_key"], match_key, row, robots, samples, g)

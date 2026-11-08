@@ -15,7 +15,7 @@
     .p-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
     .p-intro h1::after { display: none; }
     .p-intro p { font-size: .92rem; max-width: none; margin: 0; }
-    .p-event { display: flex; align-items: center; gap: .5rem; }
+    .p-event { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .p-event label { margin: 0; font-size: .85rem; font-weight: 600; color: var(--muted); }
     .p-event select { width: auto; max-width: 300px; }
     .p-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
@@ -251,6 +251,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/alliance.js"></script>
@@ -907,6 +908,7 @@
     }).join("");
     eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
     $("eventPick").value = eventId;
+    RSResync.mount(document.querySelector(".p-event"), function () { return loadEvent(); });
     await loadEvent();
 
     // Keeps every screen current while alliances form. It's one small query, and re-renders only on a change.

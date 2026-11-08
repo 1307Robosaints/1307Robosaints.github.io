@@ -11,7 +11,9 @@ PAGE = 1000
 
 class Db:
     def __init__(self, url, key):
-        self.base = url.rstrip("/") + "/rest/v1/"
+        # Accept the dashboard's ".../rest/v1/" form as well as the bare project URL
+        url = url.rstrip("/").removesuffix("/rest/v1")
+        self.base = url + "/rest/v1/"
         self.http = requests.Session()
         self.http.headers.update({"apikey": key, "Authorization": "Bearer " + key,
                                   "Content-Type": "application/json"})

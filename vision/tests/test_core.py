@@ -70,6 +70,16 @@ class TimelineTests(unittest.TestCase):
         self.assertTrue(timeline.agrees(100, 80, 104, 80))
         self.assertFalse(timeline.agrees(100, 80, 120, 80))
         self.assertIsNone(timeline.agrees(None, 80, 120, 80))
+        # Blue got 15 foul points the overlay didn't show live
+        self.assertTrue(timeline.agrees(166, 347, 166, 363, 0, 15))
+        self.assertFalse(timeline.agrees(166, 347, 166, 363))
+
+    def test_reads_to_end(self):
+        clock = timeline.MatchClock(auto_start=10, teleop_start=33, auto_s=20, teleop_s=140)  # ends at 173
+        cut = [(170.0, 150, 340, 3), (171.0, None, None, None)]
+        self.assertFalse(timeline.reads_to_end(cut, clock))
+        self.assertFalse(timeline.reads_to_end(cut + [(195.0, 85, 86, 298)], clock))  # junk after a cut
+        self.assertTrue(timeline.reads_to_end(cut + [(172.5, 158, 347, 0)], clock))
 
 
 def path(color, x0, x1, t0=0, t1=160, y=150.0, step=0.5):
