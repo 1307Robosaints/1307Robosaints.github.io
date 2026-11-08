@@ -162,8 +162,8 @@
   async function load(sb, teams) {
     var any = teams.length > 0;
     var results = await Promise.all([
-      sb.rpc("team_ratings"),
-      sb.rpc("team_official_ratings"),
+      pagedRows(function () { return sb.rpc("team_ratings").order("team_number"); }),   // more than 1000 teams
+      pagedRows(function () { return sb.rpc("team_official_ratings").order("team_number"); }),   // more than 1000 teams
       sb.from("test_teams").select("team_number"),
       any ? RSTeams.loadInfo(sb, teams) : { info: {} },
       any ? pagedRows(function () {

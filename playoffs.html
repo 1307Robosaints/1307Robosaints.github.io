@@ -498,8 +498,8 @@
 
       // Who's at this event: anyone on the match schedule, scouted there, or pit scouted there
       var first = await Promise.all([
-        sb.rpc("team_ratings"),
-        sb.rpc("team_official_ratings"),
+        pagedRows(function () { return sb.rpc("team_ratings").order("team_number"); }),   // more than 1000 teams
+        pagedRows(function () { return sb.rpc("team_official_ratings").order("team_number"); }),   // more than 1000 teams
         sb.from("test_teams").select("team_number"),
         RSTeams.loadInfo(sb),
         pagedRows(function () {

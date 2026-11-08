@@ -112,7 +112,11 @@ Key tables/functions to know when touching 1307scout:
   results, written only by the `official-sync` Edge Function (service role); staff/students can
   read, nobody writes through the normal API. The table holds a full season, so look up a
   team's rows with `official_match_teams_for(int[])` (uses the team-array indexes), not by
-  filtering the `official_match_teams` view on `team_number`. `match_key` format: `qm12` (qualification 12),
+  filtering the `official_match_teams` view on `team_number`. `team_official_ratings()` and
+  `team_official_summary()` read a cache (`official_ratings_cache`/`official_summary_cache`)
+  that `refresh_official_cache()` rebuilds from the `*_compute()` functions; a pg_cron job runs
+  it every minute and it only does work after official data changed. Per-team RPCs return more
+  than 1000 rows now, so pages read them with `.range()` paging. `match_key` format: `qm12` (qualification 12),
   `sf8m1` (playoff set 8 match 1), `f1m2` (finals match 2).
 - Team ratings (explained for users on `ratings.html`, which must change with the math): there are **two independent ratings** kept deliberately separate — one derived
   from human scouting data, one from synced official results (`team_official_ratings()`,

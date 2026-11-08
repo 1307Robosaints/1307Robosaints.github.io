@@ -914,8 +914,9 @@ language sql stable set search_path = '' as $$
 $$;
 
 -- 8d. Per-team official summary (matches played, wins, average alliance score)
---     for the Team Database list.
-create or replace function public.team_official_summary()
+--     for the Team Database list. This computes it from every match; pages read the cached
+--     copy through team_official_summary() (section 9, "official rating cache").
+create or replace function public.official_summary_compute()
 returns table (team_number int, matches int, wins int, avg_alliance_score numeric)
 language sql stable security definer set search_path = '' as $$
   select o.team_number,
@@ -924,7 +925,6 @@ language sql stable security definer set search_path = '' as $$
          round(avg(o.alliance_score), 2)
   from public.official_match_teams o
   where o.alliance_score is not null
-    and ((select public.is_staff()) or (select public.is_student()))
   group by o.team_number;
 $$;
 
@@ -1453,7 +1453,9 @@ $$;
 -- synced FRC Events / TBA results — 60% average alliance score (ranked against other teams)
 -- plus 40% win rate (a tie counts as half a win), with each match weighted by how strong its
 -- event is (event_tier_weight() above). Entirely independent of scouting data.
-create or replace function public.team_official_ratings()
+-- This computes it from every match; pages read the cached copy through team_official_ratings()
+-- (the official rating cache, below).
+create or replace function public.official_ratings_compute()
 returns table (team_number int, matches int, wins int, losses int, ties int,
                avg_alliance_score numeric, score numeric, grade text, percentile numeric)
 language sql stable security definer set search_path = '' as $$
@@ -1462,7 +1464,6 @@ language sql stable security definer set search_path = '' as $$
            public.event_tier_weight(e.event_tier) as w
     from public.official_team_matches o
     join public.events e on e.id = o.event_id
-    where (select public.is_staff()) or (select public.is_student())
   ),
   agg as (
     select m.team_number,
@@ -1497,6 +1498,101 @@ language sql stable security definer set search_path = '' as $$
   from pct p;
 $$;
 
+-- Official rating cache. With a full season synced, working out the official ratings and
+-- summary from every match takes several seconds, and pages ask for them on every load. So
+-- refresh_official_cache() stores the results in two tables, and team_official_ratings() /
+-- team_official_summary() read those instead.
+--   - Any write to official_matches, a change to an event's tier, or a change to test_teams
+--     bumps official_cache_seq (a sequence, so the writer never waits on a lock).
+--   - A pg_cron job (section 15) runs refresh_official_cache() every minute; it does nothing
+--     unless the sequence moved since the last refresh. So ratings lag a sync by up to a minute.
+--   - This file runs a full refresh at the end of section 15, so the cache is never empty.
+-- The cache tables have row-level security on and no policies: only these functions read them.
+create table if not exists public.official_ratings_cache (
+  team_number int primary key, matches int, wins int, losses int, ties int,
+  avg_alliance_score numeric, score numeric, grade text, percentile numeric
+);
+create table if not exists public.official_summary_cache (
+  team_number int primary key, matches int, wins int, avg_alliance_score numeric
+);
+create table if not exists public.official_cache_state (
+  id boolean primary key default true check (id),   -- always one row
+  refreshed_stamp bigint not null,
+  refreshed_at timestamptz not null
+);
+alter table public.official_ratings_cache enable row level security;
+alter table public.official_summary_cache enable row level security;
+alter table public.official_cache_state   enable row level security;
+revoke all on public.official_ratings_cache, public.official_summary_cache, public.official_cache_state
+  from anon, authenticated;
+create sequence if not exists public.official_cache_seq;
+revoke all on sequence public.official_cache_seq from anon, authenticated;
+
+-- Marks the cache out of date. Statement-level, so a sync that writes 100 rows bumps it once.
+create or replace function public.official_cache_touch() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform nextval('public.official_cache_seq');
+  return null;
+end $$;
+drop trigger if exists official_matches_cache_touch on public.official_matches;
+create trigger official_matches_cache_touch after insert or update or delete or truncate
+  on public.official_matches for each statement execute function public.official_cache_touch();
+drop trigger if exists events_cache_touch on public.events;
+create trigger events_cache_touch after update of event_tier
+  on public.events for each statement execute function public.official_cache_touch();
+drop trigger if exists test_teams_cache_touch on public.test_teams;
+create trigger test_teams_cache_touch after insert or update or delete
+  on public.test_teams for each statement execute function public.official_cache_touch();
+
+-- Rebuilds the cache if anything changed since the last refresh (or always, with p_force).
+-- Returns whether it refreshed. Only pg_cron and the SQL Editor call it: it isn't granted to
+-- any API role, since a full refresh can run longer than the API's statement timeout.
+create or replace function public.refresh_official_cache(p_force boolean default false)
+returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare v_stamp bigint;
+begin
+  if not pg_try_advisory_xact_lock(hashtext('public.refresh_official_cache')) then
+    return false;   -- another refresh is already running
+  end if;
+  if not p_force and exists (
+    select 1 from public.official_cache_state s
+    where s.refreshed_stamp >= (select last_value from public.official_cache_seq)
+  ) then
+    return false;   -- nothing changed
+  end if;
+  -- Taken before reading, so a write during the refresh leaves the cache marked out of date
+  v_stamp := nextval('public.official_cache_seq');
+  delete from public.official_ratings_cache;
+  insert into public.official_ratings_cache select * from public.official_ratings_compute();
+  delete from public.official_summary_cache;
+  insert into public.official_summary_cache select * from public.official_summary_compute();
+  insert into public.official_cache_state (id, refreshed_stamp, refreshed_at)
+    values (true, v_stamp, now())
+    on conflict (id) do update set refreshed_stamp = excluded.refreshed_stamp,
+                                   refreshed_at    = excluded.refreshed_at;
+  return true;
+end $$;
+
+-- What pages call. Same columns as before the cache existed.
+create or replace function public.team_official_ratings()
+returns table (team_number int, matches int, wins int, losses int, ties int,
+               avg_alliance_score numeric, score numeric, grade text, percentile numeric)
+language sql stable security definer set search_path = '' as $$
+  select c.team_number, c.matches, c.wins, c.losses, c.ties,
+         c.avg_alliance_score, c.score, c.grade, c.percentile
+  from public.official_ratings_cache c
+  where (select public.is_staff()) or (select public.is_student());
+$$;
+create or replace function public.team_official_summary()
+returns table (team_number int, matches int, wins int, avg_alliance_score numeric)
+language sql stable security definer set search_path = '' as $$
+  select c.team_number, c.matches, c.wins, c.avg_alliance_score
+  from public.official_summary_cache c
+  where (select public.is_staff()) or (select public.is_student());
+$$;
+
 -- Per-team counters for the Team Database's data-source breakdown: how many matches came from
 -- scouting, how many from official sync, and how many matches have BOTH (so the page can show
 -- its numbers don't silently double anything). A match counts as overlapping only when a scouted
@@ -1511,20 +1607,22 @@ language sql stable security definer set search_path = '' as $$
     group by s.team_number
   ),
   officials as (
-    select o.team_number, count(*)::int as n
-    from public.official_team_matches o
+    -- Played official matches per team; the rating cache's count is exactly that
+    select c.team_number, c.matches as n
+    from public.official_ratings_cache c
     where (select public.is_staff()) or (select public.is_student())
-    group by o.team_number
   ),
   overlap as (
+    -- Starts from the scouting entries and looks up each one's official match by event and
+    -- match number (indexed), instead of expanding every official match first
     select s.team_number, count(distinct (s.event_id, s.match_number))::int as n
     from public.scouting_entries s
-    join public.official_team_matches o
-      on o.team_number = s.team_number
-     and o.event_id = s.event_id
-     and o.match_number = s.match_number
-     and o.comp_level = 'qm'
     where ((select public.is_staff()) or (select public.is_student())) and s.match_number is not null
+      and exists (
+        select 1 from public.official_matches_combined o
+        where o.event_id = s.event_id and o.comp_level = 'qm' and o.match_number = s.match_number
+          and o.red_score is not null and o.blue_score is not null
+          and s.team_number = any(o.red_teams || o.blue_teams))
     group by s.team_number
   )
   select coalesce(sc.team_number, off.team_number, ov.team_number),
@@ -2095,6 +2193,10 @@ revoke all on function public.event_tier_weight(text)      from public, anon;
 revoke all on function public.team_official_summary()      from public, anon;
 revoke all on function public.official_match_teams_for(int[])  from public, anon;
 revoke all on function public.team_data_counts()           from public, anon;
+revoke all on function public.official_ratings_compute()   from public, anon, authenticated;
+revoke all on function public.official_summary_compute()   from public, anon, authenticated;
+revoke all on function public.refresh_official_cache(boolean) from public, anon, authenticated;
+revoke all on function public.official_cache_touch()       from public, anon, authenticated;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
 revoke all on function public.staff_list_share_codes()     from public, anon;
@@ -2279,8 +2381,13 @@ begin
   if to_regnamespace('cron') is not null then
     -- Same job name replaces the old schedule, so this is safe to re-run
     perform cron.schedule('auto-sync-event', '*/5 * * * *', 'select public.run_auto_sync()');
+    -- Rebuilds the official rating cache (section 9) within a minute of any change
+    perform cron.schedule('refresh-official-cache', '* * * * *', 'select public.refresh_official_cache()');
   end if;
 end $$;
+
+-- Fill the official rating cache now, so ratings show straight after this file runs
+select public.refresh_official_cache(true);
 
 
 -- =====================================================================
@@ -2572,6 +2679,7 @@ with expected(kind, name) as (values
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','get_shared_scouting'),
+  ('table','official_ratings_cache'), ('table','official_summary_cache'), ('function','refresh_official_cache'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
   ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),

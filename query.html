@@ -469,9 +469,40 @@
       eventsById = {};
       (re.data || []).forEach(function (e) { eventsById[e.id] = e; });
     }
-    async function loadSummary() {
-      var r = await sb.rpc("team_ratings");
-      summary = r.error ? [] : (r.data || []);
+    // Every page of a request. The API returns at most 1000 rows per request, and with a full
+    // season loaded there are more teams than that, so one request would silently drop teams.
+    async function allRows(makeQuery) {
+      var rows = [], size = 1000;
+      for (var from = 0; ; from += size) {
+        var r = await makeQuery().range(from, from + size - 1);
+        if (r.error) return { error: r.error, data: rows };
+        rows = rows.concat(r.data || []);
+        if ((r.data || []).length < size) return { data: rows };
+      }
+    }
+    // The three per-team lists the grades compare against. They come from a server-side cache
+    // that refreshes about once a minute, so a team click reuses lists under a minute old.
+    var listsLoadedAt = 0;
+    async function ratingLists() {
+      if (Date.now() - listsLoadedAt < 60000) {
+        return [{ data: summary }, { data: officialRatings }, { data: dataCounts }];
+      }
+      var r = await Promise.all([
+        allRows(function () { return sb.rpc("team_ratings").order("team_number"); }),
+        allRows(function () { return sb.rpc("team_official_ratings").order("team_number"); }),
+        allRows(function () { return sb.rpc("team_data_counts").order("team_number"); })
+      ]);
+      if (!r.some(function (x) { return x.error; })) listsLoadedAt = Date.now();
+      return r;
+    }
+    async function loadRatingLists() {
+      var r = await ratingLists();
+      if (r[0].error) console.warn("Scouting rating unavailable:", r[0].error.message);
+      if (r[1].error) console.warn("Official rating unavailable:", r[1].error.message);
+      if (r[2].error) console.warn("Data-source counts unavailable:", r[2].error.message);
+      summary = r[0].error ? [] : r[0].data;
+      officialRatings = r[1].error ? [] : r[1].data;
+      dataCounts = r[2].error ? [] : r[2].data;
     }
     // The API returns at most 1000 rows per request, so page through them. Every event adds rows
     // here, and a truncated result would drop teams from the list without any error.
@@ -488,19 +519,9 @@
 
     // ── Team list ────────────────────────────────────────────────────
     async function loadOfficial() {
-      var r = await sb.rpc("team_official_summary");
+      var r = await allRows(function () { return sb.rpc("team_official_summary").order("team_number"); });
       if (r.error) console.warn("Official match summary unavailable:", r.error.message);
-      official = r.error ? [] : (r.data || []);
-    }
-    async function loadOfficialRatings() {
-      var r = await sb.rpc("team_official_ratings");
-      if (r.error) console.warn("Official rating unavailable:", r.error.message);
-      officialRatings = r.error ? [] : (r.data || []);
-    }
-    async function loadDataCounts() {
-      var r = await sb.rpc("team_data_counts");
-      if (r.error) console.warn("Data-source counts unavailable:", r.error.message);
-      dataCounts = r.error ? [] : (r.data || []);
+      official = r.error ? [] : r.data;
     }
     async function loadTestTeams() {
       var r = await sb.from("test_teams").select("team_number");
@@ -717,11 +738,12 @@
         $("detail").scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
-      // Fetch fresh numbers on every click so the ratings use current data
+      // Rating lists are refetched when over a minute old, so the grades stay current
+      var lists = ratingLists();
       var results = await Promise.all([
-        sb.rpc("team_ratings"),
-        sb.rpc("team_official_ratings"),
-        sb.rpc("team_data_counts"),
+        lists.then(function (r) { return r[0]; }),
+        lists.then(function (r) { return r[1]; }),
+        lists.then(function (r) { return r[2]; }),
         sb.from("scouting_entries").select("*").eq("team_number", team)
           .order("match_number", { ascending: true, nullsFirst: false }),
         sb.from("pit_entries").select("*").eq("team_number", team)
@@ -1336,7 +1358,7 @@
 
     // ── Boot ─────────────────────────────────────────────────────────
     await loadMeta();
-    await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts(), loadTestTeams(), loadTeamInfo()]);
+    await Promise.all([loadRatingLists(), loadPitTeams(), loadOfficial(), loadTestTeams(), loadTeamInfo()]);
     renderList();
     // Names from TBA for teams that don't have one yet
     if (await RSTeams.fillMissing(sb, teamList().map(function (r) { return r.team; }), teamInfoByNumber)) renderList();
