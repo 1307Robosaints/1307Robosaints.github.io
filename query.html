@@ -48,13 +48,22 @@
     }
     .team-row:hover { background: var(--tint); }
     .team-row.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
-    /* Number on its own line (always fits), name wrapping underneath instead of being cut off */
-    .team-row .tr-name { flex: 1 1 auto; min-width: 0; }
-    .team-row .tr-name .tr-num { white-space: nowrap; }
-    .team-row .tr-name .team-name-sub {
-      display: block; color: var(--muted); font-size: .85em; line-height: 1.25;
-      overflow-wrap: anywhere; margin-top: .1rem;
+    /* Logo tile, then the number with its two grade dots underneath */
+    .team-row .tr-name { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .6rem; }
+    .team-row .tr-id { display: flex; flex-direction: column; line-height: 1.15; }
+    .team-row .tr-id strong { font-size: .95rem; }
+    .team-row .tr-dots { display: flex; gap: 3px; margin-top: .2rem; }
+    .team-row .tr-dots .tier-dot { margin-right: 0; }
+    /* Every logo sits in the same framed square, so mixed sizes and backgrounds line up */
+    .logo-tile {
+      flex: none; width: 34px; height: 34px; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--paper); border: 1px solid var(--line); overflow: hidden;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, .06);
     }
+    .logo-tile img { width: 26px; height: 26px; object-fit: contain; }
+    .logo-tile.empty { color: var(--muted); font-size: .8rem; background: var(--tint); }
+    .team-row.selected .logo-tile { border-color: var(--blue); }
     .team-row .tr-stats-line { flex: none; display: flex; gap: .85rem; }
     .team-row .tr-stat { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 2.2rem; }
     .team-row .tr-stat .stat-v { font-weight: 600; line-height: 1.1; }
@@ -89,10 +98,6 @@
     .team-logo {
       width: 56px; height: 56px; object-fit: contain; flex: none;
       background: var(--paper); border: 1px solid var(--line);
-    }
-    .team-logo-sm {
-      width: 20px; height: 20px; object-fit: contain; vertical-align: middle;
-      margin-right: .4rem; background: var(--paper); border: 1px solid var(--line);
     }
 
     /* Rating boxes, top right of the card — one for scouting, one for official data */
@@ -625,10 +630,17 @@
         ? rows.map(function (r) {
             var dots = '<span class="tier-dot" style="background:' + TIERS[r.gScout.tier].color + ';" title="Scouting: ' + r.gScout.tier + '"></span>' +
               '<span class="tier-dot" style="background:' + TIERS[r.gOff.tier].color + ';" title="Official: ' + r.gOff.tier + '"></span>';
-            var logoImg = r.logo ? '<img class="team-logo-sm" src="' + esc(r.logo) + '" alt="">' : "";
-            var nameSuffix = r.name ? '<span class="team-name-sub">' + esc(r.name) + '</span>' : "";
-            return '<div data-team="' + r.team + '" role="button" tabindex="0" class="team-row' + (selected === r.team ? " selected" : "") + '">' +
-              '<div class="tr-name"><span class="tr-num">' + dots + logoImg + "<strong>" + r.team + "</strong></span>" + nameSuffix + "</div>" +
+            // A missing or broken logo shows a plain placeholder tile, so every row lines up
+            var tile = r.logo
+              ? '<span class="logo-tile"><img src="' + esc(r.logo) + '" alt="" loading="lazy" ' +
+                  'onerror="this.parentNode.classList.add(\'empty\');this.outerHTML=\'<i class=&quot;fa fa-users&quot;></i>\'"></span>'
+              : '<span class="logo-tile empty"><i class="fa fa-users"></i></span>';
+            // Name lives in the tooltip now; the detail card shows it in full
+            return '<div data-team="' + r.team + '" role="button" tabindex="0" class="team-row' + (selected === r.team ? " selected" : "") + '"' +
+                (r.name ? ' title="' + esc(r.team + " " + r.name) + '"' : "") + '>' +
+              '<div class="tr-name">' + tile +
+                '<span class="tr-id"><strong>' + r.team + '</strong><span class="tr-dots">' + dots + '</span></span>' +
+              "</div>" +
               '<div class="tr-stats-line">' +
                 '<div class="tr-stat" title="Human-scouted matches"><span class="stat-v">' + r.scouted + '</span><span class="stat-k">Scouted</span></div>' +
                 '<div class="tr-stat" title="Synced from FRC Events / TBA"><span class="stat-v">' + r.official + '</span><span class="stat-k">API</span></div>' +
