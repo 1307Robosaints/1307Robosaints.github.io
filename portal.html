@@ -381,11 +381,16 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -783,6 +788,9 @@
           <option value="share_codes">Share codes</option>
           <option value="team_info">Team info</option>
           <option value="playoff_picks">Playoff picks</option>
+          <option value="playoff_tiebreaks">Playoff tiebreaks</option>
+          <option value="playoff_lineups">Playoff line-ups</option>
+          <option value="match_schedule">Match schedule</option>
           <option value="staff_members">Staff members</option>
           <option value="member_grants">Access grants</option>
           <option value="auth.sessions">Sign-outs</option>
@@ -1059,9 +1067,13 @@
     document.getElementById("evSort").addEventListener("change", renderEvents);
     function tierBadge(tier) {
       if (tier === "district_championship") return '<span class="badge-tier-dc">District Champs</span>';
-      if (tier === "championship") return '<span class="badge-tier-champ">Championship</span>';
+      if (tier === "championship") return '<span class="badge-tier-champ" title="The FIRST Championship">Worlds</span>';
       if (tier === "offseason") return '<span class="badge-tier-off">Off-season</span>';
       return '<span class="badge-tier-qual">Qualifier</span>';
+    }
+    // The sync note comes straight from official-sync, so show its source names as FRC and TBA
+    function capitalizeSources(text) {
+      return String(text || "").replace(/(frc|tba)/gi, function (w) { return w.toUpperCase(); });
     }
     // The raw official_sync_note from the official-sync Edge Function looks like
     // "2026-11-07T02:31:20.523Z | FRC: 56 matches | TBA: 55 matches" on a full success, or with
@@ -1107,7 +1119,7 @@
       var note = ev.official_sync_note;
       if (!note) return '<span class="sync-note">Never synced</span>';
       var p = parseSyncNote(note);
-      var titleAttr = ' title="' + esc(note) + '"';
+      var titleAttr = ' title="' + esc(capitalizeSources(note)) + '"';
       if (p && p.ok) {
         var when = new Date(p.when);
         var whenStr = isNaN(when) ? p.when : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -1157,10 +1169,10 @@
           return '<div style="color:' + color + ';"><i class="fa ' + icon + '"></i> ' + label + ': ' + esc(text) + '</div>';
         };
         return upcomingNote + '<div class="text-muted">Last attempt: ' + esc(whenStr) + '</div>' +
-          line(p.frc.ok, "FRC", p.frc.text) + line(p.tba.ok, "TBA", p.tba.text);
+          line(p.frc.ok, "FRC", capitalizeSources(p.frc.text)) + line(p.tba.ok, "TBA", capitalizeSources(p.tba.text));
       }
       return upcomingNote + '<div style="color:' + (upcomingNote ? "inherit" : "#a83228") + ';">' +
-        '<i class="fa ' + (upcomingNote ? "fa-clock-o" : "fa-exclamation-triangle") + '"></i> ' + esc(note) + '</div>';
+        '<i class="fa ' + (upcomingNote ? "fa-clock-o" : "fa-exclamation-triangle") + '"></i> ' + esc(capitalizeSources(note)) + '</div>';
     }
     // Reads and checks the two code inputs. Returns {frc, tba} or null (after showing a message).
     function readCodes(frcId, tbaId) {
@@ -1669,15 +1681,18 @@
     // ══════════════════════════════════════════════════════════════════
     var teamInfo = [];
     async function loadTeamInfo() {
-      var r = await sb.from("team_info").select("*").order("team_number", { ascending: true });
+      // Only rows staff set. Rows holding just a TBA name number in the hundreds and fill in on their own.
+      var r = await sb.from("team_info").select("*").or("team_name.not.is.null,logo_url.not.is.null")
+        .order("team_number", { ascending: true });
       if (r.error) { toast("Couldn't load team info.", true); return; }
       teamInfo = r.data;
       renderTeamInfo();
     }
     function renderTeamInfo() {
       var el = document.getElementById("tiList");
-      if (!teamInfo.length) { el.innerHTML = '<div class="empty-state">No team info saved yet.</div>'; return; }
-      el.innerHTML = teamInfo.map(function (t) {
+      var set = teamInfo;
+      if (!set.length) { el.innerHTML = '<div class="empty-state">No team info saved yet. Names fill in from TBA on their own; add one here only to change it.</div>'; return; }
+      el.innerHTML = set.map(function (t) {
         var logo = t.logo_url
           ? '<img class="ti-logo" src="' + esc(t.logo_url) + '" alt="">'
           : '<span class="ti-logo-placeholder">—</span>';
@@ -1695,6 +1710,7 @@
 
     function resetTeamInfoForm() {
       document.getElementById("tiId").value = "";
+      document.getElementById("tiName").placeholder = "e.g. The Cheesy Poofs";
       document.getElementById("tiTeam").value = "";
       document.getElementById("tiTeam").disabled = false;
       document.getElementById("tiName").value = "";
@@ -1713,6 +1729,7 @@
       document.getElementById("tiTeam").value = team;
       document.getElementById("tiTeam").disabled = true; // team number is the key, immutable once saved
       document.getElementById("tiName").value = t.team_name || "";
+      document.getElementById("tiName").placeholder = t.tba_name ? "From TBA: " + t.tba_name : "e.g. The Cheesy Poofs";
       document.getElementById("tiLogoUrl").value = t.logo_url || "";
       document.getElementById("tiLogoFile").value = "";
       var prev = document.getElementById("tiPreview");

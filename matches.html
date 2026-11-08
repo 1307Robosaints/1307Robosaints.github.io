@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Our Matches – 1307scout</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .m-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .m-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .m-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .m-intro h1::after { display: none; }
+    .m-intro p { font-size: .92rem; max-width: none; margin: 0; }
+    .m-controls { display: flex; align-items: flex-end; gap: .5rem; flex-wrap: wrap; }
+    .m-controls label { display: block; margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); }
+    .m-controls select { width: auto; max-width: 260px; }
+    .m-controls input { width: 6rem; }
+    .m-note { font-size: .82rem; color: var(--muted); margin: 0 0 .6rem; }
+
+    /* Add / edit form */
+    .m-editor { background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--blue); padding: .75rem; margin-bottom: 1rem; }
+    .m-editor h2 { font-size: 1rem; margin: 0 0 .5rem; }
+    .m-editor h2::after { display: none; }
+    .m-form { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: flex-end; }
+    .m-form label { display: block; margin: 0; font-size: .72rem; font-weight: 600; color: var(--muted); }
+    .m-form .m-num { width: 4.6rem; }
+    .m-trio { display: flex; gap: .25rem; }
+    .m-trio input { width: 4.8rem; }
+    .m-trio.red input { border-color: #e3a19a; }
+    .m-trio.blue input { border-color: #9fb3e6; }
+    .m-form .m-time { width: 12.5rem; }
+    .m-form-actions { display: flex; gap: .4rem; flex-wrap: wrap; width: 100%; }
+    .m-msg { font-size: .85rem; color: #c0392b; min-height: 1.2em; margin-top: .35rem; }
+
+    /* Upcoming matches: one card each */
+    .m-card { background: var(--white); border: 1px solid var(--line); margin-bottom: .8rem; scroll-margin-top: 90px; }   /* clear of the fixed navbar */
+    .m-card.next { border: 2px solid var(--blue); }
+    .m-card-head { display: flex; align-items: center; gap: .5rem .75rem; flex-wrap: wrap; padding: .4rem .7rem; background: var(--tint); }
+    .m-card-head h3 { font-size: 1.05rem; margin: 0; }
+    .m-when, .m-src { color: var(--muted); font-size: .82rem; }
+    .m-tag { padding: 0 .4rem; background: var(--blue); color: #fff; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .m-chance { margin-left: auto; font-size: .85rem; color: var(--muted); }
+    .m-chance strong { font-family: var(--display); font-size: 1.15rem; color: var(--navy); }
+    .m-actions { display: flex; gap: .35rem; }
+    .m-actions .btn { font-size: .78rem; padding: .1rem .5rem; }
+    .m-sides { display: grid; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 640px) { .m-sides { grid-template-columns: 1fr; } }
+    .m-side { padding: .45rem .7rem .55rem; border-top: 3px solid #c0392b; }
+    .m-side.blue { border-top-color: var(--blue); }
+    .m-side h4 { display: flex; justify-content: space-between; gap: .5rem; margin: 0 0 .25rem; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #c0392b; }
+    .m-side.blue h4 { color: var(--blue); }
+    .m-side h4 span { color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
+    .m-team { display: flex; align-items: center; gap: .4rem; padding: .18rem 0; border-bottom: 1px solid var(--line); font-size: .9rem; }
+    .m-team:last-child { border-bottom: 0; }
+    .m-team .m-num-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .m-team strong { font-family: var(--display); color: var(--navy); }
+    .m-team.us strong { color: var(--blue); }
+    .m-team .m-pts { flex: none; min-width: 3.2rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: .82rem; }
+
+    /* Played matches: one line each */
+    .m-played-title { font-size: 1rem; margin: 1.4rem 0 .4rem; }
+    .m-played-title::after { display: none; }
+    .m-row { display: flex; align-items: center; gap: .5rem .9rem; flex-wrap: wrap; padding: .35rem .6rem; background: var(--white); border: 1px solid var(--line); border-left: 4px solid #9a9a9c; margin-bottom: .3rem; font-size: .88rem; }
+    .m-row.W { border-left-color: #1a7f4b; }
+    .m-row.L { border-left-color: #c0392b; }
+    .m-row strong { font-family: var(--display); }
+    .m-row .m-res { min-width: 6.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .m-row .m-who { flex: 1; min-width: 12rem; color: var(--muted); }
+    .m-row .m-actions { margin-left: auto; }
+    .m-empty { padding: 2rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="m-page">
+    <div class="m-intro">
+      <div>
+        <h1>Our Matches</h1>
+        <p class="text-muted">Every match for one team at an event, with partners and opponents at a glance. <a href="/ratings.html#win-chance">How win chance works</a></p>
+      </div>
+      <div class="m-controls">
+        <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
+        <div><label for="teamPick">Team</label><input type="number" id="teamPick" class="form-control form-control-sm" min="1" max="99999" inputmode="numeric"></div>
+        <button type="button" class="btn btn-primary btn-sm" id="addBtn"><i class="fa fa-plus"></i> Add a match</button>
+      </div>
+    </div>
+    <p class="m-note" id="sourceNote"></p>
+    <div id="loadError"></div>
+
+    <section class="m-editor" id="editor" hidden aria-labelledby="editorTitle">
+      <h2 id="editorTitle">Add a match</h2>
+      <form class="m-form" id="editForm" autocomplete="off">
+        <div>
+          <label for="fLevel">Type</label>
+          <select id="fLevel" class="custom-select custom-select-sm">
+            <option value="qm">Qualification</option>
+            <option value="sf">Playoff</option>
+            <option value="f">Final</option>
+          </select>
+        </div>
+        <div><label for="fNumber">Number</label><input type="number" id="fNumber" class="form-control form-control-sm m-num" min="1" max="999" required></div>
+        <div>
+          <label>Red alliance</label>
+          <div class="m-trio red"><input type="number" class="form-control form-control-sm" data-side="red" aria-label="Red team 1" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="red" aria-label="Red team 2" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="red" aria-label="Red team 3" min="1" max="99999" inputmode="numeric"></div>
+        </div>
+        <div>
+          <label>Blue alliance</label>
+          <div class="m-trio blue"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 1" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 2" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 3" min="1" max="99999" inputmode="numeric"></div>
+        </div>
+        <div><label for="fTime">Time (optional)</label><input type="datetime-local" id="fTime" class="form-control form-control-sm m-time"></div>
+        <div class="m-form-actions">
+          <button type="submit" class="btn btn-primary btn-sm" id="saveNext">Save and add the next one</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="saveClose">Save</button>
+          <button type="button" class="btn btn-outline-danger btn-sm" id="revertBtn" hidden></button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="cancelBtn">Close</button>
+        </div>
+      </form>
+      <div class="m-msg" id="editMsg" role="status"></div>
+    </section>
+
+    <div id="upcoming"><div class="m-empty">Loading…</div></div>
+    <div id="played"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var R = RSRatings, num = R.num;
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ── Access gate: team members can view and edit the schedule ─────
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+
+    var OUR_TEAM = 1307;
+    var TEAM_KEY = "rs_matches_team";   // the team last viewed, in this browser
+    var POLL_MS = 60000;                // official sync runs every 5 minutes at most
+
+    var events = [], eventId = null, team = OUR_TEAM;
+    var official = {}, edits = {};      // by match_key
+    var data = null, dataTeams = "";    // ratings data, and which teams it covers
+    var editingKey = null, scrolledFor = null;
+    try { team = Number(localStorage.getItem(TEAM_KEY)) || OUR_TEAM; } catch (e) {}
+
+    // ── Match keys: qm12, sf5m1, f1m2 (the same keys the official sync uses) ──
+    var LEVEL_ORDER = { qm: 0, sf: 1, f: 2 };
+    function parseKey(key) {
+      var m = /^(qm)(\d+)$|^sf(\d+)m(\d+)$|^f1m(\d+)$/.exec(key || "");
+      if (!m) return null;
+      if (m[1]) return { level: "qm", n: +m[2], game: 1 };
+      if (m[3]) return { level: "sf", n: +m[3], game: +m[4] };
+      return { level: "f", n: +m[5], game: 1 };
+    }
+    function makeKey(level, n) { return level === "qm" ? "qm" + n : level === "sf" ? "sf" + n + "m1" : "f1m" + n; }
+    function matchLabel(key) {
+      var k = parseKey(key);
+      if (!k) return key;
+      return k.level === "qm" ? "Qual " + k.n : k.level === "sf" ? "Playoff " + k.n + (k.game > 1 ? " replay" : "") : "Final " + k.n;
+    }
+    function compareKeys(a, b) {
+      var x = parseKey(a), y = parseKey(b);
+      return LEVEL_ORDER[x.level] - LEVEL_ORDER[y.level] || x.n - y.n || x.game - y.game;
+    }
+    // Unplayed matches can come through as null, 0-0 or TBA's -1
+    function isPlayed(m) {
+      return m.red_score != null && m.blue_score != null && m.red_score >= 0 && m.blue_score >= 0 &&
+        (m.red_score > 0 || m.blue_score > 0);
+    }
+
+    // The schedule: official matches, with any hand edits laid over them by match_key
+    function schedule() {
+      var keys = Object.keys(Object.assign({}, official, edits)).filter(parseKey);
+      return keys.map(function (key) {
+        var o = official[key], e = edits[key];
+        var m = Object.assign({ match_key: key }, o || {});
+        if (e) {
+          m.red_teams = e.red_teams;
+          m.blue_teams = e.blue_teams;
+          if (e.scheduled_at) m.time = e.scheduled_at;
+          m.source = o ? "edited" : "manual";
+        } else {
+          m.source = "official";
+        }
+        if (!m.time) m.time = o ? o.played_at : null;
+        return m;
+      }).filter(function (m) {
+        return (m.red_teams || []).indexOf(team) !== -1 || (m.blue_teams || []).indexOf(team) !== -1;
+      }).sort(function (a, b) { return compareKeys(a.match_key, b.match_key); });
+    }
+
+    // ── Loading ──────────────────────────────────────────────────────
+    var loadCount = 0;
+    async function load() {
+      var thisLoad = ++loadCount, id = eventId;
+      var results = await Promise.all([
+        R.pagedRows(function () {
+          return sb.from("official_matches_combined")
+            .select("match_key,red_teams,blue_teams,red_score,blue_score,played_at")
+            .eq("event_id", id).order("match_key");
+        }),
+        sb.from("match_schedule").select("match_key,red_teams,blue_teams,scheduled_at").eq("event_id", id)
+      ]);
+      if (thisLoad !== loadCount) return;   // a different event was chosen meanwhile
+      if (results.some(function (r) { return r.error; })) {
+        results.forEach(function (r) { if (r.error) console.warn("Our Matches:", r.error.message); });
+        $("loadError").innerHTML = '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Couldn\'t load the schedule. It may be out of date, and it will keep trying.</div>';
+        return;
+      }
+      $("loadError").innerHTML = "";
+      official = {};
+      (results[0].data || []).forEach(function (m) { official[m.match_key] = m; });
+      edits = {};
+      (results[1].data || []).forEach(function (m) { edits[m.match_key] = m; });
+      await loadRatings(thisLoad);
+    }
+    // Grades, points and win chance need each team's data. Only refetched when the teams change.
+    async function loadRatings(thisLoad) {
+      var teams = new Set();
+      schedule().forEach(function (m) { m.red_teams.concat(m.blue_teams).forEach(function (t) { teams.add(t); }); });
+      var list = Array.from(teams).sort(function (a, b) { return a - b; });
+      if (list.join() !== dataTeams || !data) {
+        var d = await R.load(sb, list);
+        if (thisLoad !== loadCount) return;
+        d.failed.forEach(function (e) { console.warn("Our Matches:", e.message); });
+        data = d;
+        dataTeams = list.join();
+        render();
+        if (await RSTeams.fillMissing(sb, list, data.teamInfo)) render();   // names from TBA
+        return;
+      }
+      render();
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    function teamRow(t) {
+      var td = data.team(t), name = RSTeams.name(td.info);
+      var pts = td.scout && num(td.scout.avg_points) != null ? num(td.scout.avg_points).toFixed(1) : "—";
+      return '<div class="m-team' + (t === team ? " us" : "") + '">' +
+        '<span class="m-num-name" title="' + esc(RSTeams.label(t, td.info)) + '"><strong>' + t + "</strong> " + esc(name) + "</span>" +
+        R.gradeBadge(td.gradeScout, "Scouting") + R.gradeBadge(td.gradeOfficial, "Official") +
+        '<span class="m-pts" title="Scouted points per match, all season">' + pts + "</span></div>";
+    }
+    function sideHtml(color, teams, isUs) {
+      var withPts = teams.map(data.team).filter(function (t) { return t.scout && num(t.scout.avg_points) != null; });
+      var total = withPts.reduce(function (s, t) { return s + num(t.scout.avg_points); }, 0);
+      return '<div class="m-side ' + color + '"><h4>' + (isUs ? "Us" : "Opponents") + " · " + color +
+        (withPts.length ? "<span>" + total.toFixed(1) + " scouted pts" + (withPts.length < teams.length ? " (" + withPts.length + " of " + teams.length + ")" : "") + "</span>" : "") +
+        "</h4>" + teams.map(teamRow).join("") + "</div>";
+    }
+    function whenText(m) {
+      if (!m.time) return "";
+      var d = new Date(m.time);
+      return d.toLocaleDateString([], { weekday: "short" }) + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    function sourceText(m) {
+      return m.source === "official" ? "From FRC/TBA" : m.source === "edited" ? "Edited by hand" : "Entered by hand";
+    }
+    function allianceLink(m) {
+      return '<a class="btn btn-outline-primary btn-sm" href="/alliance.html?red=' + m.red_teams.join(",") + "&blue=" + m.blue_teams.join(",") +
+        '" title="Open this match in the Alliance View"><i class="fa fa-columns"></i> Alliance View</a>';
+    }
+    function editButton(m) {
+      return '<button type="button" class="btn btn-outline-secondary btn-sm" data-edit="' + esc(m.match_key) + '" title="Change this match"><i class="fa fa-pencil"></i><span class="sr-only">Edit</span></button>';
+    }
+    function cardHtml(m, isNext) {
+      var usRed = m.red_teams.indexOf(team) !== -1;
+      var red = m.red_teams.map(data.team), blue = m.blue_teams.map(data.team);
+      var chance = R.winChance(red, blue, data.testTeams);
+      var ours = chance ? (usRed ? chance.overall : 1 - chance.overall) : null;
+      return '<article class="m-card' + (isNext ? " next" : "") + '" id="card-' + esc(m.match_key) + '">' +
+        '<div class="m-card-head">' +
+          "<h3>" + esc(matchLabel(m.match_key)) + "</h3>" +
+          (isNext ? '<span class="m-tag">Up next</span>' : "") +
+          '<span class="m-when">' + esc(whenText(m)) + "</span>" +
+          '<span class="m-src">' + sourceText(m) + "</span>" +
+          '<span class="m-chance" title="An estimate from past results, not a prediction. Needs 3+ matches for all six teams.">' +
+            (ours == null ? "Win chance needs more data" : "<strong>" + Math.round(ours * 100) + "%</strong> win chance") + "</span>" +
+          '<span class="m-actions">' + allianceLink(m) + editButton(m) + "</span>" +
+        "</div>" +
+        '<div class="m-sides">' +
+          (usRed ? sideHtml("red", m.red_teams, true) + sideHtml("blue", m.blue_teams, false)
+                 : sideHtml("blue", m.blue_teams, true) + sideHtml("red", m.red_teams, false)) +
+        "</div></article>";
+    }
+    function playedRowHtml(m) {
+      var usRed = m.red_teams.indexOf(team) !== -1;
+      var us = usRed ? m.red_score : m.blue_score, them = usRed ? m.blue_score : m.red_score;
+      var res = us > them ? "W" : us < them ? "L" : "T";
+      var partners = (usRed ? m.red_teams : m.blue_teams).filter(function (t) { return t !== team; });
+      var opponents = usRed ? m.blue_teams : m.red_teams;
+      return '<div class="m-row ' + res + '">' +
+        "<strong>" + esc(matchLabel(m.match_key)) + "</strong>" +
+        '<span class="m-res">' + res + " " + us + "–" + them + "</span>" +
+        '<span class="m-who">with ' + partners.join(", ") + " vs " + opponents.join(", ") + "</span>" +
+        '<span class="m-actions">' + allianceLink(m) + editButton(m) + "</span></div>";
+    }
+    function render() {
+      if (!data) return;
+      var list = schedule();
+      var upcoming = list.filter(function (m) { return !isPlayed(m); });
+      var done = list.filter(isPlayed);
+      var ev = events.find(function (e) { return e.id === eventId; }) || {};
+      var linked = ev.frc_event_code || ev.tba_event_key;
+
+      $("upcoming").innerHTML = upcoming.length
+        ? upcoming.map(function (m, i) { return cardHtml(m, i === 0); }).join("")
+        : '<div class="m-empty">' + (done.length ? "No more matches for team " + team + " at this event."
+            : "No matches for team " + team + " at this event yet. " +
+              (linked ? "They appear here once the schedule syncs from FRC/TBA, or add them with Add a match."
+                      : "This event isn't linked to FRC or TBA, so add them with Add a match. Staff can link it in the Staff Portal.")) + "</div>";
+      $("played").innerHTML = done.length
+        ? '<h2 class="m-played-title">Played (' + done.length + ")</h2>" + done.slice().reverse().map(playedRowHtml).join("")
+        : "";
+      $("sourceNote").textContent = (linked ? "The schedule and results sync from FRC/TBA" +
+          (ev.official_synced_at ? ", last at " + new Date(ev.official_synced_at).toLocaleString() : "") + ". " : "") +
+        "Fix or add a match with the pencil or Add a match.";
+
+      // Bring the next match into view once per event, not on every refresh
+      if (upcoming.length && done.length && scrolledFor !== eventId + "|" + team) {
+        scrolledFor = eventId + "|" + team;
+        var card = document.getElementById("card-" + upcoming[0].match_key);
+        if (card) card.scrollIntoView({ block: "start" });
+      }
+    }
+
+    // ── Add / edit ───────────────────────────────────────────────────
+    function inputs(side) { return Array.from(document.querySelectorAll('#editForm [data-side="' + side + '"]')); }
+    function say(text) { $("editMsg").textContent = text; }
+    function toLocalInput(iso) {
+      if (!iso) return "";
+      var d = new Date(iso);
+      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+    function openEditor(key) {
+      editingKey = key;
+      var m = key ? (schedule().find(function (x) { return x.match_key === key; }) || official[key] || edits[key]) : null;
+      var k = key ? parseKey(key) : null;
+      $("editorTitle").textContent = key ? "Edit " + matchLabel(key) : "Add a match";
+      $("fLevel").value = k ? k.level : "qm";
+      $("fNumber").value = k ? k.n : nextQualNumber();
+      $("fLevel").disabled = $("fNumber").disabled = !!key;
+      ["red", "blue"].forEach(function (side) {
+        var teams = m ? m[side + "_teams"] : [];
+        inputs(side).forEach(function (input, i) { input.value = teams[i] || ""; });
+      });
+      $("fTime").value = m && edits[key] ? toLocalInput(edits[key].scheduled_at) : "";
+      var revert = $("revertBtn");
+      revert.hidden = !(key && edits[key]);
+      revert.textContent = key && official[key] ? "Go back to the official version" : "Delete this match";
+      $("saveNext").hidden = !!key;
+      say("");
+      $("editor").hidden = false;
+      $("editor").scrollIntoView({ block: "nearest" });
+      (key ? inputs("red")[0] : $("fNumber")).focus();
+    }
+    function nextQualNumber() {
+      var quals = Object.keys(Object.assign({}, official, edits)).map(parseKey)
+        .filter(function (k) { return k && k.level === "qm"; }).map(function (k) { return k.n; });
+      return quals.length ? Math.max.apply(null, quals) + 1 : 1;
+    }
+    function readTeams(side) {
+      return inputs(side).map(function (i) { return i.value.trim(); }).filter(Boolean).map(Number);
+    }
+    async function saveMatch(andNext) {
+      var level = $("fLevel").value, n = Number($("fNumber").value);
+      var key = editingKey || makeKey(level, n);
+      var red = readTeams("red"), blue = readTeams("blue");
+      var all = red.concat(blue);
+      if (!editingKey && !(Number.isInteger(n) && n >= 1 && n <= 999)) { say("Enter the match number."); return; }
+      if (!red.length || !blue.length) { say("Enter at least one team on each alliance."); return; }
+      if (!all.every(function (t) { return Number.isInteger(t) && t >= 1 && t <= 99999; })) { say("Team numbers must be 1 to 99999."); return; }
+      if (new Set(all).size !== all.length) { say("A team can only appear once in a match."); return; }
+      var time = $("fTime").value ? new Date($("fTime").value).toISOString() : null;
+      var r = await sb.from("match_schedule").upsert({
+        event_id: eventId, match_key: key, red_teams: red, blue_teams: blue, scheduled_at: time,
+        updated_by: s.user.id, updated_at: new Date().toISOString()
+      });
+      if (r.error) { say("Couldn't save: " + r.error.message); return; }
+      edits[key] = { match_key: key, red_teams: red, blue_teams: blue, scheduled_at: time };
+      if (all.indexOf(team) === -1) say("Saved. Team " + team + " isn't in that match, so it won't show in this list.");
+      if (andNext && level === "qm") {
+        editingKey = null;
+        $("fNumber").value = n + 1;
+        inputs("red").concat(inputs("blue")).forEach(function (i) { i.value = ""; });
+        $("fTime").value = "";
+        if (all.indexOf(team) !== -1) say(matchLabel(key) + " saved. Next: Qual " + (n + 1) + ".");
+        inputs("red")[0].focus();
+      } else if (all.indexOf(team) !== -1) {
+        closeEditor();
+      }
+      await loadRatings(loadCount);
+    }
+    function closeEditor() { $("editor").hidden = true; editingKey = null; }
+
+    $("addBtn").addEventListener("click", function () { openEditor(null); });
+    $("cancelBtn").addEventListener("click", closeEditor);
+    $("editForm").addEventListener("submit", function (e) { e.preventDefault(); saveMatch(true); });
+    $("saveClose").addEventListener("click", function () { saveMatch(false); });
+    $("revertBtn").addEventListener("click", async function () {
+      var key = editingKey;
+      if (!official[key] && !confirm("Delete " + matchLabel(key) + "?")) return;
+      var r = await sb.from("match_schedule").delete().eq("event_id", eventId).eq("match_key", key);
+      if (r.error) { say("Couldn't change it: " + r.error.message); return; }
+      delete edits[key];
+      closeEditor();
+      await loadRatings(loadCount);
+    });
+    document.querySelector(".m-page").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-edit]");
+      if (btn) openEditor(btn.dataset.edit);
+    });
+    $("eventPick").addEventListener("change", function () {
+      eventId = this.value;
+      closeEditor();
+      load();
+    });
+    $("teamPick").addEventListener("change", function () {
+      var t = Number(this.value);
+      if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team; return; }
+      team = t;
+      try { localStorage.setItem(TEAM_KEY, String(t)); } catch (e) {}
+      loadRatings(loadCount);
+    });
+
+    // ── Start ────────────────────────────────────────────────────────
+    $("teamPick").value = team;
+    var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key")
+      .order("event_date", { ascending: false, nullsFirst: false });
+    if (r.error) {
+      $("upcoming").innerHTML = '<div class="m-empty">Couldn\'t load the events. Try refreshing the page.</div>';
+      return;
+    }
+    events = r.data || [];
+    if (!events.length) {
+      $("upcoming").innerHTML = '<div class="m-empty">No events yet. Staff can add one in the Staff Portal.</div>';
+      $("addBtn").disabled = true;
+      return;
+    }
+    $("eventPick").innerHTML = events.map(function (ev) {
+      return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
+    }).join("");
+    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    $("eventPick").value = eventId;
+    await load();
+
+    setInterval(function () { if (!document.hidden) load(); }, POLL_MS);
+  })();
+  </script>
+</body>
+</html>

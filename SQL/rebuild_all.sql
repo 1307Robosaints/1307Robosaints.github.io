@@ -20,7 +20,7 @@
 --   6  Pit entries + validation             10  Guest access via share codes
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
---  8h  Playoff picks (alliance selection)
+--  8h  Playoff picks, tiebreaks, line-ups   8i  Match schedule edits
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 --  17  Check query
@@ -933,6 +933,21 @@ create table if not exists public.team_info (
 );
 alter table public.team_info enable row level security;
 
+-- tba_name and tba_logo_url are filled automatically by the team-names Edge Function
+-- (supabase/functions/team-names, deploy with: supabase functions deploy team-names --no-verify-jwt)
+-- from The Blue Alliance: the team's nickname ('' means TBA has none) and its FIRST avatar, saved
+-- in the team-logos bucket under tba/. A page asks for a team never looked up, or not looked up
+-- in 30 days (tba_checked_at). A name or logo staff set wins. Pages read display_name and
+-- display_logo, so they never repeat that rule.
+alter table public.team_info add column if not exists tba_name text check (char_length(tba_name) <= 100);
+alter table public.team_info add column if not exists tba_logo_url text
+  check (char_length(tba_logo_url) <= 500 and tba_logo_url ~ '^https://[^[:space:]"<>]+$');
+alter table public.team_info add column if not exists tba_checked_at timestamptz;
+alter table public.team_info add column if not exists display_name text
+  generated always as (coalesce(team_name, nullif(tba_name, ''))) stored;
+alter table public.team_info add column if not exists display_logo text
+  generated always as (coalesce(logo_url, tba_logo_url)) stored;
+
 -- Logos are pasted links or uploads, so require https. "not valid" leaves existing rows alone.
 alter table public.team_info drop constraint if exists team_info_logo_https;
 alter table public.team_info add constraint team_info_logo_https
@@ -1004,6 +1019,84 @@ create policy "team reads playoff picks" on public.playoff_picks for select to a
   using ((select public.is_staff()) or (select public.is_student()));
 create policy "staff manages playoff picks" on public.playoff_picks for all to authenticated
   using ((select public.is_staff())) with check ((select public.is_staff()));
+
+-- Alliance size for the event: 3, or 4 with a third round of picks. Blank means the usual rule
+-- (4 at district championships and the FIRST Championship), so only an off-season that changes
+-- format needs setting. Staff set it with the toggle on Playoff Selection.
+alter table public.events add column if not exists alliance_size int check (alliance_size in (3, 4));
+
+-- The Playoff Bracket works out every result from the official sync. Two things it can't know:
+--   playoff_tiebreaks  who won a match the official scores show as tied (staff enter it from the
+--                      bracket after the tiebreaker). match_key is the exact match, e.g. sf5m1.
+--   playoff_lineups    on a 4-team alliance, which team sits out a match, so the captain plays
+--                      with the other two. Keyed by bracket match: sf5, or f1m2 for a finals game.
+--                      No row means the 3rd pick sits out. Once a match is played, the official
+--                      line-up is shown instead.
+create table if not exists public.playoff_tiebreaks (
+  event_id        uuid not null references public.events(id) on delete cascade,
+  match_key       text not null check (match_key ~ '^(sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  winner_alliance int  not null check (winner_alliance between 1 and 8),
+  primary key (event_id, match_key)
+);
+create table if not exists public.playoff_lineups (
+  event_id        uuid not null references public.events(id) on delete cascade,
+  match_key       text not null check (match_key ~ '^(sf[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  alliance_number int  not null check (alliance_number between 1 and 8),
+  sits_out        int  not null check (sits_out between 1 and 99999),
+  primary key (event_id, match_key, alliance_number)
+);
+alter table public.playoff_tiebreaks enable row level security;
+alter table public.playoff_lineups   enable row level security;
+
+drop policy if exists "team reads playoff tiebreaks"    on public.playoff_tiebreaks;
+drop policy if exists "staff manages playoff tiebreaks" on public.playoff_tiebreaks;
+drop policy if exists "team reads playoff lineups"      on public.playoff_lineups;
+drop policy if exists "staff manages playoff lineups"   on public.playoff_lineups;
+create policy "team reads playoff tiebreaks" on public.playoff_tiebreaks for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "staff manages playoff tiebreaks" on public.playoff_tiebreaks for all to authenticated
+  using ((select public.is_staff())) with check ((select public.is_staff()));
+create policy "team reads playoff lineups" on public.playoff_lineups for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "staff manages playoff lineups" on public.playoff_lineups for all to authenticated
+  using ((select public.is_staff())) with check ((select public.is_staff()));
+
+
+-- =====================================================================
+-- 8i. Match schedule edits (matches.html)
+--
+--    The Our Matches page reads each event's schedule from the official
+--    sync. A row here adds a match the sync doesn't have yet, or replaces
+--    the line-up of one it does (same match_key, e.g. qm12). Deleting the
+--    row goes back to the official version. Any team member can edit.
+-- =====================================================================
+create table if not exists public.match_schedule (
+  event_id     uuid not null references public.events(id) on delete cascade,
+  match_key    text not null check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  red_teams    int[] not null check (cardinality(red_teams) between 1 and 3 and array_position(red_teams, null) is null
+                                     and 1 <= all(red_teams) and 99999 >= all(red_teams)),
+  blue_teams   int[] not null check (cardinality(blue_teams) between 1 and 3 and array_position(blue_teams, null) is null
+                                     and 1 <= all(blue_teams) and 99999 >= all(blue_teams)),
+  scheduled_at timestamptz,
+  updated_by   uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at   timestamptz not null default now(),
+  primary key (event_id, match_key)
+);
+alter table public.match_schedule enable row level security;
+
+drop policy if exists "team reads match schedule"   on public.match_schedule;
+drop policy if exists "team adds match schedule"    on public.match_schedule;
+drop policy if exists "team edits match schedule"   on public.match_schedule;
+drop policy if exists "team deletes match schedule" on public.match_schedule;
+create policy "team reads match schedule" on public.match_schedule for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "team adds match schedule" on public.match_schedule for insert to authenticated
+  with check (((select public.is_staff()) or (select public.is_student())) and updated_by = auth.uid());
+create policy "team edits match schedule" on public.match_schedule for update to authenticated
+  using ((select public.is_staff()) or (select public.is_student()))
+  with check (updated_by = auth.uid());
+create policy "team deletes match schedule" on public.match_schedule for delete to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
 
 
 -- =====================================================================
@@ -1703,8 +1796,8 @@ begin
     'teams', coalesce((
       select jsonb_agg(jsonb_build_object(
         'team_number', t.team_number,
-        'team_name', ti.team_name,
-        'logo_url', ti.logo_url,
+        'team_name', ti.display_name,
+        'logo_url', ti.display_logo,
         'scout', case when sg.team_number is not null then to_jsonb(sg) - 'team_number' end,
         'official', case when og.team_number is not null then to_jsonb(og) - 'team_number' end
       ))
@@ -1855,6 +1948,9 @@ grant select, insert, update, delete on public.pit_entries      to authenticated
 grant select, insert, update, delete on public.test_teams       to authenticated;
 grant select, insert, update, delete on public.team_info        to authenticated;
 grant select, insert, update, delete on public.playoff_picks    to authenticated;
+grant select, insert, update, delete on public.playoff_tiebreaks to authenticated;
+grant select, insert, update, delete on public.playoff_lineups  to authenticated;
+grant select, insert, update, delete on public.match_schedule   to authenticated;
 grant select on public.official_matches          to authenticated;
 grant select on public.official_matches_combined to authenticated;
 grant select on public.official_team_matches     to authenticated;
@@ -2155,6 +2251,7 @@ declare
   v_verb    text;
   v_sync_cols constant text[] := array['official_synced_at', 'tba_etag', 'frc_last_modified',
                                        'official_sync_status', 'official_sync_note', 'auto_sync_request'];
+  v_tba_cols constant text[] := array['tba_name', 'tba_logo_url', 'tba_checked_at', 'display_name', 'display_logo'];
 begin
   -- A share-code redemption only bumps its counters. Logging that would add a row per use.
   if TG_TABLE_NAME = 'share_codes' and TG_OP = 'UPDATE'
@@ -2168,8 +2265,15 @@ begin
     return NEW;
   end if;
 
+  -- Same for team names and logos filled in from TBA: a row holding only those isn't a staff change.
+  if TG_TABLE_NAME = 'team_info'
+     and ((TG_OP = 'UPDATE' and to_jsonb(NEW) - v_tba_cols = to_jsonb(OLD) - v_tba_cols)
+       or (TG_OP = 'INSERT' and to_jsonb(NEW) ->> 'team_name' is null and to_jsonb(NEW) ->> 'logo_url' is null)) then
+    return NEW;
+  end if;
+
   v_row  := to_jsonb(case when TG_OP = 'DELETE' then OLD else NEW end);
-  v_id   := coalesce(v_row ->> 'id', v_row ->> 'user_id', v_row ->> 'team_number', '');
+  v_id   := coalesce(v_row ->> 'id', v_row ->> 'user_id', v_row ->> 'team_number', v_row ->> 'match_key', '');
   v_verb := initcap(lower(TG_OP));
   v_summary := case TG_TABLE_NAME
     when 'events' then
@@ -2186,6 +2290,12 @@ begin
       format('%s team info: team %s', v_verb, v_row ->> 'team_number')
     when 'playoff_picks' then
       format('%s playoff pick: team %s, alliance %s', v_verb, v_row ->> 'team_number', v_row ->> 'alliance_number')
+    when 'playoff_tiebreaks' then
+      format('%s tiebreak: %s won by alliance %s', v_verb, v_row ->> 'match_key', v_row ->> 'winner_alliance')
+    when 'playoff_lineups' then
+      format('%s line-up: team %s sits out %s for alliance %s', v_verb, v_row ->> 'sits_out', v_row ->> 'match_key', v_row ->> 'alliance_number')
+    when 'match_schedule' then
+      format('%s schedule: %s, red %s, blue %s', v_verb, v_row ->> 'match_key', v_row ->> 'red_teams', v_row ->> 'blue_teams')
     when 'staff_members' then
       format('%s staff member %s', v_verb,
         coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'))
@@ -2208,6 +2318,9 @@ drop trigger if exists audit_fields         on public.scout_fields;
 drop trigger if exists audit_codes          on public.share_codes;
 drop trigger if exists audit_team_info      on public.team_info;
 drop trigger if exists audit_playoff_picks  on public.playoff_picks;
+drop trigger if exists audit_playoff_tiebreaks on public.playoff_tiebreaks;
+drop trigger if exists audit_playoff_lineups on public.playoff_lineups;
+drop trigger if exists audit_match_schedule on public.match_schedule;
 drop trigger if exists audit_staff_members  on public.staff_members;
 drop trigger if exists audit_member_grants  on public.member_grants;
 create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
@@ -2217,6 +2330,9 @@ create trigger audit_fields        after insert or update or delete on public.sc
 create trigger audit_codes         after insert or update or delete on public.share_codes      for each row execute function public.audit_row_change();
 create trigger audit_team_info     after insert or update or delete on public.team_info        for each row execute function public.audit_row_change();
 create trigger audit_playoff_picks after insert or update or delete on public.playoff_picks    for each row execute function public.audit_row_change();
+create trigger audit_playoff_tiebreaks after insert or update or delete on public.playoff_tiebreaks for each row execute function public.audit_row_change();
+create trigger audit_playoff_lineups after insert or update or delete on public.playoff_lineups for each row execute function public.audit_row_change();
+create trigger audit_match_schedule after insert or update or delete on public.match_schedule   for each row execute function public.audit_row_change();
 create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
 create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
 
@@ -2313,7 +2429,7 @@ with expected(kind, name) as (values
   ('table','events'), ('table','scouting_entries'), ('table','scout_fields'),
   ('table','pit_entries'), ('table','share_codes'), ('table','staff_members'),
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
-  ('table','team_info'), ('table','playoff_picks'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
+  ('table','team_info'), ('table','playoff_picks'), ('table','playoff_tiebreaks'), ('table','playoff_lineups'), ('table','match_schedule'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),

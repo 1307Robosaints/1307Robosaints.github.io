@@ -33,7 +33,11 @@
     .b-match-head { display: flex; justify-content: space-between; align-items: center; gap: .3rem; height: 20px; padding: 0 .4rem; background: var(--tint); font-size: .68rem; font-weight: 700; color: var(--navy); }
     .b-compare { padding: 0; background: none; border: 0; color: var(--blue); font-size: .68rem; font-weight: 600; cursor: pointer; }
     .b-compare:hover { text-decoration: underline; }
-    .b-side { flex: 1; display: flex; align-items: center; gap: .3rem; min-width: 0; padding: 0 .4rem 0 .3rem; border-left: 4px solid #c0392b; font-size: .78rem; line-height: 1.15; }
+    .b-t { white-space: nowrap; }
+    button.b-t { padding: 0; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+    button.b-t:hover { color: var(--blue); }
+    .b-t.out { text-decoration: line-through; opacity: .5; }
+    .b-side { flex: 1; min-height: 26px; display: flex; align-items: center; gap: .3rem; min-width: 0; padding: 0 .4rem 0 .3rem; border-left: 4px solid #c0392b; font-size: .78rem; line-height: 1.15; }
     .b-side.blue { border-left-color: var(--blue); border-top: 1px solid var(--line); }
     .b-seed { flex: none; min-width: 1.5rem; padding: 0 .15rem; background: var(--navy); color: #fff; text-align: center; font-family: var(--display); font-weight: 700; font-size: .74rem; }
     .b-teams { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
@@ -44,7 +48,9 @@
     .b-side.lost { color: var(--muted); }
     .b-side.lost .b-seed { background: #9a9a9c; }
     .b-side.ours .b-teams { color: var(--blue); font-weight: 600; }
-    .b-flag { padding: 0 .4rem; background: #fff4e0; color: #8a5a00; font-size: .66rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .b-flag { padding: .1rem .4rem; background: #fff4e0; color: #8a5a00; font-size: .66rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .b-flag button { padding: 0 .35rem; background: var(--white); border: 1px solid #d9a441; color: #8a5a00; font-size: .66rem; font-weight: 700; cursor: pointer; }
+    .b-flag button:hover { background: #ffe7bf; }
     .b-games { padding: 0 .4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .68rem; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .b-champ { position: absolute; padding: .35rem .5rem; background: var(--navy); color: #fff; text-align: center; }
@@ -105,11 +111,16 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -171,7 +182,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
-  <script src="/js/alliance.js"></script>
+  <script src="/js/teams.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -182,12 +193,14 @@
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
-    // ── Access gate (team members; the tables' policies do the real enforcing) ──
+    // ── Access gate: the team can look, staff settle ties and line-ups ──
+    // Hiding the controls is just tidiness. The tables' policies do the real enforcing.
     var s = (await sb.auth.getSession()).data.session;
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var canEdit = lvl === "staff";
 
     // ── The 2026 FRC 8-alliance double-elimination bracket ───────────
     // Each side is a seed, or the winner or loser of an earlier match, in official red/blue order.
@@ -213,19 +226,21 @@
     var FINAL = { red: won(11), blue: won(13), col: 5, y: 345 };
     var FINAL_WINS = 2;   // best of 3
 
-    var CARD_W = 190, CARD_H = 76, FINAL_H = 96, COL = 226;
-    var CANVAS_H = 665, CANVAS_W = COL * 5 + CARD_W;
+    var CARD_W = 192, CARD_H = 76, FINAL_H = 96, COL = 224;
+    var CANVAS_H = 680, CANVAS_W = COL * 5 + CARD_W;
     var ROUNDS = ["Round 1", "Round 2", "Round 3", "Round 4", "Round 5", "Finals"];
     var OUR_TEAM = 1307;
     var POLL_MS = 15000;
 
-    var events = [], eventId = null, picks = [], games = {};
+    var events = [], eventId = null, picks = [], games = {}, tiebreaks = {}, lineups = {}, teamInfo = {};
+    var saving = false;
 
     function teamsOf(a) {
       return picks.filter(function (p) { return p.alliance_number === a; })
         .sort(function (x, y) { return x.slot - y.slot; })
         .map(function (p) { return p.team_number; });
     }
+    function teamLabel(t) { return RSTeams.label(t, teamInfo[t]); }
 
     // ── Working out the bracket ──────────────────────────────────────
     // Unplayed matches can come through as null, 0-0 or TBA's -1, so none of those count as played.
@@ -250,14 +265,29 @@
     function overlap(teams, list) {
       return teams.filter(function (t) { return (list || []).indexOf(t) !== -1; }).length;
     }
-    // Scores for each alliance, matched on team numbers instead of trusting the colors. A backup
-    // robot still leaves two teams to match on. Returns null if the teams don't fit either way.
-    function scoresFor(redAlliance, blueAlliance, g) {
+    // Scores and teams for each alliance, matched on team numbers instead of trusting the colors.
+    // A backup robot still leaves two teams to match on. Returns null if they don't fit either way.
+    function sidesFor(redAlliance, blueAlliance, g) {
       var red = teamsOf(redAlliance), blue = teamsOf(blueAlliance);
       var same = overlap(red, g.red_teams) + overlap(blue, g.blue_teams);
       var swapped = overlap(red, g.blue_teams) + overlap(blue, g.red_teams);
       if (same === swapped) return null;
-      return same > swapped ? { red: g.red_score, blue: g.blue_score } : { red: g.blue_score, blue: g.red_score };
+      return same > swapped
+        ? { red: g.red_score, blue: g.blue_score, redTeams: g.red_teams, blueTeams: g.blue_teams }
+        : { red: g.blue_score, blue: g.red_score, redTeams: g.blue_teams, blueTeams: g.red_teams };
+    }
+    // A 4-team alliance plays three: the captain plus two. No choice saved means the 3rd pick sits out.
+    function plannedTeams(alliance, key) {
+      var teams = teamsOf(alliance);
+      if (teams.length < 4) return teams;
+      var row = lineups[key + "|" + alliance];
+      var out = row && teams.indexOf(row.sits_out) > 0 ? row.sits_out : teams[3];
+      return teams.filter(function (t) { return t !== out; });
+    }
+    // The winning alliance of a tied match, if staff entered the tiebreaker, else null
+    function tiebreakWinner(key, a, b) {
+      var w = tiebreaks[key];
+      return w === a || w === b ? w : null;
     }
     function resolveBracket() {
       var results = {};
@@ -268,30 +298,46 @@
       }
       // Sorted by number, because a match only ever depends on lower-numbered ones
       MATCHES.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (m) {
-        var r = results[m.n] = { red: allianceFor(m.red), blue: allianceFor(m.blue), winner: null, loser: null, flag: "" };
-        var list = games["sf" + m.n];
+        var key = "sf" + m.n;
+        var r = results[m.n] = { key: key, red: allianceFor(m.red), blue: allianceFor(m.blue), winner: null, loser: null, flag: "" };
+        if (r.red != null) r.redTeams = plannedTeams(r.red, key);
+        if (r.blue != null) r.blueTeams = plannedTeams(r.blue, key);
+        var list = games[key];
         if (!list || r.red == null || r.blue == null) return;
         var g = list[list.length - 1];   // a replay replaces the earlier result
-        var score = scoresFor(r.red, r.blue, g);
-        if (!score) { r.flag = "Official teams don't match"; return; }
-        r.redScore = score.red;
-        r.blueScore = score.blue;
-        if (score.red === score.blue) { r.flag = "Tied, waiting on the tiebreaker"; return; }
-        r.winner = score.red > score.blue ? r.red : r.blue;
-        r.loser = score.red > score.blue ? r.blue : r.red;
+        var sides = sidesFor(r.red, r.blue, g);
+        if (!sides) { r.flag = "Official teams don't match"; return; }
+        r.played = true;
+        r.redScore = sides.red;
+        r.blueScore = sides.blue;
+        r.redTeams = sides.redTeams;
+        r.blueTeams = sides.blueTeams;
+        if (sides.red === sides.blue) {
+          r.tie = g.match_key;
+          r.winner = tiebreakWinner(g.match_key, r.red, r.blue);
+          if (r.winner == null) return;
+        } else {
+          r.winner = sides.red > sides.blue ? r.red : r.blue;
+        }
+        r.loser = r.winner === r.red ? r.blue : r.red;
       });
 
       var f = { red: allianceFor(FINAL.red), blue: allianceFor(FINAL.blue), redWins: 0, blueWins: 0, scores: [], winner: null, flag: "" };
       if (f.red != null && f.blue != null) {
         (games.f1 || []).forEach(function (g) {
-          var score = scoresFor(f.red, f.blue, g);
-          if (!score) { f.flag = "Official teams don't match"; return; }
-          f.scores.push(score.red + "–" + score.blue);
-          if (score.red > score.blue) f.redWins++;
-          else if (score.blue > score.red) f.blueWins++;
+          var sides = sidesFor(f.red, f.blue, g);
+          if (!sides) { f.flag = "Official teams don't match"; return; }
+          var w = sides.red > sides.blue ? f.red : sides.blue > sides.red ? f.blue : tiebreakWinner(g.match_key, f.red, f.blue);
+          if (sides.red === sides.blue && w == null && !f.tie) f.tie = g.match_key;
+          f.scores.push(sides.red + "–" + sides.blue + (sides.red === sides.blue ? (w == null ? " tie" : " (A" + w + ")") : ""));
+          if (w === f.red) f.redWins++;
+          if (w === f.blue) f.blueWins++;
         });
         if (f.redWins >= FINAL_WINS) f.winner = f.red;
         else if (f.blueWins >= FINAL_WINS) f.winner = f.blue;
+        f.key = "f1m" + (f.scores.length + 1);   // the next finals game, for its line-up
+        f.redTeams = plannedTeams(f.red, f.key);
+        f.blueTeams = plannedTeams(f.blue, f.key);
       }
       results.final = f;
       return results;
@@ -302,48 +348,78 @@
       return side.seed ? "Not picked yet"
         : side.won ? "Winner of Match " + side.won : "Loser of Match " + side.lost;
     }
-    function sideHtml(color, side, alliance, score, winner, wins) {
+    // The alliance's teams. Teams not in this match are struck through, and for a match still to
+    // play, staff can click a teammate of the captain to have them sit out.
+    function teamsHtml(alliance, playing, key, editable) {
+      var all = teamsOf(alliance);
+      var label = all.map(teamLabel).join(", ");
+      return '<span class="b-teams" title="' + esc(label) + '">' + all.map(function (t, i) {
+        var out = playing && playing.indexOf(t) === -1;
+        var tip = esc(teamLabel(t)) + (out ? " (sits out)" : "");
+        if (editable && all.length === 4 && i > 0 && !out) {
+          return '<button type="button" class="b-t" data-sit="' + t + '" data-a="' + alliance + '" data-key="' + key +
+            '" title="' + tip + ' – click to have this team sit out">' + t + "</button>";
+        }
+        return '<span class="b-t' + (out ? " out" : "") + '" title="' + tip + '">' + t + "</span>";
+      }).join(" ") + "</span>";
+    }
+    function sideHtml(color, side, alliance, r, extra) {
       var teams = alliance == null ? [] : teamsOf(alliance);
       var cls = "b-side " + color;
-      if (winner != null) cls += alliance === winner ? " won" : " lost";
+      if (r.winner != null) cls += alliance === r.winner ? " won" : " lost";
       if (teams.indexOf(OUR_TEAM) !== -1) cls += " ours";
-      var label = teams.join("  ");
+      var playing = color === "red" ? r.redTeams : r.blueTeams;
+      var editable = canEdit && !r.played && r.winner == null;
       return '<div class="' + cls + '">' +
         (alliance == null ? "" : '<span class="b-seed" title="Alliance ' + alliance + '">A' + alliance + "</span>") +
-        (teams.length ? '<span class="b-teams" title="' + esc(label) + '">' + esc(label) + "</span>"
+        (teams.length ? teamsHtml(alliance, playing, r.key, editable)
           : '<span class="b-wait">' + esc(waitingText(side)) + "</span>") +
-        (score == null ? "" : '<span class="b-score">' + Number(score) + "</span>") +
-        (wins == null ? "" : '<span class="b-score">' + wins + "</span>") +
+        (extra == null ? "" : '<span class="b-score">' + extra + "</span>") +
       "</div>";
     }
-    function compareButton(r, key) {
-      if (r.red == null || r.blue == null || !teamsOf(r.red).length || !teamsOf(r.blue).length) return "";
-      return '<button type="button" class="b-compare" data-compare="' + key + '" title="Open this match-up in the Alliance View">Compare</button>';
+    // Opens the match-up in the Alliance View, with the three teams each side plays
+    function compareLink(r) {
+      if (!r.redTeams || !r.blueTeams || !r.redTeams.length || !r.blueTeams.length) return "";
+      return '<a class="b-compare" href="/alliance.html?red=' + r.redTeams.slice(0, 3).join(",") + "&blue=" +
+        r.blueTeams.slice(0, 3).join(",") + '" title="Open this match-up in the Alliance View">Compare</a>';
+    }
+    // A tied match waits for the tiebreaker. Staff say who won it, and can undo that.
+    function tieHtml(key, a, b, winner) {
+      if (winner != null) {
+        return '<div class="b-flag">A' + winner + " won the tiebreaker" +
+          (canEdit ? ' <button type="button" data-untie="' + key + '">Undo</button>' : "") + "</div>";
+      }
+      if (!canEdit) return '<div class="b-flag">Tied, waiting on the tiebreaker</div>';
+      return '<div class="b-flag">Tied. Who won? ' +
+        '<button type="button" data-tie="' + key + '" data-winner="' + a + '">A' + a + "</button> " +
+        '<button type="button" data-tie="' + key + '" data-winner="' + b + '">A' + b + "</button></div>";
     }
     function cardStyle(col, y, h) {
-      return "left:" + col * COL + "px;top:" + y + "px;width:" + CARD_W + "px;height:" + h + "px;";
+      return "left:" + col * COL + "px;top:" + y + "px;width:" + CARD_W + "px;min-height:" + h + "px;";
     }
     function matchHtml(m, r) {
       return '<div class="b-match" id="match' + m.n + '" style="' + cardStyle(m.col, m.y, CARD_H) + '">' +
-        '<div class="b-match-head"><span>Match ' + m.n + "</span>" + compareButton(r, m.n) + "</div>" +
-        sideHtml("red", m.red, r.red, r.redScore, r.winner) +
-        sideHtml("blue", m.blue, r.blue, r.blueScore, r.winner) +
-        (r.flag ? '<div class="b-flag" title="' + esc(r.flag) + '">' + esc(r.flag) + "</div>" : "") +
+        '<div class="b-match-head"><span>Match ' + m.n + "</span>" + compareLink(r) + "</div>" +
+        sideHtml("red", m.red, r.red, r, r.redScore) +
+        sideHtml("blue", m.blue, r.blue, r, r.blueScore) +
+        (r.tie ? tieHtml(r.tie, r.red, r.blue, r.winner)
+          : r.flag ? '<div class="b-flag" title="' + esc(r.flag) + '">' + esc(r.flag) + "</div>" : "") +
       "</div>";
     }
     function finalHtml(f) {
       var started = f.scores.length > 0;
+      var shown = Object.assign({}, f, { winner: f.winner, played: f.winner != null });
       return '<div class="b-match final" id="matchFinal" style="' + cardStyle(FINAL.col, FINAL.y, FINAL_H) + '">' +
-        '<div class="b-match-head"><span>Finals, best of 3</span>' + compareButton(f, "final") + "</div>" +
-        sideHtml("red", FINAL.red, f.red, null, f.winner, started ? f.redWins : null) +
-        sideHtml("blue", FINAL.blue, f.blue, null, f.winner, started ? f.blueWins : null) +
-        (f.flag ? '<div class="b-flag">' + esc(f.flag) + "</div>"
-          : started ? '<div class="b-games">' + esc(f.scores.join(", ")) + "</div>" : "") +
+        '<div class="b-match-head"><span>Finals, best of 3</span>' + (f.winner == null ? compareLink(f) : "") + "</div>" +
+        sideHtml("red", FINAL.red, f.red, shown, started ? f.redWins : null) +
+        sideHtml("blue", FINAL.blue, f.blue, shown, started ? f.blueWins : null) +
+        (started ? '<div class="b-games">' + esc(f.scores.join(", ")) + "</div>" : "") +
+        (f.tie ? tieHtml(f.tie, f.red, f.blue, null) : f.flag ? '<div class="b-flag">' + esc(f.flag) + "</div>" : "") +
       "</div>";
     }
     function champHtml(f) {
       if (f.winner == null) return "";
-      return '<div class="b-champ" id="champion" style="left:' + FINAL.col * COL + "px;top:" + (FINAL.y + FINAL_H + 12) + "px;width:" + CARD_W + 'px;">' +
+      return '<div class="b-champ" id="champion" style="left:' + FINAL.col * COL + "px;top:" + (FINAL.y + FINAL_H + 30) + "px;width:" + CARD_W + 'px;">' +
         "<span>Event winners</span><strong>Alliance " + f.winner + "</strong><em>" + esc(teamsOf(f.winner).join("  ")) + "</em></div>";
     }
     // Lines follow winners only. Losers drop down by name, as on FIRST's own bracket.
@@ -389,6 +465,10 @@
         notes = '<div class="alert alert-warning b-note" role="alert">Some official results list teams that don\'t match ' +
           'the alliances entered, so those matches can\'t advance. Check Playoff Selection.</div>';
       }
+      if (canEdit && picks.some(function (p) { return p.slot === 4; })) {
+        notes += '<p class="text-muted" style="font-size:.8rem;margin:0 0 .3rem;">On a 4-team alliance, click a ' +
+          "captain's teammate to have them sit out that match. Until you do, the 3rd pick sits out.</p>";
+      }
       if (ev && ev.official_synced_at) {
         notes += '<p class="text-muted" style="font-size:.8rem;margin:0 0 .4rem;">Official results last synced ' +
           esc(new Date(ev.official_synced_at).toLocaleString()) + "</p>";
@@ -404,7 +484,9 @@
         sb.from("playoff_picks").select("alliance_number,slot,team_number").eq("event_id", id),
         sb.from("official_matches_combined")
           .select("match_key,red_teams,blue_teams,red_score,blue_score")
-          .eq("event_id", id).in("comp_level", ["sf", "f"])
+          .eq("event_id", id).in("comp_level", ["sf", "f"]),
+        sb.from("playoff_tiebreaks").select("match_key,winner_alliance").eq("event_id", id),
+        sb.from("playoff_lineups").select("match_key,alliance_number,sits_out").eq("event_id", id)
       ]);
       if (thisLoad !== loadCount) return;   // a different event was chosen meanwhile
       var failed = results.filter(function (r) { return r.error; });
@@ -415,22 +497,58 @@
       }
       picks = results[0].data || [];
       games = groupGames(results[1].data || []);
+      tiebreaks = {};
+      (results[2].data || []).forEach(function (t) { tiebreaks[t.match_key] = t.winner_alliance; });
+      lineups = {};
+      (results[3].data || []).forEach(function (l) { lineups[l.match_key + "|" + l.alliance_number] = l; });
+
+      // Names for the picked teams, looked up on TBA if they have none yet
+      var teams = picks.map(function (p) { return p.team_number; });
+      var unknown = teams.filter(function (t) { return !teamInfo[t]; });
+      if (unknown.length) {
+        var info = await RSTeams.loadInfo(sb, unknown);
+        Object.assign(teamInfo, info.info);
+      }
+      if (thisLoad !== loadCount) return;
       render();
+      if (await RSTeams.fillMissing(sb, teams, teamInfo)) render();
     }
 
-    $("bracket").addEventListener("click", function (e) {
-      var btn = e.target.closest("[data-compare]");
-      if (!btn) return;
-      var r = resolveBracket()[btn.dataset.compare];
-      Alliance.set("red", teamsOf(r.red));   // a fourth team doesn't fit, so the first three go
-      Alliance.set("blue", teamsOf(r.blue));
-      location.href = "/alliance.html";
-    });
-    function chooseEvent(id) {
-      eventId = id;
+    // Staff changes: the tiebreaker winner, or who sits out
+    async function save(request, what) {
+      if (saving) return;
+      saving = true;
+      var r = await request;
+      saving = false;
+      if (r.error) {
+        $("notes").insertAdjacentHTML("afterbegin", '<div class="alert alert-warning b-note" role="alert">Couldn\'t save the ' + what + ": " + esc(r.error.message) + "</div>");
+        return;
+      }
       load();
     }
-    $("eventPick").addEventListener("change", function () { chooseEvent(this.value); });
+    $("bracket").addEventListener("click", function (e) {
+      if (!canEdit) return;
+      var tie = e.target.closest("[data-tie]");
+      if (tie) {
+        save(sb.from("playoff_tiebreaks").upsert({ event_id: eventId, match_key: tie.dataset.tie,
+          winner_alliance: Number(tie.dataset.winner) }), "tiebreaker");
+        return;
+      }
+      var untie = e.target.closest("[data-untie]");
+      if (untie) {
+        save(sb.from("playoff_tiebreaks").delete().eq("event_id", eventId).eq("match_key", untie.dataset.untie), "tiebreaker");
+        return;
+      }
+      var sit = e.target.closest("[data-sit]");
+      if (sit) {
+        save(sb.from("playoff_lineups").upsert({ event_id: eventId, match_key: sit.dataset.key,
+          alliance_number: Number(sit.dataset.a), sits_out: Number(sit.dataset.sit) }), "line-up");
+      }
+    });
+    $("eventPick").addEventListener("change", function () {
+      eventId = this.value;
+      load();
+    });
 
     // ── Start ────────────────────────────────────────────────────────
     var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at")
@@ -451,10 +569,10 @@
     var wanted = new URLSearchParams(location.search).get("event");
     var first = events.find(function (ev) { return ev.id === wanted; }) ||
       events.find(function (ev) { return ev.is_default_event; }) || events[0];
-    $("eventPick").value = first.id;
-    chooseEvent(first.id);
+    $("eventPick").value = eventId = first.id;
+    load();
 
-    setInterval(function () { if (!document.hidden) load(); }, POLL_MS);
+    setInterval(function () { if (!document.hidden && !saving) load(); }, POLL_MS);
   })();
   </script>
 </body>

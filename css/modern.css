@@ -590,3 +590,31 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
 /* Hide the image column when it holds a dead placehold.it image, and let the text use the full width */
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
+
+/* Small letter-grade badge (S to F), drawn by RSRatings.gradeBadge() in js/ratings.js */
+.rs-grade {
+  display: inline-block;
+  min-width: 1.45em;
+  padding: 0 .2em;
+  text-align: center;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: .82em;
+  line-height: 1.45;
+}
+
+/* Event level tag (Qualifier, District Champs, Worlds, Off-season), from events.event_tier.
+   Same colors as the Staff Portal's tier badges. */
+.tier-tag {
+  display: inline-block;
+  padding: .05rem .5rem;
+  font-family: var(--display);
+  font-size: .74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--tint);
+  color: var(--blue);
+}
+.tier-tag.district_championship { background: #6c3fb5; color: #fff; }
+.tier-tag.championship          { background: #D4AF37; color: #2b2100; }
+.tier-tag.offseason             { background: #F3E6D3; color: #8A5A22; }

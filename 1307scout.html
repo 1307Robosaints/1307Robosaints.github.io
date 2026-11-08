@@ -356,11 +356,16 @@
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
                 <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
             </li>
@@ -573,41 +578,47 @@
 
     document.getElementById("greetingEmail").textContent = user.email;
 
-    // ── Primary tiles, depending on access level ─────────────────
-    var tiles = [];
-    if (isStaff) tiles.push({ href:"/portal.html", icon:"fa-cog", cls:"staff-tile",
-                 title:"Staff Portal", desc:"Events, form fields, share codes, members, and the audit log" });
-    if (isTeam) {
-      tiles.push({ href:"/scout.html", icon:"fa-clipboard", cls:"",
-                   title:"Scout", desc:"Enter match and pit data for the current event" });
-      tiles.push({ href:"/query.html", icon:"fa-database", cls:"",
-                   title:"Team Database", desc:"Match history, robot parameters, official results, and ratings" });
-      tiles.push({ href:"/alliance.html", icon:"fa-columns", cls:"",
-                   title:"Alliance View", desc:"Compare red and blue alliances, six robots side by side" });
-      tiles.push({ href:"/playoffs.html", icon:"fa-trophy", cls:"",
-                   title:"Playoff Selection", desc:"Track alliances as they form and rank the teams still available" });
-      tiles.push({ href:"/bracket.html", icon:"fa-sitemap", cls:"",
-                   title:"Playoff Bracket", desc:"The double-elimination bracket, filled from the alliances and official results" });
-    } else {
-      tiles.push({ href:"/scout.html", icon:"fa-search", cls:"",
-                   title:"View shared data", desc:"Enter a share code from Team 1307" });
+    // ── Tiles, grouped the same way as the 1307scout menu ────────
+    function tile(href, icon, title, desc, cls) {
+      return { href: href, icon: icon, title: title, desc: desc, cls: cls || "" };
     }
-
-    var primaryLabel = document.createElement("div");
-    primaryLabel.className = "home-section-label";
-    primaryLabel.textContent = isStaff ? "Tools" : isTeam ? "Scouting" : "Data access";
+    var groups = [];
+    if (isTeam) {
+      groups.push({ label: "Scouting", tiles: [
+        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event"),
+        tile("/query.html", "fa-database", "Team Database", "Match history, robot parameters, official results, and ratings")
+      ] });
+      groups.push({ label: "Competition day", tiles: [
+        tile("/matches.html", "fa-calendar", "Our Matches", "Every match today, with partners, opponents, and win chance"),
+        tile("/alliance.html", "fa-columns", "Alliance View", "Compare red and blue alliances, six robots side by side"),
+        tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Track alliances as they form and rank the teams still available"),
+        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results")
+      ] });
+    } else {
+      groups.push({ label: "Data access", tiles: [
+        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from Team 1307")
+      ] });
+    }
+    groups.push({ label: isStaff ? "Help and admin" : "Help", tiles: [
+      tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance, and the other numbers are worked out")
+    ].concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, members, and the audit log", "staff-tile")] : []) });
 
     var area = document.getElementById("primaryTiles");
-    area.appendChild(primaryLabel);
-    tiles.forEach(function(t) {
-      var a = document.createElement("a");
-      a.href = t.href;
-      a.className = "nav-tile " + t.cls;
-      a.innerHTML =
-        '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
-        '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
-        '<i class="fa fa-chevron-right tile-chevron"></i>';
-      area.appendChild(a);
+    groups.forEach(function (g, i) {
+      var label = document.createElement("div");
+      label.className = "home-section-label" + (i ? " mt-4" : "");
+      label.textContent = g.label;
+      area.appendChild(label);
+      g.tiles.forEach(function (t) {
+        var a = document.createElement("a");
+        a.href = t.href;
+        a.className = "nav-tile " + t.cls;
+        a.innerHTML =
+          '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
+          '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
+          '<i class="fa fa-chevron-right tile-chevron"></i>';
+        area.appendChild(a);
+      });
     });
 
     // Sign out, then reload so the logged-out view appears. RS.signOut clears this

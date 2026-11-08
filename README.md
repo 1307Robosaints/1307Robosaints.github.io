@@ -12,7 +12,8 @@ framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307
 `privacy-policy.html`, `terms-of-service.html`, and `ratings.html`, which explains how team
 ratings and the other derived stats are calculated. Update it whenever that math changes.
 
-**1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`):
+**1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). Every page
+is in the 1307scout menu and on the home page, grouped as Scouting, Competition day, and Help/admin:
 - `1307scout.html` — landing/command-center page, links out based on your access level.
 - `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
   free account can use a share code here to view a limited slice of data.
@@ -21,20 +22,31 @@ ratings and the other derived stats are calculated. Update it whenever that math
   history, insights (win %, margins, recent form, per-event results, scoring averages, and a
   rating breakdown), and two independent ratings (one from human scouting, one from synced official
   results — see the comment on `team_ratings()` in `SQL/rebuild_all.sql` for why they're kept separate).
-  A team's card also shows its name and logo if staff have set one on the Team Info tab, and
-  buttons to add it to the red or blue alliance.
+  A team's card shows its name and logo, and buttons to add it to the red or blue alliance. Every
+  match row links to that match in the Alliance View, and every event is tagged with its level
+  (Qualifier, District Champs, Worlds, Off-season) from the tier set in the Staff Portal.
+- `matches.html` — Our Matches: every match one team (1307 unless changed) has at an event, read from
+  the synced FRC/TBA schedule. Upcoming matches show partners and opponents with grades, scouted
+  points and win chance; played ones collapse to a one-line result. Any team member can add a match
+  the sync doesn't have or fix a line-up (`match_schedule`), and go back to the official version.
 - `alliance.html` — Alliance View: compares up to six teams picked on the Team Database, as a row
   of 3 cards per alliance, all on one screen with no scrolling on a widescreen display (phones and
   tablets stack the cards). Picks are kept in that browser (`js/alliance.js`), so each person and
-  device has their own. To change which stats are compared, edit `STAT_GROUPS` in the page.
+  device has their own. A link can also set both alliances: `alliance.html?red=1,2,3&blue=4,5,6`,
+  which is how every match listing opens a match here. To change which stats are compared, edit
+  `STAT_GROUPS` in the page.
   Each alliance also gets a grade and an estimated win chance, explained on `ratings.html`.
 - `playoffs.html` — Playoff Selection: staff enter an event's alliances as they form, and the whole
   team sees them update. Beside them, every team at the event that hasn't been picked is ranked in
   a sortable table of ratings and raw stats. Each alliance has Red and Blue buttons that open it in
-  the Alliance View. To change the table's stats, edit `COLUMNS` in the page.
+  the Alliance View. Alliances have 3 teams, or 4 at district championships and the FIRST
+  Championship; staff can switch any event with the 4-team toggle. To change the table's stats,
+  edit `COLUMNS` in the page.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
-  it only advances once an event syncs. The match layout is `MATCHES` in the page.
+  it only advances once an event syncs. When official scores are tied, staff click who won the
+  tiebreaker. On a 4-team alliance staff click who sits out each match (the 3rd pick by default).
+  The match layout is `MATCHES` in the page.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
@@ -57,6 +69,13 @@ whole after cloning a fresh Supabase project, and again any time this file chang
 The other files in `SQL/` are one-off **data** imports (new events, linking an event to its
 FRC/TBA code, etc.) — row-only changes that don't touch the schema. They're kept for a record of
 what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
+
+**Team names and logos** fill in on their own: when a page shows a team that hasn't been looked up
+in 30 days, `js/teams.js` asks the `team-names` Edge Function (`supabase/functions/team-names/`) to
+look it up on The Blue Alliance. It saves the nickname and the team's FIRST avatar (stored in the
+`team-logos` bucket under `tba/`). A name or logo staff set on the Team Info tab wins over it. Deploy it once with
+`supabase functions deploy team-names --no-verify-jwt`; it uses the `TBA_API_KEY` secret that
+official-sync already has.
 
 Robot photos uploaded from the Scout page land in a public Supabase Storage bucket
 (`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo

@@ -23,6 +23,8 @@
     .p-layout h2::after { display: none; }
     .p-panel-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .4rem .75rem; margin-bottom: .5rem; min-height: 31px; }
     .p-count { color: var(--muted); font-size: .85rem; }
+    .p-size { display: flex; align-items: center; gap: .3rem; margin: 0 0 0 auto; font-size: .82rem; color: var(--muted); cursor: pointer; }
+    .p-size.locked { cursor: default; }
 
     /* Next-spot bar */
     .p-next { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .5rem .6rem; margin-bottom: .5rem; background: var(--tint); border-left: 4px solid var(--blue); }
@@ -147,11 +149,16 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -182,6 +189,9 @@
       <section class="p-board" aria-label="Alliances">
         <div class="p-panel-head">
           <h2>Alliances</h2>
+          <label class="p-size" id="sizeLabel" title="4-team alliances add a third round of picks. On by default at district championships and the FIRST Championship.">
+            <input type="checkbox" id="sizeToggle"> 4-team alliances
+          </label>
           <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll" hidden>Clear all</button>
         </div>
         <form class="p-next" id="addForm" hidden>
@@ -240,6 +250,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
   <script src="/js/alliance.js"></script>
   <script>
   (async function () {
@@ -260,30 +272,9 @@
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
     var canEdit = lvl === "staff";
 
-    // ── Grades: same tiers and rules as query.html and alliance.html ──
-    var TIERS = {
-      S:  { color: "#D4AF37", ink: "#2b2100" },
-      A:  { color: "#1a7f4b", ink: "#ffffff" },
-      B:  { color: "#1B4DB1", ink: "#ffffff" },
-      C:  { color: "#6c3fb5", ink: "#ffffff" },
-      D:  { color: "#e67e22", ink: "#ffffff" },
-      F:  { color: "#c0392b", ink: "#ffffff" },
-      NR: { color: "#9a9a9c", ink: "#ffffff" }
-    };
-    var CUTS = [[0.9, "S"], [0.75, "A"], [0.5, "B"], [0.25, "C"], [0.1, "D"]];
-    var MIN_RATED_MATCHES = 3;
-
-    function gradeFor(rows, team) {
-      var me = rows.find(function (r) { return r.team_number === team; });
-      if (!me || me.matches < MIN_RATED_MATCHES) return "NR";
-      var rated = rows.filter(function (r) { return !testTeams.has(r.team_number) && r.matches >= MIN_RATED_MATCHES; });
-      var score = Number(me.score);
-      var pct = rated.filter(function (r) { return Number(r.score) <= score; }).length / rated.length;
-      for (var i = 0; i < CUTS.length; i++) {
-        if (pct >= CUTS[i][0]) return CUTS[i][1];
-      }
-      return "F";
-    }
+    // ── Grades (js/ratings.js). Test teams never reach this page's list. ──
+    var R = RSRatings, TIERS = R.TIERS;
+    function gradeFor(rows, team) { return R.gradeFor(rows, team, testTeams); }
 
     // ── Stat helpers (same rules as the Alliance View) ───────────────
     function num(v) {
@@ -416,11 +407,16 @@
 
     // ── Spots on the board ───────────────────────────────────────────
     function currentEvent() { return events.find(function (e) { return e.id === eventId; }) || null; }
-    // Championship-level events add a third round of picks, so those show a fourth spot
-    function slotCount() {
+    // Championship-level events add a third round of picks, so they have a fourth spot. Staff can
+    // switch any event either way (events.alliance_size), as some off-seasons do.
+    function allianceSize() {
       var ev = currentEvent();
-      var big = ev && (ev.event_tier === "championship" || ev.event_tier === "district_championship");
-      return big || picks.some(function (p) { return p.slot === 4; }) ? 4 : 3;
+      if (!ev) return 3;
+      if (ev.alliance_size) return ev.alliance_size;
+      return ev.event_tier === "championship" || ev.event_tier === "district_championship" ? 4 : 3;
+    }
+    function slotCount() {
+      return allianceSize() === 4 || picks.some(function (p) { return p.slot === 4; }) ? 4 : 3;
     }
     function pickAt(a, slot) {
       return picks.find(function (p) { return p.alliance_number === a && p.slot === slot; }) || null;
@@ -500,7 +496,7 @@
         sb.rpc("team_ratings"),
         sb.rpc("team_official_ratings"),
         sb.from("test_teams").select("team_number"),
-        sb.from("team_info").select("team_number,team_name,logo_url"),
+        RSTeams.loadInfo(sb),
         pagedRows(function () {
           return sb.from("official_match_teams").select("team_number").eq("event_id", id)
             .order("match_key").order("team_number");
@@ -516,7 +512,7 @@
       officialRatings = first[1].data || [];
       testTeams = new Set((first[2].data || []).map(function (t) { return t.team_number; }));
       teamInfo = {};
-      (first[3].data || []).forEach(function (t) { teamInfo[t.team_number] = t; });
+      teamInfo = first[3].info || {};
       var found = new Set();
       [first[4], first[5], first[6]].forEach(function (r) {
         (r.data || []).forEach(function (row) { found.add(row.team_number); });
@@ -563,6 +559,9 @@
       poolTeams = teams;
       await loadPicks();
       render();
+      // Names from TBA for any team still without one
+      var named = await RSTeams.fillMissing(sb, teams.concat(picks.map(function (p) { return p.team_number; })), teamInfo);
+      if (named && thisLoad === eventLoad) render();
     }
 
     // ── One team's numbers, for the current All season / This event choice ──
@@ -625,7 +624,7 @@
     function slotHtml(a, slot, target) {
       var pick = pickAt(a, slot), role = '<span class="p-role">' + SLOT_NAMES[slot - 1] + "</span>";
       if (pick) {
-        var name = (teamInfo[pick.team_number] || {}).team_name;
+        var name = RSTeams.name(teamInfo[pick.team_number]);
         return '<div class="p-slot"' + (name ? ' title="' + esc(name) + '"' : "") + ">" + role +
           '<span class="p-slot-team">' + pick.team_number + "</span>" +
           '<span class="p-slot-name">' + (esc(name) || "&nbsp;") + "</span>" +
@@ -667,6 +666,8 @@
           '<div class="p-slots" style="--slots:' + slots + ';">' + cells + "</div></div>";
       }
       $("board").innerHTML = html;
+      $("sizeToggle").checked = allianceSize() === 4;
+      $("sizeLabel").hidden = !canEdit && allianceSize() !== 4;
       if (canEdit) {
         $("nextLabel").textContent = target ? spotLabel(target) : "all spots are filled";
         $("clearAll").hidden = !picks.length;
@@ -722,8 +723,8 @@
       return "<tr>" +
         '<td class="p-rank">' + (sorted ? position : "—") + "</td>" +
         '<td class="p-team"><div class="p-team-cell">' + pick +
-          (t.info.logo_url ? '<img src="' + esc(t.info.logo_url) + '" alt="">' : "") +
-          '<div class="p-team-text"><strong>' + t.team + "</strong><span>" + esc(t.info.team_name) + "</span></div>" +
+          (RSTeams.logo(t.info) ? '<img src="' + esc(RSTeams.logo(t.info)) + '" alt="">' : "") +
+          '<div class="p-team-text"><strong>' + t.team + "</strong><span>" + esc(RSTeams.name(t.info)) + "</span></div>" +
         "</div></td>" + cells + "</tr>";
     }
     function renderPool() {
@@ -835,6 +836,18 @@
       input.focus();
     });
     $("clearAll").addEventListener("click", clearPicks);
+    $("sizeToggle").addEventListener("change", async function () {
+      var ev = currentEvent(), size = this.checked ? 4 : 3;
+      var r = await sb.from("events").update({ alliance_size: size }).eq("id", ev.id).select("id");
+      if (r.error || !r.data.length) {
+        say("Couldn't change the alliance size" + (r.error ? ": " + r.error.message : "."));
+        this.checked = !this.checked;
+        return;
+      }
+      ev.alliance_size = size;
+      chosenSpot = null;
+      render();
+    });
     $("eventPick").addEventListener("change", function () {
       eventId = this.value;
       loadEvent();
@@ -850,12 +863,16 @@
     });
 
     // ── Start ────────────────────────────────────────────────────────
+    if (!canEdit) {
+      $("sizeToggle").disabled = true;
+      $("sizeLabel").classList.add("locked");
+    }
     if (canEdit) {
       $("addForm").hidden = false;
       $("introText").innerHTML = 'Click <strong>Pick</strong> on a team or type its number to fill the highlighted spot. ' +
         'Click any open spot to fill that one instead. <a href="/ratings.html#playoff-selection">How the ranking works</a>';
     }
-    var r = await sb.from("events").select("id,name,event_date,event_tier,is_default_event")
+    var r = await sb.from("events").select("id,name,event_date,event_tier,is_default_event,alliance_size")
       .order("event_date", { ascending: false, nullsFirst: false });
     if (r.error) {
       $("loadError").innerHTML = '<div class="alert alert-warning" role="alert">Couldn\'t load the events. Try refreshing the page.</div>';

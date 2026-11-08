@@ -262,11 +262,16 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Scouting</h6>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Competition day</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/ratings.html">How Ratings Work</a>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
           </li>
@@ -363,6 +368,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/teams.js"></script>
   <script src="/js/alliance.js"></script>
   <script>
   (async function () {
@@ -405,12 +411,23 @@
 
     var fields = [], eventsById = {}, summary = [], pitTeams = [], official = [], officialRatings = [], dataCounts = [];
     var testTeamSet = new Set();   // team numbers staff tagged as test teams — kept out of rating comparisons
-    var teamInfoByNumber = {};     // team_number -> { team_name, logo_url }, set in the Staff Portal
+    var teamInfoByNumber = {};     // team_number -> team_info row (js/teams.js): staff-set or from TBA
 
     function fieldsFor(scope) {
       return fields.filter(function (f) { return (f.scope || "match") === scope; });
     }
     function evName(id) { var e = eventsById[id]; return e ? e.name : "—"; }
+    // The event's level, set per event in the Staff Portal (it also weights the official rating)
+    var TIER_TAGS = {
+      qualifier: ["Qualifier", "A district event or regional"],
+      district_championship: ["District Champs", "A district championship"],
+      championship: ["Worlds", "The FIRST Championship"],
+      offseason: ["Off-season", "An off-season event"]
+    };
+    function tierTag(id) {
+      var e = eventsById[id], t = e && TIER_TAGS[e.event_tier];
+      return t ? '<span class="tier-tag ' + e.event_tier + '" title="' + t[1] + '">' + t[0] + "</span>" : "";
+    }
     function evTime(id) {
     var e = eventsById[id];
     return e && e.event_date ? new Date(String(e.event_date).slice(0, 10) + "T00:00:00Z").getTime() : 0;
@@ -444,7 +461,7 @@
     async function loadMeta() {
       var rf = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
       fields = rf.data || [];
-      var re = await sb.from("events").select("id,name,event_date");
+      var re = await sb.from("events").select("id,name,event_date,event_tier");
       eventsById = {};
       (re.data || []).forEach(function (e) { eventsById[e.id] = e; });
     }
@@ -487,10 +504,9 @@
       testTeamSet = new Set((r.data || []).map(function (t) { return t.team_number; }));
     }
     async function loadTeamInfo() {
-      var r = await sb.from("team_info").select("team_number,team_name,logo_url");
-      if (r.error) { console.warn("Team info unavailable:", r.error.message); return; }
-      teamInfoByNumber = {};
-      (r.data || []).forEach(function (t) { teamInfoByNumber[t.team_number] = t; });
+      var r = await RSTeams.loadInfo(sb);
+      if (r.error) console.warn("Team info unavailable:", r.error.message);
+      teamInfoByNumber = r.info;
     }
 
     // Scouted and official counts are shown side by side, never merged into one number —
@@ -531,8 +547,8 @@
           team: r.team,
           scouted: r.scouted,
           official: r.official,
-          name: info && info.team_name ? info.team_name : "",
-          logo: info && info.logo_url ? info.logo_url : "",
+          name: RSTeams.name(info),
+          logo: RSTeams.logo(info),
           hasPit: pitSet.has(r.team),
           gScout: scoutGradeFor(r.team),
           gOff: officialGradeFor(r.team)
@@ -835,12 +851,12 @@
       if (ids.length < 2) return "";
       var body = ids.map(function (id) {
         var rows = played.filter(function (r) { return r.event_id === id; });
-        return "<tr><td>" + esc(evName(id)) + "</td><td>" + recordOf(rows) + "</td><td>" + winPct(rows) + "</td>" +
+        return "<tr><td>" + esc(evName(id)) + "</td><td>" + tierTag(id) + "</td><td>" + recordOf(rows) + "</td><td>" + winPct(rows) + "</td>" +
           "<td>" + mean(rows.map(function (r) { return r.alliance_score; })).toFixed(1) + "</td>" +
           "<td>" + signed(mean(rows.map(marginOf))) + "</td></tr>";
       }).join("");
       return '<div class="table-responsive mt-3"><table class="table match-table"><thead><tr>' +
-        "<th>Event</th><th>Record</th><th>Win %</th><th>Avg score</th><th>Avg margin</th>" +
+        "<th>Event</th><th>Level</th><th>Record</th><th>Win %</th><th>Avg score</th><th>Avg margin</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
 
@@ -999,14 +1015,14 @@
       });
       var body = ids.map(function (id) {
         var here = rows.filter(function (m) { return m.event_id === id; });
-        return "<tr><td>" + esc(evName(id)) + "</td><td>" + here.length + "</td>" +
+        return "<tr><td>" + esc(evName(id)) + "</td><td>" + tierTag(id) + "</td><td>" + here.length + "</td>" +
           cols.map(function (f) {
             var vals = numbersFor(here, f.key);
             return "<td>" + (vals.length ? mean(vals).toFixed(1) : "—") + "</td>";
           }).join("") + "</tr>";
       }).join("");
       return statBlock("Scouted averages by event", '<span class="src-badge scout">Scouted</span>',
-        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Entries</th>' +
+        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
           cols.map(function (f) { return "<th>" + esc(f.label) + "</th>"; }).join("") +
         "</tr></thead><tbody>" + body + "</tbody></table></div>");
     }
@@ -1080,13 +1096,13 @@
         var mine = lineup ? (r.alliance === "red" ? lineup.red_teams : lineup.blue_teams) : null;
         var theirs = lineup ? (r.alliance === "red" ? lineup.blue_teams : lineup.red_teams) : null;
         var partners = mine ? mine.filter(function (t) { return t !== team; }).join(", ") : "—";
-        var source = !lineup ? "—" : esc(lineup.sources) + (lineup.scores_agree === false ? " (scores differ)" : "");
-        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + esc(matchLabel(r)) + "</td>" +
+        var source = !lineup ? "—" : esc(lineup.sources.toUpperCase()) + (lineup.scores_agree === false ? " (scores differ)" : "");
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + tierTag(r.event_id) + "</td><td>" + esc(matchLabel(r)) + "</td>" +
           "<td>" + esc(r.alliance) + (r.station ? " " + r.station : "") + "</td>" +
           "<td>" + (played ? r.alliance_score + " – " + r.opponent_score : "—") + "</td>" +
           "<td>" + result + "</td>" +
           "<td>" + esc(partners) + "</td><td>" + esc(theirs ? theirs.join(", ") : "—") + "</td>" +
-          "<td>" + source + "</td></tr>";
+          "<td>" + source + "</td><td>" + allianceViewLink(lineup) + "</td></tr>";
       }).join("");
       var upcoming = rows.length - n;
       return head +
@@ -1100,9 +1116,16 @@
             scoreBreakdownHtml(played)
           : "") +
         '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
-        "<th>Event</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
-        "<th>Partners</th><th>Opponents</th><th>Source</th>" +
+        "<th>Event</th><th>Level</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
+        "<th>Partners</th><th>Opponents</th><th>Source</th><th></th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
+    }
+
+    // Opens a match's two alliances in the Alliance View
+    function allianceViewLink(lineup) {
+      if (!lineup || !(lineup.red_teams || []).length || !(lineup.blue_teams || []).length) return "";
+      return '<a href="/alliance.html?red=' + lineup.red_teams.join(",") + "&blue=" + lineup.blue_teams.join(",") +
+        '" title="Open this match in the Alliance View"><i class="fa fa-columns"></i><span class="sr-only">Alliance View</span></a>';
     }
 
     // Red and Blue buttons for the Alliance View. Clicking the team's own alliance removes it;
@@ -1179,15 +1202,16 @@
       }
 
       // Match history: one row per match, every match field as a column
-      var matchCols = ["Event", "Match"].concat(mFields.map(function (f) { return f.label; }));
+      var matchCols = ["Event", "Level", "Match", ""].concat(mFields.map(function (f) { return f.label; }));
       var matchRows = matches.map(function (m) {
-        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + (m.match_number || "—") + "</td>" +
+        var lineup = m.match_number ? lineups[m.event_id + "|qm" + m.match_number] : null;
+        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + tierTag(m.event_id) + "</td><td>" + (m.match_number || "—") + "</td><td>" + allianceViewLink(lineup) + "</td>" +
           mFields.map(function (f) { return "<td>" + cell(m.data ? m.data[f.key] : null, f, m.data) + "</td>"; }).join("") +
           "</tr>";
       }).join("");
 
       var info = teamInfoByNumber[team];
-      var logoHtml = info && info.logo_url ? '<img class="team-logo" src="' + esc(info.logo_url) + '" alt="">' : "";
+      var logoHtml = RSTeams.logo(info) ? '<img class="team-logo" src="' + esc(RSTeams.logo(info)) + '" alt="">' : "";
       var scoutedTiles = scoutedInsightTiles(matches);
 
       $("detail").innerHTML =
@@ -1198,7 +1222,7 @@
         '<div class="detail-head">' +
           logoHtml +
           '<div>' +
-            "<h2>Team " + team + (info && info.team_name ? ' <small class="text-muted">' + esc(info.team_name) + '</small>' : "") + "</h2>" +
+            "<h2>" + team + (RSTeams.name(info) ? ' <small class="text-muted">' + esc(RSTeams.name(info)) + '</small>' : "") + "</h2>" +
             '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisScout) + "</p>" +
             '<p class="text-muted mb-0" style="font-size:.92rem;">' + esc(basisOff) + "</p>" +
           '</div>' +
@@ -1230,6 +1254,8 @@
     await loadMeta();
     await Promise.all([loadSummary(), loadPitTeams(), loadOfficial(), loadOfficialRatings(), loadDataCounts(), loadTestTeams(), loadTeamInfo()]);
     renderList();
+    // Names from TBA for teams that don't have one yet
+    if (await RSTeams.fillMissing(sb, teamList().map(function (r) { return r.team; }), teamInfoByNumber)) renderList();
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
     function fmtEventDate(d, opts) {

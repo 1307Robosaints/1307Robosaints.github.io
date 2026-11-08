@@ -23,8 +23,12 @@ no build/lint/test tooling in this repo — don't introduce one unless asked.
 ### No bundler, inline-script pages
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
-`contact_me.js`, plus the vendored `jqBootstrapValidation.js`). Everything specific to a page
-(`scout.html`, `query.html`, `alliance.html`, `playoffs.html`, `bracket.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
+`contact_me.js`, `teams.js`, `ratings.js`, plus the vendored `jqBootstrapValidation.js`).
+`teams.js` handles team names ("1678 Citrus Circuits") and the TBA lookup; `ratings.js` holds the
+grade, alliance-grade and win-chance math, and the loader for it, used by `alliance.html`,
+`playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
+to a page (`scout.html`, `query.html`, `alliance.html`, `matches.html`, `playoffs.html`,
+`bracket.html`, `portal.html`, `account.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -60,8 +64,9 @@ list), written to be safe to re-run end-to-end in the Supabase SQL editor agains
 project or an existing one (tables are `create if not exists`, functions `create or replace`,
 policies dropped and recreated). When changing the data model, edit this file directly rather
 than writing a new migration file — the other files in `SQL/` (`import_*.sql`,
-`link_battle_of_the_bay.sql`) are one-off **data** imports (new events, FRC/TBA event-code
-links), kept only as a record; `rebuild_all.sql` doesn't depend on them and re-running it does
+`link_battle_of_the_bay.sql`, `prune_non_ne_teams.sql`) are one-off **data** imports and
+cleanups (new events, FRC/TBA event-code links, removing non-New England events/teams), kept
+only as a record; `rebuild_all.sql` doesn't depend on them and re-running it does
 not re-run them.
 
 Key tables/functions to know when touching 1307scout:
@@ -75,7 +80,13 @@ Key tables/functions to know when touching 1307scout:
 - `playoff_picks` — the alliances on `playoffs.html`, one row per filled spot (slot 1 is the
   captain). Staff write, the team reads, and the page polls it so every screen stays current.
   `bracket.html` reads it too, and works out each result from `official_matches_combined`
-  (`sf1`-`sf13` and `f1`), matching alliances on team numbers. It stores nothing of its own.
+  (`sf1`-`sf13` and `f1`), matching alliances on team numbers. All it stores is what the sync
+  can't know: `playoff_tiebreaks` (who won a tied match) and `playoff_lineups` (who sits out on a
+  4-team alliance). `events.alliance_size` overrides the 3-or-4 rule for an event.
+- `match_schedule` — hand edits for `matches.html`, laid over the official schedule by `match_key`.
+- `team_info` — staff-set `team_name`/`logo_url`, plus `tba_name`/`tba_logo_url` written by the
+  `team-names` Edge Function (this one is in the repo, under `supabase/functions/`). Pages read
+  `display_name` and `display_logo`, which prefer what staff set.
 - `photo_cleanup_queue` — photo files nothing uses any more, queued by triggers on the entry
   tables. SQL can't delete Storage files, so `scout.html` and `portal.html` call
   `photo_cleanup_paths()` and remove them through the Storage API.
