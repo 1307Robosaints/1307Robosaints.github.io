@@ -112,7 +112,10 @@ Key tables/functions to know when touching 1307scout:
   results, written only by the `official-sync` Edge Function (service role); staff/students can
   read, nobody writes through the normal API. The table holds a full season, so look up a
   team's rows with `official_match_teams_for(int[])` (uses the team-array indexes), not by
-  filtering the `official_match_teams` view on `team_number`. `team_official_ratings()` and
+  filtering the `official_match_teams` view on `team_number` (`official_lineups_for(int[])` does
+  the same for line-ups). They're security definer with an explicit access check on purpose:
+  under RLS, Postgres won't use an index for non-leakproof operators like `&&`/`@>`, so a
+  team filter sent straight to the table or views reads every row. `team_official_ratings()` and
   `team_official_summary()` read a cache (`official_ratings_cache`/`official_summary_cache`)
   that `refresh_official_cache()` rebuilds from the `*_compute()` functions; a pg_cron job runs
   it every minute and it only does work after official data changed. Per-team RPCs return more

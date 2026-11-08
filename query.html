@@ -472,12 +472,19 @@
     // Every page of a request. The API returns at most 1000 rows per request, and with a full
     // season loaded there are more teams than that, so one request would silently drop teams.
     async function allRows(makeQuery) {
-      var rows = [], size = 1000;
-      for (var from = 0; ; from += size) {
-        var r = await makeQuery().range(from, from + size - 1);
-        if (r.error) return { error: r.error, data: rows };
-        rows = rows.concat(r.data || []);
-        if ((r.data || []).length < size) return { data: rows };
+      // 4 pages per round trip, so a few thousand rows don't take one request after another
+      var rows = [], size = 1000, batch = 4;
+      for (var from = 0; ; from += size * batch) {
+        var pages = [];
+        for (var k = 0; k < batch; k++) {
+          pages.push(makeQuery().range(from + k * size, from + (k + 1) * size - 1));
+        }
+        var res = await Promise.all(pages);
+        for (var j = 0; j < res.length; j++) {
+          if (res[j].error) return { error: res[j].error, data: rows };
+          rows = rows.concat(res[j].data || []);
+          if ((res[j].data || []).length < size) return { data: rows };
+        }
       }
     }
     // The three per-team lists the grades compare against. They come from a server-side cache
@@ -753,9 +760,7 @@
           .select("event_id,match_key,comp_level,set_number,match_number,alliance,station,alliance_score,opponent_score,played_at,breakdown")
           .order("played_at", { ascending: true, nullsFirst: false }),
         // Who was on each alliance, for the partner and opponent columns
-        sb.from("official_matches_combined")
-          .select("event_id,match_key,red_teams,blue_teams,sources,scores_agree")
-          .or("red_teams.cs.{" + team + "},blue_teams.cs.{" + team + "}"),
+        sb.rpc("official_lineups_for", { p_teams: [team] }),
         sb.from("vision_robots").select("event_id,match_key,alliance,data,confidence").eq("team_number", team)
       ]);
       if (selected !== team) return;   // clicked another team while this one loaded

@@ -888,11 +888,13 @@ order by m.event_id, m.match_key, t.team_number,
 
 -- 8c2. official_match_teams for just the given teams. Filtering the view by team_number
 --      still unpacks every match in the table first; this finds the teams' matches through
---      the red/blue team indexes. Same columns and rules as the view. Runs as the caller, so
---      the table's row-level security still applies.
+--      the red/blue team indexes. Same columns and rules as the view.
+--      Security definer with the same access check as the table's policy: under row-level
+--      security Postgres won't use an index for the array operators (&&, @>, not leakproof),
+--      so running as the caller would read every match and time out.
 create or replace function public.official_match_teams_for(p_teams int[])
 returns setof public.official_match_teams
-language sql stable set search_path = '' as $$
+language sql stable security definer set search_path = '' as $$
   select distinct on (m.event_id, m.match_key, t.team_number)
     m.event_id, m.match_key, m.comp_level, m.set_number, m.match_number, m.played_at, m.source,
     t.team_number, t.alliance, t.station,
@@ -909,8 +911,22 @@ language sql stable set search_path = '' as $$
   ) t
   where (m.red_teams && p_teams or m.blue_teams && p_teams)
     and t.team_number = any(p_teams)
+    and ((select public.is_staff()) or (select public.is_student()))
   order by m.event_id, m.match_key, t.team_number,
            (m.red_score is not null) desc, (m.source = 'frc') desc;
+$$;
+
+-- 8c3. Who was on each alliance in every match the given teams played (official_matches_combined
+--      rows), for the Team Database's partner and opponent columns. Security definer for the
+--      same index reason as 8c2.
+create or replace function public.official_lineups_for(p_teams int[])
+returns table (event_id uuid, match_key text, red_teams int[], blue_teams int[],
+               sources text, scores_agree boolean)
+language sql stable security definer set search_path = '' as $$
+  select c.event_id, c.match_key, c.red_teams, c.blue_teams, c.sources, c.scores_agree
+  from public.official_matches_combined c
+  where (c.red_teams && p_teams or c.blue_teams && p_teams)
+    and ((select public.is_staff()) or (select public.is_student()));
 $$;
 
 -- 8d. Per-team official summary (matches played, wins, average alliance score)
@@ -2192,6 +2208,7 @@ revoke all on function public.team_official_ratings()      from public, anon;
 revoke all on function public.event_tier_weight(text)      from public, anon;
 revoke all on function public.team_official_summary()      from public, anon;
 revoke all on function public.official_match_teams_for(int[])  from public, anon;
+revoke all on function public.official_lineups_for(int[])       from public, anon;
 revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.official_ratings_compute()   from public, anon, authenticated;
 revoke all on function public.official_summary_compute()   from public, anon, authenticated;
@@ -2216,6 +2233,7 @@ grant execute on function public.team_official_ratings()      to authenticated;
 grant execute on function public.event_tier_weight(text)      to authenticated;
 grant execute on function public.team_official_summary()      to authenticated;
 grant execute on function public.official_match_teams_for(int[])  to authenticated;
+grant execute on function public.official_lineups_for(int[])       to authenticated;
 grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
 grant execute on function public.staff_list_share_codes()     to authenticated;
@@ -2672,7 +2690,7 @@ with expected(kind, name) as (values
   ('table','team_info'), ('table','playoff_picks'), ('table','playoff_tiebreaks'), ('table','playoff_lineups'), ('table','match_schedule'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
   ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
-  ('view','official_match_teams'), ('function','official_match_teams_for'),
+  ('view','official_match_teams'), ('function','official_match_teams_for'), ('function','official_lineups_for'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'),
   ('function','session_live'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),

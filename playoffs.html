@@ -450,12 +450,19 @@
     // ── Loading ──────────────────────────────────────────────────────
     // The API returns at most 1000 rows per request, so page through anything that can grow.
     async function pagedRows(query) {
-      var rows = [], size = 1000;
-      for (var from = 0; ; from += size) {
-        var r = await query().range(from, from + size - 1);
-        if (r.error) return { error: r.error, data: rows };
-        rows = rows.concat(r.data || []);
-        if ((r.data || []).length < size) return { data: rows };
+      // 4 pages per round trip, so a few thousand rows don't take one request after another
+      var rows = [], size = 1000, batch = 4;
+      for (var from = 0; ; from += size * batch) {
+        var pages = [];
+        for (var k = 0; k < batch; k++) {
+          pages.push(query().range(from + k * size, from + (k + 1) * size - 1));
+        }
+        var res = await Promise.all(pages);
+        for (var j = 0; j < res.length; j++) {
+          if (res[j].error) return { error: res[j].error, data: rows };
+          rows = rows.concat(res[j].data || []);
+          if ((res[j].data || []).length < size) return { data: rows };
+        }
       }
     }
     // Same check as team_ratings(): skips entries from earlier seasons' forms.
