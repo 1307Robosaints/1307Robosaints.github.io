@@ -147,6 +147,17 @@ class IdentityTests(unittest.TestCase):
         chains, owner, how = metrics.identify([clear, weak, mixed], lineup)
         self.assertEqual([t for t, _ in metrics.sure_chains(chains, owner, how)], [1])
 
+    def test_elimination_teaches_when_both_others_are_sure(self):
+        lineup = {"red": [1, 2, 3], "blue": []}
+        a, b, c = path("red", 0, 300, y=50), path("red", 0, 300, y=150), path("red", 0, 300, y=250)
+        a.votes[1] += 3
+        b.votes[2] += 3
+        chains, owner, how = metrics.identify([a, b, c], lineup)
+        self.assertEqual(sorted(t for t, _ in metrics.sure_chains(chains, owner, how, lineup)), [1, 2, 3])
+        b.votes[2] = 0.4                            # 2 only weakly read: 3 can't be sure either
+        chains, owner, how = metrics.identify([a, b, c], lineup)
+        self.assertEqual(sorted(t for t, _ in metrics.sure_chains(chains, owner, how, lineup)), [1])
+
     def test_gallery_roundtrip(self):
         import tempfile
         import numpy as np

@@ -91,7 +91,9 @@ def stitch(tracklets, max_gap_s=4.0, max_speed=240.0, slack_in=36.0):
     return chains
 
 
-LOOK_MIN = 0.80      # lowest look similarity that can identify a robot
+# Tuned on 2026matb (10 matches, leave-one-match-out on clearly read robots): at these, 9 of 9
+# decided were right. Looks of FRC robots on carpet score close together, hence the high floor.
+LOOK_MIN = 0.90      # lowest look similarity that can identify a robot
 LOOK_MARGIN = 0.03   # and how far it must beat the next-best team on the alliance
 
 
@@ -166,11 +168,19 @@ def identify(tracklets, lineup, look=None):
     return chains, owner, how
 
 
-def sure_chains(chains, owner, how, min_score=1.0, dominance=2.0):
-    """[(team, chain)] identified by number beyond reasonable doubt: enough read score, and
-    well ahead of any other team's. Only these teach the appearance gallery, so one bad read
-    doesn't spread to other matches."""
-    out = []
+def sure_chains(chains, owner, how, lineup=None, min_score=1.0, dominance=2.0, min_left_s=20.0):
+    """[(team, chain)] identified beyond reasonable doubt. Only these teach the appearance
+    gallery, so one bad read doesn't spread to other matches.
+
+    - By number: enough read score, well ahead of any other team's.
+    - By elimination, with lineup: a long chain on the field at the same time as sure chains
+      of both other teams on its alliance, so it can only be the third robot. This is how
+      teams whose numbers never read (small or blurry bumpers) get looks at all.
+    """
+    def span(ch):
+        return min(k.start for k in ch), max(k.end for k in ch)
+
+    out = {}
     for i, team in owner.items():
         if how[i] != "number":
             continue
@@ -178,8 +188,17 @@ def sure_chains(chains, owner, how, min_score=1.0, dominance=2.0):
         top = dict(votes).get(team, 0)
         rest = max((s for t, s in votes if t != team), default=0)
         if top >= min_score and top >= dominance * rest:
-            out.append((team, chains[i]))
-    return out
+            out[i] = team
+    if lineup:
+        for i, team in owner.items():
+            a, b = span(chains[i])
+            if how[i] != "left" or b - a < min_left_s:
+                continue
+            others = [t for t in lineup.get(chains[i][0].color, []) if t != team]
+            if others and all(any(t == out.get(j) and span(chains[j])[0] < b - 0.5 and a < span(chains[j])[1] - 0.5
+                                  for j in out) for t in others):
+                out[i] = team
+    return [(team, chains[i]) for i, team in out.items()]
 
 
 def team_tracks(tracklets, lineup, look=None):

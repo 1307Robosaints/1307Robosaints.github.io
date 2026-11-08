@@ -81,12 +81,12 @@ class Gallery:
             self.path.unlink()
 
     def learn(self, event_key, match_key, tracklets, lineup):
-        """Replaces this match's looks with those of its tracks identified by a clear number.
-        Returns how many were added."""
+        """Replaces this match's looks with those of its tracks identified beyond doubt (see
+        metrics.sure_chains). Returns how many were added."""
         self.entries = [x for x in self.entries if not (x[1] == event_key and x[2] == match_key)]
         chains, owner, how = metrics.identify(tracklets, lineup)
         added = 0
-        for team, ch in metrics.sure_chains(chains, owner, how):
+        for team, ch in metrics.sure_chains(chains, owner, how, lineup):
             v = chain_look(ch)
             if v is not None:
                 self.entries.append((team, event_key, match_key, v.astype(np.float16)))

@@ -554,10 +554,14 @@
       if (thisLoad !== eventLoad) return;
 
       // A failed request would otherwise look like a team with no data.
-      var failed = first.concat(second).filter(function (r) { return r.error; });
-      failed.forEach(function (r) { console.warn("Playoff Selection:", r.error.message); });
+      // The warning names what failed and why, so the cause can be reported and fixed.
+      var NAMES = ["scouting ratings", "official ratings", "test teams", "team names", "teams on the schedule",
+        "teams scouted here", "teams pit scouted here", "qualification matches", "scouting entries", "pit entries", "official results"];
+      var failed = first.concat(second).map(function (r, i) { return r.error ? NAMES[i] + ": " + r.error.message : null; }).filter(Boolean);
+      failed.forEach(function (msg) { console.warn("Playoff Selection:", msg); });
       $("loadError").innerHTML = failed.length
-        ? '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some team data couldn\'t be loaded, so this list may be missing teams or stats. Try refreshing the page.</div>'
+        ? '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some team data couldn\'t be loaded, so this list may be missing teams or stats. Try refreshing the page.' +
+          '<div style="font-size:.8rem;margin-top:.3rem;opacity:.85;">' + failed.map(esc).join("<br>") + "</div></div>"
         : "";
 
       entriesByTeam = {};
