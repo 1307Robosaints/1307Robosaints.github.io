@@ -48,8 +48,13 @@
     }
     .team-row:hover { background: var(--tint); }
     .team-row.selected { background: var(--tint); box-shadow: inset 3px 0 0 var(--blue); }
-    .team-row .tr-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .team-row .tr-name .team-name-sub { color: var(--muted); font-size: .85em; }
+    /* Number on its own line (always fits), name wrapping underneath instead of being cut off */
+    .team-row .tr-name { flex: 1 1 auto; min-width: 0; }
+    .team-row .tr-name .tr-num { white-space: nowrap; }
+    .team-row .tr-name .team-name-sub {
+      display: block; color: var(--muted); font-size: .85em; line-height: 1.25;
+      overflow-wrap: anywhere; margin-top: .1rem;
+    }
     .team-row .tr-stats-line { flex: none; display: flex; gap: .85rem; }
     .team-row .tr-stat { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 2.2rem; }
     .team-row .tr-stat .stat-v { font-weight: 600; line-height: 1.1; }
@@ -621,9 +626,9 @@
             var dots = '<span class="tier-dot" style="background:' + TIERS[r.gScout.tier].color + ';" title="Scouting: ' + r.gScout.tier + '"></span>' +
               '<span class="tier-dot" style="background:' + TIERS[r.gOff.tier].color + ';" title="Official: ' + r.gOff.tier + '"></span>';
             var logoImg = r.logo ? '<img class="team-logo-sm" src="' + esc(r.logo) + '" alt="">' : "";
-            var nameSuffix = r.name ? ' <span class="team-name-sub">' + esc(r.name) + '</span>' : "";
+            var nameSuffix = r.name ? '<span class="team-name-sub">' + esc(r.name) + '</span>' : "";
             return '<div data-team="' + r.team + '" role="button" tabindex="0" class="team-row' + (selected === r.team ? " selected" : "") + '">' +
-              '<div class="tr-name">' + dots + logoImg + "<strong>" + r.team + "</strong>" + nameSuffix + "</div>" +
+              '<div class="tr-name"><span class="tr-num">' + dots + logoImg + "<strong>" + r.team + "</strong></span>" + nameSuffix + "</div>" +
               '<div class="tr-stats-line">' +
                 '<div class="tr-stat" title="Human-scouted matches"><span class="stat-v">' + r.scouted + '</span><span class="stat-k">Scouted</span></div>' +
                 '<div class="tr-stat" title="Synced from FRC Events / TBA"><span class="stat-v">' + r.official + '</span><span class="stat-k">API</span></div>' +
