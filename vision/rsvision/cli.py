@@ -76,7 +76,9 @@ def cmd_frames(a):
     from .video import frames
     out = config.WORK / "dataset" / "images" if not a.out else a.out
     os.makedirs(out, exist_ok=True)
-    stem = os.path.splitext(os.path.basename(a.video))[0]
+    # Event folder + match (2026nhrr_qm1), so qm1 from two events doesn't overwrite the other
+    event = os.path.basename(os.path.dirname(os.path.abspath(a.video)))
+    stem = f"{event}_{os.path.splitext(os.path.basename(a.video))[0]}"
     n = 0
     for t, frame in frames(a.video, 1 / a.every):
         cv2.imwrite(os.path.join(out, f"{stem}_{int(t * 10):05d}.jpg"), frame)

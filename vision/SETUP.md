@@ -430,9 +430,23 @@ every season, so one good model keeps working.
 python run.py frames --video work\videos\2026nhrr\qm1.mp4 --every 2
 ```
 
-This saves one frame every 2 seconds to `work\dataset\images`. Do this for **8 to 15 matches
-from at least 3 different events**. Different venues, lighting and camera angles make the model
-hold up anywhere.
+This saves one frame every 2 seconds to `work\dataset\images`, named after the event and match
+(for example `2026nhrr_qm1_00120.jpg`). Do this for **8 to 15 matches from at least 3 different
+events**. Different venues, lighting and camera angles make the model hold up anywhere.
+
+**With many events downloaded**, this takes 2 random matches from every event folder, one frame
+every 5 seconds:
+
+```
+Get-ChildItem work\videos -Directory | ForEach-Object {
+  Get-ChildItem $_.FullName -Filter *.mp4 | Get-Random -Count 2 | ForEach-Object {
+    python run.py frames --video $_.FullName --every 5
+  }
+}
+```
+
+Don't extract every match. A full district is over a thousand videos, far more frames than
+anyone can label, and matches from the same event look alike.
 
 Then go through the folder and delete close-ups, replays, crowd shots and frames with no
 robots. Aim for **300 to 500** good wide-shot frames.

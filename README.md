@@ -26,6 +26,8 @@ is in the 1307scout menu and on the home page, grouped as Scouting, Competition 
   A team's card shows its name and logo, and buttons to add it to the red or blue alliance. Every
   match row links to that match in the Alliance View, and every event is tagged with its level
   (Qualifier, District Champs, Worlds, Off-season) from the tier set in the Staff Portal.
+  Picking an event narrows the list to its teams and shows that event's qualification rankings,
+  worked out from the synced official matches (`?event=<id>` links straight to them).
   `query.html?team=1307` opens a team directly.
 - `flags.html` — Match Flags: for one event, every played qualification match whose scouting data
   may be wrong or missing. Entries are checked against the schedule, the official per-robot TOWER

@@ -202,6 +202,13 @@
     .empty-detail { color: var(--muted); text-align: center; padding: 3rem 1rem; }
     .loading-msg { color: var(--muted); font-family: var(--display); padding: 2rem 0; text-align: center; }
 
+    /* Event rankings: rows open the team, and the link back sits above a team's detail */
+    .rank-table tbody tr[data-team] { cursor: pointer; }
+    .rank-table tbody tr[data-team]:hover, .rank-table tbody tr[data-team]:focus { background: var(--tint); outline: none; }
+    .rank-table td.rank-n { font-family: var(--display); font-weight: 700; color: var(--navy); }
+    .rank-table tr.is-us td { box-shadow: inset 0 -1px 0 var(--blue); font-weight: 600; }
+    .back-to-rank { display: inline-block; font-size: .85rem; margin-bottom: .75rem; }
+
     /* Mobile: the rating boxes no longer fit floated top-right over the heading, so they drop
        below the team name/basis text as a normal row instead of an absolutely-positioned one,
        and the info-grid (pit data) stacks label-over-value instead of a fixed label column. */
@@ -306,6 +313,9 @@
         <!-- Team list -->
         <div class="q-panel">
           <div class="list-controls">
+            <select id="eventSel" class="form-control form-control-sm mb-2" aria-label="Event">
+              <option value="">Event: All events</option>
+            </select>
             <input type="text" id="teamSearch" class="form-control form-control-sm" style="width:100%;" placeholder="Search team # or name" aria-label="Search teams">
             <div class="row-2">
               <select id="teamSort" class="form-control form-control-sm" aria-label="Sort by">
@@ -341,7 +351,7 @@
 
         <!-- Team detail -->
         <div class="detail-card" id="detail">
-          <div class="empty-detail">Select a team from the list.</div>
+          <div class="empty-detail">Select a team from the list, or pick an event to see its rankings.</div>
         </div>
       </div>
     </div>
@@ -601,6 +611,7 @@
       });
 
       rows = rows.filter(function (r) {
+        if (eventTeams && !eventTeams.has(r.team)) return false;
         if (!showTest && testTeamSet.has(r.team)) return false;
         if (q) {
           var hay = (String(r.team) + " " + r.name).toLowerCase();
@@ -1347,7 +1358,7 @@
       var logoHtml = RSTeams.logo(info) ? '<img class="team-logo" src="' + esc(RSTeams.logo(info)) + '" alt="">' : "";
       var scoutedTiles = scoutedInsightTiles(matches);
 
-      $("detail").innerHTML =
+      $("detail").innerHTML = backToRankHtml() +
         (failed
           ? '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some of this team\'s data couldn\'t be loaded, so blank stats and grades may be wrong. Try refreshing the page.</div>'
           : "") +
@@ -1384,8 +1395,178 @@
           : '<p class="text-muted">No match data yet.</p>');
     }
 
+    // ── Event rankings ───────────────────────────────────────────────
+    // Qualification standings for one event, worked out from the synced official matches (FRC
+    // Events doesn't send its ranking table through the sync). Ranked by average ranking points
+    // when every played match reports them, else by record; then by average alliance score.
+    // Explained on ratings.html#event-rankings, which must change with this code.
+    var OUR_TEAM = 1307;
+    var eventTeams = null;     // Set of teams on the picked event's schedule, or null for all events
+    var eventRank = null;      // { eventId, rows, hasRp, played, scheduled, err } for the picked event
+    var rankLoadId = 0;        // ignores a slow load once a different event is picked
+
+    function fillEventSelect() {
+      var ids = Object.keys(eventsById).sort(function (a, b) {
+        return (evTime(b) - evTime(a)) || evName(a).localeCompare(evName(b));
+      });
+      $("eventSel").innerHTML = '<option value="">Event: All events</option>' + ids.map(function (id) {
+        var e = eventsById[id];
+        return '<option value="' + esc(id) + '">' + esc(e.name) + (e.event_date ? " (" + fmtEventDate(e.event_date, { year: "numeric", month: "short" }) + ")" : "") + "</option>";
+      }).join("");
+    }
+
+    function computeStandings(matches) {
+      var byTeam = {}, played = 0, hasRp = true;
+      function team(t) {
+        return byTeam[t] || (byTeam[t] = { team: t, played: 0, w: 0, l: 0, t: 0, rp: 0, score: 0, margin: 0, left: 0 });
+      }
+      matches.forEach(function (m) {
+        var done = m.red_score != null && m.blue_score != null;
+        if (done) played++;
+        [["red", m.red_teams, m.red_score, m.blue_score, m.red_breakdown],
+         ["blue", m.blue_teams, m.blue_score, m.red_score, m.blue_breakdown]].forEach(function (s) {
+          var rp = s[4] && typeof s[4].rp === "number" ? s[4].rp : null;
+          if (done && rp == null) hasRp = false;
+          (s[1] || []).forEach(function (t) {
+            if (t == null) return;
+            var r = team(t);
+            if (!done) { r.left++; return; }
+            r.played++;
+            r.score += s[2];
+            r.margin += s[2] - s[3];
+            if (s[2] > s[3]) r.w++; else if (s[2] < s[3]) r.l++; else r.t++;
+            if (rp != null) r.rp += rp;
+          });
+        });
+      });
+      if (!played) hasRp = false;
+      var rows = Object.keys(byTeam).map(function (k) {
+        var r = byTeam[k];
+        r.rpAvg = r.played ? r.rp / r.played : null;
+        r.recordPct = r.played ? (r.w + r.t / 2) / r.played : null;
+        r.avgScore = r.played ? r.score / r.played : null;
+        r.avgMargin = r.played ? r.margin / r.played : null;
+        return r;
+      });
+      var key = hasRp ? "rpAvg" : "recordPct";
+      rows.sort(function (a, b) {
+        if (!a.played || !b.played) return (b.played ? 1 : 0) - (a.played ? 1 : 0) || a.team - b.team;
+        return (b[key] - a[key]) || (b.avgScore - a.avgScore) || (a.team - b.team);
+      });
+      var n = 0;
+      rows.forEach(function (r) { r.rank = r.played ? ++n : null; });
+      return { rows: rows, hasRp: hasRp, played: played, scheduled: matches.length };
+    }
+
+    async function loadEventRanking(eventId) {
+      var id = ++rankLoadId;
+      if (selected == null) $("detail").innerHTML = '<div class="loading-msg">Loading event rankings…</div>';
+      var res = await Promise.all([
+        allRows(function () {
+          return sb.from("official_matches_combined")
+            .select("match_key,red_teams,blue_teams,red_score,blue_score,red_breakdown,blue_breakdown")
+            .eq("event_id", eventId).eq("comp_level", "qm").order("match_key");
+        }),
+        allRows(function () {
+          return sb.from("scouting_entries").select("team_number").eq("event_id", eventId).order("id");
+        })
+      ]);
+      if (id !== rankLoadId) return;
+      var st = computeStandings(res[0].data || []);
+      var scouted = {};
+      (res[1].data || []).forEach(function (r) { scouted[r.team_number] = (scouted[r.team_number] || 0) + 1; });
+      st.rows.forEach(function (r) { r.scouted = scouted[r.team] || 0; });
+      st.opr = RSOpr.compute(res[0].data || []);
+      st.eventId = eventId;
+      st.err = res[0].error || null;
+      if (res[1].error) console.warn("Scouted counts unavailable:", res[1].error.message);
+      eventRank = st;
+      // Teams scouted here but missing from the official schedule still belong in the list
+      eventTeams = new Set(st.rows.map(function (r) { return r.team; }).concat(Object.keys(scouted).map(Number)));
+      renderList();
+      if (selected == null) renderRanking();
+    }
+
+    function renderRanking() {
+      var st = eventRank;
+      if (!st) return;
+      var head = '<h2 class="mb-1">' + esc(evName(st.eventId)) + " " + tierTag(st.eventId) + "</h2>" +
+        '<h3 class="section-title mt-2">Event rankings<span class="src-badge api">API</span></h3>';
+      if (st.err) { $("detail").innerHTML = head + accessNotice(st.err, "official match data"); return; }
+      if (!st.rows.length) {
+        $("detail").innerHTML = head + '<p class="text-muted">No official qualification schedule for this event yet. ' +
+          "Link the event to its FRC / TBA codes in the Staff Portal, then resync.</p>";
+        return;
+      }
+      var f1 = function (v) { return v == null ? "—" : v.toFixed(1); };
+      var f2 = function (v) { return v == null ? "—" : v.toFixed(2); };
+      var body = st.rows.map(function (r) {
+        var info = teamInfoByNumber[r.team];
+        var opr = st.opr.teams[r.team] ? st.opr.teams[r.team].score : null;
+        var oprRank = RSOpr.rankOf(st.opr, r.team, null);
+        return '<tr data-team="' + r.team + '" tabindex="0"' + (r.team === OUR_TEAM ? ' class="is-us"' : "") + ">" +
+          '<td class="rank-n">' + (r.rank || "—") + "</td>" +
+          "<td><strong>" + r.team + "</strong>" + (RSTeams.name(info) ? ' <span class="text-muted">' + esc(RSTeams.name(info)) + "</span>" : "") + "</td>" +
+          (st.hasRp ? "<td>" + f2(r.rpAvg) + "</td><td>" + (r.played ? r.rp : "—") + "</td>" : "") +
+          "<td>" + r.w + "-" + r.l + "-" + r.t + "</td>" +
+          "<td>" + r.played + (r.left ? ' <span class="text-muted">(+' + r.left + ")</span>" : "") + "</td>" +
+          "<td>" + f1(r.avgScore) + "</td><td>" + (r.avgMargin == null ? "—" : signed(r.avgMargin)) + "</td>" +
+          "<td>" + f1(opr) + (oprRank ? ' <span class="text-muted" style="font-size:.85em;">(#' + oprRank.rank + ")</span>" : "") + "</td>" +
+          "<td>" + r.scouted + "</td></tr>";
+      }).join("");
+      $("detail").innerHTML = head +
+        '<p class="text-muted mb-2" style="font-size:.9rem;">' + st.played + " of " + st.scheduled + " qualification matches played · " +
+          st.rows.length + " teams · " + (st.hasRp ? "ranked by average ranking points" : "ranked by record (ranking points aren't in the synced data)") +
+          ", then average alliance score</p>" +
+        '<div class="table-responsive"><table class="table match-table rank-table"><thead><tr>' +
+          "<th>Rank</th><th>Team</th>" + (st.hasRp ? "<th>Avg RP</th><th>Total RP</th>" : "") +
+          "<th>W-L-T</th><th>Played</th><th>Avg score</th><th>Avg margin</th><th>OPR (rank)</th><th>Scouted</th>" +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>" +
+        '<p class="insight-note mb-3">Worked out from the synced qualification matches, so it can differ from the official ' +
+          "table on close tiebreakers, surrogate matches or disqualifications. Played shows matches still to come in brackets. " +
+          'Click a team to open it. <a href="/ratings.html#event-rankings">How event rankings work</a></p>';
+    }
+
+    function backToRankHtml() {
+      return eventRank ? '<a href="#" class="back-to-rank" data-back-rank><i class="fa fa-arrow-left" aria-hidden="true"></i> ' +
+        esc(evName(eventRank.eventId)) + " rankings</a>" : "";
+    }
+    function showRanking() {
+      selected = null;
+      renderList();
+      renderRanking();
+    }
+    $("detail").addEventListener("click", function (e) {
+      if (e.target.closest("[data-back-rank]")) { e.preventDefault(); showRanking(); return; }
+      var row = e.target.closest(".rank-table tr[data-team]");
+      if (row) openTeam(parseInt(row.dataset.team, 10));
+    });
+    $("detail").addEventListener("keydown", function (e) {
+      var row = e.target.closest(".rank-table tr[data-team]");
+      if (!row || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      openTeam(parseInt(row.dataset.team, 10));
+    });
+    // Picking an event shows its rankings and narrows the list; ?event=<id> keeps it on reload
+    function pickEvent(id) {
+      var url = new URL(location.href);
+      if (id) url.searchParams.set("event", id); else url.searchParams.delete("event");
+      history.replaceState(null, "", url);
+      selected = null;
+      if (!id) {
+        rankLoadId++;
+        eventRank = null; eventTeams = null;
+        renderList();
+        $("detail").innerHTML = '<div class="empty-detail">Select a team from the list, or pick an event to see its rankings.</div>';
+        return;
+      }
+      return loadEventRanking(id);
+    }
+    $("eventSel").addEventListener("change", function () { pickEvent($("eventSel").value); });
+
     // ── Boot ─────────────────────────────────────────────────────────
     await loadMeta();
+    fillEventSelect();
     await Promise.all([loadRatingLists(), loadPitTeams(), loadOfficial(), loadTestTeams(), loadTeamInfo()]);
     renderList();
     // Names from TBA for teams that don't have one yet
@@ -1395,10 +1576,17 @@
       listsLoadedAt = 0;
       await Promise.all([loadRatingLists(), loadOfficial()]);
       renderList();
+      if (eventRank) await loadEventRanking(eventRank.eventId);
       if (selected != null) await openTeam(selected);
     });
-    // query.html?team=1307 opens that team, e.g. from the Match Flags page
-    var linkTeam = Number(new URLSearchParams(location.search).get("team"));
+    // query.html?event=<id> opens that event's rankings; ?team=1307 opens a team (e.g. from Match Flags)
+    var params = new URLSearchParams(location.search);
+    var linkEvent = params.get("event");
+    if (linkEvent && eventsById[linkEvent]) {
+      $("eventSel").value = linkEvent;
+      await loadEventRanking(linkEvent);
+    }
+    var linkTeam = Number(params.get("team"));
     if (Number.isInteger(linkTeam) && linkTeam >= 1 && linkTeam <= 99999) openTeam(linkTeam);
 
     // event_date has no time zone. Format it in UTC so it doesn't shift to the previous day.
