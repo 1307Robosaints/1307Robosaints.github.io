@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Match Flags – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -25,7 +40,7 @@
 
     .f-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .5rem; margin-bottom: .5rem; }
     .f-tile { background: var(--white); border: 1px solid var(--line); padding: .5rem .7rem; }
-    .f-tile b { display: block; font-family: var(--display); font-size: 1.35rem; color: var(--navy); line-height: 1.2; }
+    .f-tile b { display: block; font-family: var(--display); font-size: 1.35rem; color: var(--heading); line-height: 1.2; }
     .f-tile span { font-size: .78rem; color: var(--muted); }
 
     /* Who to scout next */
@@ -40,8 +55,8 @@
     .f-next-team .dot.blue { background: var(--blue); }
     .f-next-team strong { font-family: var(--display); min-width: 3.2rem; }
     .f-next-team .cov { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .f-next-team.priority { background: #fff7e6; }
-    .f-next-team.priority .cov { color: #a35200; font-weight: 600; }
+    .f-next-team.priority { background: var(--amber-bg); }
+    .f-next-team.priority .cov { color: var(--amber); font-weight: 600; }
 
     /* Flag list */
     .f-match { background: var(--white); border: 1px solid var(--line); margin-bottom: .6rem; }
@@ -60,8 +75,8 @@
     .f-what { flex: 1; min-width: 14rem; font-size: .9rem; }
     .f-what strong { font-family: var(--display); }
     .f-what .f-detail { display: block; color: var(--muted); font-size: .84rem; }
-    .f-what .f-review { display: block; font-size: .8rem; color: #1a7f4b; margin-top: .1rem; }
-    .f-what .f-review.rescout { color: #a35200; }
+    .f-what .f-review { display: block; font-size: .8rem; color: var(--green); margin-top: .1rem; }
+    .f-what .f-review.rescout { color: var(--amber); }
     .f-actions { display: flex; gap: .3rem; flex-wrap: wrap; }
     .f-actions .btn { font-size: .76rem; padding: .08rem .45rem; }
     .f-empty { padding: 2rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
@@ -70,9 +85,9 @@
     .f-cov { background: var(--white); font-size: .84rem; }
     .f-cov td, .f-cov th { padding: .2rem .4rem; text-align: center; border-top: 1px solid var(--line); }
     .f-cov thead th { background: var(--navy); color: #fff; font-weight: 500; border: 0; }
-    .f-cov td.human, .f-legend .human { background: #e7f7ee; color: #1a7f4b; font-weight: 600; }
-    .f-cov td.vision, .f-legend .vision { background: #fff3e0; color: #a35200; }
-    .f-cov td.none, .f-legend .none { background: #f3f3f4; color: #8a8a8c; }
+    .f-cov td.human, .f-legend .human { background: var(--green-bg); color: var(--green); font-weight: 600; }
+    .f-cov td.vision, .f-legend .vision { background: var(--amber-bg); color: var(--amber); }
+    .f-cov td.none, .f-legend .none { background: var(--grey-bg); color: var(--grey); }
     .f-legend span { display: inline-block; padding: 0 .4rem; margin-right: .4rem; font-size: .8rem; }
     details > summary { cursor: pointer; font-weight: 600; margin: 1rem 0 .4rem; }
   </style>
@@ -83,7 +98,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -228,6 +243,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
@@ -258,7 +274,7 @@
     }
 
     // ── Access gate: team members ────────────────────────────────────
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;

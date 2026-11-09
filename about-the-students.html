@@ -3,15 +3,30 @@
 
   <head>
 <link rel="icon" href="/img/robosaintslogo.png">
+<!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0A2352">
+<link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="1307scout">
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <title>About The Students</title>
+    <title>About the Students – Robosaints, FRC Team 1307</title>
 
     <!-- Bootstrap core CSS -->
+    <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+    <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+    <script src="/js/theme.js"></script>
     <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
     <!-- Custom styles for this template -->
@@ -27,7 +42,7 @@
     <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
       <div class="container">
         <a class="navbar-brand" href="/index.html">
-          <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+          <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
           St. Thomas Aquinas Robotics Team 1307
         </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -105,7 +120,7 @@
       <!-- Intro Content -->
       <div class="row">
         <div class="col-lg-6">
-          <img class="img-fluid rounded mb-4 d-block mx-auto" src="/img/robosaintslogo.png" alt="Robosaints 1307 logo" style="max-width: 420px; width: 100%;">
+          <img class="img-fluid rounded mb-4 d-block mx-auto" src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" alt="Robosaints 1307 logo" style="max-width: 420px; width: 100%;">
         </div>
         <div class="col-lg-6">
           <h2>About Us</h2>
@@ -250,6 +265,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
     <script src="/js/auth-config.js"></script>
     <script src="/js/auth.js"></script>
+    <script src="/js/pwa.js"></script>
   </body>
 
 </html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<!-- =========================================================================================================
+     app.html  –  "Get the app": how to install 1307scout as an app (PWA) on each kind of device, what
+     works offline, and common questions. Install buttons and the data-app-* attributes are run by
+     /js/pwa.js; the service worker is /sw.js. Linked from the 1307scout menu ("Get the app", added by
+     pwa.js), the 1307scout home page, and My Account. Keep it in step with what sw.js and scout.html do.
+     ========================================================================================================= -->
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>1307scout app</title>
+
+  <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    body { background: var(--paper); }
+
+    /* Header: navy band with the app icon */
+    .app-hero { background: var(--navy); padding: 7rem 0 3rem; color: #fff;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%); }
+    .app-hero-inner { display: flex; gap: 1.5rem; align-items: flex-start; }
+    .app-hero-icon { flex-shrink: 0; background: #fff; border-radius: 16px; }
+    .app-hero h1 { color: #fff; font-size: clamp(1.8rem, 5vw, 2.6rem); margin-bottom: .5rem; }
+    .app-hero h1::after { display: none; }
+    .app-hero p { color: rgba(255,255,255,.8); max-width: 58ch; margin-bottom: 1.25rem; }
+    .app-hero-hint { color: #fff; text-decoration: underline; text-underline-offset: 3px; margin-left: .75rem; font-size: .92rem; }
+    .app-hero-hint:hover { color: #fff; }
+    .hero-cta[hidden] + .app-hero-hint { margin-left: 0; }   /* no gap when there's no Install button */
+    .app-page h2[id] { scroll-margin-top: 90px; }             /* clear the fixed nav on #install, #offline */
+    .app-hero-status { font-family: var(--display); color: #fff !important; }
+    .hero-cta { display: inline-block; background: var(--blue); color: #fff; font-family: var(--display);
+      font-weight: 600; padding: .7rem 1.8rem; border: 0; cursor: pointer;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); }
+    .hero-cta:hover { background: #2560d4; }
+    @media (max-width: 575px) { .app-hero-inner { flex-direction: column; } .app-hero-hint { display: block; margin: .75rem 0 0; } }
+
+    .app-page { padding: 3rem 1rem 4rem; max-width: 1040px; }
+    .app-page h2 { font-size: 1.45rem; margin: 2.5rem 0 .35rem; }
+    .app-page h2:first-child { margin-top: 0; }
+    .lead-muted { color: var(--muted); max-width: 64ch; margin-bottom: 1.5rem; }
+
+    /* Cards: features, install steps, and the offline lists */
+    .app-card { background: var(--white); border: 1px solid var(--line); padding: 1.25rem 1.35rem; height: 100%; }
+    .app-card > .fa { color: var(--blue); font-size: 1.2rem; margin-bottom: .6rem; }
+    .app-card h3 { font-size: 1rem; margin-bottom: .5rem; }
+    .app-card h3::after { display: none; }
+    .app-card h3 .fa { color: var(--blue); margin-right: .35rem; }
+    .app-card p, .app-card li { font-size: .9rem; color: var(--ink); max-width: none; }
+    .app-card p { margin-bottom: .5rem; }
+    .app-card ol, .app-card ul { padding-left: 1.2rem; margin-bottom: .5rem; }
+    .app-card li { margin-bottom: .35rem; }
+    .app-card .note { color: var(--muted); font-size: .84rem; margin: 0; }
+    .app-card.list.ok h3 .fa { color: var(--green); }
+    /* The visitor's device (pwa.js adds .app-this-device to the column) */
+    .app-this-device > .app-card { border-color: var(--blue); box-shadow: inset 4px 0 0 var(--blue); }
+    #installCards .app-this-device { outline: none; }
+    .this-device-tag { display: inline-block; font-family: var(--display); font-size: .7rem; font-weight: 700;
+      background: var(--blue); color: #fff; padding: .1rem .45rem; margin-left: .4rem; vertical-align: middle; }
+
+    .app-tip { background: var(--tint); border-left: 3px solid var(--blue); padding: .9rem 1.1rem; font-size: .92rem; }
+    .app-faq h3 { font-size: 1rem; margin: 1.25rem 0 .3rem; }
+    .app-faq h3::after { display: none; }
+    .app-faq p { color: var(--ink); font-size: .93rem; max-width: 72ch; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+      <div class="container">
+        <a class="navbar-brand" href="/index.html">
+          <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+          St. Thomas Aquinas Robotics Team 1307
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+                aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarResponsive">
+          <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/index.html">Home</a>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+                <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+                <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+              </div>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+                <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+                <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+                <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              </div>
+            </li>
+
+            <li class="nav-item">
+              <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/contact.html">Contact Us</a>
+            </li>
+
+            <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+                <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+                <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+                <div class="dropdown-divider" data-role="team" hidden></div>
+                <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+                <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <div class="dropdown-divider" data-role="staff" hidden></div>
+                <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+              </div>
+            </li>
+
+            <li class="nav-item" id="authNavItem">
+              <a class="nav-link" href="/signin.html">Sign In</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+  <!-- ===== Header: what the app is, plus the install button or "you're using it" ===== -->
+  <section class="app-hero">
+    <div class="container app-hero-inner">
+      <img src="/img/app/icon-192.png" alt="" class="app-hero-icon" width="72" height="72">
+      <div>
+        <h1>The 1307scout app</h1>
+        <p>1307scout installs as an app on phones, tablets, Chromebooks, and computers, straight from this
+          site. It's the same 1307scout as the website, with the same features and the same account.
+          Use whichever you like.</p>
+        <div data-app-when="browser" hidden>
+          <button type="button" class="hero-cta" data-app-install hidden>Install the app</button>
+          <a href="#install" class="app-hero-hint">Install steps for your device</a>
+        </div>
+        <p class="app-hero-status" data-app-when="installed" hidden>
+          <i class="fa fa-check"></i> You're using the installed app.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="container app-page">
+
+    <!-- ===== What the app adds ===== -->
+    <h2>App or website?</h2>
+    <p class="lead-muted">Both are the same 1307scout, and the website keeps working, so the app is only for
+      people who prefer it. Here's what the app adds:</p>
+    <div class="row">
+      <div class="col-md-6 col-lg-3 mb-3"><div class="app-card"><i class="fa fa-th-large"></i><h3>Its own window</h3>
+        <p>Opens from your home screen, dock, or Start menu, without browser tabs or an address bar.</p></div></div>
+      <div class="col-md-6 col-lg-3 mb-3"><div class="app-card"><i class="fa fa-plane"></i><h3>Opens offline</h3>
+        <p>1307scout opens with no connection, and match entries wait on the device until you reconnect.</p></div></div>
+      <div class="col-md-6 col-lg-3 mb-3"><div class="app-card"><i class="fa fa-refresh"></i><h3>Always current</h3>
+        <p>Nothing to update. Each time the app opens online, it loads the latest version of the site.</p></div></div>
+      <div class="col-md-6 col-lg-3 mb-3"><div class="app-card"><i class="fa fa-bolt"></i><h3>Shortcuts</h3>
+        <p>On Android, Windows, and Mac, right-click or long-press the icon to jump to Scout, Our Matches, Team Database, or Match Strategy.</p></div></div>
+    </div>
+
+    <!-- ===== Install steps, one card per device. pwa.js marks the visitor's device; the script below moves it first ===== -->
+    <h2 id="install">Install it</h2>
+    <p class="lead-muted">Your device is highlighted. Use one of the browsers named in its steps; other browsers may not offer to install.</p>
+    <div class="row" id="installCards">
+      <div class="col-md-6 mb-3" data-app-device="ios"><div class="app-card steps">
+        <h3><i class="fa fa-apple"></i> iPhone and iPad</h3>
+        <ol>
+          <li>Open <strong>robosaints1307.com/1307scout.html</strong> in Safari (Chrome and Edge also work on iOS 16.4 and later).</li>
+          <li>Tap the <strong>Share</strong> button <i class="fa fa-share-square-o" aria-hidden="true"></i>.</li>
+          <li>Scroll down, tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+        </ol>
+        <p class="note">The app keeps its own sign-in, separate from Safari, so you'll sign in once inside the app.</p>
+      </div></div>
+      <div class="col-md-6 mb-3" data-app-device="android"><div class="app-card steps">
+        <h3><i class="fa fa-android"></i> Android</h3>
+        <ol>
+          <li>Open this page in <strong>Chrome</strong>.</li>
+          <li>Tap <strong>Install the app</strong> at the top of this page, or open the <strong>&#8942;</strong> menu and choose <strong>Install app</strong> (some versions say <strong>Add to Home screen</strong>).</li>
+          <li>Confirm with <strong>Install</strong>.</li>
+        </ol>
+        <p class="note">Samsung Internet: open the menu, then <strong>Add page to</strong> &rarr; <strong>Home screen</strong>.</p>
+      </div></div>
+      <div class="col-md-6 mb-3" data-app-device="windows linux chromebook"><div class="app-card steps">
+        <h3><i class="fa fa-windows"></i> Windows, Chromebook, and Linux</h3>
+        <ol>
+          <li>Open this page in <strong>Chrome</strong> or <strong>Microsoft Edge</strong>.</li>
+          <li>Click <strong>Install the app</strong> at the top of this page, or the install icon at the right end of the address bar.</li>
+          <li>Confirm with <strong>Install</strong>. 1307scout appears in the Start menu or app launcher, and you can pin it to the taskbar or shelf.</li>
+        </ol>
+        <p class="note">No install icon? In Chrome: <strong>&#8942;</strong> &rarr; <strong>Cast, save, and share</strong> &rarr; <strong>Install page as app</strong>. In Edge: <strong>&hellip;</strong> &rarr; <strong>Apps</strong> &rarr; <strong>Install this site as an app</strong>.</p>
+      </div></div>
+      <div class="col-md-6 mb-3" data-app-device="mac"><div class="app-card steps">
+        <h3><i class="fa fa-apple"></i> Mac</h3>
+        <ol>
+          <li><strong>Safari</strong> (macOS Sonoma or later): choose <strong>File</strong> &rarr; <strong>Add to Dock</strong>.</li>
+          <li><strong>Chrome</strong> or <strong>Edge</strong>: click <strong>Install the app</strong> at the top of this page, or the install icon in the address bar.</li>
+        </ol>
+        <p class="note">The app then opens from the Dock, Launchpad, or Spotlight.</p>
+      </div></div>
+      <div class="col-md-6 mb-3"><div class="app-card steps">
+        <h3><i class="fa fa-firefox"></i> Firefox</h3>
+        <p>On Android, open the <strong>&#8942;</strong> menu and choose <strong>Add to Home screen</strong>. Firefox on Windows, Mac, and Linux can't install apps: use Chrome or Edge to install it, or keep using the website in Firefox.</p>
+      </div></div>
+    </div>
+
+    <!-- ===== Offline: what works and what needs a connection ===== -->
+    <h2 id="offline">Using it offline</h2>
+    <p class="lead-muted">Venue Wi-Fi drops out. Here's what still works when it does.</p>
+    <div class="row">
+      <div class="col-md-6 mb-3"><div class="app-card list ok">
+        <h3><i class="fa fa-check"></i> Works offline</h3>
+        <ul>
+          <li>Opening 1307scout and its pages</li>
+          <li>The Scout page, with the events and form last loaded on this device</li>
+          <li>Entering and editing match entries. They're saved as drafts (marked <strong>DRAFT</strong>) and sent automatically when you reconnect.</li>
+        </ul>
+      </div></div>
+      <div class="col-md-6 mb-3"><div class="app-card list">
+        <h3><i class="fa fa-wifi"></i> Needs a connection</h3>
+        <ul>
+          <li>Signing in for the first time on a device</li>
+          <li>Pit entries and photos</li>
+          <li>Team data, ratings, Our Matches, strategy plans, playoffs, and official results</li>
+          <li>Share codes, and anything in the Staff Portal</li>
+        </ul>
+      </div></div>
+    </div>
+    <div class="app-tip">
+      <strong>Before an event:</strong> open the app on Wi-Fi, sign in, and open the Scout page once.
+      That puts the latest form and events list on the device, ready for when the connection drops.
+      Drafts stay on the device they were made on, so keep using it until they've been sent.
+    </div>
+
+    <!-- ===== Questions ===== -->
+    <h2>Questions</h2>
+    <div class="app-faq">
+      <h3>Do I need a different account?</h3>
+      <p>No. Sign in with the account you use on the website. What you can see and do is exactly the same, because the 1307scout server checks access, not the app.</p>
+      <h3>How do I update it?</h3>
+      <p>You don't need to. The app loads the latest version of the site whenever it opens with a connection, and only uses the copy on the device when it can't.</p>
+      <h3>How much space does it use?</h3>
+      <p>A few megabytes for the site's pages, code, and fonts. Match drafts and a copy of the Scout form are kept on the device, the same way the website keeps them. See the <a href="/privacy-policy.html">Privacy Policy</a>.</p>
+      <h3>How do I remove it?</h3>
+      <p>Like any other app: press and hold the icon on a phone or tablet, or on a computer open the app's <strong>&#8942;</strong> or <strong>&hellip;</strong> menu and choose <strong>Uninstall</strong>. Check that the Scout page shows no <strong>DRAFT</strong> entries first, because removing the app can delete drafts that haven't been sent.</p>
+      <h3>Is it in the App Store or Google Play?</h3>
+      <p>Not yet. It installs from the website, so it works on every device without a store.</p>
+    </div>
+
+  </div>
+
+  <!-- ===== Footer (same on every page) ===== -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <!-- Font Awesome 4.7 has no TikTok logo, so this one is an inline SVG -->
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <!-- ===== Scripts ===== -->
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script>
+  // Put the visitor's own device first in the install steps, with a "Your device" tag.
+  // (pwa.js highlights the same column once the page has loaded.)
+  (function () {
+    var box = document.getElementById("installCards");
+    var dev = window.RSApp ? RSApp.device() : "other";
+    var mine = Array.prototype.find.call(box.querySelectorAll("[data-app-device]"), function (el) {
+      return el.getAttribute("data-app-device").split(/\s+/).indexOf(dev) !== -1;
+    });
+    if (!mine) return;
+    box.insertBefore(mine, box.firstElementChild);
+    var tag = document.createElement("span");
+    tag.className = "this-device-tag";
+    tag.textContent = "Your device";
+    mine.querySelector("h3").appendChild(tag);
+  })();
+  </script>
+</body>
+</html>

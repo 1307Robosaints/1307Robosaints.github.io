@@ -10,11 +10,26 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Scout – 1307scout</title>
 
   <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -38,7 +53,7 @@
       padding: .7rem; font-family: var(--display); font-weight: 600;
       color: var(--muted); cursor: pointer;
     }
-    .scout-tab.active { color: var(--navy); border-bottom-color: var(--blue); }
+    .scout-tab.active { color: var(--heading); border-bottom-color: var(--blue); }
 
     /* Section headings inside the dynamic form (Autonomous, Teleop, Endgame, ...) — a colored
        tab instead of a thin gray rule, so a scout can tell at a glance where one group of
@@ -48,7 +63,7 @@
       font-size: .9rem;
       font-weight: 700;
       letter-spacing: .05em;
-      color: var(--navy);
+      color: var(--heading);
       text-transform: uppercase;
       background: var(--tint);
       border-left: 4px solid var(--blue);
@@ -59,18 +74,18 @@
 
     /* Required/optional labeling on dynamic fields */
     .field-optional { font-weight: 400; color: var(--muted); font-size: .85em; }
-    .field-required { color: #c0392b; }
+    .field-required { color: var(--red); }
 
     /* Regulation-spec flag: shown next to a value (table cell) or under an input (live form)
        when a scouted frame dimension / weight is over the FRC limit. Specs are never rejected
        at save time — see the comment on scout_fields.reg_limit — just flagged everywhere. */
     .reg-flag {
-      display: inline-block; background: #fde8e8; color: #a83228;
+      display: inline-block; background: var(--red-bg); color: var(--red);
       font-size: .68rem; font-family: var(--display); font-weight: 700;
       padding: .05rem .4rem; margin-left: .35rem; vertical-align: middle;
     }
     .reg-warn {
-      display: none; color: #a83228; font-size: .78rem; margin-top: .3rem;
+      display: none; color: var(--red); font-size: .78rem; margin-top: .3rem;
     }
 
     /* "Other" note box: hidden until a choice field with an "Other" option is set to Other */
@@ -83,7 +98,7 @@
     .slider-row { display: flex; align-items: center; gap: .75rem; }
     .slider-row input[type="range"] { flex: 1; }
     .slider-row .slider-val {
-      font-family: var(--display); font-weight: 700; color: var(--navy);
+      font-family: var(--display); font-weight: 700; color: var(--heading);
       min-width: 1.6rem; text-align: center;
     }
     .slider-row input.slider-unset { opacity: .45; }
@@ -116,8 +131,8 @@
       padding: .2rem .45rem; font-size: .78rem; cursor: pointer; clip-path: none;
       border-radius: 0;
     }
-    .btn-icon:hover { background: var(--tint); color: var(--navy); }
-    .btn-icon.danger:hover { background: #fde8e8; color: #c0392b; border-color: #c0392b; }
+    .btn-icon:hover { background: var(--tint); color: var(--heading); }
+    .btn-icon.danger:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
 
     /* Event search bar */
     .event-selector {
@@ -237,12 +252,12 @@
       font-weight: 700; padding: .15rem .5rem; margin-left: .5rem;
       border-radius: 3px; vertical-align: middle;
     }
-    .src-badge.scout { background: #eaf0ff; color: #1B4DB1; }
-    .src-badge.api   { background: #e7f7ee; color: #1a7f4b; }
+    .src-badge.scout { background: var(--tint); color: var(--link); }
+    .src-badge.api   { background: var(--green-bg); color: var(--green); }
 
     .tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; margin-top: 1rem; }
     .tile { border: 1px solid var(--line); padding: .6rem .75rem; background: var(--paper); }
-    .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--navy); font-weight: 700; line-height: 1.2; }
+    .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--heading); font-weight: 700; line-height: 1.2; }
     .tile .k { font-size: .75rem; color: var(--muted); line-height: 1.3; }
 
     .info-grid { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; font-size: .92rem; margin: 0; }
@@ -307,7 +322,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -536,6 +551,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;   // Supabase client created by auth.js
@@ -629,7 +645,8 @@
     if (hashCode) history.replaceState(null, "", location.pathname);
 
     // ── Auth / access level ──────────────────────────────────────────
-    var s = (await sb.auth.getSession()).data.session;
+    // RS.session() also returns the login saved on this device when offline (see auth.js)
+    var s = await RS.session();
     if (!s) {
       // Not signed in: remember the code so it survives the trip through the sign-in page
       if (hashCode) sessionStorage.setItem("rs_code", hashCode);
@@ -642,9 +659,20 @@
     sessionStorage.removeItem("rs_code");
 
     var DRAFT_KEY = "rs_drafts_" + s.user.id;
+    // Copies of the events list and the form, so this page still opens with no connection
+    var OFFLINE_KEY = "rs_offline_" + s.user.id;
+    function offlineCopy() {
+      try { return JSON.parse(localStorage.getItem(OFFLINE_KEY) || "{}"); } catch (e) { return {}; }
+    }
+    function keepOffline(part, rows) {
+      var kit = offlineCopy();
+      kit[part] = rows;
+      try { localStorage.setItem(OFFLINE_KEY, JSON.stringify(kit)); } catch (e) {}
+    }
 
-    // my_access_level() is a database function returning 'staff', 'student', or 'guest'
-    var lvl = await RS.accessLevel();
+    // my_access_level() is a database function returning 'staff', 'student', or 'guest'.
+    // Offline, the level saved on this device is used instead (the server still checks every save).
+    var lvl = await RS.accessLevel({ offline: true });
     if (lvl === null) return;
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
 
@@ -658,6 +686,15 @@
     // status 0 (502+ is the gateway), and its message text differs between browsers.
     function isNetworkError(r) {
       return !navigator.onLine || r.status === 0 || r.status >= 502;
+    }
+    // With no connection and an expired login, supabase-js retries the refresh for up to 30 s
+    // before a request fails. Requests that have an offline fallback give up sooner: at once when
+    // the device knows it's offline, otherwise after a few seconds. Safe for saves, since a draft
+    // that got through after all is recognized by its id when the queue is sent.
+    function quick(req, ms) {
+      var fail = { error: { message: "No connection" }, status: 0, data: null };
+      if (navigator.onLine === false) return Promise.resolve(fail);
+      return Promise.race([req, new Promise(function (res) { setTimeout(function () { res(fail); }, ms || 10000); })]);
     }
     function newId() {
       if (crypto.randomUUID) return crypto.randomUUID();
@@ -686,7 +723,7 @@
     // only one run happens at a time. Stops at the first sign the connection is still down.
     var flushing = false;
     async function flushDrafts() {
-      if (flushing) return;
+      if (flushing || navigator.onLine === false) return;
       flushing = true;
       try {
         // Drafts saved before ids existed get one now, so a retry can't double them
@@ -695,9 +732,9 @@
         var sent = [], rejected = [], reason = "";
         for (var i = 0; i < drafts.length; i++) {
           var d = drafts[i];
-          var r = d.editId
-            ? await sb.from("scouting_entries").update(d.patch).eq("id", d.editId).select("id")
-            : await sb.from("scouting_entries").insert(d);
+          var r = await quick(d.editId
+            ? sb.from("scouting_entries").update(d.patch).eq("id", d.editId).select("id")
+            : sb.from("scouting_entries").insert(d));
           // 23505 = this id is already saved: an earlier try got through but its reply was lost
           if (r.error && r.error.code === "23505") sent.push(draftKey(d));
           else if (r.error && isNetworkError(r)) break;
@@ -993,8 +1030,12 @@
 
     // Load events (newest first), then auto-select the one staff marked as default in the
     // Staff Portal — or, if none is set, the most recent event.
-    async function loadEvents() {
-      var r = await sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false });
+    // pending: a request already sent (the boot sends this and the fields request together)
+    async function loadEvents(pending) {
+      var r = await quick(pending || sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false }));
+      var saved = offlineCopy().events;
+      if (r.error && isNetworkError(r) && saved) { r = { data: saved }; usingOfflineCopy = true; }
+      else if (!r.error) keepOffline("events", r.data);
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
       if (!events.length) get("eventSearch").placeholder = "No events yet. Staff can add one in the Staff Portal.";
@@ -1075,8 +1116,11 @@
     });
 
     // Load the form definition (only fields staff have left active), then build the form
-    async function loadFields() {
-      var r = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
+    async function loadFields(pending) {
+      var r = await quick(pending || sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true }));
+      var saved = offlineCopy().fields;
+      if (r.error && isNetworkError(r) && saved) { r = { data: saved }; usingOfflineCopy = true; }
+      else if (!r.error) keepOffline("fields", r.data);
       if (r.error) { toast("Couldn't load form fields.", true); return; }
       fields = r.data;
       buildForm();
@@ -1424,7 +1468,13 @@
           var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "jpg";
           var path = currentEvent.id + "/" + mode + "/" + team + "/" + f.key + "-" + Date.now() + "." + ext;
           var up = await sb.storage.from("scouting-photos").upload(path, file, { upsert: true, contentType: file.type });
-          if (up.error) { toast("Couldn't upload " + f.label + ": " + up.error.message, true); throw up.error; }
+          if (up.error) {
+            // Photos can't wait in the offline draft queue, only the rest of a match entry can
+            toast(navigator.onLine === false
+              ? f.label + " can't be uploaded offline. Try again once you're back online."
+              : "Couldn't upload " + f.label + ": " + up.error.message, true);
+            throw up.error;
+          }
           data[f.key] = sb.storage.from("scouting-photos").getPublicUrl(path).data.publicUrl;
         } else if (existing && existing[f.key] != null) {
           data[f.key] = existing[f.key];   // keep the photo that was already saved
@@ -1582,11 +1632,15 @@
       if (!currentEvent) return;
       var evId = currentEvent.id;
       var results = await Promise.all([
-        entryQuery(evId),
-        sb.from("pit_entries").select("*").eq("event_id", evId).order("team_number", { ascending: true })
+        quick(entryQuery(evId), 20000),
+        quick(sb.from("pit_entries").select("*").eq("event_id", evId).order("team_number", { ascending: true }), 20000)
       ]);
       // Switched events while this was loading: a newer load owns the tables now
       if (!currentEvent || currentEvent.id !== evId) return;
+      if (results[0].error && isNetworkError(results[0])) {
+        toast("Offline: saved entries will show once you reconnect. New match entries are kept on this device.");
+        return;
+      }
       if (results[0].error) toast("Couldn't load match entries.", true);
       else allEntries = results[0].data;
       if (results[1].error) toast("Couldn't load pit entries.", true);
@@ -1754,9 +1808,9 @@
 
       var r;
       if (editId) {
-        r = await sb.from("scouting_entries").update(patch).eq("id", editId).select("id");
+        r = await quick(sb.from("scouting_entries").update(patch).eq("id", editId).select("id"));
       } else {
-        r = await sb.from("scouting_entries").insert(payload);
+        r = await quick(sb.from("scouting_entries").insert(payload));
       }
 
       if (r.error) {
@@ -1856,13 +1910,21 @@
       cleanUpPhotos();
     };
 
-    // Flush drafts when coming back online
-    window.addEventListener("online", function() { flushDrafts(); });
+    // Back online: send waiting drafts, then load the entries lists that couldn't load offline
+    window.addEventListener("online", function() {
+      flushDrafts().then(function () { loadEntries(); });
+    });
 
     // ── Boot ─────────────────────────────────────────────────────────
-    // Fields first (the form needs them), then events (which triggers loading entries), then any waiting drafts
+    // Both requests go out together. Fields are applied first (the form needs them), then events
+    // (which triggers loading entries), then any waiting drafts.
+    // .then() is what sends a supabase-js request, so call it now rather than when awaited
+    var eventsReq = sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false })
+      .then(function (r) { return r; });
+    var usingOfflineCopy = false;   // set by loadFields/loadEvents when they used the copy on this device
     await loadFields();
-    await loadEvents();
+    await loadEvents(eventsReq);
+    if (usingOfflineCopy) toast("Offline: using the form and events saved on this device.");
     flushDrafts();
     cleanUpPhotos();
 

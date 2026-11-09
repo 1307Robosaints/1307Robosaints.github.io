@@ -153,10 +153,15 @@
     return !!r.data && SEASON_KEYS.some(function (k) { return k in r.data; });
   }
   // The API returns at most 1000 rows per request, so page through anything that can grow.
+  // One page first: most lists fit in it, and requesting pages past the end still costs the
+  // database a full query each. Only a full page fetches the rest, 4 pages per round trip.
   async function pagedRows(query) {
-    // 4 pages per round trip, so a few thousand rows don't take one request after another
-    var rows = [], size = 1000, batch = 4;
-    for (var from = 0; ; from += size * batch) {
+    var size = 1000, batch = 4;
+    var first = await query().range(0, size - 1);
+    if (first.error) return { error: first.error, data: [] };
+    var rows = first.data || [];
+    if (rows.length < size) return { data: rows };
+    for (var from = size; ; from += size * batch) {
       var pages = [];
       for (var k = 0; k < batch; k++) {
         pages.push(query().range(from + k * size, from + (k + 1) * size - 1));
@@ -169,13 +174,51 @@
       }
     }
   }
+
+  // The per-team lists, by name, as { name: { data } or { error } }, from one team_lists() call
+  // (SQL/rebuild_all.sql). Until that function is installed, each list comes from its own call.
+  var LIST_RPC = {
+    ratings: "team_ratings", official_ratings: "team_official_ratings",
+    data_counts: "team_data_counts", official_summary: "team_official_summary"
+  };
+  var haveTeamLists = true;
+  async function lists(sb, parts) {
+    if (haveTeamLists) {
+      var r = await sb.rpc("team_lists", { p_parts: parts });
+      if (!r.error) {
+        var out = {};
+        parts.forEach(function (p) { out[p] = { data: (r.data && r.data[p]) || [] }; });
+        return out;
+      }
+      if (r.error.code !== "PGRST202" && !/could not find the function/i.test(r.error.message || "")) {
+        var failed = {};
+        parts.forEach(function (p) { failed[p] = { error: r.error, data: [] }; });
+        return failed;
+      }
+      haveTeamLists = false;   // not installed yet: fall back for the rest of this visit
+    }
+    var res = await Promise.all(parts.map(function (p) {
+      if (p === "pit_teams") {
+        return pagedRows(function () { return sb.from("pit_entries").select("team_number").order("id"); })
+          .then(function (x) {
+            return x.error ? x : { data: Array.from(new Set(x.data.map(function (row) { return row.team_number; }))) };
+          });
+      }
+      return pagedRows(function () { return sb.rpc(LIST_RPC[p]).order("team_number"); });
+    }));
+    var byName = {};
+    parts.forEach(function (p, i) { byName[p] = res[i]; });
+    return byName;
+  }
+
   // Everything the grades and win chance need for these teams. failed lists any request that
   // didn't load, since that would otherwise look like a team with no data.
   async function load(sb, teams) {
     var any = teams.length > 0;
+    var ranked = lists(sb, ["ratings", "official_ratings"]);
     var results = await Promise.all([
-      pagedRows(function () { return sb.rpc("team_ratings").order("team_number"); }),   // more than 1000 teams
-      pagedRows(function () { return sb.rpc("team_official_ratings").order("team_number"); }),   // more than 1000 teams
+      ranked.then(function (l) { return l.ratings; }),
+      ranked.then(function (l) { return l.official_ratings; }),
       sb.from("test_teams").select("team_number"),
       any ? RSTeams.loadInfo(sb, teams) : { info: {} },
       any ? pagedRows(function () {
@@ -238,6 +281,6 @@
     TIERS: TIERS, MIN_RATED_MATCHES: MIN_RATED_MATCHES, SEASON_KEYS: SEASON_KEYS,
     num: num, mean: mean, gradeFor: gradeFor, allianceGrade: allianceGrade,
     pointsPerMatch: pointsPerMatch, winChance: winChance,
-    isThisSeason: isThisSeason, pagedRows: pagedRows, load: load, gradeBadge: gradeBadge
+    isThisSeason: isThisSeason, pagedRows: pagedRows, lists: lists, load: load, gradeBadge: gradeBadge
   };
 })();

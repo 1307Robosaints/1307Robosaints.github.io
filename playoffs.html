@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Playoff Selection – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -29,9 +44,9 @@
     /* Next-spot bar */
     .p-next { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .5rem .6rem; margin-bottom: .5rem; background: var(--tint); border-left: 4px solid var(--blue); }
     .p-next label { flex: 1 1 10rem; margin: 0; font-size: .9rem; }
-    .p-next label strong { font-family: var(--display); color: var(--navy); }
+    .p-next label strong { font-family: var(--display); color: var(--heading); }
     .p-next input { width: 6.5rem; }
-    .p-msg { font-size: .85rem; color: #c0392b; min-height: 1.3em; margin-bottom: .25rem; }
+    .p-msg { font-size: .85rem; color: var(--red); min-height: 1.3em; margin-bottom: .25rem; }
     .p-official { font-size: .8rem; color: var(--muted); margin: 0 0 .3rem; padding: .3rem .5rem; background: var(--tint); border-left: 3px solid var(--blue); }
 
     /* One card per alliance */
@@ -50,10 +65,10 @@
     .p-slots { display: grid; grid-template-columns: repeat(var(--slots), minmax(0, 1fr)); gap: .3rem; }
     .p-slot { position: relative; display: block; width: 100%; min-width: 0; min-height: 3.1rem; padding: .15rem .35rem; text-align: left; background: var(--paper); border: 1px solid var(--line); color: var(--ink); line-height: 1.2; }
     .p-role { display: block; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-    .p-slot-team { display: block; font-family: var(--display); font-size: 1.05rem; font-weight: 700; color: var(--navy); }
+    .p-slot-team { display: block; font-family: var(--display); font-size: 1.05rem; font-weight: 700; color: var(--heading); }
     .p-slot-name { display: block; font-size: .7rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .p-slot-x { position: absolute; top: 0; right: 0; width: 1.65rem; height: 1.65rem; padding: 0; background: none; border: 0; color: var(--muted); cursor: pointer; }
-    .p-slot-x:hover { color: #c0392b; }
+    .p-slot-x:hover { color: var(--red); }
     .p-slot.open { background: none; border-style: dashed; }
     button.p-slot.open { cursor: pointer; }
     button.p-slot.open:hover { border-color: var(--blue); }
@@ -80,7 +95,7 @@
     .p-team-cell { display: flex; align-items: center; gap: .4rem; }
     .p-team-cell img { width: 26px; height: 26px; flex: none; object-fit: contain; }
     .p-team-text { min-width: 0; line-height: 1.2; }
-    .p-team-text strong { display: block; font-family: var(--display); font-size: .95rem; color: var(--navy); }
+    .p-team-text strong { display: block; font-family: var(--display); font-size: .95rem; color: var(--heading); }
     .p-team-text span { display: block; font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
     .p-pick { flex: none; padding: .12rem .45rem; background: var(--blue); border: 0; color: #fff; font-size: .75rem; font-weight: 600; cursor: pointer; }
     .p-pick:hover:not(:disabled) { background: var(--navy); }
@@ -104,7 +119,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -181,6 +196,8 @@
         <label for="eventPick">Event</label>
         <select id="eventPick" class="custom-select custom-select-sm"></select>
         <a class="btn btn-outline-primary btn-sm" id="bracketLink" href="/bracket.html">Bracket</a>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="downloadOffline"
+          title="Save a simple pick board for this event that works without a connection"><i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>
       </div>
     </div>
     <div id="loadError"></div>
@@ -251,11 +268,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/alliance.js"></script>
   <script src="/js/opr.js"></script>
+  <script src="/js/offline.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -268,7 +287,7 @@
 
     // ── Access gate: the whole team can look, only staff can change picks ──
     // Hiding the controls is just tidiness. The playoff_picks policies do the real enforcing.
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
@@ -484,23 +503,8 @@
     function spotLabel(spot) { return "Alliance " + spot[0] + ", " + SLOT_NAMES[spot[1] - 1]; }
 
     // ── Loading ──────────────────────────────────────────────────────
-    // The API returns at most 1000 rows per request, so page through anything that can grow.
-    async function pagedRows(query) {
-      // 4 pages per round trip, so a few thousand rows don't take one request after another
-      var rows = [], size = 1000, batch = 4;
-      for (var from = 0; ; from += size * batch) {
-        var pages = [];
-        for (var k = 0; k < batch; k++) {
-          pages.push(query().range(from + k * size, from + (k + 1) * size - 1));
-        }
-        var res = await Promise.all(pages);
-        for (var j = 0; j < res.length; j++) {
-          if (res[j].error) return { error: res[j].error, data: rows };
-          rows = rows.concat(res[j].data || []);
-          if ((res[j].data || []).length < size) return { data: rows };
-        }
-      }
-    }
+    // The API returns at most 1000 rows per request, so page through anything that can grow (js/ratings.js)
+    var pagedRows = R.pagedRows;
     // Same check as team_ratings(): skips entries from earlier seasons' forms.
     var SEASON_KEYS = ["stuck_on_field", "foul_or_card", "auto_fuel_hub", "teleop_fuel_hub", "auto_tower", "teleop_tower"];
     function isThisSeason(r) {
@@ -542,9 +546,10 @@
       $("poolTable").innerHTML = '<tbody><tr><td class="p-loading">Loading…</td></tr></tbody>';
 
       // Who's at this event: anyone on the match schedule, scouted there, or pit scouted there
+      var ranked = R.lists(sb, ["ratings", "official_ratings"]);   // one request for both lists
       var first = await Promise.all([
-        pagedRows(function () { return sb.rpc("team_ratings").order("team_number"); }),   // more than 1000 teams
-        pagedRows(function () { return sb.rpc("team_official_ratings").order("team_number"); }),   // more than 1000 teams
+        ranked.then(function (l) { return l.ratings; }),
+        ranked.then(function (l) { return l.official_ratings; }),
         sb.from("test_teams").select("team_number"),
         RSTeams.loadInfo(sb),
         pagedRows(function () {
@@ -925,6 +930,41 @@
         b.className = "btn " + (b === btn ? "btn-primary" : "btn-outline-primary");
       });
       renderPool();
+    });
+
+    // ── Offline pick board (js/offline.js) ───────────────────────────
+    // Every column worked out now, for both All season and This event, so the file needs nothing
+    // else. A cell is [value to sort on, text shown, grade letter for the rating columns].
+    function offlineCell(c, t) {
+      var v = c.value(t);
+      if (c.html) return [v, v == null ? "" : v.toFixed(1), c.key === "official" ? t.gradeOfficial : t.gradeScout];
+      return [v, v == null ? "—" : String(c.show ? c.show(v, t) : v)];
+    }
+    $("downloadOffline").addEventListener("click", function () {
+      var ev = currentEvent();
+      if (!ev) return;
+      RSOffline.fromButton(this, async function () {
+        var shownScope = scope;
+        var all = Array.from(new Set(poolTeams.concat(picks.map(function (p) { return p.team_number; }))));
+        var teams = all.map(function (team) {
+          var row = { team: team, name: RSTeams.name(teamInfo[team]) };
+          ["season", "event"].forEach(function (s) {
+            scope = s;
+            var t = teamData(team);
+            row[s] = COLUMNS.map(function (c) { return offlineCell(c, t); });
+          });
+          return row;
+        });
+        scope = shownScope;
+        RSOffline.board({
+          event: ev.name, saved: new Date().toISOString(), slots: slotCount(), alliances: ALLIANCES,
+          picks: picks.map(function (p) { return [p.alliance_number, p.slot, p.team_number]; }),
+          columns: COLUMNS.map(function (c) {
+            return { key: c.key, label: c.label, group: c.group, title: c.title || "", lower: !!c.lower, text: !!c.text };
+          }),
+          tiers: TIERS, teams: teams
+        }, { file: "playoffs-" + ev.name });
+      });
     });
 
     // ── Start ────────────────────────────────────────────────────────

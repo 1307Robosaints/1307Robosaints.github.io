@@ -1,0 +1,28 @@
+{
+  "id": "/1307scout.html",
+  "name": "1307scout",
+  "short_name": "1307scout",
+  "description": "FRC Team 1307's scouting app: match and pit scouting, team lookup, match strategy, and playoffs.",
+  "start_url": "/1307scout.html?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F4F7FC",
+  "theme_color": "#0A2352",
+  "categories": ["sports", "productivity", "utilities"],
+  "icons": [
+    { "src": "/img/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/app/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Scout", "short_name": "Scout", "description": "Enter match and pit data", "url": "/scout.html?source=app",
+      "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Our Matches", "short_name": "Matches", "description": "Today's matches, partners, and win chance", "url": "/matches.html?source=app",
+      "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Team Database", "short_name": "Teams", "description": "Look up any team", "url": "/query.html?source=app",
+      "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Match Strategy", "short_name": "Strategy", "description": "Plan a match on the field map", "url": "/strategy.html?source=app",
+      "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}

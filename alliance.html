@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Alliance View – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,15 +29,15 @@
     .a-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
     .a-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
 
-    .alliance { --team: #c0392b; margin-bottom: 2rem; }
-    .alliance.blue { --team: #1B4DB1; }
+    .alliance { --team: var(--red); margin-bottom: 2rem; }
+    .alliance.blue { --team: var(--blue); }
     .alliance-head {
       display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;
       gap: .25rem 1rem; border-bottom: 3px solid var(--team); padding-bottom: .35rem; margin-bottom: 1rem;
     }
     .alliance-head h2 { color: var(--team); font-size: 1.35rem; margin: 0; }
     .alliance-total { color: var(--muted); font-size: .9rem; }
-    .alliance-total strong { color: var(--navy); }
+    .alliance-total strong { color: var(--heading); }
 
     /* Alliance grades and win chance, beside the alliance name */
     .alliance-left { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .9rem; min-width: 0; }
@@ -45,7 +60,7 @@
       position: absolute; top: .5rem; right: .5rem; width: 28px; height: 28px; padding: 0;
       background: none; border: 1px solid var(--line); color: var(--muted); cursor: pointer;
     }
-    .a-remove:hover { color: #c0392b; border-color: #c0392b; }
+    .a-remove:hover { color: var(--red); border-color: var(--red); }
 
     .a-top { display: flex; flex-direction: column-reverse; }
     .a-head { display: flex; align-items: center; gap: .6rem; padding-right: 2rem; min-height: 44px; }
@@ -73,8 +88,8 @@
     }
     .a-stat span { color: var(--muted); }
     .a-stat strong { font-weight: 600; text-align: right; }
-    .a-stat.best { background: #e7f7ee; }
-    .a-stat.best strong { color: #1a7f4b; }
+    .a-stat.best { background: var(--green-bg); }
+    .a-stat.best strong { color: var(--green); }
 
     .a-empty {
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem;
@@ -147,7 +162,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -223,6 +238,8 @@
         </p>
       </div>
       <div class="a-actions" id="actions">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="downloadOffline"
+          title="Save these alliances as a file that opens without a connection"><i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAll">Clear all</button>
       </div>
     </div>
@@ -264,10 +281,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/alliance.js"></script>
+  <script src="/js/offline.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -280,7 +299,7 @@
     }
 
     // ── Access gate (team members only, same as the Team Database) ───
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
@@ -514,6 +533,17 @@
     // A null key means storage was cleared.
     window.addEventListener("storage", function (e) {
       if (e.key === Alliance.KEY || e.key === null) load();
+    });
+
+    // Offline copy of both alliances (js/offline.js), named after the teams on them
+    $("downloadOffline").addEventListener("click", function () {
+      var picks = Alliance.get();
+      var title = "Alliances: red " + (picks.red.join(", ") || "none") + " vs blue " + (picks.blue.join(", ") || "none");
+      RSOffline.fromButton(this, function () {
+        return RSOffline.snapshot($("alliances"), {
+          title: title, file: "alliances-" + picks.red.concat(picks.blue).join("-"), remove: [".a-empty"]
+        });
+      });
     });
 
     RSResync.mount($("actions"), load);

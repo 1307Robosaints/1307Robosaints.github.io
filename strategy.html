@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Match Strategy – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -45,8 +60,8 @@
     #field.locked .robot { cursor: default; }
     .s-under { display: flex; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; margin-top: .35rem; }
     .s-hint { font-size: .8rem; color: var(--muted); margin: 0; }
-    .s-status { font-size: .8rem; color: #1a7f4b; }
-    .s-status.bad { color: #c0392b; }
+    .s-status { font-size: .8rem; color: var(--green); }
+    .s-status.bad { color: var(--red); }
     .s-controls .s-planned { padding-bottom: .2rem; }
     .s-controls .s-planned label { font-size: .82rem; font-weight: 400; color: var(--ink); }
     .s-played { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; padding: .4rem .7rem; margin-bottom: .5rem; background: var(--tint); border-left: 4px solid var(--blue); font-size: .88rem; }
@@ -57,7 +72,7 @@
     @media (max-width: 640px) { .s-lineup { grid-template-columns: 1fr; } }
     .s-side { background: var(--white); border: 1px solid var(--line); border-top: 3px solid #c0392b; padding: .5rem .7rem .6rem; }
     .s-side.blue { border-top-color: var(--blue); }
-    .s-side h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #c0392b; margin: 0 0 .35rem; }
+    .s-side h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--red); margin: 0 0 .35rem; }
     .s-side.blue h2 { color: var(--blue); }
     .s-side h2::after { display: none; }
     .s-slot { display: flex; align-items: center; gap: .5rem; padding: .15rem 0; }
@@ -65,7 +80,7 @@
     .s-slot input { width: 5.5rem; }
     .s-slot .s-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .86rem; color: var(--muted); }
     .s-lineup-note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
-    .s-msg { font-size: .85rem; color: #c0392b; min-height: 1.2em; }
+    .s-msg { font-size: .85rem; color: var(--red); min-height: 1.2em; }
   </style>
 </head>
 <body>
@@ -74,7 +89,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -240,6 +255,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script>
@@ -254,7 +270,7 @@
     }
 
     // ── Access gate: team members only ───────────────────────────────
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
@@ -1089,6 +1105,10 @@
     async function pollPlan() {
       if (document.hidden || !plan || !shared() || drag || pendingJob || saving) return;
       var open = openCount;
+      // Only the timestamp first: a plan can be hundreds of KB, and it usually hasn't changed
+      var head = await sb.from("match_strategies").select("updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
+      if (head.error || open !== openCount) return;
+      if ((head.data ? head.data.updated_at : null) === serverStamp) return;
       var r = await sb.from("match_strategies").select("plan,updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
       if (r.error || open !== openCount || drag || pendingJob || saving) return;
       var stamp = r.data ? r.data.updated_at : null;

@@ -24,8 +24,12 @@ is `vision/`, a separate Python worker (not served by the site) with its own `re
 
 ### No bundler, inline-script pages
 
-Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `contact-config.js`,
-`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `resync.js`, plus the vendored `jqBootstrapValidation.js`).
+Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `theme.js`, `contact-config.js`,
+`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `resync.js`, `offline.js`, plus the vendored `jqBootstrapValidation.js`).
+`offline.js` makes the "Download for offline" files (a team, the Alliance View, a simplified playoff
+pick board); the pick board's script is serialized into the file, so it can't use anything outside itself.
+`ratings.js` also has `pagedRows()` (one page first, then 4 at a time) and `lists()`, which reads the
+per-team lists through one `team_lists()` call; use those rather than paging the rating RPCs directly.
 `resync.js` is the "Resync data" button on every page that shows official results; it refreshes only the
 default event, through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
 `opr.js` is component OPR per event, for every numeric field in the official breakdown (Team Database,
@@ -39,6 +43,13 @@ large inline `<script>` block at the bottom of that HTML file — there's no per
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
 
+Every page loads `/js/theme.js` in its `<head>`, before the stylesheets: dark mode (chosen on My
+Account) is `<html data-theme="dark">` plus the token overrides in `css/modern.css` sections 1b and 15.
+Page styles must use the color tokens, not hex, to follow the theme: navy *text* is `--heading`
+(`--navy` stays a dark plate with white text in both themes), status colors are `--green`/`--red`/
+`--amber`/`--purple`/`--grey` with `-bg` pairs. Solid fills with white text (grade chips) keep hex.
+A new logo on a transparent background needs a dark copy named in `data-dark-src`.
+
 Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 (`@supabase/supabase-js` UMD), then `/js/auth-config.js`, then `/js/auth.js`. `auth.js` builds
 `window.RS = { sb: <supabase client> }` — every page's inline script calls Supabase through
@@ -48,7 +59,23 @@ level from `RS.accessLevel()`, which returns null after showing a banner if the 
 reached, so a bad connection isn't mistaken for guest access. CDN `<script>`
 tags and the Font Awesome stylesheet carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
 drives the shared nav: it hides/shows `[data-role="staff"]` / `[data-role="team"]` elements and
-highlights the active nav link — this is cosmetic only, not the real access control.
+highlights the active nav link — this is cosmetic only, not the real access control. It also
+lists the app pages that need Supabase (for the "couldn't load" banner; add new app pages there)
+and stops any page from running inside another site's frame on the live domain.
+
+### The 1307scout app (PWA)
+
+1307scout installs as a Progressive Web App; the app is the website in its own window, so there is
+one codebase and feature parity is automatic. Don't fork pages for the app. Every page has the
+manifest/`apple-*` tags in its `<head>` and loads `/js/pwa.js` right after `auth.js` (a new page needs
+both). `pwa.js` registers `/sw.js`, adds "Get the app" to the 1307scout menu, shows an offline notice
+and runs the `data-app-*` install markup used by `app.html`, `1307scout.html` and `account.html`.
+`sw.js` is network-first for the site's own files and cache-first for CDN libraries/fonts, and must
+never cache Supabase or any other API response (no user data in Cache Storage). Bump its `VERSION`
+when `PRECACHE` changes. Offline, `RS.session()` and `RS.accessLevel({ offline: true })` fall back to
+the login and level saved on the device; that only picks which page to show, the database still
+checks every request. `scout.html` keeps `rs_offline_<uid>` (events + fields) beside the existing
+`rs_drafts_<uid>` queue. `app.html` documents what works offline for users: keep it in step.
 
 ### Backend: Supabase, and the DB is the source of truth for access control
 

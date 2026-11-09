@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Playoff Bracket – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -26,11 +41,11 @@
     .b-lines { position: absolute; inset: 0; pointer-events: none; }
     .b-lines path { fill: none; stroke: #9fb3d3; stroke-width: 2; }
     .b-round { position: absolute; top: 0; text-align: center; font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-    .b-section { position: absolute; left: 0; font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--navy); }
+    .b-section { position: absolute; left: 0; font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--heading); }
 
     .b-match { position: absolute; display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(10,35,82,.08); }
-    .b-match.final { border: 2px solid var(--navy); }
-    .b-match-head { display: flex; justify-content: space-between; align-items: center; gap: .3rem; height: 20px; padding: 0 .4rem; background: var(--tint); font-size: .68rem; font-weight: 700; color: var(--navy); }
+    .b-match.final { border: 2px solid var(--heading); }
+    .b-match-head { display: flex; justify-content: space-between; align-items: center; gap: .3rem; height: 20px; padding: 0 .4rem; background: var(--tint); font-size: .68rem; font-weight: 700; color: var(--heading); }
     .b-compare { padding: 0; background: none; border: 0; color: var(--blue); font-size: .68rem; font-weight: 600; cursor: pointer; }
     .b-compare:hover { text-decoration: underline; }
     .b-t { white-space: nowrap; }
@@ -43,14 +58,14 @@
     .b-teams { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .b-wait { flex: 1; min-width: 0; color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .b-score { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .b-side.won { background: #e7f7ee; font-weight: 600; }
-    .b-side.won .b-score { color: #1a7f4b; }
+    .b-side.won { background: var(--green-bg); font-weight: 600; }
+    .b-side.won .b-score { color: var(--green); }
     .b-side.lost { color: var(--muted); }
     .b-side.lost .b-seed { background: #9a9a9c; }
     .b-side.ours .b-teams { color: var(--blue); font-weight: 600; }
-    .b-flag { padding: .1rem .4rem; background: #fff4e0; color: #8a5a00; font-size: .66rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .b-flag button { padding: 0 .35rem; background: var(--white); border: 1px solid #d9a441; color: #8a5a00; font-size: .66rem; font-weight: 700; cursor: pointer; }
-    .b-flag button:hover { background: #ffe7bf; }
+    .b-flag { padding: .1rem .4rem; background: var(--amber-bg); color: var(--amber); font-size: .66rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .b-flag button { padding: 0 .35rem; background: var(--white); border: 1px solid #d9a441; color: var(--amber); font-size: .66rem; font-weight: 700; cursor: pointer; }
+    .b-flag button:hover { background: var(--amber-bg); }
     .b-games { padding: 0 .4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .68rem; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .b-champ { position: absolute; padding: .35rem .5rem; background: var(--navy); color: #fff; text-align: center; }
@@ -65,7 +80,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -181,6 +196,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script>
@@ -195,7 +211,7 @@
 
     // ── Access gate: the team can look, staff settle ties and line-ups ──
     // Hiding the controls is just tidiness. The tables' policies do the real enforcing.
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;

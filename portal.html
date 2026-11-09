@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Staff Portal – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -17,8 +32,8 @@
       font-size: .95rem; color: var(--muted); cursor: pointer; margin-bottom: -2px;
       transition: color .15s;
     }
-    .portal-tab.active { color: var(--navy); border-bottom-color: var(--blue); }
-    .portal-tab:hover:not(.active) { color: var(--navy); }
+    .portal-tab.active { color: var(--heading); border-bottom-color: var(--blue); }
+    .portal-tab:hover:not(.active) { color: var(--heading); }
     .portal-section { display: none; }
     .portal-section.active { display: block; }
 
@@ -45,7 +60,7 @@
     }
 
     .sync-note { font-size: .78rem; color: var(--muted); line-height: 1.3; word-break: break-word; }
-    .sync-note.warn { color: #a83228; }
+    .sync-note.warn { color: var(--red); }
     .sync-note.upcoming { color: var(--blue); }
     .sync-info-box { font-size: .85rem; line-height: 1.7; }
     /* Name | Tier | Location | Date | Official sync | Actions. The Actions column is a fixed
@@ -189,10 +204,10 @@
     .badge-revoked  { background: #c0392b; color: #fff; padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
 
     /* Access-level select on the Members tab — colored so levels are tellable apart at a glance */
-    select.level-staff   { background: #eaf0ff; border-color: #1B4DB1; color: #1B4DB1; font-weight: 600; }
-    select.level-mentor  { background: #f3ecff; border-color: #6c3fb5; color: #6c3fb5; font-weight: 600; }
-    select.level-student { background: #e7f7ee; border-color: #1a7f4b; color: #1a7f4b; font-weight: 600; }
-    select.level-guest   { background: #f2f2f2; border-color: #9a9a9c; color: #6c6c6e; font-weight: 600; }
+    select.level-staff   { background: var(--tint); border-color: var(--blue); color: var(--link); font-weight: 600; }
+    select.level-mentor  { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); font-weight: 600; }
+    select.level-student { background: var(--green-bg); border-color: var(--green); color: var(--green); font-weight: 600; }
+    select.level-guest   { background: var(--grey-bg); border-color: #9a9a9c; color: var(--grey); font-weight: 600; }
 
     /* Audit Log tab — role badges reuse the same color family as the Members tab's level
        select above, so "staff" reads the same way in both places. */
@@ -200,17 +215,17 @@
       display: inline-block; padding: .15rem .5rem; font-size: .72rem;
       font-family: var(--display); font-weight: 600; border-radius: 0; white-space: nowrap;
     }
-    .badge-role.staff   { background: #eaf0ff; color: #1B4DB1; }
-    .badge-role.mentor  { background: #f3ecff; color: #6c3fb5; }
-    .badge-role.student { background: #e7f7ee; color: #1a7f4b; }
-    .badge-role.guest   { background: #f2f2f2; color: #6c6c6e; }
-    .badge-role.system  { background: #fdeee0; color: #a0522d; }
+    .badge-role.staff   { background: var(--tint); color: var(--link); }
+    .badge-role.mentor  { background: var(--purple-bg); color: var(--purple); }
+    .badge-role.student { background: var(--green-bg); color: var(--green); }
+    .badge-role.guest   { background: var(--grey-bg); color: var(--grey); }
+    .badge-role.system  { background: var(--amber-bg); color: var(--amber); }
 
     .badge-op           { padding: .1rem .5rem; font-size: .7rem; font-family: var(--display); }
-    .badge-op.insert    { background: #e7f7ee; color: #1a7f4b; }
-    .badge-op.update    { background: var(--tint); color: var(--blue); }
-    .badge-op.delete    { background: #fde8e8; color: #c0392b; }
-    .badge-op.kick, .badge-op.ban, .badge-op.unban { background: #f2f2f2; color: #6c6c6e; }
+    .badge-op.insert    { background: var(--green-bg); color: var(--green); }
+    .badge-op.update    { background: var(--tint); color: var(--link); }
+    .badge-op.delete    { background: var(--red-bg); color: var(--red); }
+    .badge-op.kick, .badge-op.ban, .badge-op.unban { background: var(--grey-bg); color: var(--grey); }
 
     .al-row {
       display: grid;
@@ -247,8 +262,8 @@
       padding: .2rem .5rem; font-size: .8rem; cursor: pointer; clip-path: none;
       border-radius: 0;
     }
-    .btn-icon:hover { background: var(--tint); color: var(--navy); }
-    .btn-icon.danger:hover { background: #fde8e8; color: #c0392b; border-color: #c0392b; }
+    .btn-icon:hover { background: var(--tint); color: var(--heading); }
+    .btn-icon.danger:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
 
     .code-string {
       font-family: monospace; font-size: .8rem;
@@ -275,7 +290,7 @@
       background: none; border: 0; color: var(--muted); cursor: pointer;
       font-size: .9rem; line-height: 1; padding: 0 .15rem;
     }
-    .team-chip button:hover { color: #c0392b; }
+    .team-chip button:hover { color: var(--red); }
     .field-hint {
       color: var(--muted); cursor: help; font-size: .85rem; margin-left: .25rem;
     }
@@ -303,7 +318,7 @@
     .modal-content { border-radius: 0; border-top: 3px solid var(--blue); }
     .modal-header { border-bottom: 1px solid var(--line); }
     .modal-footer { border-top: 1px solid var(--line); }
-    .modal-title { font-family: var(--display); color: var(--navy); font-size: 1.1rem; }
+    .modal-title { font-family: var(--display); color: var(--heading); font-size: 1.1rem; }
 
     @media (max-width: 767px) {
       .field-row, .field-row-header,
@@ -335,7 +350,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -927,12 +942,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
 
     // ── Access gate ──────────────────────────────────────────────────
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
@@ -1125,7 +1141,7 @@
         var frcText = "FRC " + p.frc.text.replace(" matches", "");
         var tbaText = "TBA " + p.tba.text.replace(" matches", "");
         return '<span class="sync-note"' + titleAttr + '>' +
-          '<i class="fa fa-check-circle" style="color:#1a7f4b;"></i> ' + esc(whenStr) +
+          '<i class="fa fa-check-circle" style="color:var(--green);"></i> ' + esc(whenStr) +
           ' &middot; ' + frcText + ' / ' + tbaText + '</span>';
       }
       if (isFutureEvent(ev)) {
@@ -1138,11 +1154,11 @@
         var frcText2 = p.frc.ok ? ("FRC " + p.frc.text.replace(" matches", "")) : "FRC failed";
         var tbaText2 = p.tba.ok ? ("TBA " + p.tba.text.replace(" matches", "")) : "TBA failed";
         return '<span class="sync-note warn"' + titleAttr + '>' +
-          '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' + esc(whenStr2) +
+          '<i class="fa fa-exclamation-triangle" style="color:var(--red);"></i> ' + esc(whenStr2) +
           ' &middot; ' + frcText2 + ' / ' + tbaText2 + '</span>';
       }
       return '<span class="sync-note warn"' + titleAttr + '>' +
-        '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' +
+        '<i class="fa fa-exclamation-triangle" style="color:var(--red);"></i> ' +
         esc(note.length > 60 ? note.slice(0, 60) + "…" : note) + '</span>';
     }
     // Fuller version of the same parse for the event info modal — full timestamp, full error
@@ -1163,14 +1179,14 @@
         var whenStr = isNaN(when) ? p.when : when.toLocaleString("en-US",
           { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
         var line = function (ok, label, text) {
-          var color = upcomingNote ? "inherit" : (ok ? "#1a7f4b" : "#a83228");
+          var color = upcomingNote ? "inherit" : (ok ? "var(--green)" : "var(--red)");
           var icon = ok ? "fa-check-circle" : (upcomingNote ? "fa-clock-o" : "fa-exclamation-triangle");
           return '<div style="color:' + color + ';"><i class="fa ' + icon + '"></i> ' + label + ': ' + esc(text) + '</div>';
         };
         return upcomingNote + '<div class="text-muted">Last attempt: ' + esc(whenStr) + '</div>' +
           line(p.frc.ok, "FRC", capitalizeSources(p.frc.text)) + line(p.tba.ok, "TBA", capitalizeSources(p.tba.text));
       }
-      return upcomingNote + '<div style="color:' + (upcomingNote ? "inherit" : "#a83228") + ';">' +
+      return upcomingNote + '<div style="color:' + (upcomingNote ? "inherit" : "var(--red)") + ';">' +
         '<i class="fa ' + (upcomingNote ? "fa-clock-o" : "fa-exclamation-triangle") + '"></i> ' + esc(capitalizeSources(note)) + '</div>';
     }
     // Reads and checks the two code inputs. Returns {frc, tba} or null (after showing a message).
@@ -1257,7 +1273,7 @@
       if (r.error) { console.warn("Auto-sync health unavailable:", r.error.message); return; }
       var problem = autoSyncProblem(r.data || {});
       if (problem) {
-        el.innerHTML = '<i class="fa fa-exclamation-triangle" style="color:#a83228;"></i> ' +
+        el.innerHTML = '<i class="fa fa-exclamation-triangle" style="color:var(--red);"></i> ' +
           '<strong>Auto-sync for ' + esc(ev.name) + ' isn\'t working.</strong> ' + esc(problem);
       }
     }

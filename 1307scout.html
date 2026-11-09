@@ -9,11 +9,26 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>1307scout</title>
 
   <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -279,7 +294,7 @@
         var(--line) calc(50% - .5px) calc(50% + .5px),
         transparent calc(50% + .5px));
     }
-    .nav-tile:hover { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--navy); }
+    .nav-tile:hover { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--heading); }
     .tile-icon {
       width: 44px; height: 44px; flex-shrink: 0;
       background: var(--tint); color: var(--blue);
@@ -297,7 +312,26 @@
       font-family: var(--body); text-decoration: underline;
       text-underline-offset: 2px;
     }
-    .quick-signout:hover { color: var(--navy); }
+    .quick-signout:hover { color: var(--heading); }
+
+    /* Get the app: install section (logged-out view) */
+    .app-section { padding: 4rem 0 3.5rem; scroll-margin-top: 40px; }   /* #get-the-app clears the fixed nav */
+    .hero-cta[hidden] + .app-ghost { margin-left: 0; }   /* no gap when there's no Install button */
+    .app-section h2 { font-size: 1.55rem; margin-bottom: .35rem; }
+    .app-section .features-lead { margin-bottom: 1.75rem; }
+    .app-points { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+    .app-points li { display: flex; gap: .75rem; margin-bottom: .8rem; font-size: .93rem; color: var(--ink); }
+    .app-points .fa { color: var(--blue); width: 1.2rem; text-align: center; margin-top: .2rem; flex-shrink: 0; }
+    .app-steps { background: var(--white); border: 1px solid var(--line); padding: 1.25rem 1.4rem; }
+    .app-steps h3 { font-size: 1rem; margin-bottom: .75rem; }
+    .app-steps h3::after { display: none; }
+    .app-step { padding: .55rem .7rem; margin-bottom: .4rem; font-size: .88rem; }
+    .app-step strong { font-family: var(--display); display: block; font-size: .9rem; }
+    .app-step span { color: var(--muted); }
+    .app-ghost {
+      display: inline-block; margin-left: .75rem; font-family: var(--display); font-weight: 600;
+      font-size: .95rem; color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
+    }
 
     /* ── Shared ───────────────────────────────────────────────── */
     /* Both views start hidden so the wrong one never flashes; the script reveals one */
@@ -310,7 +344,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
       <div class="container">
         <a class="navbar-brand" href="/index.html">
-          <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+          <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
           St. Thomas Aquinas Robotics Team 1307
         </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -393,6 +427,7 @@
           collect real-time match data, and share exactly what other teams need to see.
         </p>
         <a href="/signin.html" class="hero-cta">Sign in to get started</a>
+        <a href="#get-the-app" class="app-ghost" style="color:#fff;">Get the app</a>
       </div>
     </section>
 
@@ -417,7 +452,7 @@
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-wifi"></i></div>
               <h3>Works offline</h3>
-              <p>Entries saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns.</p>
+              <p>Match entries are saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns. Install the <a href="#get-the-app">1307scout app</a> and it opens with no connection at all.</p>
             </div>
           </div>
           <div class="col-lg-3 col-md-6 mb-4">
@@ -466,6 +501,38 @@
       </div>
     </section>
 
+    <!-- Get the app: install 1307scout as an app (PWA). Buttons and data-app-* attributes are run by /js/pwa.js -->
+    <section class="app-section" id="get-the-app">
+      <div class="container">
+        <div class="row">
+          <div class="col-12 col-lg-6 mb-4 mb-lg-0">
+            <h2>Get the 1307scout app</h2>
+            <p class="features-lead">
+              Prefer an app to a browser tab? 1307scout installs on phones, tablets, Chromebooks,
+              and laptops straight from this site. No app store, nothing extra to download, and it's
+              the same 1307scout with the same features and the same account.
+            </p>
+            <ul class="app-points">
+              <li><i class="fa fa-th-large"></i><span>Opens from your home screen, dock, or Start menu in its own window.</span></li>
+              <li><i class="fa fa-plane"></i><span>Opens with no connection. Match entries made offline are kept on the device and sent when you reconnect.</span></li>
+              <li><i class="fa fa-refresh"></i><span>Always up to date. Every update to the website is in the app the next time it opens online.</span></li>
+            </ul>
+            <button type="button" class="hero-cta" data-app-install hidden>Install the app</button>
+            <a href="/app.html" class="app-ghost">Install steps for every device</a>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="app-steps">
+              <h3>How to install</h3>
+              <div class="app-step" data-app-device="ios"><strong>iPhone and iPad</strong><span>In Safari, tap Share, then Add to Home Screen.</span></div>
+              <div class="app-step" data-app-device="android"><strong>Android</strong><span>In Chrome, tap Install app, or open the &#8942; menu and choose Install app.</span></div>
+              <div class="app-step" data-app-device="windows mac linux chromebook"><strong>Windows, Mac, Chromebook</strong><span>In Chrome or Edge, click the install icon at the right end of the address bar.</span></div>
+              <div class="app-step" data-app-device="mac"><strong>Mac with Safari</strong><span>Choose File, then Add to Dock.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Bottom CTA -->
     <section class="bottom-cta">
       <div class="container">
@@ -494,6 +561,25 @@
 
         <!-- Primary actions (label + tiles are built by the script, depending on access level) -->
         <div id="primaryTiles"></div>
+
+        <!-- The app (PWA): an install tile in a browser tab, a status line inside the installed app -->
+        <div class="home-section-label mt-4">App</div>
+        <a href="/app.html" class="nav-tile" data-app-when="browser" hidden>
+          <div class="tile-icon"><i class="fa fa-download"></i></div>
+          <div class="tile-text">
+            <strong>Get the app</strong>
+            <small>Install 1307scout on this device. It opens offline, and keeps match entries until you reconnect.</small>
+          </div>
+          <i class="fa fa-chevron-right tile-chevron"></i>
+        </a>
+        <a href="/app.html" class="nav-tile" data-app-when="installed" hidden>
+          <div class="tile-icon"><i class="fa fa-check"></i></div>
+          <div class="tile-text">
+            <strong>You're using the app</strong>
+            <small>Offline use, updates, and how to remove it</small>
+          </div>
+          <i class="fa fa-chevron-right tile-chevron"></i>
+        </a>
 
         <!-- Secondary: account -->
         <div class="home-section-label mt-4">Account</div>
@@ -545,11 +631,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;   // Supabase client created by auth.js
 
-    var session = (await sb.auth.getSession()).data.session;
+    var session = await RS.session();   // also the login saved on this device when offline
 
     // ── Not signed in: show the marketing page ───────────────────
     if (!session) {
@@ -560,7 +647,8 @@
     // ── Signed in: work out the access level ─────────────────────
     // my_access_level() is a database function that returns 'staff', 'student', or 'guest'.
     var user = session.user;
-    var lvl  = (await sb.rpc("my_access_level")).data || "guest";
+    var lvl  = await RS.accessLevel({ offline: true });   // offline: the level last seen on this device
+    if (lvl === null) return;
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
 
     // Greeting: first name if we have one, otherwise a plain welcome.

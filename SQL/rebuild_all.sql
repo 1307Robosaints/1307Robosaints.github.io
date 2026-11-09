@@ -2019,6 +2019,43 @@ language sql stable security definer set search_path = '' as $$
   full join overlap ov on ov.team_number = coalesce(sc.team_number, off.team_number);
 $$;
 
+-- The per-team lists above, as one JSON value per list, in a single call. Sent as rows, each list
+-- is capped at 1000 per request, so pages paged through them and every page re-ran the function
+-- (team_ratings() and team_data_counts() are computed live). p_parts picks the lists:
+-- ratings, official_ratings, data_counts, official_summary, pit_teams (team numbers with pit data).
+-- Keys inside each list are the column names, as a direct call returns them. Pages fall back to
+-- the direct calls if this function is missing.
+create or replace function public.team_lists(p_parts text[])
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  r jsonb := '{}'::jsonb;
+begin
+  if not (public.is_staff() or public.is_student()) then raise exception 'Team members only.'; end if;
+  if 'ratings' = any(p_parts) then
+    r := r || jsonb_build_object('ratings', (select coalesce(jsonb_agg(to_jsonb(t) order by t.team_number), '[]'::jsonb)
+                                               from public.team_ratings() t));
+  end if;
+  if 'official_ratings' = any(p_parts) then
+    r := r || jsonb_build_object('official_ratings', (select coalesce(jsonb_agg(to_jsonb(t) order by t.team_number), '[]'::jsonb)
+                                                        from public.team_official_ratings() t));
+  end if;
+  if 'data_counts' = any(p_parts) then
+    r := r || jsonb_build_object('data_counts', (select coalesce(jsonb_agg(to_jsonb(t) order by t.team_number), '[]'::jsonb)
+                                                   from public.team_data_counts() t));
+  end if;
+  if 'official_summary' = any(p_parts) then
+    r := r || jsonb_build_object('official_summary', (select coalesce(jsonb_agg(to_jsonb(t) order by t.team_number), '[]'::jsonb)
+                                                        from public.team_official_summary() t));
+  end if;
+  if 'pit_teams' = any(p_parts) then
+    r := r || jsonb_build_object('pit_teams', (select coalesce(jsonb_agg(distinct p.team_number), '[]'::jsonb)
+                                                 from public.pit_entries p));
+  end if;
+  return r;
+end $$;
+revoke all on function public.team_lists(text[]) from public, anon;
+grant execute on function public.team_lists(text[]) to authenticated;
+
 
 -- =====================================================================
 -- 9b. Storage: scouting photos
@@ -3092,7 +3129,7 @@ with expected(kind, name) as (values
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
-  ('function','team_data_counts'), ('function','get_shared_scouting'),
+  ('function','team_data_counts'), ('function','team_lists'), ('function','get_shared_scouting'),
   ('table','official_ratings_cache'), ('table','official_summary_cache'), ('function','refresh_official_cache'),
   ('table','official_opr_cache'), ('function','official_opr_fill'),
   ('table','official_cache_dirty'), ('function','official_matches_skip_unchanged'), ('function','official_matches_changed'),

@@ -3,14 +3,29 @@
 
   <head>
     <link rel="icon" href="/img/robosaintslogo.png">
+    <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0A2352">
+    <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="1307scout">
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="Privacy Policy for the St. Thomas Aquinas Robotics Team 1307 website and 1307scout.">
 
-    <title>Privacy Policy</title>
+    <title>Privacy Policy – Robosaints, FRC Team 1307</title>
 
     <!-- Styles: Bootstrap, Font Awesome 4.7 icons, site fonts, then the site theme (modern.css loads last so it wins) -->
+    <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+    <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+    <script src="/js/theme.js"></script>
     <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -30,7 +45,7 @@
     <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
       <div class="container">
         <a class="navbar-brand" href="/index.html">
-          <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+          <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
           St. Thomas Aquinas Robotics Team 1307
         </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -135,7 +150,7 @@
           </li>
           <li>
             <strong>1307scout account:</strong> your name, plus a phone number if you add one on the
-            My Account page, which staff can use to reach you. If you sign in to Scout, the Team Database, or the
+            My Account page, which staff can use to reach you, and your light or dark theme choice. If you sign in to Scout, the Team Database, or the
             Staff Portal, your email address and authentication info are stored by our database
             provider, Supabase. Students generally sign in with their school (<code>@stalux.org</code>)
             email; mentors and approved guests can be granted access with another email address by
@@ -183,8 +198,23 @@
             A short-lived "draft" copy of a match entry if you submit it while offline — it's kept on
             your device only until your connection comes back, then it's sent and deleted locally.
           </li>
+          <li>
+            So the Scout page can open with no connection: a copy of the scouting form, the list of events,
+            and your access level. Signing out deletes them.
+          </li>
+          <li>
+            If you use 1307scout (as a website or as the installed <a href="/app.html">1307scout app</a>), a
+            copy of this site's pages, code and fonts, so it loads quickly and opens offline. It holds no
+            scouting data or personal information.
+          </li>
           <li>A share code, briefly remembered while you're redirected through the sign-in page.</li>
+          <li>Your light or dark theme choice from My Account (also saved to your account, so it follows you).</li>
           <li>The team numbers you've picked in the Alliance View, until you remove them.</li>
+          <li>
+            Files you choose to save with <strong>Download for offline</strong> (a team, the Alliance View, or a
+            playoff pick board). They hold team scouting data and stay wherever you saved them until you
+            delete them. Picks made inside a saved pick board are kept only in that browser.
+          </li>
           <li>
             A field picture you chose on Match Strategy, and plans for a custom line-up. Plans for a real
             match are saved to our database for the team instead, and a copy stays in your browser only
@@ -313,6 +343,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
     <script src="/js/auth-config.js"></script>
     <script src="/js/auth.js"></script>
+    <script src="/js/pwa.js"></script>
 
   </body>
 

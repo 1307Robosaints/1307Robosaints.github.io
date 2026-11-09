@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Our Matches – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -34,7 +49,7 @@
     .m-trio.blue input { border-color: #9fb3e6; }
     .m-form .m-time { width: 12.5rem; }
     .m-form-actions { display: flex; gap: .4rem; flex-wrap: wrap; width: 100%; }
-    .m-msg { font-size: .85rem; color: #c0392b; min-height: 1.2em; margin-top: .35rem; }
+    .m-msg { font-size: .85rem; color: var(--red); min-height: 1.2em; margin-top: .35rem; }
 
     /* Upcoming matches: one card each */
     .m-card { background: var(--white); border: 1px solid var(--line); margin-bottom: .8rem; scroll-margin-top: 90px; }   /* clear of the fixed navbar */
@@ -44,20 +59,20 @@
     .m-when, .m-src { color: var(--muted); font-size: .82rem; }
     .m-tag { padding: 0 .4rem; background: var(--blue); color: #fff; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .m-chance { margin-left: auto; font-size: .85rem; color: var(--muted); }
-    .m-chance strong { font-family: var(--display); font-size: 1.15rem; color: var(--navy); }
+    .m-chance strong { font-family: var(--display); font-size: 1.15rem; color: var(--heading); }
     .m-actions { display: flex; gap: .35rem; }
     .m-actions .btn { font-size: .78rem; padding: .1rem .5rem; }
     .m-sides { display: grid; grid-template-columns: 1fr 1fr; }
     @media (max-width: 640px) { .m-sides { grid-template-columns: 1fr; } }
     .m-side { padding: .45rem .7rem .55rem; border-top: 3px solid #c0392b; }
     .m-side.blue { border-top-color: var(--blue); }
-    .m-side h4 { display: flex; justify-content: space-between; gap: .5rem; margin: 0 0 .25rem; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #c0392b; }
+    .m-side h4 { display: flex; justify-content: space-between; gap: .5rem; margin: 0 0 .25rem; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--red); }
     .m-side.blue h4 { color: var(--blue); }
     .m-side h4 span { color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
     .m-team { display: flex; align-items: center; gap: .4rem; padding: .18rem 0; border-bottom: 1px solid var(--line); font-size: .9rem; }
     .m-team:last-child { border-bottom: 0; }
     .m-team .m-num-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .m-team strong { font-family: var(--display); color: var(--navy); }
+    .m-team strong { font-family: var(--display); color: var(--heading); }
     .m-team.us strong { color: var(--blue); }
     .m-team .m-pts { flex: none; min-width: 3.2rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: .82rem; }
 
@@ -80,7 +95,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -231,6 +246,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
@@ -246,7 +262,7 @@
     }
 
     // ── Access gate: team members can view and edit the schedule ─────
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;

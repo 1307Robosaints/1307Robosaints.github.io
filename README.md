@@ -17,6 +17,8 @@ menu is kept short, ordered by use: Team Database, Our Matches, Alliance View, S
 playoff pages and (staff) the Staff Portal. Every page is on the 1307scout home page; Match Flags and
 How Ratings Work are linked only from there (and from the pages that reference them):
 - `1307scout.html` — landing/command-center page, links out based on your access level.
+- `app.html` — Get the app: how to install 1307scout as an app on each kind of device, and what
+  works offline. Linked as "Get the app" in the 1307scout menu, and from the home page and My Account.
 - `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
   free account can use a share code here to view a limited slice of data.
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
@@ -30,7 +32,9 @@ How Ratings Work are linked only from there (and from the pages that reference t
   (Qualifier, District Champs, Worlds, Off-season) from the tier set in the Staff Portal.
   Picking an event narrows the list to its teams and shows that event's qualification rankings,
   worked out from the synced official matches (`?event=<id>` links straight to them).
-  `query.html?team=1307` opens a team directly.
+  `query.html?team=1307` opens a team directly. **Download for offline** saves the open team as one
+  .html file (`js/offline.js`) that opens with no connection: the page's styles and the photos and
+  logos are copied in, the buttons are left out, and it says when it was saved. It doesn't update.
 - `flags.html` — Match Flags: for one event, every played qualification match whose scouting data
   may be wrong or missing. Entries are checked against the schedule, the official per-robot TOWER
   results, the alliance's official FUEL points, other scouts, the team's usual numbers and the
@@ -49,6 +53,7 @@ How Ratings Work are linked only from there (and from the pages that reference t
   which is how every match listing opens a match here. To change which stats are compared, edit
   `STAT_GROUPS` in the page.
   Each alliance also gets a grade and an estimated win chance, explained on `ratings.html`.
+  **Download for offline** saves both alliances as a standalone .html file, the same way as a team.
 - `strategy.html` — Match Strategy: a field map with each match's teams in their driver stations
   (from the synced schedule, with Our Matches edits, or typed in by hand). Drag robots to their
   starting spots and turn them, then draw on the field with a pen or arrows in six colors. The
@@ -75,6 +80,10 @@ How Ratings Work are linked only from there (and from the pages that reference t
   OPR for the event, its estimated AUTO and teleop FUEL there (component OPR), and its official
   AUTO and endgame climb rates from FRC's per-robot TOWER data, so a team nobody scouted still has
   numbers. To change the table's stats, edit `COLUMNS` in the page.
+  **Download for offline** saves a simplified pick board for the event as one .html file: the
+  alliances as they stand, and every team's stats for both All season and This event, worked out at
+  download time. Offline, anyone can fill spots in draft order (Pick, or type a number), remove
+  teams, sort and switch scope. Those picks stay in that browser and never reach the team's data.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
   it only advances once an event syncs. With fewer than 8 alliances, an empty alliance is a bye: the
@@ -87,8 +96,20 @@ How Ratings Work are linked only from there (and from the pages that reference t
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
   The clock button on an event row turns on competition-day auto-sync for that event.
 
+**Dark mode** — chosen on My Account (Light, Dark, or Match device). `js/theme.js` loads in every
+page's `<head>`, before the stylesheets, and sets `<html data-theme>`; `css/modern.css` redefines its
+color tokens under `[data-theme="dark"]` (section 1b) and fixes up Bootstrap's own colors (section 15).
+Page styles should use the tokens (`--ink`, `--heading`, `--white`, `--line`, `--green`/`--red`/`--amber`
+and their `-bg` pairs, ...) rather than hex colors, or they won't follow the theme. `--navy` stays a dark
+plate in both themes; navy *text* is `--heading`. The choice is kept on the device (`rs_theme`) and in
+the account's `user_metadata.theme`, which `js/auth.js` applies on other devices. Images with a
+dark-theme copy name it in `data-dark-src` (`img/robosaintslogo-dark.png`,
+`img/Sponsorphotos/staluxlogo-dark.png`).
+
 Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
 row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.
+GitHub Pages can't send security headers, so `js/auth.js` also refuses to run any page inside
+another site's frame (on robosaints1307.com only, so local previews still work).
 
 ## Backend
 
@@ -137,6 +158,30 @@ per-robot estimates to `vision_matches` and `vision_robots` with the service rol
 calibration, model training and the meaning of every number are in `vision/README.md`. Without a
 trained model it still reads the scoreboard.
 
+## The 1307scout app (PWA)
+
+1307scout installs as a Progressive Web App on phones, tablets, Chromebooks and computers, from the
+site itself (no app store). The app *is* the website in its own window, so the two always have the
+same features: there's no second codebase to keep in step. Install steps for users are on `app.html`.
+
+- `manifest.webmanifest` — the app's name, icons (`img/app/`), colors and home-screen shortcuts.
+  Every page links it in its `<head>`, along with the iOS `apple-*` tags.
+- `js/pwa.js` — on every page, after `auth.js`. Registers the service worker, adds "Get the app" to
+  the 1307scout menu, shows an offline notice, and runs the install markup: `[data-app-install]`
+  buttons, `[data-app-when="installed"|"browser"]` and `[data-app-device]` (see the top of the file).
+- `sw.js` — the service worker. The site's own files are network-first (an online visit always gets
+  the latest version, the saved copy only when the network fails or stalls for 4 s); the CDN
+  libraries and fonts are cache-first. It never touches Supabase or any other API, so no scouting
+  data is cached and access control is unchanged. `offline.html` is shown for a page that isn't
+  saved yet. Bump `VERSION` in `sw.js` when its `PRECACHE` list changes.
+- Offline Scout: `RS.session()` and `RS.accessLevel({ offline: true })` in `js/auth.js` fall back to
+  the login and access level saved on the device, and `scout.html` keeps a copy of the events and
+  form fields (`rs_offline_<user id>`), so the page opens with no connection and match entries go to
+  the existing draft queue. Pit entries and photos still need a connection. Signing out clears the
+  saved level and copies, not unsent drafts.
+
+A store version later would wrap these same files (Capacitor for iOS/Android) rather than fork them.
+
 ## Contact form
 
 The contact form (`contact.html`) sends mail client-side via [EmailJS](https://www.emailjs.com/) —
@@ -146,7 +191,9 @@ no server component. Topics and who each one emails are configured in `js/contac
 ## Local development
 
 There's no build step — open any `.html` file directly, or serve the folder with any static file
-server. `gulpfile.js`/`package.json` are leftover from the original Bootstrap template this site
+server. The service worker registers on `localhost` too; since it's network-first, edits still
+show on reload, but use DevTools → Application → Service workers → "Update on reload" when changing
+`sw.js` itself. `gulpfile.js`/`package.json` are leftover from the original Bootstrap template this site
 started from (see below) and aren't required to run or edit the site.
 
 ## Credit

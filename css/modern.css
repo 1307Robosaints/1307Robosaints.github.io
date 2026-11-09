@@ -3,7 +3,7 @@
    The site theme. Load AFTER Bootstrap, in the <head> of every page.
 
    CONTENTS
-     1. Tokens
+     1. Tokens  (1b. Dark theme only redefines them)
      2. Base (page, links, focus)
      3. Typography
      4. Navbar
@@ -17,6 +17,7 @@
     12. Forms, alerts, badges, tables (sign-in, account, scouting pages)
     13. Motion
     14. Legacy compatibility (safe to delete once no page loads main.css)
+    15. Dark theme: Bootstrap parts the tokens can't reach
    ========================================================================================================= */
 
 
@@ -32,10 +33,48 @@
   --line:   #D3DEF0;   /* hairlines and borders                           */
   --ink:    #0C1A33;   /* body text                                       */
   --muted:  #5B6B85;   /* secondary text                                  */
+  --heading:#0A2352;   /* headings and strong text (navy; light in dark mode) */
+  --link:   #1B4DB1;   /* link text                                        */
   --cut:    18px;        /* size of the signature clipped corner            */
+
+  /* Status colors for text and pale backgrounds (good/bad/caution, role chips).
+     Solid fills with white text (grade chips, tier tags) keep their hex values in both themes. */
+  --green:  #1a7f4b;   --green-bg:  #e7f7ee;
+  --red:    #c0392b;   --red-bg:    #fde8e8;
+  --amber:  #a35200;   --amber-bg:  #fff3e0;
+  --purple: #6c3fb5;   --purple-bg: #f3ecff;
+  --grey:   #6c6c6e;   --grey-bg:   #f2f2f2;
 
   --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --body:    "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+
+/* =========================================================================================================
+   1b. DARK THEME
+   Chosen on My Account and applied by /js/theme.js as <html data-theme="dark">. Almost everything is drawn
+   from the tokens above, so dark mode is mostly these values. --navy stays a dark plate (footer, table
+   headers, hero bands carry white text in both themes); text that was navy uses --heading instead.
+   Bootstrap's own components are fixed up in section 15.
+   ========================================================================================================= */
+:root[data-theme="dark"] {
+  color-scheme: dark;                /* native scrollbars, date pickers and checkboxes go dark too */
+  --navy:   #0A1A3C;
+  --blue:   #4479E3;
+  --tint:   #1E2C47;
+  --paper:  #0D1424;
+  --white:  #151F33;
+  --line:   #2B3B5A;
+  --ink:    #E2E8F3;
+  --muted:  #9AA9C2;
+  --heading:#DCE7FB;
+  --link:   #7FA6F7;
+
+  --green:  #4FC48B;   --green-bg:  rgba(79,196,139,.16);
+  --red:    #F2766B;   --red-bg:    rgba(242,118,107,.16);
+  --amber:  #F0A84E;   --amber-bg:  rgba(240,168,78,.16);
+  --purple: #B79AF0;   --purple-bg: rgba(183,154,240,.16);
+  --grey:   #A5A9B3;   --grey-bg:   rgba(165,169,179,.14);
 }
 
 
@@ -77,8 +116,8 @@ p { max-width: 70ch; }                      /* comfortable reading width */
   p { max-width: none; }                    /* let text use the full phone width instead of wrapping early */
 }
 
-a { color: var(--blue); text-decoration: none; }
-a:hover { color: var(--navy); text-decoration: underline; text-underline-offset: 3px; }
+a { color: var(--link); text-decoration: none; }
+a:hover { color: var(--heading); text-decoration: underline; text-underline-offset: 3px; }
 
 :focus-visible {
   outline: 3px solid var(--blue);
@@ -93,7 +132,7 @@ h1, h2, h3, h4, h5, h6,
 .navbar-brand, .btn, .card-header, .auth-tabs button, th {
   font-family: var(--display);
 }
-h1, h2, h3, h4, h5, h6 { color: var(--navy); font-weight: 600; letter-spacing: -.01em; }
+h1, h2, h3, h4, h5, h6 { color: var(--heading); font-weight: 600; letter-spacing: -.01em; }
 
 h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.1; font-weight: 700; }
 h2 { font-size: 1.75rem; margin-bottom: 1rem; }
@@ -142,7 +181,7 @@ h1::after {
   max-width: 80%;                  /* long team name wraps instead of pushing the toggler off-screen */
   white-space: normal;
   line-height: 1.2;
-  color: var(--navy);
+  color: var(--heading);
   font-weight: 600;
   font-size: 1.05rem;
   letter-spacing: .01em;
@@ -264,7 +303,7 @@ hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
   position: relative;
   isolation: isolate;
   background: transparent;
-  color: var(--navy);
+  color: var(--heading);
   box-shadow: none;
 }
 .btn-outline-secondary::before, .btn-outline-dark::before {
@@ -272,7 +311,7 @@ hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: var(--navy);
+  background: var(--heading);
   clip-path: polygon(0 0, calc(100% - var(--bc)) 0, 100% var(--bc), 100% 100%, 0 100%);
   pointer-events: none;
 }
@@ -351,7 +390,7 @@ hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--line); }
   background: transparent;
   border-top: 3px solid var(--blue);
   border-bottom: 1px solid var(--line);
-  color: var(--navy);
+  color: var(--heading);
   font-weight: 600;
   font-size: 1.15rem;
 }
@@ -468,7 +507,7 @@ header .carousel {
   transition: background-color .15s ease, border-color .15s ease;
 }
 .social-list a:hover,
-.social-list a:focus-visible { background: var(--tint); border-color: var(--blue); color: var(--navy); }
+.social-list a:focus-visible { background: var(--tint); border-color: var(--blue); color: var(--heading); }
 
 .social-icon {
   display: flex;
@@ -519,10 +558,10 @@ header .carousel {
   font-weight: 600;
   cursor: pointer;
 }
-.auth-tabs button.active { color: var(--navy); border-bottom-color: var(--blue); }
+.auth-tabs button.active { color: var(--heading); border-bottom-color: var(--blue); }
 
-.auth-link { padding: 0; background: none; border: 0; color: var(--blue); font-size: .9rem; }
-.auth-link:hover { color: var(--navy); text-decoration: underline; }
+.auth-link { padding: 0; background: none; border: 0; color: var(--link); font-size: .9rem; }
+.auth-link:hover { color: var(--heading); text-decoration: underline; }
 
 /* ----- Form fields ----- */
 .form-control, .custom-select {
@@ -532,7 +571,7 @@ header .carousel {
   font-family: var(--body);
 }
 .form-control:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(27,77,177,.18); }
-label { font-size: .88rem; font-weight: 500; color: var(--navy); }
+label { font-size: .88rem; font-weight: 500; color: var(--heading); }
 .custom-control-input:checked ~ .custom-control-label::before { background: var(--blue); border-color: var(--blue); }
 
 /* ----- Alerts and badges ----- */
@@ -622,4 +661,67 @@ label { font-size: .88rem; font-weight: 500; color: var(--navy); }
 /* "Resync data" button and its status line, drawn by RSResync.mount() in js/resync.js */
 .rs-resync { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .rs-resync-msg { font-size: .78rem; line-height: 1.3; color: var(--muted); }
-.rs-resync-msg.warn { color: #a83228; }
+.rs-resync-msg.warn { color: var(--red); }
+
+
+/* =========================================================================================================
+   15. DARK THEME: BOOTSTRAP PARTS
+   Bootstrap 4 hard-codes light colors, so these put its components (and a few rules above that use fixed
+   colors) back on the tokens. Everything here applies only under <html data-theme="dark">.
+   ========================================================================================================= */
+[data-theme="dark"] body::before {
+  background-image:
+    linear-gradient(rgba(127,166,247,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(127,166,247,.06) 1px, transparent 1px);
+}
+[data-theme="dark"] .navbar.bg-dark { background: rgba(13,20,36,.92) !important; }
+[data-theme="dark"] .navbar-dark .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='%23DCE7FB' stroke-width='2.5' stroke-linecap='round' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] .dropdown-menu { background: var(--white); box-shadow: 0 12px 28px rgba(0,0,0,.45); }
+[data-theme="dark"] .card.text-center .card-text { color: var(--ink); }
+[data-theme="dark"] pre { color: var(--ink); }
+
+/* Tables */
+[data-theme="dark"] .table { color: var(--ink); }
+[data-theme="dark"] .table td, [data-theme="dark"] .table th,
+[data-theme="dark"] .table thead th { border-color: var(--line); }
+
+/* Forms */
+[data-theme="dark"] .form-control, [data-theme="dark"] .custom-select,
+[data-theme="dark"] .form-control:focus { background-color: var(--white); color: var(--ink); }
+[data-theme="dark"] .form-control:disabled, [data-theme="dark"] .form-control[readonly],
+[data-theme="dark"] .custom-select:disabled { background-color: var(--tint); color: var(--muted); }
+[data-theme="dark"] .form-control::placeholder { color: var(--muted); }
+[data-theme="dark"] .custom-select {
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='%239AA9C2' d='M2 0L0 2h4zm0 5L0 3h4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .75rem center;
+  background-size: 8px 10px;
+}
+[data-theme="dark"] .custom-control-label::before { background-color: var(--tint); border: 1px solid var(--line); }
+[data-theme="dark"] .custom-control-input:checked ~ .custom-control-label::before { background-color: var(--blue); border-color: var(--blue); }
+
+/* Modals, close button, pagination */
+[data-theme="dark"] .modal-content { background: var(--white); color: var(--ink); border-color: var(--line); }
+[data-theme="dark"] .modal-header, [data-theme="dark"] .modal-footer { border-color: var(--line); }
+[data-theme="dark"] .close { color: var(--ink); text-shadow: none; }
+[data-theme="dark"] .page-link { background: var(--white); border-color: var(--line); color: var(--link); }
+[data-theme="dark"] .page-item.active .page-link { background: var(--blue); border-color: var(--blue); color: #fff; }
+[data-theme="dark"] .page-item.disabled .page-link { background: var(--white); border-color: var(--line); color: var(--muted); }
+
+/* Alerts: tinted panels with light text instead of pale panels with dark text */
+[data-theme="dark"] .alert-warning { background: var(--amber-bg); border-color: var(--amber); color: #F6D3A4; }
+[data-theme="dark"] .alert-info    { background: rgba(68,121,227,.16); border-color: var(--blue); color: #C4D6FB; }
+[data-theme="dark"] .alert-danger  { background: var(--red-bg); border-color: var(--red); color: #F8C4BE; }
+[data-theme="dark"] .alert-success { background: var(--green-bg); border-color: var(--green); color: #BDEBD3; }
+[data-theme="dark"] .alert a { color: inherit; text-decoration: underline; }
+
+/* Outline button Bootstrap colors itself */
+[data-theme="dark"] .btn-outline-primary { color: var(--link); border-color: var(--blue); }
+[data-theme="dark"] .btn-outline-primary:hover { color: #fff; }
+
+/* Team logos (TBA avatars, staff uploads) are often dark artwork on a transparent background, so they
+   keep a light tile behind them. The team's own logos have dark-theme copies, swapped in by theme.js. */
+[data-theme="dark"] .team-logo, [data-theme="dark"] .team-logo-sm, [data-theme="dark"] .ti-logo,
+[data-theme="dark"] .a-head img, [data-theme="dark"] .p-team-cell img { background-color: #E8EDF5; }

@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
   <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Team Database – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -142,6 +157,7 @@
     /* Add to Red / Blue Alliance buttons, under the team name (padded clear of the rating boxes) */
     .alliance-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1rem; padding-right: 210px; }
     .alliance-actions .btn { color: #fff; }
+    .alliance-actions .offline-btn { color: inherit; margin-left: auto; }
     .alliance-actions .btn-red { background: #c0392b; }
     .alliance-actions .btn-blue { background: #1B4DB1; }
     .alliance-actions .btn:hover { filter: brightness(.88); }
@@ -153,9 +169,9 @@
       font-weight: 700; padding: .15rem .5rem; margin-left: .5rem;
       border-radius: 3px; vertical-align: middle;
     }
-    .src-badge.scout { background: #eaf0ff; color: #1B4DB1; }
-    .src-badge.api   { background: #e7f7ee; color: #1a7f4b; }
-    .src-badge.vision { background: #fff3e0; color: #a35200; }
+    .src-badge.scout { background: var(--tint); color: var(--link); }
+    .src-badge.api   { background: var(--green-bg); color: var(--green); }
+    .src-badge.vision { background: var(--amber-bg); color: var(--amber); }
 
     .tile-grid {
       display: grid;
@@ -164,7 +180,7 @@
       margin-top: 1rem;
     }
     .tile { border: 1px solid var(--line); padding: .6rem .75rem; background: var(--paper); }
-    .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--navy); font-weight: 700; line-height: 1.2; }
+    .tile .v { font-family: var(--display); font-size: 1.3rem; color: var(--heading); font-weight: 700; line-height: 1.2; }
     .tile .k { font-size: .75rem; color: var(--muted); line-height: 1.3; }
 
     /* Rating breakdown: one 0-100 bar per part of the scouting rating */
@@ -179,7 +195,7 @@
     details.stat-block > summary { cursor: pointer; }
     details.stat-block > summary .section-title { display: inline-block; }
     .match-table td.stat-mix { white-space: normal; min-width: 14rem; }
-    .match-table tr.stat-section td { background: var(--tint); color: var(--navy); font-weight: 600; font-size: .78rem; }
+    .match-table tr.stat-section td { background: var(--tint); color: var(--heading); font-weight: 600; font-size: .78rem; }
 
     .info-grid { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; font-size: .92rem; margin: 0; }
     .info-grid dt { color: var(--muted); font-weight: 500; }
@@ -189,7 +205,7 @@
        rejected at save time, just flagged everywhere a value shows up (here and on the Scout
        page's own tables/form). */
     .reg-flag {
-      display: inline-block; background: #fde8e8; color: #a83228;
+      display: inline-block; background: var(--red-bg); color: var(--red);
       font-size: .62rem; text-transform: uppercase; letter-spacing: .03em;
       font-weight: 700; padding: .05rem .4rem; margin-left: .35rem; vertical-align: middle;
     }
@@ -205,7 +221,7 @@
     /* Event rankings: rows open the team, and the link back sits above a team's detail */
     .rank-table tbody tr[data-team] { cursor: pointer; }
     .rank-table tbody tr[data-team]:hover, .rank-table tbody tr[data-team]:focus { background: var(--tint); outline: none; }
-    .rank-table td.rank-n { font-family: var(--display); font-weight: 700; color: var(--navy); }
+    .rank-table td.rank-n { font-family: var(--display); font-weight: 700; color: var(--heading); }
     .rank-table tr.is-us td { box-shadow: inset 0 -1px 0 var(--blue); font-weight: 600; }
     .back-to-rank { display: inline-block; font-size: .85rem; margin-bottom: .75rem; }
 
@@ -234,7 +250,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
     <div class="container">
       <a class="navbar-brand" href="/index.html">
-        <img src="/img/robosaintslogo.png" id="navbarlogo" alt="">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
         St. Thomas Aquinas Robotics Team 1307
       </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
@@ -389,8 +405,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/offline.js"></script>
   <script src="/js/alliance.js"></script>
   <script src="/js/opr.js"></script>
   <script src="/js/vision.js"></script>
@@ -409,7 +428,7 @@
     }
 
     // ── Access gate (team members only) ──────────────────────────────
-    var s = (await sb.auth.getSession()).data.session;
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
@@ -483,73 +502,50 @@
 
     // ── Data ─────────────────────────────────────────────────────────
     async function loadMeta() {
-      var rf = await sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true });
-      fields = rf.data || [];
-      var re = await sb.from("events").select("id,name,event_date,event_tier");
+      var res = await Promise.all([
+        sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true }),
+        sb.from("events").select("id,name,event_date,event_tier")
+      ]);
+      fields = res[0].data || [];
       eventsById = {};
-      (re.data || []).forEach(function (e) { eventsById[e.id] = e; });
+      (res[1].data || []).forEach(function (e) { eventsById[e.id] = e; });
     }
-    // Every page of a request. The API returns at most 1000 rows per request, and with a full
-    // season loaded there are more teams than that, so one request would silently drop teams.
-    async function allRows(makeQuery) {
-      // 4 pages per round trip, so a few thousand rows don't take one request after another
-      var rows = [], size = 1000, batch = 4;
-      for (var from = 0; ; from += size * batch) {
-        var pages = [];
-        for (var k = 0; k < batch; k++) {
-          pages.push(makeQuery().range(from + k * size, from + (k + 1) * size - 1));
-        }
-        var res = await Promise.all(pages);
-        for (var j = 0; j < res.length; j++) {
-          if (res[j].error) return { error: res[j].error, data: rows };
-          rows = rows.concat(res[j].data || []);
-          if ((res[j].data || []).length < size) return { data: rows };
-        }
-      }
-    }
+    // Every page of a request (js/ratings.js). The API returns at most 1000 rows per request.
+    var allRows = RSRatings.pagedRows;
+
     // The three per-team lists the grades compare against. They come from a server-side cache
     // that refreshes about once a minute, so a team click reuses lists under a minute old.
     var listsLoadedAt = 0;
+    var RATING_LISTS = ["ratings", "official_ratings", "data_counts"];
+    function applyRatingLists(l) {
+      if (l.ratings.error) console.warn("Scouting rating unavailable:", l.ratings.error.message);
+      if (l.official_ratings.error) console.warn("Official rating unavailable:", l.official_ratings.error.message);
+      if (l.data_counts.error) console.warn("Data-source counts unavailable:", l.data_counts.error.message);
+      summary = l.ratings.error ? [] : l.ratings.data;
+      officialRatings = l.official_ratings.error ? [] : l.official_ratings.data;
+      dataCounts = l.data_counts.error ? [] : l.data_counts.data;
+      if (!RATING_LISTS.some(function (p) { return l[p].error; })) listsLoadedAt = Date.now();
+    }
     async function ratingLists() {
       if (Date.now() - listsLoadedAt < 60000) {
         return [{ data: summary }, { data: officialRatings }, { data: dataCounts }];
       }
-      var r = await Promise.all([
-        allRows(function () { return sb.rpc("team_ratings").order("team_number"); }),
-        allRows(function () { return sb.rpc("team_official_ratings").order("team_number"); }),
-        allRows(function () { return sb.rpc("team_data_counts").order("team_number"); })
-      ]);
-      if (!r.some(function (x) { return x.error; })) listsLoadedAt = Date.now();
-      return r;
+      var l = await RSRatings.lists(sb, RATING_LISTS);
+      applyRatingLists(l);
+      return RATING_LISTS.map(function (p) { return l[p]; });   // keeps any error, so openTeam can warn
     }
-    async function loadRatingLists() {
-      var r = await ratingLists();
-      if (r[0].error) console.warn("Scouting rating unavailable:", r[0].error.message);
-      if (r[1].error) console.warn("Official rating unavailable:", r[1].error.message);
-      if (r[2].error) console.warn("Data-source counts unavailable:", r[2].error.message);
-      summary = r[0].error ? [] : r[0].data;
-      officialRatings = r[1].error ? [] : r[1].data;
-      dataCounts = r[2].error ? [] : r[2].data;
-    }
-    // The API returns at most 1000 rows per request, so page through them. Every event adds rows
-    // here, and a truncated result would drop teams from the list without any error.
-    async function loadPitTeams() {
-      var rows = [], size = 1000;
-      for (var from = 0; ; from += size) {
-        var r = await sb.from("pit_entries").select("team_number").order("id").range(from, from + size - 1);
-        if (r.error) { console.warn("Pit teams unavailable:", r.error.message); break; }
-        rows = rows.concat(r.data || []);
-        if ((r.data || []).length < size) break;
-      }
-      pitTeams = Array.from(new Set(rows.map(function (x) { return x.team_number; })));
+    // Everything the team list needs, in one request: the rating lists, the official match
+    // summary, and which teams have pit data
+    async function loadLists() {
+      var l = await RSRatings.lists(sb, RATING_LISTS.concat(["official_summary", "pit_teams"]));
+      applyRatingLists(l);
+      if (l.official_summary.error) console.warn("Official match summary unavailable:", l.official_summary.error.message);
+      official = l.official_summary.error ? [] : l.official_summary.data;
+      if (l.pit_teams.error) console.warn("Pit teams unavailable:", l.pit_teams.error.message);
+      pitTeams = l.pit_teams.error ? [] : l.pit_teams.data;
     }
 
     // ── Team list ────────────────────────────────────────────────────
-    async function loadOfficial() {
-      var r = await allRows(function () { return sb.rpc("team_official_summary").order("team_number"); });
-      if (r.error) console.warn("Official match summary unavailable:", r.error.message);
-      official = r.error ? [] : r.data;
-    }
     async function loadTestTeams() {
       var r = await sb.from("test_teams").select("team_number");
       if (r.error) { console.warn("Test teams unavailable:", r.error.message); return; }
@@ -657,7 +653,7 @@
               '<div class="tr-stats-line">' +
                 '<div class="tr-stat" title="Human-scouted matches"><span class="stat-v">' + r.scouted + '</span><span class="stat-k">Scouted</span></div>' +
                 '<div class="tr-stat" title="Synced from FRC Events / TBA"><span class="stat-v">' + r.official + '</span><span class="stat-k">API</span></div>' +
-                '<div class="tr-stat" title="Has pit data"><span class="stat-v">' + (r.hasPit ? '<i class="fa fa-check" style="color:#1a7f4b;"></i>' : "—") + '</span><span class="stat-k">Pit</span></div>' +
+                '<div class="tr-stat" title="Has pit data"><span class="stat-v">' + (r.hasPit ? '<i class="fa fa-check" style="color:var(--green);"></i>' : "—") + '</span><span class="stat-k">Pit</span></div>' +
               '</div>' +
               '</div>';
           }).join("")
@@ -1283,8 +1279,23 @@
     function allianceActionsHtml(team) {
       var picks = Alliance.get();
       return allianceButton(team, "red", "Red Alliance") + allianceButton(team, "blue", "Blue Alliance") +
-        '<a class="view-link" href="/alliance.html">View alliances (' + (picks.red.length + picks.blue.length) + " of 6)</a>";
+        '<a class="view-link" href="/alliance.html">View alliances (' + (picks.red.length + picks.blue.length) + " of 6)</a>" +
+        '<button type="button" class="btn btn-outline-secondary btn-sm offline-btn" data-offline-team="' + team + '" ' +
+          'title="Save this team\'s page as a file that opens without a connection">' +
+          '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>';
     }
+    // Offline copy of the open team (js/offline.js). Leaves out the controls and the back link.
+    $("detail").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-offline-team]");
+      if (!btn) return;
+      var team = Number(btn.dataset.offlineTeam), name = RSTeams.name(teamInfoByNumber[team]);
+      RSOffline.fromButton(btn, function () {
+        return RSOffline.snapshot($("detail"), {
+          title: "Team " + team + (name ? " " + name : ""), file: "team-" + team,
+          remove: [".alliance-actions", ".back-to-rank"]
+        });
+      });
+    });
     $("detail").addEventListener("click", function (e) {
       var btn = e.target.closest("[data-alliance]");
       if (!btn || selected == null) return;
@@ -1563,16 +1574,14 @@
     $("eventSel").addEventListener("change", function () { pickEvent($("eventSel").value); });
 
     // ── Boot ─────────────────────────────────────────────────────────
-    await loadMeta();
-    fillEventSelect();
-    await Promise.all([loadRatingLists(), loadPitTeams(), loadOfficial(), loadTestTeams(), loadTeamInfo()]);
+    // Everything at once: each request only waits on the network, not on the others
+    await Promise.all([loadMeta().then(fillEventSelect), loadLists(), loadTestTeams(), loadTeamInfo()]);
     renderList();
     // Names from TBA for teams that don't have one yet
     if (await RSTeams.fillMissing(sb, teamList().map(function (r) { return r.team; }), teamInfoByNumber)) renderList();
     // After a resync, refetch the official lists and the open team
     RSResync.mount($("resyncSlot"), async function () {
-      listsLoadedAt = 0;
-      await Promise.all([loadRatingLists(), loadOfficial()]);
+      await loadLists();
       renderList();
       if (eventRank) await loadEventRanking(eventRank.eventId);
       if (selected != null) await openTeam(selected);
