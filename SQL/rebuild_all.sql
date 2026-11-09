@@ -311,6 +311,10 @@ grant execute on function public.set_default_event(uuid) to authenticated;
 -- staff with the clock button on an event row. Same one-at-a-time index as the default event.
 -- The schedule itself is a pg_cron job calling run_auto_sync() (see section 15).
 alter table public.events add column if not exists auto_sync boolean not null default false;
+-- When staff turned auto-sync on. run_auto_sync() turns it off 12 hours later, so a flag left on
+-- overnight can't keep syncing (each sync costs disk IO the small database needs for logins).
+alter table public.events add column if not exists auto_sync_since timestamptz;
+update public.events set auto_sync_since = now() where auto_sync and auto_sync_since is null;
 -- The pg_net request the last auto-sync run sent, so auto_sync_health() can read its response.
 alter table public.events add column if not exists auto_sync_request bigint;
 -- The same for the last "Resync data" press (resync_default_event() below).
@@ -339,9 +343,9 @@ begin
   ) then
     raise exception 'This event ended more than 4 days ago, so auto-sync won''t run for it. Use the sync button instead.';
   end if;
-  update public.events set auto_sync = false where auto_sync;
+  update public.events set auto_sync = false, auto_sync_since = null where auto_sync;
   if p_event_id is not null then
-    update public.events set auto_sync = true where id = p_event_id;
+    update public.events set auto_sync = true, auto_sync_since = now() where id = p_event_id;
   end if;
 end $$;
 revoke all on function public.set_auto_sync_event(uuid) from public, anon;
@@ -376,15 +380,19 @@ begin
 end $$;
 revoke all on function public.official_sync_request(uuid) from public, anon, authenticated;
 
--- Called by pg_cron only, every 2 minutes. Turns itself off 4 days after the event, so a
--- forgotten flag can't poll the APIs forever.
+-- Called by pg_cron only, every 2 minutes. Turns itself off 12 hours after staff turned it on
+-- (one competition day; staff turn it back on each morning), or 4 days after the event, so a
+-- forgotten flag can't keep syncing.
 create or replace function public.run_auto_sync() returns void
 language plpgsql set search_path = '' as $$
 declare
   v_event uuid;
 begin
-  update public.events set auto_sync = false
-    where auto_sync and event_date < (now() at time zone 'America/New_York')::date - 4;
+  -- Turned on from the SQL Editor instead of the portal: start its 12 hours now
+  update public.events set auto_sync_since = now() where auto_sync and auto_sync_since is null;
+  update public.events set auto_sync = false, auto_sync_since = null
+    where auto_sync and (event_date < (now() at time zone 'America/New_York')::date - 4
+                         or auto_sync_since < now() - interval '12 hours');
 
   select id into v_event from public.events
     where auto_sync and (frc_event_code is not null or tba_event_key is not null);
@@ -1656,7 +1664,11 @@ revoke all on public.official_opr_cache from anon, authenticated;
 -- matches stays near average instead of swinging wildly). Solved by conjugate gradient, which
 -- reaches the exact answer in at most one step per team at the event; every event is solved
 -- side by side, so each step is a few set-based statements over all of them.
-create or replace function public.official_opr_fill() returns void
+-- p_events limits it to those events (only their cache rows are replaced); null redoes every
+-- event. The cron refresh passes just the events a sync changed, so a competition-day sync
+-- solves one event instead of the whole season.
+drop function if exists public.official_opr_fill();
+create or replace function public.official_opr_fill(p_events uuid[] default null) returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   v_ridge constant double precision := 1;
@@ -1669,10 +1681,12 @@ begin
   select c.event_id, c.match_key || ':r' as aid, c.red_score::double precision as score, c.red_teams as teams
     from public.official_matches_combined c
    where c.comp_level = 'qm' and c.red_score is not null and c.blue_score is not null
+     and (p_events is null or c.event_id = any(p_events))
   union all
   select c.event_id, c.match_key || ':b', c.blue_score::double precision, c.blue_teams
     from public.official_matches_combined c
-   where c.comp_level = 'qm' and c.red_score is not null and c.blue_score is not null;
+   where c.comp_level = 'qm' and c.red_score is not null and c.blue_score is not null
+     and (p_events is null or c.event_id = any(p_events));
 
   -- One row per robot on each alliance
   create temp table opr_app on commit drop as
@@ -1739,7 +1753,7 @@ begin
     exit when not exists (select 1 from opr_ev where rs > v_tol);
   end loop;
 
-  delete from public.official_opr_cache;
+  delete from public.official_opr_cache where p_events is null or event_id = any(p_events);
   insert into public.official_opr_cache (event_id, team_number, opr, matches)
   select event_id, team_number, x, n from opr_vec;
 end $$;
@@ -1805,10 +1819,15 @@ $$;
 -- summary from every match takes several seconds, and pages ask for them on every load. So
 -- refresh_official_cache() stores the results in two tables, and team_official_ratings() /
 -- team_official_summary() read those instead.
---   - Any write to official_matches, a change to an event's tier, or a change to test_teams
---     bumps official_cache_seq (a sequence, so the writer never waits on a lock).
---   - A pg_cron job (section 15) runs refresh_official_cache() every minute; it does nothing
---     unless the sequence moved since the last refresh. So ratings lag a sync by up to a minute.
+--   - A sync re-sends every match of the event, so official_matches_skip_unchanged drops any
+--     row update that changes nothing but updated_at. Without it each 2-minute auto-sync
+--     rewrote every row (score breakdowns, indexes) and ran out the database's disk IO budget.
+--   - A match row that really changed records its event in official_cache_dirty and bumps
+--     official_cache_seq. A change to an event's tier or to test_teams only bumps the sequence
+--     (neither changes OPR). The sequence means the writer never waits on a lock.
+--   - A pg_cron job (section 15) runs refresh_official_cache() every 3 minutes; it does nothing
+--     unless the sequence moved, and re-solves OPR only for the dirty events. So ratings lag a
+--     sync by up to 3 minutes.
 --   - This file runs a full refresh at the end of section 15, so the cache is never empty.
 -- The cache tables have row-level security on and no policies: only these functions read them.
 create table if not exists public.official_ratings_cache (
@@ -1831,6 +1850,25 @@ revoke all on public.official_ratings_cache, public.official_summary_cache, publ
 create sequence if not exists public.official_cache_seq;
 revoke all on sequence public.official_cache_seq from anon, authenticated;
 
+-- Events whose matches changed since the last refresh. No key, so writers never wait on each
+-- other or on the refresh; a null event_id means every event (after a truncate).
+create table if not exists public.official_cache_dirty (event_id uuid);
+alter table public.official_cache_dirty enable row level security;
+revoke all on public.official_cache_dirty from anon, authenticated;
+
+-- Skips a match update that changes nothing but updated_at (see the notes above)
+create or replace function public.official_matches_skip_unchanged() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if (to_jsonb(new) - 'updated_at') = (to_jsonb(old) - 'updated_at') then
+    return null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists official_matches_skip_unchanged on public.official_matches;
+create trigger official_matches_skip_unchanged before update on public.official_matches
+  for each row execute function public.official_matches_skip_unchanged();
+
 -- Marks the cache out of date. Statement-level, so a sync that writes 100 rows bumps it once.
 create or replace function public.official_cache_touch() returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -1838,9 +1876,43 @@ begin
   perform nextval('public.official_cache_seq');
   return null;
 end $$;
+
+-- Marks the events of the match rows a statement really changed. Skipped updates aren't in
+-- new_rows, so a sync that changed nothing marks nothing.
+create or replace function public.official_matches_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if TG_OP = 'DELETE' then
+    insert into public.official_cache_dirty (event_id) select distinct event_id from old_rows;
+  else
+    insert into public.official_cache_dirty (event_id) select distinct event_id from new_rows;
+  end if;
+  if found then
+    perform nextval('public.official_cache_seq');
+  end if;
+  return null;
+end $$;
+create or replace function public.official_matches_truncated() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.official_cache_dirty (event_id) values (null);
+  perform nextval('public.official_cache_seq');
+  return null;
+end $$;
 drop trigger if exists official_matches_cache_touch on public.official_matches;
-create trigger official_matches_cache_touch after insert or update or delete or truncate
-  on public.official_matches for each statement execute function public.official_cache_touch();
+drop trigger if exists official_matches_changed_ins on public.official_matches;
+drop trigger if exists official_matches_changed_upd on public.official_matches;
+drop trigger if exists official_matches_changed_del on public.official_matches;
+drop trigger if exists official_matches_truncated on public.official_matches;
+-- One trigger per kind of write: Postgres allows transition tables only on single-event triggers
+create trigger official_matches_changed_ins after insert on public.official_matches
+  referencing new table as new_rows for each statement execute function public.official_matches_changed();
+create trigger official_matches_changed_upd after update on public.official_matches
+  referencing new table as new_rows for each statement execute function public.official_matches_changed();
+create trigger official_matches_changed_del after delete on public.official_matches
+  referencing old table as old_rows for each statement execute function public.official_matches_changed();
+create trigger official_matches_truncated after truncate on public.official_matches
+  for each statement execute function public.official_matches_truncated();
 drop trigger if exists events_cache_touch on public.events;
 create trigger events_cache_touch after update of event_tier
   on public.events for each statement execute function public.official_cache_touch();
@@ -1854,7 +1926,10 @@ create trigger test_teams_cache_touch after insert or update or delete
 create or replace function public.refresh_official_cache(p_force boolean default false)
 returns boolean
 language plpgsql security definer set search_path = '' as $$
-declare v_stamp bigint;
+declare
+  v_stamp  bigint;
+  v_events uuid[];
+  v_all    boolean;
 begin
   if not pg_try_advisory_xact_lock(hashtext('public.refresh_official_cache')) then
     return false;   -- another refresh is already running
@@ -1867,7 +1942,15 @@ begin
   end if;
   -- Taken before reading, so a write during the refresh leaves the cache marked out of date
   v_stamp := nextval('public.official_cache_seq');
-  perform public.official_opr_fill();
+  -- Claim the dirty events; any marked after this wait for the next refresh
+  with claimed as (delete from public.official_cache_dirty returning event_id)
+  select bool_or(event_id is null), array_agg(distinct event_id) filter (where event_id is not null)
+    into v_all, v_events from claimed;
+  if p_force or v_all then
+    perform public.official_opr_fill();
+  elsif v_events is not null then
+    perform public.official_opr_fill(v_events);
+  end if;
   delete from public.official_ratings_cache;
   insert into public.official_ratings_cache select * from public.official_ratings_compute();
   delete from public.official_summary_cache;
@@ -2511,8 +2594,11 @@ revoke all on function public.team_data_counts()           from public, anon;
 revoke all on function public.official_ratings_compute()   from public, anon, authenticated;
 revoke all on function public.official_summary_compute()   from public, anon, authenticated;
 revoke all on function public.refresh_official_cache(boolean) from public, anon, authenticated;
-revoke all on function public.official_opr_fill()          from public, anon, authenticated;
+revoke all on function public.official_opr_fill(uuid[])    from public, anon, authenticated;
 revoke all on function public.official_cache_touch()       from public, anon, authenticated;
+revoke all on function public.official_matches_changed()   from public, anon, authenticated;
+revoke all on function public.official_matches_truncated() from public, anon, authenticated;
+revoke all on function public.official_matches_skip_unchanged() from public, anon, authenticated;
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
 revoke all on function public.staff_list_share_codes()     from public, anon;
@@ -2699,8 +2785,12 @@ begin
   if to_regnamespace('cron') is not null then
     -- Same job name replaces the old schedule, so this is safe to re-run
     perform cron.schedule('auto-sync-event', '*/2 * * * *', 'select public.run_auto_sync()');
-    -- Rebuilds the official rating cache (section 9) within a minute of any change
-    perform cron.schedule('refresh-official-cache', '* * * * *', 'select public.refresh_official_cache()');
+    -- Rebuilds the official rating cache (section 9) within 3 minutes of any change. Not every
+    -- minute: the database is on the smallest compute, and logins share its disk IO budget.
+    perform cron.schedule('refresh-official-cache', '*/3 * * * *', 'select public.refresh_official_cache()');
+    -- pg_cron logs every run and never prunes, so keep two days (auto_sync_health reads the latest)
+    perform cron.schedule('cron-history-cleanup', '17 4 * * *',
+      $job$delete from cron.job_run_details where end_time < now() - interval '2 days'$job$);
   end if;
 end $$;
 
@@ -3005,6 +3095,7 @@ with expected(kind, name) as (values
   ('function','team_data_counts'), ('function','get_shared_scouting'),
   ('table','official_ratings_cache'), ('table','official_summary_cache'), ('function','refresh_official_cache'),
   ('table','official_opr_cache'), ('function','official_opr_fill'),
+  ('table','official_cache_dirty'), ('function','official_matches_skip_unchanged'), ('function','official_matches_changed'),
   ('function','staff_list_share_codes'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
   ('function','official_sync_request'), ('function','resync_default_event'), ('function','resync_status'),

@@ -117,7 +117,8 @@ queues the file, and the Scout page and Staff Portal remove it through the Stora
 
 **Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA every 2 minutes
 (9:30, 9:32, 9:34...). It runs on the server through `pg_cron`, so nobody has to keep
-a page open, and turns itself off 4 days after the event date. `SQL/rebuild_all.sql` enables pg_cron
+a page open, and turns itself off 12 hours after staff turn it on (click the clock again each
+competition morning) or 4 days after the event date, whichever comes first. `SQL/rebuild_all.sql` enables pg_cron
 and pg_net and schedules the job. The one manual step is storing `sync_secret` in the Vault (section 15).
 The check query at the end of that file shows if either is missing, and the Staff Portal warns if a
 run is failing, the job has stopped, or it's still on an old schedule.

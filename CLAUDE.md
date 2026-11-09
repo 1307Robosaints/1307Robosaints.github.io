@@ -123,7 +123,10 @@ Key tables/functions to know when touching 1307scout:
   team filter sent straight to the table or views reads every row. `team_official_ratings()` and
   `team_official_summary()` read a cache (`official_ratings_cache`/`official_summary_cache`)
   that `refresh_official_cache()` rebuilds from the `*_compute()` functions; a pg_cron job runs
-  it every minute and it only does work after official data changed. Per-team RPCs return more
+  it every 3 minutes and it only does work after official data changed, re-solving OPR only for
+  the events in `official_cache_dirty`. A trigger drops match updates that change nothing but
+  `updated_at`, since auto-sync re-sends every match: the project is on Nano compute, and the
+  writes used to exhaust its disk IO budget badly enough that Google login timed out. Per-team RPCs return more
   than 1000 rows now, so pages read them with `.range()` paging. `match_key` format: `qm12` (qualification 12),
   `sf8m1` (playoff set 8 match 1), `f1m2` (finals match 2).
 - Team ratings (explained for users on `ratings.html`, which must change with the math): there are **two independent ratings** kept deliberately separate — one derived
@@ -138,7 +141,8 @@ Key tables/functions to know when touching 1307scout:
   deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
   Competition-day auto-sync is `events.auto_sync` (one event at a time, set through
-  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It and the
+  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It turns
+  itself off 12 hours after it was turned on (`events.auto_sync_since`) or 4 days after the event. It and the
   Resync data button both send their request through `official_sync_request()`.
   `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
   and the Staff Portal shows that next to the auto-sync status.

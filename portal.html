@@ -1053,7 +1053,7 @@
             ((ev.frc_event_code || ev.tba_event_key)
               ? '<button class="btn-icon" title="Sync official matches now" aria-label="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>' +
                 '<button class="btn-icon' + (ev.auto_sync ? ' auto-on' : '') + '" ' +
-                  'title="' + (ev.auto_sync ? "Auto-syncing every 2 minutes — click to stop" : "Auto-sync this event every 2 minutes") + '" ' +
+                  'title="' + (ev.auto_sync ? "Auto-syncing every 2 minutes — click to stop" : "Auto-sync this event every 2 minutes for 12 hours") + '" ' +
                   'onclick="setAutoSync(\'' + ev.id + '\', ' + !!ev.auto_sync + ')"><i class="fa fa-clock-o"></i></button>'
               : '') +
             '<button class="btn-icon" title="Event info" aria-label="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
@@ -1217,7 +1217,7 @@
     window.setAutoSync = async function (id, wasOn) {
       var r = await sb.rpc("set_auto_sync_event", { p_event_id: wasOn ? null : id });
       if (r.error) { toast("Couldn't update auto-sync: " + r.error.message, true); return; }
-      toast(wasOn ? "Auto-sync stopped." : "Auto-sync on. This event now refreshes every 2 minutes.");
+      toast(wasOn ? "Auto-sync stopped." : "Auto-sync on. This event now refreshes every 2 minutes for the next 12 hours.");
       loadEvents();
     };
     // What's stopping auto-sync, in plain words, or "" if nothing is. The flag alone only says staff
@@ -1246,7 +1246,13 @@
         'every 2 minutes on the clock (9:30, 9:32, 9:34…). Last sync: ' +
         (ev.official_synced_at || p
           ? esc(last.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))
-          : "none yet") + '.';
+          : "none yet") + '.' +
+        // run_auto_sync() turns it off 12 hours after it was turned on
+        (ev.auto_sync_since
+          ? ' Turns off at ' + esc(new Date(new Date(ev.auto_sync_since).getTime() + 12 * 3600000)
+              .toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) +
+            '; click the clock again after that to keep going.'
+          : '');
       var r = await sb.rpc("auto_sync_health");
       if (r.error) { console.warn("Auto-sync health unavailable:", r.error.message); return; }
       var problem = autoSyncProblem(r.data || {});
