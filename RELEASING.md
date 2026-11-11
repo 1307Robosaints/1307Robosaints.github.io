@@ -4,14 +4,15 @@ One codebase, two branches, three sites:
 
 | Branch   | Site                                                         | What it is |
 |----------|--------------------------------------------------------------|------------|
-| `master` | [beta.robosaints1307.com](https://beta.robosaints1307.com)   | 1307scout **experimental**. Push and try it, same as always. |
+| `master` | [beta.robosaints1307.com](https://beta.robosaints1307.com)   | **Experimental**: the whole site (1307scout and the public pages). Push and try it, same as always. |
 | `stable` | [scout.robosaints1307.com](https://scout.robosaints1307.com) | 1307scout **stable**: released versions only. |
 | `stable` | [robosaints1307.com](https://robosaints1307.com)             | The informational site (team, robot, sponsors, contact, results). |
 
 `.github/workflows/deploy.yml` deploys on every push: `master` to beta, `stable` to both the
-informational site and scout. `deploy/build.sh` makes each site from the same files. It replaces
-pages that belong on the other site with redirect stubs, points links across the two sites, and
-writes `version.json` and `window.RS_BUILD`. Locally nothing changes: open any page, or serve the
+informational site and scout. `deploy/build.sh` makes each site from the same files. On the two
+stable sites it replaces pages that belong on the other site with redirect stubs and points links
+across the two. Beta keeps every page, so you never leave it while browsing. Every site gets
+`version.json` and `window.RS_BUILD`. Locally nothing changes: open any page, or serve the
 repo root.
 
 **Both sites use the same Supabase project**, so experimental runs on real data. That means:

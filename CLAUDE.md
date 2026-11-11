@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Public website and **1307scout** scouting app for FRC Team 1307 (St. Thomas Aquinas Robotics,
 Dover NH), hosted on GitHub Pages as three sites from this repo: robosaints1307.com
 (informational) and scout.robosaints1307.com (1307scout) from the `stable` branch, and
-beta.robosaints1307.com (experimental 1307scout) from `master`. Plain static HTML/CSS/JS — no build
+beta.robosaints1307.com (experimental: the whole site, every page) from `master`. Plain static HTML/CSS/JS — no build
 step, no bundler, no framework, no `npm install` needed to work on it. `package.json`/
 `gulpfile.js` are leftovers from the original Bootstrap template and are not part of the
 workflow (see README "Local development" / "Credit").
@@ -28,8 +28,8 @@ Work happens on `master`, which deploys to beta. `stable` only takes releases: s
 for the version rules (`VERSION`, `CHANGELOG.md`, `vX.Y.Z` tags), the two-week cadence and event
 freeze, and the release/bugfix commands. Don't commit to `stable` unless asked to make a release
 or a stable bugfix. `deploy/build.sh` (run by `.github/workflows/deploy.yml`) is the only build: it
-splits pages between the info site and the 1307scout sites (`PUBLIC` lists the info pages; every
-other root page is 1307scout), replaces the other site's pages with redirect stubs, rewrites
+splits pages between the info site and stable 1307scout (`PUBLIC` lists the info pages; every
+other root page is 1307scout; beta keeps every page), replaces the other site's pages with redirect stubs, rewrites
 `href="/page.html"` links across sites, and puts `window.RS_BUILD` in each `<head>`, which `auth.js`
 uses for the footer version and the experimental bar. Keep links root-relative (`/page.html`) so that
 rewrite finds them, and add a new public page to `PUBLIC`.

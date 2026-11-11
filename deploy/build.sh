@@ -3,11 +3,12 @@
 #
 #   bash deploy/build.sh info  <out>   robosaints1307.com        public pages, from `stable`
 #   bash deploy/build.sh scout <out>   scout.robosaints1307.com  1307scout, from `stable`
-#   bash deploy/build.sh beta  <out>   beta.robosaints1307.com   1307scout experimental, from `master`
+#   bash deploy/build.sh beta  <out>   beta.robosaints1307.com   the whole site, experimental, from `master`
 #
 # The repo itself stays one codebase that works when opened locally. This only:
 #   - leaves out files the sites don't serve (SQL, vision worker, Edge Functions, docs, template leftovers)
-#   - replaces pages that belong on the other site with redirect stubs, so old links and bookmarks work
+#   - info and scout: replaces pages that belong on the other site with redirect stubs, so old links
+#     and bookmarks work (beta keeps every page, so browsing never leaves it)
 #   - points links at the other site directly, so they don't bounce through a stub
 #   - on the info site, removes the app (manifest, pwa.js) and ships a service worker that uninstalls itself
 #   - writes CNAME and version.json, and puts window.RS_BUILD in every page's <head> (js/auth.js reads it)
@@ -99,7 +100,7 @@ self.addEventListener("activate", function (e) {
   }).then(function () { return self.registration.unregister(); }));
 });
 EOF
-else
+elif [ "$TARGET" = scout ]; then
   for p in $PAGES; do
     is_public "$p" || continue
     if [ "$p" = index ]; then stub index.html "/1307scout.html"; continue; fi
@@ -107,8 +108,16 @@ else
     relink "$p" "$INFO_HOST"
   done
   relink index "$INFO_HOST"
-  # The experimental site stays out of search results
-  [ "$TARGET" = beta ] && printf 'User-agent: *\nDisallow: /\n' > robots.txt
+else
+  # Beta is the whole site, public pages included, so browsing never leaves it and changes to
+  # the public pages can be tried out before a release too. It stays out of search results.
+  printf 'User-agent: *\nDisallow: /\n' > robots.txt
+  # Installed next to the stable app, it needs its own name
+  sed -i -e 's#"name": "1307scout"#"name": "1307scout beta"#' \
+         -e 's#"short_name": "1307scout"#"short_name": "1307scout β"#' manifest.webmanifest
+  for f in $(find . -name '*.html' -not -path './vendor/*'); do
+    sed -i 's#name="apple-mobile-web-app-title" content="1307scout"#name="apple-mobile-web-app-title" content="1307scout β"#' "$f"
+  done
 fi
 
 # ── Domain, version, build marker ──

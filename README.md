@@ -5,7 +5,7 @@ Public website and **1307scout** scouting app for St. Thomas Aquinas Robotics Te
 framework. Hosted on GitHub Pages as three sites built from this one repo: the informational site at
 [robosaints1307.com](https://robosaints1307.com), 1307scout at
 [scout.robosaints1307.com](https://scout.robosaints1307.com) (stable releases, `stable` branch), and
-experimental 1307scout at [beta.robosaints1307.com](https://beta.robosaints1307.com) (`master`).
+an experimental copy of the whole site at [beta.robosaints1307.com](https://beta.robosaints1307.com) (`master`).
 See [Branches and releases](#branches-and-releases).
 
 ## Site map
