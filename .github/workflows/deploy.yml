@@ -1,0 +1,71 @@
+# Deploys the three sites (see RELEASING.md):
+#   push to `stable` -> robosaints1307.com (info, this repo's Pages) + scout.robosaints1307.com
+#   push to `master` -> beta.robosaints1307.com (1307scout experimental)
+# The scout and beta sites are GitHub Pages sites of their own repos; this pushes the built files there
+# with a deploy key (secrets SCOUT_DEPLOY_KEY / BETA_DEPLOY_KEY).
+name: Deploy sites
+
+on:
+  push:
+    branches: [stable, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SCOUT_REPO: 1307Robosaints/1307scout
+  BETA_REPO: 1307Robosaints/1307scout-beta
+
+jobs:
+  info:
+    if: github.ref == 'refs/heads/stable'
+    runs-on: ubuntu-latest
+    concurrency: { group: deploy-info, cancel-in-progress: false }
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/build.sh info _site
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  scout:
+    if: github.ref == 'refs/heads/stable'
+    runs-on: ubuntu-latest
+    concurrency: { group: deploy-scout, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/build.sh scout _site
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.SCOUT_DEPLOY_KEY }}
+          external_repository: ${{ env.SCOUT_REPO }}
+          publish_branch: main
+          publish_dir: _site
+          force_orphan: true
+          enable_jekyll: false
+          full_commit_message: "1307scout ${{ github.sha }}"
+
+  beta:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    concurrency: { group: deploy-beta, cancel-in-progress: true }
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/build.sh beta _site
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.BETA_DEPLOY_KEY }}
+          external_repository: ${{ env.BETA_REPO }}
+          publish_branch: main
+          publish_dir: _site
+          force_orphan: true
+          enable_jekyll: false
+          full_commit_message: "1307scout experimental ${{ github.sha }}"
