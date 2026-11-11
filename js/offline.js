@@ -7,7 +7,7 @@
 //                                 controls are left out.
 //   RSOffline.board(data, opts)   saves the playoff pick board, a small app that works offline.
 (function () {
-  var SITE = "https://robosaints1307.com";
+  var SITE = /^https:/.test(location.origin) ? location.origin : "https://scout.robosaints1307.com";
   var IMG_MAX = 640;   // longest side of an embedded photo, in pixels
 
   function esc(s) {

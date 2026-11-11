@@ -109,10 +109,11 @@ def process(db, event, match_key, video_path, g, tracker=None, upload=True, debu
         tracklets, wide_share = robot_pass(video_path, clock, calib, g, lineup, tracker, log)
         row["wide_shot_share"] = round(wide_share, 3)
         saved = {"row": dict(row), "tl": tl, "lineup": lineup, "official": official,
-                 "tracklets": tracklets, "end_note": end_note, "samples": samples}
+                 "tracklets": tracklets, "end_note": end_note, "samples": samples,
+                 "look_model": tracker.embedder.id}
         save_tracks(event["tba_event_key"], match_key, saved)
         if gallery is not None:
-            gallery.learn(event["tba_event_key"], match_key, tracklets, lineup)
+            gallery.learn(event["tba_event_key"], match_key, tracklets, lineup, saved["look_model"])
             gallery.save()
         row, robots = finish(saved, g, gallery, event["tba_event_key"])
 
@@ -126,7 +127,9 @@ def process(db, event, match_key, video_path, g, tracker=None, upload=True, debu
 def finish(saved, g, gallery, event_key):
     """The match row and robot rows from a match's saved tracks."""
     row, lineup = dict(saved["row"]), saved["lineup"]
-    look = gallery.matcher(event_key) if gallery is not None else None
+    # Looks from another look model can't be compared: identify without them until re-run
+    same = gallery is not None and saved.get("look_model", "imagenet") == gallery.model
+    look = gallery.matcher(event_key) if same else None
     robots = robot_rows(saved["tracklets"], lineup, saved["tl"], saved["official"], g, look)
     expected = len(lineup["red"]) + len(lineup["blue"])
     row["status"] = "ok" if len(robots) == expected else "partial"

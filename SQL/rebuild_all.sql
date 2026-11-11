@@ -22,6 +22,8 @@
 --  8f  Team info (names/logos)               8g  Storage: team logos
 --  8h  Playoff picks, tiebreaks, line-ups   8i  Match schedule edits
 --  8j  Vision data + match flag reviews     8k  Match strategy plans
+--  8l  Team member names    8m Scout shifts  8n  Pick list   8o Match predictions
+--  8p  Robot log   8q Match alerts   8r Vision pre-fill + relayed entries   8s Public results
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 --  17  Check query
@@ -74,6 +76,12 @@
 --
 -- Strategy update: section 8k adds match_strategies, the field-map plan for each match drawn on
 -- the Match Strategy page (strategy.html), kept so the team can look back at plans that worked.
+--
+-- Scouting-tools update: 8l team member names, 8m scout shifts (shifts.html), 8n the pick list
+-- (picklist.html), 8o match predictions and their calibration (matches.html, ratings.html),
+-- 8p the robot log (pitcrew.html), 8q match alerts (push notifications, match-alerts Edge
+-- Function), 8r vision pre-fill and QR-relayed entries (scout.html), 8s public season results
+-- (results.html, the only function anon can call).
 -- =====================================================================
 
 
@@ -1413,6 +1421,376 @@ create policy "team deletes match strategies" on public.match_strategies for del
 
 
 -- =====================================================================
+-- 8l. Team members, by id (used by the sections below)
+--
+--    is_team_member() is is_staff() or is_student() for ANY account, not just the caller's,
+--    so a function can check who an entry or shift is for. Internal only.
+--    team_member_names() gives team members the display name (or the part of the email before
+--    the @) for accounts that appear on a page: scout shifts, the robot log, relayed entries.
+-- =====================================================================
+create or replace function public.is_team_member(p_user uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1
+    from auth.users u
+    left join public.staff_members s on s.user_id = u.id
+    left join public.member_grants g on g.user_id = u.id
+    where u.id = p_user
+      and u.email_confirmed_at is not null
+      and (u.banned_until is null or u.banned_until <= now())
+      and (s.user_id is not null or g.level in ('mentor','student')
+           or (lower(u.email) like '%@stalux.org' and coalesce(g.level, '') <> 'guest'))
+  );
+$$;
+revoke all on function public.is_team_member(uuid) from public, anon, authenticated;
+
+create or replace function public.team_member_names(p_ids uuid[])
+returns table (user_id uuid, name text)
+language sql stable security definer set search_path = '' as $$
+  select u.id,
+         coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), split_part(u.email::text, '@', 1))
+  from auth.users u
+  where u.id = any(p_ids[1:500])
+    and ((select public.is_staff()) or (select public.is_student()));
+$$;
+
+
+-- =====================================================================
+-- 8m. Scout shifts (shifts.html)
+--
+--    Staff hand out driver-station seats for a range of qualification matches: "red 2,
+--    quals 14-25". The whole team can read them, so scouts know where to sit, and the Scout
+--    page fills in the team and match for the scout's next assigned match. A seat can't have
+--    two scouts at once, and a scout can't be in two seats at once (checked by the trigger).
+-- =====================================================================
+create table if not exists public.scout_shifts (
+  id          bigint generated always as identity primary key,
+  event_id    uuid not null references public.events(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  station     text not null check (station in ('red1','red2','red3','blue1','blue2','blue3')),
+  first_match int  not null check (first_match between 1 and 999),
+  last_match  int  not null check (last_match between 1 and 999),
+  note        text check (char_length(note) <= 200),
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  check (last_match >= first_match)
+);
+create index if not exists scout_shifts_event_idx on public.scout_shifts (event_id, station);
+alter table public.scout_shifts enable row level security;
+
+-- Security definer so it can call is_team_member(), which the API can't
+create or replace function public.scout_shift_overlap() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if exists (
+    select 1 from public.scout_shifts s
+    where s.event_id = new.event_id and s.id is distinct from new.id
+      and s.first_match <= new.last_match and new.first_match <= s.last_match
+      and (s.station = new.station or s.user_id = new.user_id)
+  ) then
+    raise exception 'That overlaps another shift: a seat holds one scout, and a scout sits in one seat, at a time.';
+  end if;
+  if not public.is_team_member(new.user_id) then
+    raise exception 'Shifts can only go to team members.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists scout_shift_overlap on public.scout_shifts;
+create trigger scout_shift_overlap before insert or update on public.scout_shifts
+  for each row execute function public.scout_shift_overlap();
+
+drop policy if exists "team reads scout shifts"    on public.scout_shifts;
+drop policy if exists "staff manages scout shifts" on public.scout_shifts;
+create policy "team reads scout shifts" on public.scout_shifts for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "staff manages scout shifts" on public.scout_shifts for all to authenticated
+  using ((select public.is_staff())) with check ((select public.is_staff()));
+
+
+-- =====================================================================
+-- 8n. Pick list (picklist.html)
+--
+--    The ranked list staff build before alliance selection: order, a tier, and a note per
+--    team. Playoff Selection highlights the best-ranked team still available. Staff write,
+--    the team reads. Rank isn't unique, so a reorder can be saved in one upsert.
+-- =====================================================================
+create table if not exists public.pick_list (
+  event_id    uuid not null references public.events(id) on delete cascade,
+  team_number int  not null check (team_number between 1 and 99999),
+  rank        int  not null check (rank between 1 and 999),
+  tier        text not null default 'maybe' check (tier in ('top','good','maybe','dnp')),
+  note        text check (char_length(note) <= 300),
+  updated_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at  timestamptz not null default now(),
+  primary key (event_id, team_number)
+);
+alter table public.pick_list enable row level security;
+
+drop policy if exists "team reads pick list"    on public.pick_list;
+drop policy if exists "staff manages pick list" on public.pick_list;
+create policy "team reads pick list" on public.pick_list for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "staff manages pick list" on public.pick_list for all to authenticated
+  using ((select public.is_staff())) with check ((select public.is_staff()));
+
+
+-- =====================================================================
+-- 8o. Match predictions (matches.html writes them, ratings.html reports on them)
+--
+--    The win chance Our Matches shows for an upcoming match is saved here through
+--    log_prediction(), and replaced each time it's worked out again, until the match has a
+--    score. After that it stays as it was, so prediction_calibration() can compare what was
+--    predicted with what happened. Nobody writes the table directly.
+-- =====================================================================
+create table if not exists public.match_predictions (
+  event_id        uuid not null references public.events(id) on delete cascade,
+  match_key       text not null check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  red_teams       int[] not null check (cardinality(red_teams) = 3),
+  blue_teams      int[] not null check (cardinality(blue_teams) = 3),
+  red_chance      numeric not null check (red_chance between 0 and 1),
+  scouted_chance  numeric check (scouted_chance between 0 and 1),
+  official_chance numeric check (official_chance between 0 and 1),
+  predicted_at    timestamptz not null default now(),
+  primary key (event_id, match_key)
+);
+alter table public.match_predictions enable row level security;
+drop policy if exists "team reads predictions" on public.match_predictions;
+create policy "team reads predictions" on public.match_predictions for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+
+-- Saves the latest prediction for a match that hasn't been played. Returns 'saved' or 'played'.
+create or replace function public.log_prediction(p_event uuid, p_match text, p_red int[], p_blue int[],
+  p_chance numeric, p_scouted numeric, p_official numeric)
+returns text language plpgsql security definer set search_path = '' as $$
+begin
+  if not (public.is_staff() or public.is_student()) then raise exception 'Team members only.'; end if;
+  if exists (
+    select 1 from public.official_matches m
+    where m.event_id = p_event and m.match_key = p_match
+      and m.red_score is not null and m.blue_score is not null and (m.red_score > 0 or m.blue_score > 0)
+  ) then
+    return 'played';
+  end if;
+  insert into public.match_predictions as p
+    (event_id, match_key, red_teams, blue_teams, red_chance, scouted_chance, official_chance, predicted_at)
+  values (p_event, p_match, p_red, p_blue, p_chance, p_scouted, p_official, now())
+  on conflict (event_id, match_key) do update set
+    red_teams = excluded.red_teams, blue_teams = excluded.blue_teams, red_chance = excluded.red_chance,
+    scouted_chance = excluded.scouted_chance, official_chance = excluded.official_chance, predicted_at = now()
+  where p.red_chance is distinct from excluded.red_chance
+     or p.red_teams is distinct from excluded.red_teams or p.blue_teams is distinct from excluded.blue_teams;
+  return 'saved';
+end $$;
+
+-- How good the saved predictions were, over every played match with one: the Brier score
+-- (0 is perfect, 0.25 is a coin flip), how often the favorite won, and the predictions in
+-- 10-point buckets with how often red really won in each. A tie counts as half a win.
+-- Only predictions whose line-up matches the one that played are counted.
+create or replace function public.prediction_calibration() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  with played as (
+    select p.red_chance::float8 as pred,
+           case when c.red_score > c.blue_score then 1.0 when c.red_score < c.blue_score then 0.0 else 0.5 end as outcome
+    from public.match_predictions p
+    join public.official_matches_combined c on c.event_id = p.event_id and c.match_key = p.match_key
+    where c.red_score is not null and c.blue_score is not null and (c.red_score > 0 or c.blue_score > 0)
+      and (select array_agg(x order by x) from unnest(p.red_teams) x) = (select array_agg(x order by x) from unnest(c.red_teams) x)
+      and (select array_agg(x order by x) from unnest(p.blue_teams) x) = (select array_agg(x order by x) from unnest(c.blue_teams) x)
+  ), buckets as (
+    select least(floor(pred * 10), 9)::int as b, count(*) as n, avg(pred) as avg_pred, avg(outcome) as red_won
+    from played group by 1
+  )
+  select case when not ((select public.is_staff()) or (select public.is_student())) then null else
+    jsonb_build_object(
+      'matches', (select count(*) from played),
+      'brier', (select round(avg((pred - outcome) ^ 2)::numeric, 4) from played),
+      'favorite_won', (select round(avg(case when pred = 0.5 or outcome = 0.5 then null
+                                             when (pred > 0.5) = (outcome = 1) then 1.0 else 0.0 end)::numeric, 4) from played),
+      'buckets', coalesce((select jsonb_agg(jsonb_build_object('from', b * 10, 'to', b * 10 + 10, 'matches', n,
+                             'predicted', round(avg_pred::numeric, 3), 'red_won', round(red_won::numeric, 3)) order by b)
+                           from buckets), '[]'::jsonb))
+  end;
+$$;
+
+
+-- =====================================================================
+-- 8p. Robot log (pitcrew.html)
+--
+--    Our own robot at an event: the pre-match checklist ticked off for each match, battery
+--    use (which battery, its voltage, which match), repairs, and notes. Any team member adds
+--    rows and changes their own; staff can change any. event_id is blank for shop work.
+-- =====================================================================
+create table if not exists public.robot_log (
+  id          bigint generated always as identity primary key,
+  event_id    uuid references public.events(id) on delete set null,
+  match_key   text check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  kind        text not null check (kind in ('checklist','battery','repair','note')),
+  battery     text check (char_length(battery) <= 20),
+  voltage     numeric check (voltage between 0 and 20),
+  details     text check (char_length(details) <= 1000),
+  checks      jsonb check (checks is null or (jsonb_typeof(checks) = 'object' and octet_length(checks::text) <= 4000)),
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists robot_log_event_idx on public.robot_log (event_id, created_at desc);
+alter table public.robot_log enable row level security;
+
+drop policy if exists "team reads robot log"    on public.robot_log;
+drop policy if exists "team adds robot log"     on public.robot_log;
+drop policy if exists "team edits own robot log" on public.robot_log;
+drop policy if exists "team deletes robot log"  on public.robot_log;
+create policy "team reads robot log" on public.robot_log for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+create policy "team adds robot log" on public.robot_log for insert to authenticated
+  with check (((select public.is_staff()) or (select public.is_student())) and created_by = auth.uid());
+create policy "team edits own robot log" on public.robot_log for update to authenticated
+  using ((select public.is_staff()) or ((select public.is_student()) and created_by = auth.uid()))
+  with check ((select public.is_staff()) or created_by = auth.uid());
+create policy "team deletes robot log" on public.robot_log for delete to authenticated
+  using ((select public.is_staff()) or ((select public.is_student()) and created_by = auth.uid()));
+
+
+-- =====================================================================
+-- 8q. Match alerts (push notifications)
+--
+--    A team member can turn on "Tell me when we're about to play" on My Account. The
+--    browser's push subscription is saved here through push_subscribe(). While auto-sync is
+--    on for an event, a pg_cron job (section 15) calls run_match_alerts(), which asks the
+--    match-alerts Edge Function (supabase/functions/match-alerts) to send a notification
+--    shortly before a subscribed team needs to queue: from FRC Nexus queuing status where the
+--    event uses it, otherwise when its next match is 3 or fewer matches away. match_alerts_sent
+--    stops the same alert going out twice. Nothing here is readable through the API except a
+--    person's own subscriptions.
+-- =====================================================================
+create table if not exists public.push_subscriptions (
+  endpoint    text primary key check (endpoint ~ '^https://' and char_length(endpoint) <= 1000),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  p256dh      text not null check (char_length(p256dh) <= 200),
+  auth_key    text not null check (char_length(auth_key) <= 100),
+  team_number int  not null default 1307 check (team_number between 1 and 99999),
+  created_at  timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "people read own push subscriptions" on public.push_subscriptions;
+create policy "people read own push subscriptions" on public.push_subscriptions for select to authenticated
+  using (user_id = auth.uid());
+
+create table if not exists public.match_alerts_sent (
+  event_id    uuid not null references public.events(id) on delete cascade,
+  match_key   text not null,
+  team_number int  not null,
+  sent_at     timestamptz not null default now(),
+  primary key (event_id, match_key, team_number)
+);
+alter table public.match_alerts_sent enable row level security;
+
+-- Save this browser's subscription for the signed-in team member. The endpoint is unique to the
+-- browser, so signing in as someone else on it moves the subscription to them.
+create or replace function public.push_subscribe(p_endpoint text, p_p256dh text, p_auth text, p_team int)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not (public.is_staff() or public.is_student()) then raise exception 'Team members only.'; end if;
+  insert into public.push_subscriptions (endpoint, user_id, p256dh, auth_key, team_number)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, coalesce(p_team, 1307))
+  on conflict (endpoint) do update set user_id = auth.uid(), p256dh = excluded.p256dh,
+    auth_key = excluded.auth_key, team_number = excluded.team_number, created_at = now();
+end $$;
+
+create or replace function public.push_unsubscribe(p_endpoint text) returns void
+language sql security definer set search_path = '' as $$
+  delete from public.push_subscriptions where endpoint = p_endpoint and user_id = auth.uid();
+$$;
+
+-- Called by pg_cron only (section 15). Cheap when nobody is subscribed or auto-sync is off.
+create or replace function public.run_match_alerts() returns void
+language plpgsql set search_path = '' as $$
+declare
+  v_event  uuid;
+  v_secret text;
+begin
+  select id into v_event from public.events where auto_sync;
+  if v_event is null or not exists (select 1 from public.push_subscriptions) then return; end if;
+  select btrim(decrypted_secret, E' \t\r\n') into v_secret from vault.decrypted_secrets where name = 'sync_secret';
+  if v_secret is null or v_secret = '' then return; end if;
+  perform net.http_post(
+    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/match-alerts',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+    body    := jsonb_build_object('event_id', v_event),
+    timeout_milliseconds := 30000);
+end $$;
+revoke all on function public.run_match_alerts() from public, anon, authenticated;
+
+
+-- =====================================================================
+-- 8r. Vision pre-fill and relayed entries (scout.html)
+--
+--    prefilled lists the fields of an entry the Scout page filled in from vision data, so
+--    the vision-vs-scouts comparison on Match Flags can leave those out (they'd agree by
+--    construction). relayed_by is set when the entry reached the server from another team
+--    member's device, scanned off the scout's screen as a QR code because the scout's device
+--    had no connection. The entry still belongs to the scout who made it.
+-- =====================================================================
+alter table public.scouting_entries add column if not exists prefilled text[]
+  check (prefilled is null or cardinality(prefilled) <= 50);
+alter table public.scouting_entries add column if not exists relayed_by uuid
+  references auth.users(id) on delete set null;
+
+-- Save an entry scanned from another team member's device. It keeps that scout as scouted_by
+-- (who must be a team member) and its own id, so scanning it twice, or the scout's device
+-- sending it later as well, can't save it twice. Returns 'saved' or 'already saved'.
+create or replace function public.relay_scouting_entry(p_entry jsonb) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_id uuid;
+  v_by uuid;
+begin
+  if not (public.is_staff() or public.is_student()) then raise exception 'Team members only.'; end if;
+  v_id := (p_entry ->> 'id')::uuid;
+  v_by := (p_entry ->> 'scouted_by')::uuid;
+  if v_id is null or v_by is null then raise exception 'The entry is missing its id or its scout.'; end if;
+  if not public.is_team_member(v_by) then raise exception 'The scout on this entry is not a team member.'; end if;
+  if exists (select 1 from public.scouting_entries where id = v_id) then return 'already saved'; end if;
+  insert into public.scouting_entries (id, event_id, team_number, match_number, data, scouted_by, prefilled, relayed_by)
+  values (v_id, (p_entry ->> 'event_id')::uuid, (p_entry ->> 'team_number')::int,
+          nullif(p_entry ->> 'match_number', '')::int, coalesce(p_entry -> 'data', '{}'::jsonb), v_by,
+          case when jsonb_typeof(p_entry -> 'prefilled') = 'array'
+               then array(select jsonb_array_elements_text(p_entry -> 'prefilled')) end,
+          auth.uid());
+  return 'saved';
+end $$;
+
+
+-- =====================================================================
+-- 8s. Public season results (results.html)
+--
+--    The one piece of official data anyone can read without signing in: team 1307's own
+--    played matches, for the public Season Results page. Official results are public on
+--    FRC Events and TBA already. Security definer so it can use the team indexes without
+--    opening the official tables to everyone.
+-- =====================================================================
+create or replace function public.public_team_results()
+returns table (event_name text, event_date date, event_tier text, tba_event_key text,
+               match_key text, comp_level text, set_number int, match_number int, alliance text,
+               partners int[], opponents int[], our_score int, their_score int, played_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select e.name::text, e.event_date, e.event_tier, e.tba_event_key,
+         c.match_key, c.comp_level, c.set_number, c.match_number,
+         case when 1307 = any(c.red_teams) then 'red' else 'blue' end,
+         array_remove(case when 1307 = any(c.red_teams) then c.red_teams else c.blue_teams end, 1307),
+         case when 1307 = any(c.red_teams) then c.blue_teams else c.red_teams end,
+         case when 1307 = any(c.red_teams) then c.red_score else c.blue_score end,
+         case when 1307 = any(c.red_teams) then c.blue_score else c.red_score end,
+         c.played_at
+  from public.official_matches_combined c
+  join public.events e on e.id = c.event_id
+  where (c.red_teams && array[1307] or c.blue_teams && array[1307])
+    and c.red_score is not null and c.blue_score is not null and (c.red_score > 0 or c.blue_score > 0)
+  order by e.event_date, e.name, c.played_at nulls last, c.match_key;
+$$;
+
+
+-- =====================================================================
 -- 9. Team rating (the S-F grade). Plain-language version for users: ratings.html.
 --    Keep that page in step with any change to the math below.
 --
@@ -2606,6 +2984,12 @@ grant select, insert, update, delete on public.playoff_lineups  to authenticated
 grant select, insert, update, delete on public.match_schedule   to authenticated;
 grant select, insert, update, delete on public.match_flag_reviews to authenticated;
 grant select, insert, update, delete on public.match_strategies to authenticated;
+grant select, insert, update, delete on public.scout_shifts     to authenticated;
+grant select, insert, update, delete on public.pick_list        to authenticated;
+grant select, insert, update, delete on public.robot_log        to authenticated;
+grant select on public.match_predictions         to authenticated;
+grant select on public.push_subscriptions        to authenticated;
+revoke all on public.match_alerts_sent from anon, authenticated;
 grant select on public.vision_matches            to authenticated;
 grant select on public.vision_robots             to authenticated;
 grant select on public.official_matches          to authenticated;
@@ -2641,6 +3025,13 @@ revoke all on function public.get_shared_scouting(text)    from public, anon;
 revoke all on function public.staff_list_share_codes()     from public, anon;
 revoke all on function public.validate_data(jsonb, text)    from public, anon;
 revoke all on function public.gen_share_code()              from public, anon;
+revoke all on function public.team_member_names(uuid[])     from public, anon;
+revoke all on function public.log_prediction(uuid, text, int[], int[], numeric, numeric, numeric) from public, anon;
+revoke all on function public.prediction_calibration()      from public, anon;
+revoke all on function public.push_subscribe(text, text, text, int) from public, anon;
+revoke all on function public.push_unsubscribe(text)        from public, anon;
+revoke all on function public.relay_scouting_entry(jsonb)   from public, anon;
+revoke all on function public.public_team_results()         from public;
 
 grant execute on function public.session_live()                to authenticated;
 grant execute on function public.is_staff()                   to authenticated;
@@ -2661,6 +3052,14 @@ grant execute on function public.get_shared_scouting(text)    to authenticated;
 grant execute on function public.staff_list_share_codes()     to authenticated;
 grant execute on function public.validate_data(jsonb, text)   to authenticated;
 grant execute on function public.gen_share_code()             to authenticated;
+grant execute on function public.team_member_names(uuid[])    to authenticated;
+grant execute on function public.log_prediction(uuid, text, int[], int[], numeric, numeric, numeric) to authenticated;
+grant execute on function public.prediction_calibration()     to authenticated;
+grant execute on function public.push_subscribe(text, text, text, int) to authenticated;
+grant execute on function public.push_unsubscribe(text)       to authenticated;
+grant execute on function public.relay_scouting_entry(jsonb)  to authenticated;
+-- The public Season Results page calls this without signing in (section 8s)
+grant execute on function public.public_team_results()        to anon, authenticated;
 
 -- 12b. The Edge Functions (official-sync, manage-member) connect as service_role.
 --      It skips row security but still needs table privileges. Without these
@@ -2810,6 +3209,10 @@ on conflict (user_id) do nothing;
 --     query in section 17 shows whether both are in place.
 --
 --     To stop it:  select cron.unschedule('auto-sync-event');
+--
+--     Match alerts (section 8q) need the match-alerts Edge Function (supabase/functions) and
+--     its VAPID keys; see the comment at the top of its index.ts. The job is scheduled below.
+--     To stop it:  select cron.unschedule('match-alerts');
 -- =====================================================================
 do $$
 begin
@@ -2825,6 +3228,9 @@ begin
     -- Rebuilds the official rating cache (section 9) within 3 minutes of any change. Not every
     -- minute: the database is on the smallest compute, and logins share its disk IO budget.
     perform cron.schedule('refresh-official-cache', '*/3 * * * *', 'select public.refresh_official_cache()');
+    -- Match alerts (section 8q), on the odd minutes so each run sees the sync just before it.
+    -- Does nothing unless auto-sync is on and someone turned alerts on.
+    perform cron.schedule('match-alerts', '1-59/2 * * * *', 'select public.run_match_alerts()');
     -- pg_cron logs every run and never prunes, so keep two days (auto_sync_health reads the latest)
     perform cron.schedule('cron-history-cleanup', '17 4 * * *',
       $job$delete from cron.job_run_details where end_time < now() - interval '2 days'$job$);
@@ -2978,6 +3384,12 @@ begin
       format('%s schedule: %s, red %s, blue %s', v_verb, v_row ->> 'match_key', v_row ->> 'red_teams', v_row ->> 'blue_teams')
     when 'match_strategies' then
       format('%s strategy plan: %s', v_verb, v_row ->> 'match_key')
+    when 'scout_shifts' then
+      format('%s scout shift: %s, quals %s-%s', v_verb, v_row ->> 'station', v_row ->> 'first_match', v_row ->> 'last_match')
+    when 'pick_list' then
+      format('%s pick list: team %s', v_verb, v_row ->> 'team_number')
+    when 'robot_log' then
+      format('%s robot log: %s', v_verb, v_row ->> 'kind')
     when 'match_flag_reviews' then
       format('%s flag review: %s, team %s, %s marked %s', v_verb, v_row ->> 'match_key', v_row ->> 'team_number',
         v_row ->> 'flag_type', v_row ->> 'status')
@@ -3008,6 +3420,9 @@ drop trigger if exists audit_playoff_lineups on public.playoff_lineups;
 drop trigger if exists audit_match_schedule on public.match_schedule;
 drop trigger if exists audit_flag_reviews   on public.match_flag_reviews;
 drop trigger if exists audit_match_strategies on public.match_strategies;
+drop trigger if exists audit_scout_shifts   on public.scout_shifts;
+drop trigger if exists audit_pick_list      on public.pick_list;
+drop trigger if exists audit_robot_log      on public.robot_log;
 drop trigger if exists audit_staff_members  on public.staff_members;
 drop trigger if exists audit_member_grants  on public.member_grants;
 create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
@@ -3023,6 +3438,10 @@ create trigger audit_match_schedule after insert or update or delete on public.m
 create trigger audit_flag_reviews   after insert or update or delete on public.match_flag_reviews for each row execute function public.audit_row_change();
 -- Plans save as people draw, so only making and removing one is logged, not every change
 create trigger audit_match_strategies after insert or delete on public.match_strategies for each row execute function public.audit_row_change();
+create trigger audit_scout_shifts   after insert or update or delete on public.scout_shifts     for each row execute function public.audit_row_change();
+-- A reorder rewrites every row's rank, so only adding and removing teams is logged
+create trigger audit_pick_list      after insert or delete on public.pick_list                  for each row execute function public.audit_row_change();
+create trigger audit_robot_log      after delete on public.robot_log                            for each row execute function public.audit_row_change();
 create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
 create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
 
@@ -3093,6 +3512,9 @@ begin
   delete from public.pit_entries where scouted_by = target;
   get diagnostics v_pit = row_count;
   delete from public.match_flag_reviews where reviewed_by = target;
+  delete from public.robot_log where created_by = target;
+  delete from public.scout_shifts where user_id = target;
+  delete from public.push_subscriptions where user_id = target;
 
   select coalesce(array_agg(o.name), '{}') into v_paths
     from storage.objects o
@@ -3122,6 +3544,11 @@ with expected(kind, name) as (values
   ('table','member_grants'), ('table','official_matches'), ('table','test_teams'),
   ('table','team_info'), ('table','playoff_picks'), ('table','playoff_tiebreaks'), ('table','playoff_lineups'), ('table','match_schedule'), ('table','audit_log'), ('table','share_code_attempts'), ('table','photo_cleanup_queue'),
   ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'), ('table','match_strategies'),
+  ('table','scout_shifts'), ('table','pick_list'), ('table','match_predictions'), ('table','robot_log'),
+  ('table','push_subscriptions'), ('table','match_alerts_sent'),
+  ('function','is_team_member'), ('function','team_member_names'), ('function','log_prediction'),
+  ('function','prediction_calibration'), ('function','push_subscribe'), ('function','push_unsubscribe'),
+  ('function','run_match_alerts'), ('function','relay_scouting_entry'), ('function','public_team_results'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'), ('function','official_match_teams_for'), ('function','official_lineups_for'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'), ('function','official_set_alliances'),

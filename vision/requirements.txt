@@ -1,8 +1,11 @@
 # Install PyTorch with CUDA first (see README), then: pip install -r requirements.txt
 ultralytics>=8.3,<9
+lap>=0.5   # ByteTrack needs it; ultralytics otherwise installs it mid-run, which breaks that run
 easyocr>=1.7,<2
 opencv-python>=4.9,<5
 numpy>=1.26,<3
 requests>=2.31,<3
 yt-dlp>=2025.1.1
+imageio-ffmpeg>=0.5,<1   # ffmpeg for cutting matches from a livestream (download --stream)
 # Optional, only for "python run.py prelabel" (Grounding DINO): pip install "transformers>=4.45,<5"
+# Optional, only for "python run.py universe": pip install roboflow

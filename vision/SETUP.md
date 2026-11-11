@@ -283,7 +283,19 @@ This downloads every played qualification match with a video on TBA, to
 `work\videos\2026nhrr\qm1.mp4` and so on. Expect around 50 to 150 MB per match at 1080p.
 Matches without a video yet say so and are skipped. Run the command again later to fetch them.
 
-To fetch only some: `--matches qm1,qm2,qm3`.
+To fetch only some: `--matches qm1,qm2,qm3`. Add `--playoffs` to include the playoff matches.
+
+**If every match says "no video on TBA yet"** (common at off-season events), cut the matches out
+of the event's livestream instead:
+
+```
+python run.py download --event 2026nhalt --stream --playoffs
+```
+
+This uses the YouTube livestream TBA lists for the event and TBA's start time for each match. It
+keeps 60 seconds before each start and 220 seconds after (change with `--before` and `--after`).
+Expect about 150 to 200 MB per match. Check one clip first: the match should start about a
+minute in. If the stream started late or was restarted, the clips can miss their matches.
 
 **Your own recording works too.** Cut it to one match, starting a little before auto, and save it
 as `work\videos\<event>\<match>.mp4`. The worker uses a file that's already there and doesn't
@@ -406,6 +418,39 @@ python run.py identify --event 2026nhrr
 ---
 
 ## Part 6: Each competition (short version)
+
+### 6.1 One command
+
+Link the event in the Staff Portal and sync it. Then give the worker the event's YouTube
+livestream link, or any one match video's link:
+
+```
+python run.py auto https://www.youtube.com/watch?v=D5z2qgCrHc8
+```
+
+It finds the event on TBA, gets every played match's video (cutting them out of a livestream),
+calibrates, processes and uploads every match, then redoes who's who with all the robot looks.
+
+**Calibration** happens once per event, and needs you for a few seconds:
+
+- If the event is at a venue calibrated before, the old calibration is moved onto this camera view.
+- Otherwise it's found automatically: the scoreboard from the "BLUE" and "RED" labels, and the
+  field from the red and blue HUB-and-BUMP lines and the white center line.
+- Either way, a check image opens. The magenta lines should sit on the field's outline, zone
+  lines and center line, and the yellow boxes on the scores and clock. Press `y` if they do.
+  Any other key, or a low camera angle where the lines can't be found, switches to clicking the
+  landmarks by hand (step 5.4), with the scoreboard boxes already filled in.
+
+Options:
+
+- `--watch 10`: during an event, check TBA for new match videos every 10 minutes and process them.
+  This needs per-match videos on TBA. A livestream can only be cut once it has ended.
+- `--event 2026nhalt`: if the link can't be matched to an event.
+- `--yes`: accept the automatic calibration without asking, for unattended runs. Check
+  `work\calib\<event>_check.jpg` afterwards.
+- `--no-upload`: try it without writing to the website.
+
+### 6.2 Step by step
 
 ```
 cd "$HOME\Documents\1307Robosaints.github.io\vision"
@@ -582,6 +627,31 @@ the model does in real use.
 
 ---
 
+## Part 8: Improve the models without labeling (any time, over hours)
+
+These use the match videos already downloaded. Each one only replaces a model when the new one
+tests better, so they're safe to run. Keep the laptop plugged in and in performance mode.
+
+```
+python run.py harvest --per-event 10     # 2 to 3 minutes per match
+python run.py train-looks                # about 15 minutes
+python run.py train-digits               # about 10 minutes
+python run.py selftrain                  # about an hour
+```
+
+**Expect:** each training step prints the score before and after, for example "Look model in use:
+71% ... Fine-tuned look model: 88%", then says whether it saved the new model.
+
+After a new look model, bumper model or digit reader, run the season's events from video again
+(`python run.py run --event <key> --playoffs`) so their saved robot looks use it.
+
+**Public datasets (optional):** with a free Roboflow API key in `.env` (`ROBOFLOW_API_KEY=`) and
+`pip install roboflow`, `python run.py universe <dataset link>` adds a public FRC bumper dataset to
+what `selftrain` uses. Open a few images in its `previews` folder first: each robot should have
+one box around its bumpers, in the right color.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -594,6 +664,7 @@ the model does in real use.
 | `No calibration for ...` | Run step 5.4 for that event. |
 | `Missing reference frame ...` | The `work` folder was moved or deleted. Calibrate again. |
 | Download fails with an HTTP or sign-in error | YouTube changes often. Update yt-dlp with `pip install -U yt-dlp` and try again. |
+| "YouTube is asking to confirm this isn't a bot" while cutting a livestream | Too many downloads in a row. Run the same command again in an hour or so; finished matches are kept. If it's urgent, add `--cookies-from-browser chrome` (or `edge`, `firefox`) to use the YouTube login in that browser on this laptop. |
 | `no video: none on TBA yet` | TBA has no video linked yet. Wait, or supply your own recording (step 5.2). |
 | Many matches flagged *Vision scoreboard read is off* | The overlay may have moved, or the stream switched layouts. Calibrate again from a later match. |
 | `No game file for 2027` | Copy `rsvision\games\2026.json` to `2027.json` and update it for the new game. |
@@ -613,3 +684,6 @@ None of these are committed. Back up `models` and `work\calib` if you want to ke
 | `work\debug\` | Debug output from `--debug` runs. |
 | `work\tracks\` | Each processed match's robot tracks, so `identify` can redo who's who without video. |
 | `work\appearance\` | Each team's robot looks, one file per season. |
+| `work\training-data\` | What `harvest` and `universe` collect for training. Safe to delete; harvest can rebuild it. |
+| `work\calib\<event>_check.jpg` | The check image from an automatic calibration. |
+| `models\looks.pt`, `models\digits.pt` | The fine-tuned look model and bumper-number reader, when trained. Back them up with `bumpers.pt`. |

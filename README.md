@@ -2,25 +2,43 @@
 
 Public website and **1307scout** scouting app for St. Thomas Aquinas Robotics Team 1307
 (Dover, NH). Plain static HTML/CSS/JS — no build step required to run it, no bundler, no
-framework. Hosted on GitHub Pages at [robosaints1307.com](https://robosaints1307.com) (see `CNAME`).
+framework. Hosted on GitHub Pages as three sites built from this one repo: the informational site at
+[robosaints1307.com](https://robosaints1307.com), 1307scout at
+[scout.robosaints1307.com](https://scout.robosaints1307.com) (stable releases, `stable` branch), and
+experimental 1307scout at [beta.robosaints1307.com](https://beta.robosaints1307.com) (`master`).
+See [Branches and releases](#branches-and-releases).
 
 ## Site map
 
-**Public pages** — no account needed:
+**Public pages** — no account needed. All but `ratings.html` are served from robosaints1307.com;
+everything else is on the 1307scout sites (`PUBLIC` in `deploy/build.sh` decides):
 `index.html`, `about-the-students.html`, `about-the-mentors.html`, `about-the-robot.html`,
 `oursponsors.html`, `business-plan.html`, `Gallery/gallery.html`, `contact.html`,
-`privacy-policy.html`, `terms-of-service.html`, and `ratings.html`, which explains how team
-ratings and the other derived stats are calculated. Update it whenever that math changes.
+`privacy-policy.html`, `terms-of-service.html`, `ratings.html`, which explains how team
+ratings and the other derived stats are calculated (update it whenever that math changes), and
+`results.html`, Season Results: every official match 1307 has played, by season and event, with
+records and playoff finishes. It reads `public_team_results()`, the one function anyone can call
+without signing in. It's in the About Us menu.
 
 **1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). The 1307scout
 menu is kept short, ordered by use: Team Database, Our Matches, Alliance View, Scout, then the two
-playoff pages and (staff) the Staff Portal. Every page is on the 1307scout home page; Match Flags and
-How Ratings Work are linked only from there (and from the pages that reference them):
+playoff pages and (staff) the Staff Portal. Every page is on the 1307scout home page; Match Flags, Pick
+List, Scout Shifts, Pit Crew and How Ratings Work are linked only from there (and from the pages that
+reference them). For team members the home page also shows our next match at the default event:
 - `1307scout.html` — landing/command-center page, links out based on your access level.
 - `app.html` — Get the app: how to install 1307scout as an app on each kind of device, and what
   works offline. Linked as "Get the app" in the 1307scout menu, and from the home page and My Account.
 - `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
-  free account can use a share code here to view a limited slice of data.
+  free account can use a share code here to view a limited slice of data. A scout with a shift sees
+  their next seat and team, and **Fill in** starts that entry (`?team=&match=` links do the same).
+  Once vision has proven itself against this event's scouts, a new entry starts with vision's answer
+  for "left starting zone" (marked for the scout to check, and recorded in the entry's `prefilled`)
+  and shows vision's FUEL estimate as a hint (`js/visioncheck.js`). Offline, **Hand off by QR** shows
+  each new draft as a QR code, and a scout who is online saves it with **Scan a scout's QR**, through
+  `relay_scouting_entry()`: it stays the first scout's entry, with its own id, so it can't be saved twice.
+- `shifts.html` — Scout Shifts: staff give team members a driver-station seat for a range of
+  qualification matches (`scout_shifts`), one at a time or as a rotation over the people ticked.
+  Everyone sees the seat grid, with seats nobody has, and played seats nobody entered.
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
   parameters, full stats for every form field, the official score breakdown, match line-ups, pit
   history, insights (win %, margins, recent form, per-event results, scoring averages, and a
@@ -32,6 +50,10 @@ How Ratings Work are linked only from there (and from the pages that reference t
   (Qualifier, District Champs, Worlds, Off-season) from the tier set in the Staff Portal.
   Picking an event narrows the list to its teams and shows that event's qualification rankings,
   worked out from the synced official matches (`?event=<id>` links straight to them).
+  The card also has trend charts (scouted points and official score per match, OPR per event), a
+  searchable list of every scouted note and other text answer, and **Export CSV** for the team's
+  scouted matches, pit entries and official results; an event's rankings can export all its scouting.
+  Exports leave out who scouted each entry.
   `query.html?team=1307` opens a team directly. **Download for offline** saves the open team as one
   .html file (`js/offline.js`) that opens with no connection: the page's styles and the photos and
   logos are copied in, the buttons are left out, and it says when it was saved. It doesn't update.
@@ -40,12 +62,18 @@ How Ratings Work are linked only from there (and from the pages that reference t
   results, the alliance's official FUEL points, other scouts, the team's usual numbers and the
   vision data. Robots nobody scouted are flagged too, at a lower level when vision covered them. Any
   team member can mark a flag as fine, fixed or needing a rescout (`match_flag_reviews`). The page
-  also lists who to scout next, by lowest coverage, and a coverage grid. The rules are on `ratings.html`.
+  also lists who to scout next, by lowest coverage, and a coverage grid. Vision vs scouts shows how
+  often vision agrees with this event's scouts, field by field, which decides what the Scout page
+  pre-fills. Staff also see Scout accuracy: each scout's TOWER answers against official results,
+  FUEL gaps to other scouts and to vision, wrong-match entries, and missed shift seats. The rules are
+  on `ratings.html`.
 - `matches.html` — Our Matches: every match one team (1307 unless changed) has at an event, read from
   the synced FRC/TBA schedule. Upcoming matches show partners and opponents with grades, scouted
   points and win chance; played ones collapse to a one-line result. Any team member can add a match
   the sync doesn't have or fix a line-up (`match_schedule`), and go back to the official version.
-  Each match links to its Match Strategy plan (played matches only when one was saved).
+  Each match links to its Match Strategy plan (played matches only when one was saved). The win
+  chance shown for an upcoming match is saved (`log_prediction()`) until it's played, and
+  `ratings.html#win-chance-check` shows how those predictions held up (`prediction_calibration()`).
 - `alliance.html` — Alliance View: compares up to six teams picked on the Team Database, as a row
   of 3 cards per alliance, all on one screen with no scrolling on a widescreen display (phones and
   tablets stack the cards). Picks are kept in that browser (`js/alliance.js`), so each person and
@@ -79,7 +107,15 @@ How Ratings Work are linked only from there (and from the pages that reference t
   Championship; staff can switch any event with the 4-team toggle. The table includes each team's
   OPR for the event, its estimated AUTO and teleop FUEL there (component OPR), and its official
   AUTO and endgame climb rates from FRC's per-robot TOWER data, so a team nobody scouted still has
-  numbers. To change the table's stats, edit `COLUMNS` in the page.
+  numbers. To change the table's stats, edit `COLUMNS` in the page. The first column is the team's
+  place on our Pick List, and the board names the best team on it still available.
+- `picklist.html` — Pick List: staff's ranked list for alliance selection (`pick_list`), built before
+  it starts. Drag or use the arrows to reorder, give each team a tier (first pick, second pick, maybe,
+  do not pick) and a note. Teams already picked are greyed as Playoff Selection fills. Each row shows
+  the team's grades, OPR, scouted points and its scouted notes from the event.
+- `pitcrew.html` — Pit Crew: our own robot at an event (`robot_log`). A pre-match checklist per match
+  (the items are `CHECKLIST` in the page), batteries with voltage and which match they went into,
+  repairs and notes. The top line says whether the next match has its checklist and battery.
   **Download for offline** saves a simplified pick board for the event as one .html file: the
   alliances as they stand, and every team's stats for both All season and This event, worked out at
   download time. Offline, anyone can fill spots in draft order (Pick, or type a number), remove
@@ -151,6 +187,17 @@ refreshes only the default event (the starred one in the Staff Portal), through
 for students who can't call `official-sync` directly. Presses within 60 seconds of each other share
 one request. The button is `js/resync.js`.
 
+**Match alerts**: team members can turn on a push notification per device on My Account
+(`js/alerts.js`), for shortly before a team needs to queue. At events that run queuing on
+[FRC Nexus](https://frc.nexus), the function reads Nexus's live status (needs the `NEXUS_API_KEY`
+secret, and the event's TBA key, which Nexus also uses) and alerts when the match is queuing or 10
+minutes before its estimated queue time. Elsewhere it falls back to the synced schedule: 3 or fewer
+matches after the last one with a score, which runs a few minutes behind the field. While auto-sync is on,
+the `match-alerts` pg_cron job calls `run_match_alerts()`, which asks the `match-alerts` Edge Function
+(`supabase/functions/match-alerts/`) to send them through Web Push. Setup: generate VAPID keys, set
+them as that function's secrets (plus `NEXUS_API_KEY` for Nexus), deploy it with `--no-verify-jwt`, and put the public key in
+`js/auth-config.js` as `pushKey` (blank keeps the switch off). See the top of its `index.ts`.
+
 **Vision worker** (`vision/`): a Python program that runs on a team laptop with a GPU, not on the
 website. It reads match video from the links on The Blue Alliance. It reads the scoreboard overlay
 for a score timeline, and tracks robots by their bumpers with a YOLO model the team trains. It saves
@@ -177,8 +224,9 @@ same features: there's no second codebase to keep in step. Install steps for use
 - Offline Scout: `RS.session()` and `RS.accessLevel({ offline: true })` in `js/auth.js` fall back to
   the login and access level saved on the device, and `scout.html` keeps a copy of the events and
   form fields (`rs_offline_<user id>`), so the page opens with no connection and match entries go to
-  the existing draft queue. Pit entries and photos still need a connection. Signing out clears the
-  saved level and copies, not unsent drafts.
+  the existing draft queue, and the scout's shifts for the event are kept the same way. Pit entries
+  and photos still need a connection. Signing out clears the saved level and copies, not unsent drafts.
+- `sw.js` also shows match alerts (its `push` and `notificationclick` handlers).
 
 A store version later would wrap these same files (Capacitor for iOS/Android) rather than fork them.
 
@@ -187,6 +235,17 @@ A store version later would wrap these same files (Capacitor for iOS/Android) ra
 The contact form (`contact.html`) sends mail client-side via [EmailJS](https://www.emailjs.com/) —
 no server component. Topics and who each one emails are configured in `js/contact-config.js`
 (the only file you should need to edit to add/remove a topic or change who gets notified).
+
+## Branches and releases
+
+`master` is experimental: every push deploys to beta.robosaints1307.com, so new work gets tried out
+there. `stable` gets proven work as numbered releases (`VERSION`, `CHANGELOG.md`, tags `vX.Y.Z`:
+MAJOR for major content, MINOR for features, PATCH for fixes), every two weeks, with only PATCH
+releases from a week before an event until it ends. Pushing `stable` deploys robosaints1307.com and
+scout.robosaints1307.com. `.github/workflows/deploy.yml` runs `deploy/build.sh`, which makes each site
+from the same files (redirect stubs for pages that live on the other site, cross-site links,
+`version.json`). Both sites share one Supabase project, so SQL and Edge Function changes have to keep
+the current stable release working. Release steps and the one-time setup: `RELEASING.md`.
 
 ## Local development
 

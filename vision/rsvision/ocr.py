@@ -107,10 +107,16 @@ def read_bumper(frame, xyxy, color=None, pad=0.15):
     crop = frame[max(0, int(y1 - py)):min(h, int(y2 + py)), max(0, int(x1 - px)):min(w, int(x2 + px))]
     if crop.size == 0:
         return None, 0.0
-    tries = number_strips(crop, color) if color else []
-    tries.append(_prep(crop, 256))
+    strips = number_strips(crop, color) if color else []
     best = (None, 0.0)
-    for img in tries:
+    from .digits import reader as trained
+    if trained() and strips:
+        # The reader trained on this season's bumpers (train-digits), when there is one
+        for s in strips:
+            text, conf = trained().read(s)
+            if len(text) >= 2 and conf > best[1]:
+                best = (text, conf)
+    for img in strips + [_prep(crop, 256)]:
         for _, text, conf in reader().readtext(img, allowlist="0123456789", detail=1, rotation_info=[180]):
             if len(text) >= 2 and conf > best[1]:
                 best = (text, float(conf))

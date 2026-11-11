@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Season Results – STA Robotics Team 1307</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .y-page { max-width: 1000px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .y-page h1 { font-size: 1.8rem; margin: 1rem 0 .3rem; }
+    .y-lead { font-size: .95rem; color: var(--muted); margin-bottom: 1rem; }
+    .y-season { font-size: 1.3rem; margin: 1.6rem 0 .6rem; }
+    .y-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .5rem; margin-bottom: .8rem; }
+    .y-tile { background: var(--white); border: 1px solid var(--line); padding: .5rem .7rem; }
+    .y-tile b { display: block; font-family: var(--display); font-size: 1.4rem; color: var(--heading); line-height: 1.2; }
+    .y-tile span { font-size: .78rem; color: var(--muted); }
+    .y-event { background: var(--white); border: 1px solid var(--line); margin-bottom: .6rem; }
+    .y-event summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .9rem; padding: .55rem .8rem; cursor: pointer; }
+    .y-event summary h3 { font-size: 1.05rem; margin: 0; }
+    .y-event summary h3::after { display: none; }
+    .y-meta { color: var(--muted); font-size: .86rem; }
+    .y-finish { font-weight: 600; font-size: .86rem; color: var(--heading); }
+    .y-finish.won { color: var(--green); }
+    .y-table { width: 100%; font-size: .86rem; }
+    .y-table th, .y-table td { padding: .25rem .6rem; border-top: 1px solid var(--line); }
+    .y-table th { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .y-table td.W { color: var(--green); font-weight: 600; }
+    .y-table td.L { color: var(--red); font-weight: 600; }
+    .y-empty { padding: 2rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="y-page">
+    <h1>Season Results</h1>
+    <p class="y-lead">Every official match Team 1307 has played, event by event. Results come from the FIRST FRC Events API and The Blue Alliance, and update on their own during competitions.</p>
+    <div id="results"><div class="y-empty">Loading…</div></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script>
+  // Public page: team 1307's played official matches from public_team_results() (no sign-in)
+  (async function () {
+    var box = document.getElementById("results");
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    if (!window.RS || !RS.sb) { box.innerHTML = '<div class="y-empty">Results couldn\'t load. Try refreshing the page.</div>'; return; }
+    var r = await RS.sb.rpc("public_team_results");
+    if (r.error) { box.innerHTML = '<div class="y-empty">Results couldn\'t load. Try refreshing the page.</div>'; return; }
+    var rows = r.data || [];
+    if (!rows.length) { box.innerHTML = '<div class="y-empty">No official results yet this season.</div>'; return; }
+
+    var LEVEL = { qm: 0, sf: 1, f: 2 };
+    var TIER = { offseason: "Off-season", qualifier: "District event", district_championship: "District Championship", championship: "FIRST Championship" };
+    function label(m) {
+      return m.comp_level === "qm" ? "Qual " + m.match_number : m.comp_level === "sf" ? "Playoff " + m.set_number : "Final " + m.match_number;
+    }
+    function result(m) { return m.our_score > m.their_score ? "W" : m.our_score < m.their_score ? "L" : "T"; }
+    function record(list) {
+      var w = 0, l = 0, t = 0;
+      list.forEach(function (m) { var x = result(m); if (x === "W") w++; else if (x === "L") l++; else t++; });
+      return w + "-" + l + "-" + t;
+    }
+    // How far the team went: the finals (won with 2 final wins), or the playoff record
+    function finish(list) {
+      var finals = list.filter(function (m) { return m.comp_level === "f"; });
+      var po = list.filter(function (m) { return m.comp_level !== "qm"; });
+      if (finals.length) {
+        var won = finals.filter(function (m) { return result(m) === "W"; }).length;
+        return won >= 2 ? { text: "Event winner", won: true } : { text: "Finalist" };
+      }
+      return po.length ? { text: "Playoffs " + record(po) } : { text: "" };
+    }
+
+    // Group by season (the event's year), then by event
+    var seasons = {};
+    rows.forEach(function (m) {
+      var year = m.event_date ? m.event_date.slice(0, 4) : "Other";
+      var s = seasons[year] = seasons[year] || { events: {}, order: [] };
+      var key = m.event_name + "|" + m.event_date;
+      if (!s.events[key]) { s.events[key] = { name: m.event_name, date: m.event_date, tier: m.event_tier, tba: m.tba_event_key, matches: [] }; s.order.push(key); }
+      s.events[key].matches.push(m);
+    });
+    box.innerHTML = Object.keys(seasons).sort().reverse().map(function (year) {
+      var s = seasons[year], all = [];
+      s.order.forEach(function (k) { all = all.concat(s.events[k].matches); });
+      var best = Math.max.apply(null, all.map(function (m) { return m.our_score; }));
+      var wins = s.order.filter(function (k) { return finish(s.events[k].matches).won; }).length;
+      var tiles = [[record(all), "Season record"], [s.order.length, s.order.length === 1 ? "Event" : "Events"], [best, "High score"]];
+      if (wins) tiles.push([wins, wins === 1 ? "Event win" : "Event wins"]);
+      return '<h2 class="y-season">' + esc(year) + " season</h2>" +
+        '<div class="y-tiles">' + tiles.map(function (t) { return '<div class="y-tile"><b>' + esc(t[0]) + "</b><span>" + esc(t[1]) + "</span></div>"; }).join("") + "</div>" +
+        s.order.slice().reverse().map(function (k) {
+          var ev = s.events[k], list = ev.matches.slice().sort(function (a, b) {
+            return LEVEL[a.comp_level] - LEVEL[b.comp_level] || a.set_number - b.set_number || a.match_number - b.match_number;
+          });
+          var quals = list.filter(function (m) { return m.comp_level === "qm"; }), f = finish(list);
+          var avg = list.reduce(function (t, m) { return t + m.our_score; }, 0) / list.length;
+          return '<details class="y-event"><summary><h3>' + esc(ev.name) + '</h3><span class="y-meta">' +
+            (ev.date ? esc(new Date(ev.date + "T00:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })) + " · " : "") +
+            esc(TIER[ev.tier] || "") + "</span>" +
+            '<span class="y-meta">Quals ' + record(quals) + " · avg score " + avg.toFixed(1) + "</span>" +
+            (f.text ? '<span class="y-finish' + (f.won ? " won" : "") + '">' + esc(f.text) + "</span>" : "") + "</summary>" +
+            '<div class="table-responsive"><table class="y-table"><thead><tr><th>Match</th><th>Result</th><th>Score</th><th>With</th><th>Against</th></tr></thead><tbody>' +
+            list.map(function (m) {
+              var x = result(m);
+              return "<tr><td>" + (ev.tba ? '<a href="https://www.thebluealliance.com/match/' + esc(ev.tba) + "_" + esc(m.match_key) + '" target="_blank" rel="noopener">' + esc(label(m)) + "</a>" : esc(label(m))) +
+                '</td><td class="' + x + '">' + x + "</td><td>" + m.our_score + "–" + m.their_score + "</td><td>" + esc((m.partners || []).join(", ")) +
+                "</td><td>" + esc((m.opponents || []).join(", ")) + "</td></tr>";
+            }).join("") + "</tbody></table></div></details>";
+        }).join("");
+    }).join("");
+  })();
+  </script>
+</body>
+</html>

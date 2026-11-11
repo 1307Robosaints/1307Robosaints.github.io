@@ -157,6 +157,7 @@
                 <a class="dropdown-item" href="/about-the-students.html">The Students</a>
                 <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
                 <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+                <a class="dropdown-item" href="/results.html">Season Results</a>
               </div>
             </li>
 
@@ -326,6 +327,23 @@
         <a class="ghost-btn" href="/app.html" style="display:inline-block;text-decoration:none;">Install steps and offline help</a>
       </div>
 
+      <!-- Match alerts: push notifications, run by /js/alerts.js. Team members only. -->
+      <div class="account-card" id="alertsCard" hidden>
+        <h2>Match alerts</h2>
+        <p class="section-sub">Get a notification on this device before a team needs to queue, on competition days while
+          auto-sync is on. At events that run queuing on <a href="https://frc.nexus" target="_blank" rel="noopener">FRC Nexus</a>, it comes
+          when the match is queuing or about 10 minutes before its estimated queue time; elsewhere, when the team's next match
+          is 3 or fewer matches away. Tapping it opens that match's strategy plan. Each device is turned on separately.
+          On iPhone and iPad this works only in the installed app.</p>
+        <div class="d-flex flex-wrap align-items-end" style="gap:.5rem;">
+          <div><label for="alertTeam" class="small mb-0">Team</label>
+            <input type="number" id="alertTeam" class="form-control form-control-sm" min="1" max="99999" value="1307" style="width:6.5rem;"></div>
+          <button class="btn btn-primary btn-sm" type="button" id="alertsOn">Turn on</button>
+          <button class="ghost-btn" type="button" id="alertsOff" hidden>Turn off</button>
+        </div>
+        <div class="mt-2"><span id="alertsMsg" class="small" role="status" aria-live="polite"></span></div>
+      </div>
+
       <!-- Sessions -->
       <div class="account-card danger-zone">
         <h2>Sessions</h2>
@@ -374,6 +392,7 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/alerts.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -471,6 +490,32 @@
         else RSTheme.savedToAccount(c);
       });
     });
+
+    // ── Match alerts (js/alerts.js) ──────────────────────────────────
+    async function showAlerts() {
+      var msg = $("alertsMsg");
+      if (!RSAlerts.supported()) { msg.textContent = "This browser can't show notifications from a website."; $("alertsOn").disabled = true; return; }
+      if (!RSAlerts.configured()) { msg.textContent = "Match alerts aren't set up on the server yet."; $("alertsOn").disabled = true; return; }
+      var st = await RSAlerts.status(sb).catch(function () { return { on: false }; });
+      $("alertsOff").hidden = !st.on;
+      $("alertsOn").textContent = st.on ? "Change team" : "Turn on";
+      if (st.on) $("alertTeam").value = st.team;
+      msg.textContent = st.on ? "On for team " + st.team + " on this device." : "Off on this device.";
+    }
+    if (isStaff || isStudent) {
+      $("alertsCard").hidden = false;
+      showAlerts();
+      $("alertsOn").addEventListener("click", async function () {
+        var team = Number($("alertTeam").value);
+        if (!(Number.isInteger(team) && team >= 1 && team <= 99999)) { flash($("alertsMsg"), false, "Enter a team number."); return; }
+        try { await RSAlerts.enable(sb, team); showAlerts(); }
+        catch (e) { flash($("alertsMsg"), false, e.message); }
+      });
+      $("alertsOff").addEventListener("click", async function () {
+        try { await RSAlerts.disable(sb); showAlerts(); }
+        catch (e) { flash($("alertsMsg"), false, e.message); }
+      });
+    }
 
     // ── Profile: details ─────────────────────────────────────────────
     $("pfName").value  = name;

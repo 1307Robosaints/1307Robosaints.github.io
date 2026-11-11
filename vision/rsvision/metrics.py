@@ -91,8 +91,8 @@ def stitch(tracklets, max_gap_s=4.0, max_speed=240.0, slack_in=36.0):
     return chains
 
 
-# Tuned on 2026matb (10 matches, leave-one-match-out on clearly read robots): at these, 9 of 9
-# decided were right. Looks of FRC robots on carpet score close together, hence the high floor.
+# For the ImageNet look model, tuned on 2026matb (10 matches, leave-one-match-out on clearly read
+# robots): 9 of 9 decided were right. A fine-tuned model brings its own (appearance.thresholds).
 LOOK_MIN = 0.90      # lowest look similarity that can identify a robot
 LOOK_MARGIN = 0.03   # and how far it must beat the next-best team on the alliance
 
@@ -143,6 +143,7 @@ def assign_teams(chains, lineup, look=None):
             give(i, team, "number")
 
     if look is not None:
+        lo, gap = getattr(look, "thresholds", (LOOK_MIN, LOOK_MARGIN))
         offers = []
         for i, ch in enumerate(chains):
             if i in owner:

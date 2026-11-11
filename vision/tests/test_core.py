@@ -163,7 +163,7 @@ class IdentityTests(unittest.TestCase):
         import numpy as np
         from rsvision import appearance
         with tempfile.TemporaryDirectory() as d:
-            gal = appearance.Gallery(2026, path=f"{d}/2026.npz")
+            gal = appearance.Gallery(2026, path=f"{d}/2026.npz", model="imagenet")
             lineup = {"red": [1, 2, 3], "blue": []}
             k = path("red", 0, 300, y=50)
             k.votes[1] += 3
@@ -171,10 +171,13 @@ class IdentityTests(unittest.TestCase):
             self.assertEqual(gal.learn("2026test", "qm1", [k], lineup), 1)
             self.assertEqual(gal.learn("2026test", "qm1", [k], lineup), 1)   # a re-run replaces, not adds
             gal.save()
-            again = appearance.Gallery(2026, path=f"{d}/2026.npz")
+            again = appearance.Gallery(2026, path=f"{d}/2026.npz", model="imagenet")
             self.assertEqual(len(again.entries), 1)
             self.assertAlmostEqual(again.score(np.eye(8)[0], 1, "2026test"), 1.0, places=3)
             self.assertIsNone(again.score(np.eye(8)[0], 2, "2026test"))   # no looks for team 2 yet
+            # Looks from another look model don't mix in
+            self.assertEqual(appearance.Gallery(2026, path=f"{d}/2026.npz", model="looks-1").entries, [])
+            self.assertEqual(gal.learn("2026test", "qm2", [k], lineup, look_model="looks-1"), 0)
             again.reset()
             self.assertFalse((appearance.Path(d) / "2026.npz").exists())
 
@@ -278,6 +281,35 @@ class PrelabelTests(unittest.TestCase):
         self.assertEqual(prelabel.label_frame(f, self.Finder(dets)), [])
         out = prelabel.label_frame(f, self.Finder(dets[:3]))
         self.assertEqual([(c, b) for c, b, _ in out], [("red", robot)])
+
+
+
+class AutomationTests(unittest.TestCase):
+    def test_youtube_links(self):
+        from rsvision.auto import youtube_id
+        for link in ["https://www.youtube.com/watch?v=D5z2qgCrHc8", "https://youtu.be/D5z2qgCrHc8?t=5",
+                     "https://www.youtube.com/live/D5z2qgCrHc8", "D5z2qgCrHc8"]:
+            self.assertEqual(youtube_id(link), "D5z2qgCrHc8")
+
+    def test_universe_bumper_sides_merge_per_robot(self):
+        from rsvision.universe import merge_sides
+        # front and side of one robot meet at a corner; a robot far away stays apart
+        self.assertEqual(merge_sides([[100, 200, 200, 220], [190, 120, 210, 215], [600, 600, 700, 620]]),
+                         [[100, 120, 210, 220], [600, 600, 700, 620]])
+        # two robots' front bumpers side by side are two robots
+        self.assertEqual(len(merge_sides([[100, 200, 200, 220], [205, 200, 305, 220]])), 2)
+        # the same side boxed twice is one
+        self.assertEqual(len(merge_sides([[100, 200, 200, 220], [105, 202, 198, 221]])), 1)
+
+    def test_autocal_rejects_impossible_field(self):
+        import numpy as np
+        from rsvision import autocal
+        h = 1080
+        # lines that barely drop down the picture: a low side view the finder can't use
+        red = (np.array([1200.0, 590]), np.array([1390.0, 610]))
+        blue = (np.array([600.0, 570]), np.array([400.0, 600]))
+        center = (np.array([900.0, 580]), np.array([900.0, 640]))
+        self.assertIsNotNone(autocal._implausible(red, center, blue, [], [], h))
 
 
 if __name__ == "__main__":

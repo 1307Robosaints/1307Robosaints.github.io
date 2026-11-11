@@ -79,14 +79,14 @@ Done once when switching to this workflow (November 2026). Kept here as a record
 
 Do the steps in order. Nothing changes on the live site until step 4.
 
-### 1. DNS (domain.com, where robosaints1307.com is registered)
+### 1. DNS (Network Solutions, where robosaints1307.com is registered)
 
-1. Sign in at domain.com. Under **Domains**, open **robosaints1307.com**, then **DNS & Nameservers**.
-2. Add a DNS record: type **CNAME**, name/host **`scout`**, pointing to (value)
+1. Sign in at networksolutions.com. Under **Domains**, open **robosaints1307.com**, then the **DNS** tab.
+2. Click **+ Add Record**: type **CNAME**, name **`scout`**, points to
    **`1307robosaints.github.io`**. Leave the TTL at its default.
-3. Add a second one the same way, with name/host **`beta`**.
-4. Leave the existing records for `robosaints1307.com` (the four `A` records to `185.199.x.153`)
-   alone: the informational site still uses them.
+3. Add a second one the same way, with name **`beta`**.
+4. Leave the existing records alone: the `www` CNAME and the four `A` records to `185.199.x.153`.
+   The informational site still uses them.
 
 The records can take up to a few hours to work. To check, run `nslookup scout.robosaints1307.com`:
 once it's working, the output names `1307robosaints.github.io` with `185.199.x.153` addresses.

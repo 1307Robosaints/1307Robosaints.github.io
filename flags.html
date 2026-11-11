@@ -128,6 +128,7 @@
               <a class="dropdown-item" href="/about-the-students.html">The Students</a>
               <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
               <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
             </div>
           </li>
 
@@ -203,6 +204,16 @@
     <h2 class="f-section">Flags</h2>
     <div id="flags"><div class="f-empty">Loading…</div></div>
 
+    <h2 class="f-section" id="vision-check">Vision vs scouts</h2>
+    <p class="f-note">How often the vision worker agrees with this event's scouts. Once a field agrees often enough over enough matches, the Scout page fills it in from vision for scouts to check. <a href="/ratings.html#vision-prefill">How this works</a></p>
+    <div id="visionCheck"></div>
+
+    <section id="scoutsBox" hidden>
+      <h2 class="f-section">Scout accuracy</h2>
+      <p class="f-note">Staff only. Each scout's entries at this event checked against the official TOWER results, other scouts on the same robot, and confident vision data, plus seats from Scout Shifts that were played but not entered. For coaching, not blame: a hard robot to watch shows up here too. <a href="/ratings.html#scout-accuracy">How this works</a></p>
+      <div class="table-responsive" id="scouts"></div>
+    </section>
+
     <details id="coverageBox">
       <summary>Coverage by match</summary>
       <p class="f-legend"><span class="human">Scouted by a person</span><span class="vision">Vision only</span><span class="none">Not covered</span></p>
@@ -248,6 +259,7 @@
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/vision.js"></script>
+  <script src="/js/visioncheck.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -280,8 +292,9 @@
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
 
-    var events = [], eventId = null;
+    var events = [], eventId = null, isStaff = lvl === "staff";
     var official = {}, edits = {}, entries = [], visionMatches = {}, visionRobots = {}, reviews = {}, testTeams = new Set();
+    var shifts = [], visionList = [], scoutNames = null;
 
     // ── Match keys (same format as the official sync: qm12, sf5m1, f1m2) ──
     function qualNumber(key) { var m = /^qm(\d+)$/.exec(key || ""); return m ? +m[1] : null; }
@@ -328,7 +341,7 @@
         }),
         sb.from("match_schedule").select("match_key,red_teams,blue_teams").eq("event_id", id),
         R.pagedRows(function () {
-          return sb.from("scouting_entries").select("id,team_number,match_number,data").eq("event_id", id).order("id");
+          return sb.from("scouting_entries").select("id,team_number,match_number,data,scouted_by,prefilled").eq("event_id", id).order("id");
         }),
         sb.from("vision_matches").select("match_key,status,matches_official,final_red,final_blue,notes").eq("event_id", id),
         R.pagedRows(function () {
@@ -336,7 +349,8 @@
             .order("match_key").order("team_number");
         }),
         sb.from("match_flag_reviews").select("match_key,team_number,flag_type,status,note,reviewed_at").eq("event_id", id),
-        sb.from("test_teams").select("team_number")
+        sb.from("test_teams").select("team_number"),
+        isStaff ? sb.from("scout_shifts").select("user_id,station,first_match,last_match").eq("event_id", id) : { data: [] }
       ]);
       if (thisLoad !== loadCount) return;   // a different event was chosen meanwhile
       var failed = results.filter(function (r) { return r.error; });
@@ -353,6 +367,8 @@
       visionMatches = {}; (results[3].data || []).forEach(function (m) { visionMatches[m.match_key] = m; });
       visionRobots = {}; (results[4].data || []).forEach(function (v) { visionRobots[v.match_key + "|" + v.team_number] = v; });
       reviews = {}; (results[5].data || []).forEach(function (r) { reviews[r.match_key + "|" + r.team_number + "|" + r.flag_type] = r; });
+      shifts = results[7].data || [];
+      visionList = results[4].data || [];
       render();
     }
 
@@ -630,10 +646,95 @@
       $("next").innerHTML = nextHtml();
       $("flags").innerHTML = flagsHtml(lastFlags);
       $("coverage").innerHTML = coverageHtml();
+      $("visionCheck").innerHTML = visionCheckHtml();
+      if (isStaff) { $("scoutsBox").hidden = false; $("scouts").innerHTML = scoutsHtml(); }
       var ev = events.find(function (e) { return e.id === eventId; }) || {};
       $("sourceNote").textContent = (ev.frc_event_code || ev.tba_event_key)
         ? "Checks use official results synced from FRC/TBA" + (ev.official_synced_at ? ", last at " + new Date(ev.official_synced_at).toLocaleString() : "") + ", and vision data where the worker has run."
         : "This event isn't linked to FRC or TBA, so only coverage and schedule checks can run. Staff can link it in the Staff Portal.";
+    }
+
+    // ── Vision vs scouts (js/visioncheck.js) ─────────────────────────
+    function pct(v) { return v == null ? "—" : Math.round(v * 100) + "%"; }
+    function visionCheckHtml() {
+      var rows = RSVisionCheck.compare(entries, visionList);
+      if (!rows.some(function (c) { return c.pairs; })) {
+        return '<div class="f-empty">No robot-match here has both a scout\'s entry and confident vision data yet.</div>';
+      }
+      return '<table class="table f-cov"><thead><tr><th>Field</th><th>Robot-matches compared</th><th>Agree</th><th>Average gap</th><th>On the Scout page</th></tr></thead><tbody>' +
+        rows.map(function (c) {
+          var status = c.ready ? (c.prefill ? "Pre-filled for scouts to check" : "Shown as a hint")
+            : c.pairs < RSVisionCheck.MIN_PAIRS ? "Needs " + (RSVisionCheck.MIN_PAIRS - c.pairs) + " more to judge"
+            : "Not accurate enough yet (needs " + pct(c.needed) + ")";
+          return "<tr><td>" + esc(c.label) + "</td><td>" + c.pairs + "</td><td>" + pct(c.share) + "</td><td>" +
+            (c.meanDiff == null ? "—" : c.meanDiff.toFixed(1) + " FUEL") + "</td><td>" + esc(status) + "</td></tr>";
+        }).join("") + "</tbody></table>";
+    }
+
+    // ── Scout accuracy (staff) ──────────────────────────────────────
+    // Per scout: TOWER answers that match the official per-robot result, the FUEL gap to other
+    // scouts on the same robot and to confident vision, entries for a team that wasn't in the
+    // match, and shift seats in played matches they didn't enter. Explained on ratings.html.
+    async function loadScoutNames() {
+      var r = await sb.rpc("staff_list_members");
+      scoutNames = {};
+      (r.data || []).forEach(function (m) { scoutNames[m.user_id] = m.display_name || (m.email || "").split("@")[0]; });
+      render();
+    }
+    function scoutsHtml() {
+      if (!scoutNames) return '<p class="text-muted">Loading…</p>';
+      var by = {};
+      function stat(id) {
+        return by[id] = by[id] || { entries: 0, towerChecked: 0, towerRight: 0, coGaps: [], visionGaps: [], wrongMatch: 0, missed: 0 };
+      }
+      entries.forEach(function (e) {
+        var st = stat(e.scouted_by);
+        st.entries++;
+        if (e.match_number == null) return;
+        var key = "qm" + e.match_number, m = official[key], lu = lineup(key);
+        if (lu && lu.red.indexOf(e.team_number) === -1 && lu.blue.indexOf(e.team_number) === -1) { st.wrongMatch++; return; }
+        if (!isPlayed(m)) return;
+        ["red", "blue"].forEach(function (color) {
+          var station = (m[color + "_teams"] || []).indexOf(e.team_number) + 1, bd = m[color + "_breakdown"];
+          if (!station || !bd) return;
+          [["auto_tower", "autoTowerRobot"], ["teleop_tower", "endGameTowerRobot"]].forEach(function (c) {
+            var off = TOWER[bd[c[1] + station]], mine = e.data[c[0]];
+            if (!off || mine == null || mine === "") return;
+            st.towerChecked++;
+            if (mine === off) st.towerRight++;
+          });
+        });
+        var others = entriesFor(key, e.team_number).filter(function (x) { return x.id !== e.id; });
+        if (others.length) st.coGaps.push(Math.abs(fuelOf(e) - mean(others.map(fuelOf))));
+        var v = visionRobots[key + "|" + e.team_number];
+        if (v && Number(v.confidence) >= RSVision.LOW_CONFIDENCE && v.data && num(v.data.fuel_est) != null) {
+          st.visionGaps.push(Math.abs(fuelOf(e) - num(v.data.fuel_est)));
+        }
+      });
+      shifts.forEach(function (sh) {
+        playedQuals().forEach(function (key) {
+          var n = qualNumber(key);
+          if (n < sh.first_match || n > sh.last_match) return;
+          var side = sh.station.slice(0, -1), team = (lineup(key)[side] || [])[Number(sh.station.slice(-1)) - 1];
+          if (team && !entries.some(function (e) { return e.scouted_by === sh.user_id && e.match_number === n && e.team_number === team; })) {
+            stat(sh.user_id).missed++;
+          }
+        });
+      });
+      var ids = Object.keys(by);
+      if (!ids.length) return '<p class="text-muted">No entries at this event yet.</p>';
+      var avg = function (list) { return list.length ? mean(list).toFixed(1) + " (" + list.length + ")" : "—"; };
+      ids.sort(function (a, b) { return by[b].entries - by[a].entries; });
+      return '<table class="table f-cov"><thead><tr><th>Scout</th><th>Entries</th><th title="Share of TOWER answers that match the official per-robot result">TOWER right</th>' +
+        '<th title="Average FUEL difference from the other scouts on the same robot (how many robot-matches)">FUEL gap to other scouts</th>' +
+        '<th title="Average FUEL difference from confident vision estimates (how many robot-matches)">FUEL gap to vision</th>' +
+        '<th title="Entries for a team that wasn\'t in that match">Wrong match</th><th title="Shift seats in played matches with no entry from this scout">Missed seats</th></tr></thead><tbody>' +
+        ids.map(function (id) {
+          var st = by[id];
+          return "<tr><td>" + esc(scoutNames[id] || "Former member") + "</td><td>" + st.entries + "</td><td>" +
+            (st.towerChecked ? pct(st.towerRight / st.towerChecked) + " of " + st.towerChecked : "—") + "</td><td>" + avg(st.coGaps) + "</td><td>" +
+            avg(st.visionGaps) + "</td><td>" + (st.wrongMatch || "—") + "</td><td>" + (st.missed || "—") + "</td></tr>";
+        }).join("") + "</tbody></table>";
     }
 
     // ── Reviewing a flag ─────────────────────────────────────────────
@@ -678,6 +779,7 @@
       return load();
     });
     await load();
+    if (isStaff) loadScoutNames();
     setInterval(function () { if (!document.hidden) load(); }, POLL_MS);
   })();
   </script>

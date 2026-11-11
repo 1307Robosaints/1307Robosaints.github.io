@@ -149,6 +149,7 @@
               <a class="dropdown-item" href="/about-the-students.html">The Students</a>
               <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
               <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
             </div>
           </li>
 
@@ -196,6 +197,7 @@
         <label for="eventPick">Event</label>
         <select id="eventPick" class="custom-select custom-select-sm"></select>
         <a class="btn btn-outline-primary btn-sm" id="bracketLink" href="/bracket.html">Bracket</a>
+        <a class="btn btn-outline-primary btn-sm" id="pickListLink" href="/picklist.html">Pick List</a>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="downloadOffline"
           title="Save a simple pick board for this event that works without a connection"><i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>
       </div>
@@ -216,6 +218,7 @@
           <input type="number" id="addTeam" class="form-control form-control-sm" min="1" max="99999" inputmode="numeric" placeholder="Team #" autocomplete="off">
           <button type="submit" class="btn btn-primary btn-sm">Add</button>
         </form>
+        <p class="p-official" id="pickListNote" hidden></p>
         <p class="p-official" id="officialNote" hidden>These are the official alliances from FRC Events/TBA. They update with every sync, which replaces any change made here.</p>
         <div class="p-msg" id="boardMsg" role="status"></div>
         <div id="board"></div>
@@ -375,6 +378,9 @@
     // Ratings cover every event in the season. The other scouted and official columns follow the
     // All season / This event buttons, and pit columns show the team's newest pit entry.
     var COLUMNS = [
+      { group: "Ours", key: "pickList", label: "Our list", lower: true, title: "Where this team is on our Pick List (picklist.html). DNP means do not pick.",
+        value: function (t) { return pickList[t.team] ? pickList[t.team].rank : null; },
+        show: function (v, t) { return "#" + v + (pickList[t.team].tier === "dnp" ? " DNP" : ""); } },
       { group: "Ratings", key: "official", label: "Official", html: true, title: "Official rating: OPR, the points a team adds to its alliance per match, all season. Teams with under 3 qualification matches aren't rated.",
         value: function (t) { return t.gradeOfficial === "NR" ? null : num(t.official.score); },
         show: function (v, t) { return gradeHtml(t.gradeOfficial, v); } },
@@ -455,6 +461,7 @@
 
     var events = [], eventId = null;
     var picks = [];              // rows of playoff_picks for this event
+    var pickList = {};           // our Pick List for this event, by team: { rank, tier }
     var chosenSpot = null;       // an open spot staff clicked, instead of the next in draft order
     var saving = false;
     var shownTarget = "";        // the spot the board last scrolled to
@@ -530,11 +537,32 @@
       $("officialNote").hidden = !picks.some(function (p) { return p.source === "official"; });
       render();
     }
+    // Our Pick List: a column in the table, and the best team on it still available
+    async function loadPickList() {
+      var r = await sb.from("pick_list").select("team_number,rank,tier").eq("event_id", eventId).order("rank");
+      if (r.error) { console.warn("Playoff Selection: pick list:", r.error.message); return; }
+      pickList = {};
+      (r.data || []).forEach(function (p) { pickList[p.team_number] = p; });
+      showPickListNote();
+    }
+    function showPickListNote() {
+      var taken = new Set(picks.map(function (p) { return p.team_number; }));
+      var best = Object.keys(pickList).map(function (k) { return pickList[k]; })
+        .sort(function (a, b) { return a.rank - b.rank; })
+        .find(function (p) { return p.tier !== "dnp" && !taken.has(p.team_number) && p.team_number !== 1307; });
+      var note = $("pickListNote");
+      note.hidden = !best;
+      if (best) note.innerHTML = "Our list: best available is <strong>" + best.team_number + "</strong> " +
+        esc(RSTeams.name(teamInfo[best.team_number])) + " (#" + best.rank + ")";
+    }
 
     var eventLoad = 0;
     async function loadEvent() {
       var thisLoad = ++eventLoad, id = eventId;
       $("bracketLink").href = "/bracket.html?event=" + encodeURIComponent(id);
+      $("pickListLink").href = "/picklist.html?event=" + encodeURIComponent(id);
+      pickList = {};
+      loadPickList();
       picksLoad++;   // ignore any refresh still running for the previous event
       picks = [];
       $("officialNote").hidden = true;
@@ -811,7 +839,7 @@
           "</td></tr>";
       $("poolTable").innerHTML = headHtml() + "<tbody>" + body + "</tbody>";
     }
-    function render() { renderBoard(); renderPool(); }
+    function render() { renderBoard(); renderPool(); showPickListNote(); }
 
     // ── Changing picks ───────────────────────────────────────────────
     async function placeTeam(team) {
@@ -999,7 +1027,7 @@
 
     // Keeps every screen current while alliances form. It's one small query, and re-renders only on a change.
     setInterval(function () {
-      if (!document.hidden && !saving) loadPicks();
+      if (!document.hidden && !saving) { loadPicks(); loadPickList(); }
     }, POLL_MS);
   })();
   </script>
