@@ -16,9 +16,11 @@ everything else is on the 1307scout sites (`PUBLIC` in `deploy/build.sh` decides
 `oursponsors.html`, `business-plan.html`, `Gallery/gallery.html`, `contact.html`,
 `privacy-policy.html`, `terms-of-service.html`, `ratings.html`, which explains how team
 ratings and the other derived stats are calculated (update it whenever that math changes), and
-`results.html`, Season Results: every official match 1307 has played, by season and event, with
-records and playoff finishes. It reads `public_team_results()`, the one function anyone can call
-without signing in. It's in the About Us menu.
+`results.html`, Season Results: every event 1307 has played since 2004, by season, with records,
+ranks, playoff finishes, awards and every match, under a highlight reel of the team's event wins.
+Past seasons come from `js/history.js`, a one-time copy of The Blue Alliance's record (2004 to 2026);
+live seasons come from `public_team_results()`, the one function anyone can call without signing in,
+and win over the copy for any event in both. It's in the About Us menu.
 
 **1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). The 1307scout
 menu is kept short, ordered by use: Team Database, Our Matches, Alliance View, Scout, then the two

@@ -44,7 +44,7 @@ backward compatible with it (add, don't rename or drop; remove the old thing in 
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `theme.js`, `contact-config.js`,
 `contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `visioncheck.js`, `schedule.js`, `alerts.js`,
-`resync.js`, `offline.js`, plus the vendored `jqBootstrapValidation.js`).
+`resync.js`, `offline.js`, `history.js`, plus the vendored `jqBootstrapValidation.js`).
 `schedule.js` is an event's merged schedule (official matches with the `match_schedule` edits laid over
 them, in play order) and the match-key helpers; `visioncheck.js` is the vision-vs-scouts comparison
 that Match Flags shows and the Scout page uses to decide what to pre-fill (documented on
@@ -55,6 +55,8 @@ pick board); the pick board's script is serialized into the file, so it can't us
 per-team lists through one `team_lists()` call; use those rather than paging the rating RPCs directly.
 `resync.js` is the "Resync data" button on every page that shows official results; it refreshes only the
 default event, through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
+`history.js` is static data, not code: 1307's events and matches from The Blue Alliance (2004 on) for
+`results.html`, which prefers `public_team_results()` for any event also in the database.
 `opr.js` is component OPR per event, for every numeric field in the official breakdown (Team Database,
 Playoff Selection). `vision.js` holds the labels for the vision worker's per-robot keys.
 `teams.js` handles team names ("1678 Citrus Circuits") and the TBA lookup; `ratings.js` holds the
