@@ -3,6 +3,16 @@
 1307scout stable releases (scout.robosaints1307.com) and the informational site
 (robosaints1307.com). Versioning and cadence: see `RELEASING.md`. Newest first.
 
+## 0.0.3 (2026-11-12)
+
+### Informational site (robosaints1307.com)
+
+- **Business Plan** (Sponsors menu) is no longer a placeholder: the team's official 2026 business
+  plan, with our mission, growth, future plans, organizational structure, event history,
+  expenditures, sponsorship levels, how to donate by check, and who to contact.
+- Our Sponsors explains why to sponsor the team and links to the sponsorship levels.
+- Light or dark theme now matches across this site, 1307scout and the beta site.
+
 ## 0.0.2 (2026-11-11)
 
 ### Informational site (robosaints1307.com)
