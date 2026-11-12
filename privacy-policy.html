@@ -75,6 +75,7 @@
                 <a class="dropdown-item" href="/about-the-students.html">The Students</a>
                 <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
                 <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+                <a class="dropdown-item" href="/results.html">Season Results</a>
               </div>
             </li>
 
@@ -174,6 +175,29 @@
             record who last changed it and when.
           </li>
           <li>
+            <strong>Scout shifts:</strong> staff can give a team member a driver-station seat for a range of
+            matches. Team members can see who has which seat, by display name (or the part of the email
+            address before the @ if no name is set).
+          </li>
+          <li>
+            <strong>Pick list and robot log:</strong> staff keep a ranked list of other teams for alliance
+            selection, with notes. Team members can log our own robot's checklists, batteries, repairs and
+            notes on the Pit Crew page; we record who added each one and when, and other team members see
+            their name beside it.
+          </li>
+          <li>
+            <strong>Match alerts:</strong> if you turn them on in My Account, we store your browser's push
+            address (a link your browser's maker provides for delivering notifications, plus its encryption
+            keys) and the team number you chose, so we can send you a notification before that team plays.
+            Turning them off deletes it.
+          </li>
+          <li>
+            <strong>Scouting quality:</strong> to coach scouts, staff can see how each scout's entries at an
+            event compare with official results, other scouts and the vision program, and which assigned
+            seats weren't entered. Entries record which answers were filled in from vision data, and, when a
+            scout's device was offline, which teammate scanned the entry in from a QR code.
+          </li>
+          <li>
             <strong>Match video:</strong> a program on a team laptop reads publicly posted FRC match videos
             to estimate where each robot drove and what it scored. Only those numbers about robots are saved
             to 1307scout, never images. Downloaded videos stay on that laptop and are used only for the
@@ -200,7 +224,15 @@
           </li>
           <li>
             So the Scout page can open with no connection: a copy of the scouting form, the list of events,
-            and your access level. Signing out deletes them.
+            your scout shifts, and your access level. Signing out deletes them.
+          </li>
+          <li>
+            A QR code shown by <strong>Hand off by QR</strong> holds that draft entry, including your account
+            ID, so a teammate can scan it in. It's only on your screen while you show it.
+          </li>
+          <li>
+            Files you save with <strong>Export CSV</strong> on the Team Database. They hold team scouting data
+            (not who scouted it) and stay wherever you saved them.
           </li>
           <li>
             If you use 1307scout (as a website or as the installed <a href="/app.html">1307scout app</a>), a
@@ -245,8 +277,10 @@
           <li><strong>Supabase</strong> — hosts our database, accounts, and uploaded photos.</li>
           <li><strong>EmailJS</strong> — delivers contact-form emails from your browser to our team.</li>
           <li><strong>hCaptcha</strong> — checks that sign-in and account forms are used by a person. It receives technical information about your browser and device when you use those forms.</li>
+          <li><strong>Your browser's push service</strong> (from Google, Apple, Mozilla or Microsoft, depending on your browser) — delivers match alerts if you turn them on. It receives the notification text, encrypted, and nothing else about you from us.</li>
           <li><strong>Google</strong> — handles sign-in if you choose "Continue with Google", and shows the map on the Contact page, which loads from Google when you open that page.</li>
-          <li><strong>FIRST FRC Events API</strong> and <strong>The Blue Alliance</strong> — public competition results we display; we don't send them any of your personal information.</li>
+          <li><strong>FIRST FRC Events API</strong> and <strong>The Blue Alliance</strong> — public competition results we display (our own team's results are shown to everyone on Season Results); we don't send them any of your personal information.</li>
+          <li><strong>FRC Nexus</strong> — live queuing times at events that use it, for match alerts; we don't send it any of your personal information.</li>
           <li><strong>YouTube</strong> — hosts the public match videos the team's vision program downloads. Nothing about you is sent to it.</li>
           <li><strong>GitHub Pages</strong> — hosts this website.</li>
           <li>Google Fonts, Font Awesome, and the Supabase, EmailJS, and QR code libraries we load from cdnjs.cloudflare.com and cdn.jsdelivr.net — these serve static font and script files and, as far as we configure them, don't track you.</li>
@@ -267,8 +301,8 @@
           history, the same way old match videos or spreadsheets would be, unless the account that
           entered them is banned or deleted. Account information is kept while your account is active.
           You can delete your own account at any time, or ask us to delete it or your personal information
-          for you. When an account is banned or deleted, its scouting entries, pit entries, match flag reviews and
-          photos are removed; a pit entry a teammate has since edited stays, because it counts as theirs. Our
+          for you. When an account is banned or deleted, its scouting entries, pit entries, match flag reviews,
+          robot log entries, scout shifts, match alert subscriptions and photos are removed; a pit entry a teammate has since edited stays, because it counts as theirs. Our
           staff-only audit log keeps a record of removed entries, including their contents, as a history
           of changes to the data. Audit log records are deleted after six months. Deleting a scouting or pit
           entry, or replacing its photo, also deletes the photo file, though cached copies can take up to an
@@ -281,9 +315,11 @@
           <li>Ask us to see, correct, or delete the personal information we hold about you.</li>
           <li>
             Delete your own account from the My Account page at any time. This also removes the scouting
-            entries, pit entries, match flag reviews and photos you entered.
+            entries, pit entries, match flag reviews, robot log entries and photos you entered, your scout
+            shifts, and your match alerts.
           </li>
           <li>Ask a staff member to sign you out of every device, or to ban or delete your account.</li>
+          <li>Turn match alerts on or off for each device on the My Account page.</li>
           <li>Decline to use the contact form or 1307scout — the rest of the site needs no account.</li>
         </ul>
 

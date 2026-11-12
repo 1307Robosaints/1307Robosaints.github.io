@@ -33,6 +33,84 @@ def download(youtube_id, out_path):
     return out_path
 
 
+# ── Cutting matches from the event livestream ─────────────────────
+# Many off-season events post no per-match videos, only the day's stream. TBA lists the stream
+# (event webcasts) and each match's start time, so each match can be cut out of it.
+
+def _tba(path, api_key):
+    r = requests.get(f"{TBA}/{path}", timeout=30, headers={"X-TBA-Auth-Key": api_key, "User-Agent": "1307scout-vision"})
+    r.raise_for_status()
+    return r.json()
+
+
+def tba_stream_ids(tba_event_key, api_key):
+    """YouTube ids of the event's webcasts (one per day for most events)."""
+    return [w["channel"] for w in (_tba(f"event/{tba_event_key}", api_key).get("webcasts") or [])
+            if w.get("type") == "youtube" and w.get("channel")]
+
+
+def tba_match_times(tba_event_key, api_key):
+    """{match key: Unix time the match started}, for matches that have been played."""
+    return {m["key"].split("_", 1)[1]: m["actual_time"]
+            for m in _tba(f"event/{tba_event_key}/matches/simple", api_key) if m.get("actual_time")}
+
+
+def stream_span(youtube_id, cookies_from=None):
+    """(Unix start, length in seconds) of a finished YouTube livestream. Kept in
+    work/videos/streams.json once known, so retries after a bot check don't need to ask again."""
+    import json
+    from . import config
+    cache = config.WORK / "videos" / "streams.json"
+    known = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+    if youtube_id in known:
+        return tuple(known[youtube_id])
+    cmd = [sys.executable, "-m", "yt_dlp", "-j", "--no-warnings", "--no-playlist",
+           f"https://www.youtube.com/watch?v={youtube_id}"]
+    if cookies_from:
+        cmd[3:3] = ["--cookies-from-browser", cookies_from]
+    r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    if "not a bot" in r.stderr or "Sign in" in r.stderr:
+        raise BotCheck(r.stderr.strip().splitlines()[-1])
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip()[-300:])
+    info = json.loads(r.stdout)
+    start = info.get("release_timestamp") or info.get("timestamp")
+    if not info.get("was_live") or not start or not info.get("duration"):
+        raise RuntimeError(f"{youtube_id} isn't a finished livestream with a known start time")
+    known[youtube_id] = [start, info["duration"]]
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(known, indent=1), encoding="utf-8")
+    return start, info["duration"]
+
+
+class BotCheck(RuntimeError):
+    """YouTube wants a sign-in after many downloads in a row. It passes after a while, or with
+    the browser's YouTube login (cookies_from)."""
+
+
+def download_section(youtube_id, start_s, end_s, out_path, cookies_from=None):
+    """Video only, up to 1080p, from start_s to end_s of the video. Cutting needs ffmpeg, which
+    the imageio-ffmpeg package brings along. cookies_from: a browser name (chrome, edge,
+    firefox) whose YouTube login to use, only when YouTube asks for a sign-in."""
+    import imageio_ffmpeg
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [sys.executable, "-m", "yt_dlp", "-q", "--no-playlist", "--no-warnings",
+           "-f", "bv*[height<=1080][ext=mp4]/bv*[height<=1080]",
+           "--download-sections", f"*{max(0, start_s):.0f}-{end_s:.0f}", "--force-keyframes-at-cuts",
+           "--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe(),
+           "-o", str(out_path), f"https://www.youtube.com/watch?v={youtube_id}"]
+    if cookies_from:
+        cmd[3:3] = ["--cookies-from-browser", cookies_from]
+    r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    if r.returncode != 0:
+        err = next((ln for ln in reversed(r.stderr.splitlines()) if "ERROR" in ln), r.stderr.strip()[-300:])
+        if "not a bot" in err or "Sign in" in err:
+            raise BotCheck(err)
+        raise RuntimeError(err)
+    return out_path
+
+
 def frames(path, fps, start_s=0.0, end_s=None):
     """Yields (seconds into the video, BGR frame) at about fps frames per second."""
     import cv2

@@ -164,6 +164,27 @@
     .alliance-actions a.view-link { font-size: .85rem; }
 
     .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
+
+    /* Trend charts: one series each, in the theme's tokens */
+    .trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .75rem; }
+    .trend-chart { position: relative; margin: 0; border: 1px solid var(--line); background: var(--paper); padding: .4rem .5rem .2rem; }
+    .trend-chart figcaption { font-size: .82rem; font-weight: 600; color: var(--heading); }
+    .trend-chart svg { width: 100%; height: auto; display: block; }
+    .tc-grid { stroke: var(--line); stroke-width: 1; }
+    .tc-avg { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; }
+    .tc-line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; }
+    .tc-dot { fill: var(--blue); stroke: var(--paper); stroke-width: 2; }
+    .tc-hit { fill: transparent; }
+    .tc-pt:hover .tc-dot, .tc-pt:focus .tc-dot { r: 6; }
+    .tc-pt:focus { outline: none; }
+    .tc-axis { fill: var(--muted); font-size: 11px; }
+    .tc-tip { position: absolute; background: var(--navy); color: #fff; font-size: .75rem; padding: .15rem .45rem; pointer-events: none; white-space: nowrap; }
+
+    /* Notes */
+    .notes-search { max-width: 18rem; margin-bottom: .4rem; }
+    .notes-list { list-style: none; padding: 0; margin: 0; max-height: 22rem; overflow-y: auto; font-size: .9rem; }
+    .notes-list li { padding: .3rem 0; border-bottom: 1px solid var(--line); }
+    .notes-list li .text-muted { font-size: .78rem; }
     .src-badge {
       font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
       font-weight: 700; padding: .15rem .5rem; margin-left: .5rem;
@@ -280,6 +301,7 @@
               <a class="dropdown-item" href="/about-the-students.html">The Students</a>
               <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
               <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
             </div>
           </li>
 
@@ -1280,6 +1302,7 @@
       var picks = Alliance.get();
       return allianceButton(team, "red", "Red Alliance") + allianceButton(team, "blue", "Blue Alliance") +
         '<a class="view-link" href="/alliance.html">View alliances (' + (picks.red.length + picks.blue.length) + " of 6)</a>" +
+        exportButtonsHtml() +
         '<button type="button" class="btn btn-outline-secondary btn-sm offline-btn" data-offline-team="' + team + '" ' +
           'title="Save this team\'s page as a file that opens without a connection">' +
           '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>';
@@ -1304,6 +1327,179 @@
       else Alliance.add(color, selected);
       $("allianceActions").innerHTML = allianceActionsHtml(selected);
     });
+
+    // ── Trend charts ─────────────────────────────────────────────────
+    // One series per chart, so each has its own axis (never two scales on one chart). Points
+    // are in date and match order; the dashed line is the average. Explained on ratings.html.
+    function lineChartHtml(title, points, unit) {
+      if (points.length < 2) return "";
+      var W = 640, H = 170, L = 38, Rm = 10, T = 12, B = 24;
+      var vals = points.map(function (p) { return p.v; });
+      var top = Math.max.apply(null, vals), avg = mean(vals);
+      var step = Math.pow(10, Math.floor(Math.log10(Math.max(top, 1)))) / 2 || 1;
+      var yMax = Math.max(step, Math.ceil(top / step) * step);
+      if (yMax / step > 6) { step *= 2; yMax = Math.ceil(top / step) * step; }
+      var x = function (i) { return L + (W - L - Rm) * (points.length === 1 ? .5 : i / (points.length - 1)); };
+      var y = function (v) { return T + (H - T - B) * (1 - v / yMax); };
+      var grid = "";
+      for (var g = 0; g <= yMax + 1e-9; g += step) {
+        grid += '<line x1="' + L + '" x2="' + (W - Rm) + '" y1="' + y(g) + '" y2="' + y(g) + '" class="tc-grid"/>' +
+          '<text x="' + (L - 6) + '" y="' + (y(g) + 4) + '" class="tc-axis" text-anchor="end">' + Math.round(g) + "</text>";
+      }
+      var path = points.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1); }).join(" ");
+      var dots = points.map(function (p, i) {
+        var tip = p.label + ": " + (Math.round(p.v * 10) / 10) + " " + unit;
+        return '<g class="tc-pt" tabindex="0" data-tip="' + esc(tip) + '"><circle class="tc-hit" cx="' + x(i) + '" cy="' + y(p.v) + '" r="11"/>' +
+          '<circle class="tc-dot" cx="' + x(i) + '" cy="' + y(p.v) + '" r="4"/><title>' + esc(tip) + "</title></g>";
+      }).join("");
+      return '<figure class="trend-chart"><figcaption>' + esc(title) + ' <span class="text-muted">· average ' + avg.toFixed(1) + "</span></figcaption>" +
+        '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(title + ", " + points.length + " points, average " + avg.toFixed(1)) + '">' + grid +
+        '<line x1="' + L + '" x2="' + (W - Rm) + '" y1="' + y(avg) + '" y2="' + y(avg) + '" class="tc-avg"/>' +
+        '<path d="' + path + '" class="tc-line"/>' + dots +
+        '<text x="' + L + '" y="' + (H - 6) + '" class="tc-axis">' + esc(points[0].label) + "</text>" +
+        '<text x="' + (W - Rm) + '" y="' + (H - 6) + '" class="tc-axis" text-anchor="end">' + esc(points[points.length - 1].label) + "</text>" +
+        '</svg><div class="tc-tip" hidden></div></figure>';
+    }
+    function trendsHtml(team, matches, officialRows, opr) {
+      // Scouted points per match, averaging two scouts on one match (as the rating does)
+      var byMatch = {}, order = [];
+      seasonRows(matches).forEach(function (m) {
+        if (m.match_number == null) return;
+        var k = m.event_id + "|" + m.match_number;
+        if (!byMatch[k]) { byMatch[k] = []; order.push(m); }
+        byMatch[k].push(m);
+      });
+      var scouted = order.map(function (m) {
+        return { label: evName(m.event_id).slice(0, 18) + " Q" + m.match_number, v: mean(RSRatings.pointsPerMatch(byMatch[m.event_id + "|" + m.match_number])) };
+      });
+      var officialPts = playedMatches(officialRows || []).map(function (r) {
+        return { label: evName(r.event_id).slice(0, 18) + " " + matchLabel(r), v: r.alliance_score };
+      });
+      var oprPts = (opr || []).filter(function (e) { return e.result.teams[team] && e.result.teams[team].score != null; })
+        .map(function (e) { return { label: evName(e.event_id).slice(0, 24), v: e.result.teams[team].score }; });
+      var html = lineChartHtml("Scouted points per match", scouted, "pts") +
+        lineChartHtml("Official alliance score per match", officialPts, "pts") +
+        lineChartHtml("OPR by event", oprPts, "pts added");
+      return html ? '<h3 class="section-title">Trends</h3><div class="trend-grid">' + html + "</div>" : "";
+    }
+    // Hover and focus show the point's value above the chart
+    function showTip(e) {
+      var pt = e.target.closest && e.target.closest(".tc-pt");
+      var fig = pt && pt.closest(".trend-chart");
+      document.querySelectorAll(".tc-tip").forEach(function (t) { if (!fig || t.parentNode !== fig) t.hidden = true; });
+      if (!pt) return;
+      var tip = fig.querySelector(".tc-tip"), box = fig.getBoundingClientRect(), dot = pt.getBoundingClientRect();
+      tip.textContent = pt.dataset.tip;
+      tip.hidden = false;
+      tip.style.left = Math.max(0, Math.min(box.width - tip.offsetWidth, dot.left - box.left + dot.width / 2 - tip.offsetWidth / 2)) + "px";
+      tip.style.top = Math.max(0, dot.top - box.top - tip.offsetHeight - 4) + "px";
+    }
+    $("detail").addEventListener("mouseover", showTip);
+    $("detail").addEventListener("focusin", showTip);
+    $("detail").addEventListener("mouseleave", function () { document.querySelectorAll(".tc-tip").forEach(function (t) { t.hidden = true; }); });
+
+    // ── Notes ────────────────────────────────────────────────────────
+    // Every free-text answer for the team (match notes, pit notes, auto routine...), newest first
+    function notesHtml(matches, pits) {
+      var text = fields.filter(function (f) { return f.field_type === "text"; });
+      var list = [];
+      matches.forEach(function (m) {
+        text.filter(function (f) { return (f.scope || "match") === "match"; }).forEach(function (f) {
+          var v = m.data && m.data[f.key];
+          if (v) list.push({ t: evTime(m.event_id), n: m.match_number || 0, where: evName(m.event_id) + (m.match_number ? " · Qual " + m.match_number : ""), what: f.label, v: v });
+        });
+      });
+      pits.forEach(function (p) {
+        text.filter(function (f) { return f.scope === "pit"; }).forEach(function (f) {
+          var v = p.data && p.data[f.key];
+          if (v) list.push({ t: evTime(p.event_id), n: 1e4, where: evName(p.event_id) + " · Pit", what: f.label, v: v });
+        });
+      });
+      if (!list.length) return "";
+      list.sort(function (a, b) { return (b.t - a.t) || (b.n - a.n); });
+      return '<h3 class="section-title">Notes<span class="src-badge scout">Scouted</span></h3>' +
+        '<input type="search" class="form-control form-control-sm notes-search" placeholder="Search ' + list.length + ' notes" aria-label="Search notes">' +
+        '<ul class="notes-list">' + list.map(function (n) {
+          return '<li><span class="text-muted">' + esc(n.where) + " · " + esc(n.what) + "</span><br>" + esc(n.v) + "</li>";
+        }).join("") + "</ul>";
+    }
+    $("detail").addEventListener("input", function (e) {
+      if (!e.target.classList.contains("notes-search")) return;
+      var q = e.target.value.trim().toLowerCase();
+      e.target.nextElementSibling.querySelectorAll("li").forEach(function (li) {
+        li.hidden = q && li.textContent.toLowerCase().indexOf(q) === -1;
+      });
+    });
+
+    // ── CSV export ───────────────────────────────────────────────────
+    // The data on screen as spreadsheet files. Row security already limits what was loaded.
+    // Who scouted an entry isn't included.
+    function csvCell(v) {
+      if (v == null) return "";
+      var s = typeof v === "object" ? JSON.stringify(v) : String(v);
+      if (/^[=+\-@]/.test(s)) s = "'" + s;   // keep a spreadsheet from running it as a formula
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function downloadCsv(name, header, rows) {
+      var text = [header].concat(rows).map(function (r) { return r.map(csvCell).join(","); }).join("\r\n");
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob(["﻿" + text], { type: "text/csv;charset=utf-8" }));
+      a.download = name.replace(/[^a-z0-9-]+/gi, "-").toLowerCase() + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function fieldColumns(scope, rows) {
+      var keys = fieldsFor(scope).map(function (f) { return f.key; });
+      rows.forEach(function (r) { Object.keys(r.data || {}).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); }); });
+      return keys;
+    }
+    function exportMatches(name, rows) {
+      var keys = fieldColumns("match", rows);
+      downloadCsv(name, ["event", "event_date", "team", "match"].concat(keys).concat(["prefilled_from_vision", "saved_at"]),
+        rows.map(function (m) {
+          var ev = eventsById[m.event_id] || {};
+          return [ev.name, ev.event_date, m.team_number, m.match_number].concat(keys.map(function (k) { return (m.data || {})[k]; }))
+            .concat([(m.prefilled || []).join(" "), m.created_at]);
+        }));
+    }
+    var lastDetail = null;   // what the open team card was drawn from, for its export buttons
+    $("detail").addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-export]");
+      if (!btn) return;
+      var kind = btn.dataset.export;
+      if (kind === "event") {
+        btn.disabled = true;
+        var id = btn.dataset.event;
+        var r = await RSRatings.pagedRows(function () { return sb.from("scouting_entries").select("*").eq("event_id", id).order("id"); });
+        btn.disabled = false;
+        if (r.error) { alert("Couldn't load the entries: " + r.error.message); return; }
+        exportMatches(evName(id) + " scouting", r.data);
+        return;
+      }
+      if (!lastDetail) return;
+      var d = lastDetail, base = "team-" + d.team;
+      if (kind === "matches") exportMatches(base + " scouting", d.matches);
+      if (kind === "pit") {
+        var keys = fieldColumns("pit", d.pits);
+        downloadCsv(base + " pit", ["event", "team", "updated_at"].concat(keys), d.pits.map(function (p) {
+          return [evName(p.event_id), p.team_number, p.updated_at].concat(keys.map(function (k) { return (p.data || {})[k]; }));
+        }));
+      }
+      if (kind === "official") {
+        downloadCsv(base + " official", ["event", "match", "level", "alliance", "station", "alliance_score", "opponent_score", "played_at", "breakdown"],
+          d.officialRows.map(function (r) {
+            return [evName(r.event_id), r.match_key, r.comp_level, r.alliance, r.station, r.alliance_score, r.opponent_score, r.played_at, r.breakdown];
+          }));
+      }
+    });
+    function exportButtonsHtml() {
+      return '<div class="dropdown d-inline-block"><button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' +
+        '<i class="fa fa-table" aria-hidden="true"></i> Export CSV</button><div class="dropdown-menu">' +
+        '<button type="button" class="dropdown-item" data-export="matches">Scouted matches</button>' +
+        '<button type="button" class="dropdown-item" data-export="pit">Pit entries</button>' +
+        '<button type="button" class="dropdown-item" data-export="official">Official results</button></div></div>';
+    }
 
     function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups, failed, extra) {
       extra = extra || { vision: [], opr: [] };
@@ -1363,6 +1559,7 @@
           "</tr>";
       }).join("");
 
+      lastDetail = { team: team, matches: matches, pits: pits, officialRows: officialRows || [] };
       var info = teamInfoByNumber[team];
       var logoHtml = RSTeams.logo(info) ? '<img class="team-logo" src="' + esc(RSTeams.logo(info)) + '" alt="">' : "";
       var scoutedTiles = scoutedInsightTiles(matches);
@@ -1387,6 +1584,7 @@
         (scoutedTiles.length
           ? '<h3 class="section-title">Scouted insights<span class="src-badge scout">Scouted</span></h3>' + tileGrid(scoutedTiles)
           : "") +
+        trendsHtml(team, matches, officialRows, extra.opr) +
         scoutedStatsHtml(matches, mFields) +
         scoutedByEventHtml(matches, mFields) +
         ratingBreakdownHtml(team) +
@@ -1401,7 +1599,8 @@
           ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
               matchCols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
             "</tr></thead><tbody>" + matchRows + "</tbody></table></div>"
-          : '<p class="text-muted">No match data yet.</p>');
+          : '<p class="text-muted">No match data yet.</p>') +
+        notesHtml(matches, pits);
     }
 
     // ── Event rankings ───────────────────────────────────────────────
@@ -1500,6 +1699,8 @@
       var st = eventRank;
       if (!st) return;
       var head = '<h2 class="mb-1">' + esc(evName(st.eventId)) + " " + tierTag(st.eventId) + "</h2>" +
+        '<button type="button" class="btn btn-outline-secondary btn-sm" data-export="event" data-event="' + esc(st.eventId) + '">' +
+          '<i class="fa fa-table" aria-hidden="true"></i> Export this event\'s scouting (CSV)</button>' +
         '<h3 class="section-title mt-2">Event rankings<span class="src-badge api">API</span></h3>';
       if (st.err) { $("detail").innerHTML = head + accessNotice(st.err, "official match data"); return; }
       if (!st.rows.length) {

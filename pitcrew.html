@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Pit Crew – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .c-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .c-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .c-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .c-intro h1::after { display: none; }
+    .c-intro p { font-size: .92rem; max-width: none; margin: 0; }
+    .c-controls label, .c-form label { display: block; margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); }
+    .c-controls select { width: auto; max-width: 260px; }
+    .c-next { background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--blue); padding: .45rem .7rem; margin-bottom: 1rem; font-size: .92rem; }
+    .c-next strong { font-family: var(--display); }
+    .c-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .8rem; }
+    .c-card { background: var(--white); border: 1px solid var(--line); padding: .7rem .8rem; }
+    .c-card h2 { font-size: 1.02rem; margin: 0 0 .5rem; }
+    .c-card h2::after { display: none; }
+    .c-form { display: flex; flex-wrap: wrap; gap: .5rem .7rem; align-items: flex-end; }
+    .c-form .c-num { width: 6rem; }
+    .c-form .c-wide { flex: 1 1 14rem; }
+    .c-checks { list-style: none; padding: 0; margin: 0 0 .5rem; font-size: .9rem; }
+    .c-checks li { padding: .15rem 0; }
+    .c-checks label { font-weight: 400; color: var(--ink); margin: 0; }
+    .c-msg { font-size: .85rem; min-height: 1.2em; margin-top: .3rem; color: var(--red); }
+    .c-msg.ok { color: var(--green); }
+    .c-section { font-size: 1.05rem; margin: 1.3rem 0 .45rem; }
+    .c-section::after { display: none; }
+    .c-table { width: 100%; background: var(--white); font-size: .86rem; }
+    .c-table th, .c-table td { padding: .3rem .45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .c-table th { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .c-kind { font-size: .7rem; font-weight: 700; text-transform: uppercase; padding: .05rem .4rem; }
+    .c-kind.checklist { background: var(--green-bg); color: var(--green); }
+    .c-kind.battery { background: var(--amber-bg); color: var(--amber); }
+    .c-kind.repair { background: var(--red-bg); color: var(--red); }
+    .c-kind.note { background: var(--grey-bg); color: var(--grey); }
+    .c-low { color: var(--red); font-weight: 600; }
+    .c-empty { padding: 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="c-page">
+    <div class="c-intro">
+      <div>
+        <h1>Pit Crew</h1>
+        <p class="text-muted">Our own robot at an event: the pre-match checklist, battery use, repairs and notes, for the whole pit crew.</p>
+      </div>
+      <div class="c-controls">
+        <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
+      </div>
+    </div>
+    <div id="next"></div>
+
+    <div class="c-grid">
+      <section class="c-card" aria-labelledby="checkTitle">
+        <h2 id="checkTitle">Pre-match checklist</h2>
+        <div class="c-form mb-2">
+          <div><label for="checkMatch">Match</label><select id="checkMatch" class="custom-select custom-select-sm"></select></div>
+        </div>
+        <ul class="c-checks" id="checks"></ul>
+        <button type="button" class="btn btn-primary btn-sm" id="saveChecks">Save checklist</button>
+        <div class="c-msg" id="checkMsg" role="status"></div>
+      </section>
+
+      <section class="c-card" aria-labelledby="battTitle">
+        <h2 id="battTitle">Battery</h2>
+        <form class="c-form" id="battForm" autocomplete="off">
+          <div><label for="bId">Battery</label><input type="text" id="bId" class="form-control form-control-sm c-num" maxlength="20" required placeholder="e.g. 7"></div>
+          <div><label for="bVolt">Voltage</label><input type="number" id="bVolt" class="form-control form-control-sm c-num" min="0" max="20" step="0.01" placeholder="12.8"></div>
+          <div><label for="bMatch">Into match</label><select id="bMatch" class="custom-select custom-select-sm"></select></div>
+          <div class="c-wide"><label for="bNote">Note</label><input type="text" id="bNote" class="form-control form-control-sm" maxlength="200"></div>
+          <button type="submit" class="btn btn-primary btn-sm">Log battery</button>
+        </form>
+        <div class="c-msg" id="battMsg" role="status"></div>
+        <div id="batteries" class="mt-2"></div>
+      </section>
+
+      <section class="c-card" aria-labelledby="repairTitle">
+        <h2 id="repairTitle">Repair or note</h2>
+        <form class="c-form" id="repairForm" autocomplete="off">
+          <div><label for="rKind">Kind</label><select id="rKind" class="custom-select custom-select-sm"><option value="repair">Repair</option><option value="note">Note</option></select></div>
+          <div><label for="rMatch">After match</label><select id="rMatch" class="custom-select custom-select-sm"></select></div>
+          <div class="c-wide" style="flex-basis:100%;"><label for="rText">What happened, what was done</label>
+            <textarea id="rText" class="form-control form-control-sm" rows="3" maxlength="1000" required></textarea></div>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+        <div class="c-msg" id="repairMsg" role="status"></div>
+      </section>
+    </div>
+
+    <h2 class="c-section">Log</h2>
+    <div class="c-form mb-2">
+      <div><label for="kindPick">Show</label>
+        <select id="kindPick" class="custom-select custom-select-sm">
+          <option value="">Everything</option><option value="checklist">Checklists</option><option value="battery">Batteries</option>
+          <option value="repair">Repairs</option><option value="note">Notes</option>
+        </select></div>
+    </div>
+    <div class="table-responsive" id="log"><div class="c-empty">Loading…</div></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/schedule.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var S = RSSchedule;
+    var OUR_TEAM = 1307;
+    var LOW_VOLTS = 12.5;   // a battery under this before a match is flagged
+    // The pre-match checklist. Change the items here; saved checklists keep the items they had.
+    var CHECKLIST = [
+      "Fresh battery in, strapped down, connector tight",
+      "Bumpers on, right color, numbers showing",
+      "Radio powered, ethernet and power plugs secure",
+      "Main breaker on, no loose wires",
+      "Mechanisms move freely, nothing rubbing",
+      "Bolts on the drivetrain and intake checked",
+      "Robot in its starting setup, preloaded FUEL",
+      "Driver station charged, controllers plugged in, right auto picked"
+    ];
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ── Access gate: team members (the database enforces it) ─────────
+    var s = await RS.session();
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var isStaff = lvl === "staff", me = s.user.id;
+
+    var events = [], eventId = null, ourMatches = [], log = [], names = {};
+
+    function when(iso) {
+      return new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+    }
+    function matchOptions(withBlank) {
+      var next = ourMatches.find(function (m) { return !m.played; });
+      return (withBlank ? '<option value="">—</option>' : "") + ourMatches.map(function (m) {
+        return '<option value="' + esc(m.match_key) + '"' + (m === next ? " selected" : "") + ">" + esc(S.label(m.match_key)) + (m.played ? " (played)" : "") + "</option>";
+      }).join("");
+    }
+
+    // ── Loading ──────────────────────────────────────────────────────
+    var loadCount = 0;
+    async function load(withSchedule) {
+      var thisLoad = ++loadCount, id = eventId;
+      var res = await Promise.all([
+        sb.from("robot_log").select("*").eq("event_id", id).order("created_at", { ascending: false }).limit(500),
+        withSchedule ? S.load(sb, id) : null
+      ]);
+      if (thisLoad !== loadCount) return;
+      if (res[0].error) { $("log").innerHTML = '<div class="c-empty">Couldn\'t load the log: ' + esc(res[0].error.message) + "</div>"; return; }
+      log = res[0].data || [];
+      if (res[1]) {
+        ourMatches = res[1].matches.filter(function (m) { return m.red_teams.concat(m.blue_teams).indexOf(OUR_TEAM) !== -1; });
+        ["checkMatch", "bMatch", "rMatch"].forEach(function (sel) { $(sel).innerHTML = matchOptions(sel !== "checkMatch"); });
+        if (!ourMatches.length) $("checkMatch").innerHTML = '<option value="">No matches on the schedule yet</option>';
+        drawChecks();
+      }
+      var ids = Array.from(new Set(log.map(function (r) { return r.created_by; }))).filter(function (u) { return u && !names[u]; });
+      if (ids.length) {
+        var n = await sb.rpc("team_member_names", { p_ids: ids });
+        (n.data || []).forEach(function (r) { names[r.user_id] = r.name; });
+      }
+      render();
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    function nextHtml() {
+      var next = ourMatches.find(function (m) { return !m.played; });
+      if (!next) return "";
+      var red = next.red_teams.indexOf(OUR_TEAM) !== -1;
+      var done = log.some(function (r) { return r.kind === "checklist" && r.match_key === next.match_key; });
+      var batt = log.find(function (r) { return r.kind === "battery" && r.match_key === next.match_key; });
+      return '<div class="c-next">Next: <strong>' + esc(S.label(next.match_key)) + "</strong> on " + (red ? "red" : "blue") +
+        " with " + (red ? next.red_teams : next.blue_teams).filter(function (t) { return t !== OUR_TEAM; }).join(", ") +
+        " · Checklist " + (done ? "done" : "<strong>not done</strong>") +
+        " · Battery " + (batt ? esc(batt.battery) + (batt.voltage != null ? " (" + batt.voltage + " V)" : "") : "<strong>not logged</strong>") + "</div>";
+    }
+    // Each battery's latest reading and how many matches it went into here
+    function batteriesHtml() {
+      var by = {};
+      log.slice().reverse().forEach(function (r) {
+        if (r.kind !== "battery" || !r.battery) return;
+        var b = by[r.battery] = by[r.battery] || { uses: 0, last: null };
+        if (r.match_key) b.uses++;
+        b.last = r;
+      });
+      var ids = Object.keys(by).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+      if (!ids.length) return "";
+      return '<table class="c-table"><thead><tr><th>Battery</th><th>Matches</th><th>Last reading</th></tr></thead><tbody>' +
+        ids.map(function (id) {
+          var b = by[id], v = b.last.voltage;
+          return "<tr><td>" + esc(id) + "</td><td>" + b.uses + "</td><td>" +
+            (v != null ? '<span class="' + (v < LOW_VOLTS ? "c-low" : "") + '">' + v + " V</span> · " : "") + esc(when(b.last.created_at)) + "</td></tr>";
+        }).join("") + "</tbody></table>";
+    }
+    function detailOf(r) {
+      if (r.kind === "checklist") {
+        var c = r.checks || {}, keys = Object.keys(c), missed = keys.filter(function (k) { return !c[k]; });
+        return keys.length - missed.length + " of " + keys.length + " checked" + (missed.length ? ". Not checked: " + esc(missed.join("; ")) : "");
+      }
+      if (r.kind === "battery") {
+        return "Battery " + esc(r.battery) + (r.voltage != null ? ', <span class="' + (r.voltage < LOW_VOLTS ? "c-low" : "") + '">' + r.voltage + " V</span>" : "") +
+          (r.details ? " · " + esc(r.details) : "");
+      }
+      return esc(r.details);
+    }
+    function logHtml() {
+      var kind = $("kindPick").value;
+      var rows = log.filter(function (r) { return !kind || r.kind === kind; });
+      if (!rows.length) return '<div class="c-empty">Nothing logged at this event yet.</div>';
+      return '<table class="c-table"><thead><tr><th>When</th><th>Kind</th><th>Match</th><th>Details</th><th>Who</th><th></th></tr></thead><tbody>' +
+        rows.map(function (r) {
+          var mine = isStaff || r.created_by === me;
+          return "<tr><td>" + esc(when(r.created_at)) + '</td><td><span class="c-kind ' + r.kind + '">' + r.kind + "</span></td><td>" +
+            (r.match_key ? esc(S.label(r.match_key)) : "—") + "</td><td>" + detailOf(r) + "</td><td>" + esc(names[r.created_by] || "—") + "</td><td>" +
+            (mine ? '<button type="button" class="btn btn-outline-danger btn-sm" data-remove="' + r.id + '" aria-label="Delete">&times;</button>' : "") + "</td></tr>";
+        }).join("") + "</tbody></table>";
+    }
+    function render() {
+      $("next").innerHTML = nextHtml();
+      $("batteries").innerHTML = batteriesHtml();
+      $("log").innerHTML = logHtml();
+    }
+    // The checklist for the chosen match, ticked as saved last time
+    function drawChecks() {
+      var saved = log.find(function (r) { return r.kind === "checklist" && r.match_key === $("checkMatch").value; });
+      var c = saved ? saved.checks || {} : {};
+      $("checks").innerHTML = CHECKLIST.map(function (item, i) {
+        return '<li><label><input type="checkbox" data-item="' + esc(item) + '"' + (c[item] ? " checked" : "") + "> " + esc(item) + "</label></li>";
+      }).join("");
+      $("checkMsg").textContent = saved ? "Saved " + when(saved.created_at) + " by " + (names[saved.created_by] || "a team member") + "." : "";
+      $("checkMsg").classList.add("ok");
+    }
+
+    // ── Saving ───────────────────────────────────────────────────────
+    function say(id, text, ok) { $(id).textContent = text; $(id).classList.toggle("ok", !!ok); }
+    async function add(row, msgId, okText) {
+      var r = await sb.from("robot_log").insert(Object.assign({ event_id: eventId, created_by: me }, row));
+      if (r.error) { say(msgId, "Couldn't save: " + r.error.message); return false; }
+      say(msgId, okText, true);
+      await load(false);
+      return true;
+    }
+    $("saveChecks").addEventListener("click", async function () {
+      var key = $("checkMatch").value;
+      if (!key) { say("checkMsg", "Pick a match first."); return; }
+      var checks = {};
+      $("checks").querySelectorAll("[data-item]").forEach(function (cb) { checks[cb.dataset.item] = cb.checked; });
+      // One checklist per match: a new save replaces the old one
+      var old = log.filter(function (r) { return r.kind === "checklist" && r.match_key === key; });
+      if (old.length) await sb.from("robot_log").delete().in("id", old.map(function (r) { return r.id; }));
+      if (await add({ kind: "checklist", match_key: key, checks: checks }, "checkMsg", "Checklist saved.")) drawChecks();
+    });
+    $("checkMatch").addEventListener("change", drawChecks);
+    $("battForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var v = $("bVolt").value === "" ? null : Number($("bVolt").value);
+      if (await add({ kind: "battery", battery: $("bId").value.trim(), voltage: v, match_key: $("bMatch").value || null,
+          details: $("bNote").value.trim() || null }, "battMsg", "Battery logged" + (v != null && v < LOW_VOLTS ? ". That's low for a match." : "."))) {
+        $("bId").value = ""; $("bVolt").value = ""; $("bNote").value = "";
+      }
+    });
+    $("repairForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var kind = $("rKind").value;
+      if (await add({ kind: kind, match_key: $("rMatch").value || null, details: $("rText").value.trim() }, "repairMsg",
+          kind === "repair" ? "Repair saved." : "Note saved.")) $("rText").value = "";
+    });
+    $("log").addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-remove]");
+      if (!btn || !confirm("Delete this log entry?")) return;
+      var r = await sb.from("robot_log").delete().eq("id", Number(btn.dataset.remove));
+      if (r.error) { alert("Couldn't delete it: " + r.error.message); return; }
+      load(false);
+    });
+    $("kindPick").addEventListener("change", render);
+
+    // ── Start ────────────────────────────────────────────────────────
+    var r = await sb.from("events").select("id,name,event_date,is_default_event").order("event_date", { ascending: false, nullsFirst: false });
+    if (r.error || !(r.data || []).length) {
+      $("log").innerHTML = '<div class="c-empty">' + (r.error ? "Couldn't load the events. Try refreshing the page." : "No events yet.") + "</div>";
+      return;
+    }
+    events = r.data;
+    $("eventPick").innerHTML = events.map(function (ev) {
+      return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
+    }).join("");
+    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    $("eventPick").value = eventId;
+    $("eventPick").addEventListener("change", function () { eventId = this.value; load(true); });
+    await load(true);
+    setInterval(function () {
+      if (!document.hidden && !(document.activeElement && document.activeElement.closest(".c-card"))) load(false);
+    }, 60000);
+  })();
+  </script>
+</body>
+</html>

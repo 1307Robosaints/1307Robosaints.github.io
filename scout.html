@@ -314,6 +314,23 @@
     .photo-field-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
     #cameraVideo, #cameraCanvas { width: 100%; background: #000; }
     #cameraCanvas { display: none; }
+
+    /* Your next match from Scout Shifts (shifts.html) */
+    .shift-banner { display: flex; align-items: center; gap: .5rem .9rem; flex-wrap: wrap; background: var(--white);
+      border: 1px solid var(--line); border-left: 4px solid var(--blue); padding: .5rem .75rem; margin-bottom: 1rem; font-size: .92rem; }
+    .shift-banner.red { border-left-color: #c0392b; }
+    .shift-banner strong { font-family: var(--display); }
+    .shift-banner .btn { font-size: .8rem; padding: .15rem .6rem; }
+    .shift-banner a.small { margin-left: auto; }
+
+    /* A field filled in from vision data (see js/visioncheck.js) */
+    .vision-filled { font-size: .78rem; color: var(--purple); margin: -.25rem 0 .4rem 1.6rem; }
+    .vision-hint { font-size: .78rem; color: var(--purple); margin-top: .2rem; }
+
+    /* QR relay: drafts shown as codes, and the scanner that reads them */
+    .qr-box { background: #fff; padding: 12px; display: inline-block; }
+    #scanVideo { width: 100%; background: #000; }
+    .scan-log { font-size: .85rem; margin: .5rem 0 0; padding-left: 1.1rem; }
   </style>
 </head>
 <body>
@@ -352,6 +369,7 @@
               <a class="dropdown-item" href="/about-the-students.html">The Students</a>
               <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
               <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
             </div>
           </li>
 
@@ -409,6 +427,9 @@
         </div>
       </div>
 
+      <!-- Your next match, when staff gave you a shift (shifts.html) -->
+      <div class="shift-banner" id="shiftBanner" style="display:none;"></div>
+
       <!-- Step 2: choose what you're recording -->
       <div class="scout-tabs" role="tablist">
         <button type="button" class="scout-tab active" role="tab" aria-selected="true" data-mode="match">Match Scouting</button>
@@ -441,6 +462,8 @@
           <span id="draftIndicator" style="display:none; align-self:center;">
             <span class="draft-badge">DRAFT</span>
             <small class="text-muted ml-1">Saved locally — will submit when online.</small>
+            <button type="button" class="btn btn-outline-secondary btn-sm ml-2" id="showQr" title="Show waiting drafts as QR codes another scout can scan in">
+              <i class="fa fa-qrcode"></i> Hand off by QR</button>
           </span>
         </div>
       </div>
@@ -450,6 +473,8 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
           <h3 id="entriesHeading">Recent entries</h3>
           <div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="scanQr" title="Scan another scout's drafts off their screen and save them">
+              <i class="fa fa-camera"></i> Scan a scout's QR</button>
             <input type="text" id="entrySearch" class="form-control form-control-sm d-inline-block"
                    style="width:160px;" placeholder="Filter by team #" aria-label="Filter by team number">
           </div>
@@ -517,6 +542,45 @@
     </div>
   </div>
 
+  <!-- QR relay: this device's drafts as codes, for a device with a connection to scan -->
+  <div class="modal fade" id="qrModal" tabindex="-1" role="dialog" aria-labelledby="qrTitle">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="qrTitle">Hand off drafts</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body text-center">
+          <p class="text-muted" style="font-size:.88rem;">Have a scout who's online open Scout, press <strong>Scan a scout's QR</strong>, and point it at this code. The entry stays yours. It also stays on this device until this device gets a connection, which then sees it's already saved.</p>
+          <div class="qr-box" id="qrCode"></div>
+          <p class="mt-2 mb-0" id="qrCaption"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" id="qrPrev">Previous</button>
+          <button type="button" class="btn btn-primary" id="qrNext">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="scanModal" tabindex="-1" role="dialog" aria-labelledby="scanTitle">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="scanTitle">Scan a scout's QR</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <video id="scanVideo" autoplay playsinline muted></video>
+          <p class="text-muted mt-2 mb-0" id="scanStatus" style="font-size:.85rem;">Starting the camera…</p>
+          <ul class="scan-log" id="scanLog"></ul>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Container for toast pop-ups -->
   <div id="toastWrap" role="status" aria-live="polite"></div>
 
@@ -552,6 +616,12 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/schedule.js"></script>
+  <script src="/js/vision.js"></script>
+  <script src="/js/visioncheck.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
   <script>
   (async function () {
     var sb = RS.sb;   // Supabase client created by auth.js
@@ -1022,6 +1092,9 @@
     //   filterVal         text typed in the "Filter by team #" box
     var events = [], fields = [], allEntries = [], allPit = [];
     var currentEvent = null, editingId = null, mode = "match", filterVal = "";
+    //   prefillKeys       fields on the form filled in from vision (saved as the entry's prefilled list)
+    //   touchedFields     fields the scout has changed since the form was cleared
+    var prefillKeys = new Set(), touchedFields = new Set(), editHadPrefill = false;
 
     // Fields shown on the active tab. Fields with no scope count as match fields.
     function activeFields() {
@@ -1082,8 +1155,11 @@
       closeEventResults();
       get("entryFormCard").style.display = "";
       get("entriesSection").style.display = "";
+      shiftInfo = null; visionCheck = null; visionRows = {};
       loadEntries();
       resetEntryForm();
+      loadShift();
+      loadVision();
     }
     // Focusing the box selects its text and shows every event, not just ones matching the
     // currently-selected event's own label — otherwise the first click would show almost nothing.
@@ -1572,6 +1648,8 @@
       get("entryFormTitle").textContent = mode === "pit" ? "New Pit Entry" : "New Match Entry";
       get("entrySave").textContent = mode === "pit" ? "Save Pit Entry" : "Save Entry";
       get("entryCancel").classList.add("d-none");
+      prefillKeys = new Set(); touchedFields = new Set(); editHadPrefill = false;
+      clearVisionNotes();
     }
 
     // ── Tabs ─────────────────────────────────────────────────────────
@@ -1646,6 +1724,7 @@
       if (results[1].error) toast("Couldn't load pit entries.", true);
       else allPit = results[1].data;
       renderEntries();
+      renderShift();
     }
 
     // True if the entry's team number contains whatever is typed in the filter box
@@ -1805,6 +1884,9 @@
       var payload = { id: newId(), event_id: saveEvent.id, team_number: team, match_number: match,
                       data: data, scouted_by: s.user.id };
       var patch = { team_number: team, match_number: match, data: data };
+      // Only sent when there is one, so saving still works before the prefilled column exists
+      if (prefillKeys.size) payload.prefilled = Array.from(prefillKeys);
+      if (prefillKeys.size || editHadPrefill) patch.prefilled = prefillKeys.size ? Array.from(prefillKeys) : null;
 
       var r;
       if (editId) {
@@ -1819,6 +1901,7 @@
           queueDraft(editId ? { editId: editId, patch: patch } : payload);
           resetEntryForm();
           get("draftIndicator").style.display = "flex";
+          renderShift();
           toast("No connection — saved as draft.");
         } else {
           toast(r.error.message || "Couldn't save entry.", true);
@@ -1871,6 +1954,9 @@
       clearFields();
       setFormValues(entry.data);
       editingId = id;
+      prefillKeys = new Set(entry.prefilled || []); touchedFields = new Set();
+      editHadPrefill = prefillKeys.size > 0;
+      clearVisionNotes();
       get("entryId").value = id;
       get("entryFormTitle").textContent = "Edit Entry – Team " + entry.team_number;
       get("entrySave").textContent = "Save Entry";
@@ -1915,6 +2001,269 @@
       flushDrafts().then(function () { loadEntries(); });
     });
 
+    // ── Scout Shifts: your next match ───────────────────────────────
+    // Staff hand out seats on shifts.html. The banner names the next match in your shifts that
+    // you haven't entered yet, and fills the team and match in. A copy is kept on this device
+    // with the events and form, so it works offline too.
+    var shiftInfo = null;   // { eventId, shifts: [your shifts], matches: [their qual matches] }
+    function qualOf(key) { var k = RSSchedule.parseKey(key); return k && k.level === "qm" ? k.n : null; }
+    function inShift(sh, n) { return n >= sh.first_match && n <= sh.last_match; }
+    async function loadShift() {
+      if (!currentEvent) return;
+      var evId = currentEvent.id;
+      var res = await Promise.all([
+        quick(sb.from("scout_shifts").select("station,first_match,last_match,note").eq("event_id", evId).eq("user_id", s.user.id), 10000),
+        quick(RSSchedule.load(sb, evId), 15000)
+      ]);
+      if (!currentEvent || currentEvent.id !== evId) return;
+      var saved = offlineCopy().shift;
+      if (res[0].error || res[1].error) {
+        shiftInfo = isNetworkError(res[0]) && saved && saved.eventId === evId ? saved : null;
+      } else {
+        var mine = res[0].data || [];
+        var matches = (res[1].matches || []).filter(function (m) {
+          var n = qualOf(m.match_key);
+          return n != null && mine.some(function (sh) { return inShift(sh, n); });
+        }).map(function (m) { return { match_key: m.match_key, red_teams: m.red_teams, blue_teams: m.blue_teams, played: m.played }; });
+        shiftInfo = { eventId: evId, shifts: mine, matches: matches };
+        keepOffline("shift", shiftInfo);
+      }
+      renderShift();
+    }
+    // The earliest match in your shifts you haven't entered (or queued), from the last played one on
+    function nextShiftMatch() {
+      if (!shiftInfo || !shiftInfo.shifts.length) return null;
+      var done = new Set(allEntries.filter(function (e) { return e.scouted_by === s.user.id; })
+        .concat(getDrafts().filter(function (d) { return !d.editId; }))
+        .map(function (e) { return e.match_number + "|" + e.team_number; }));
+      var played = shiftInfo.matches.filter(function (m) { return m.played; }).map(function (m) { return qualOf(m.match_key); });
+      var lastPlayed = played.length ? Math.max.apply(null, played) : 0;
+      for (var i = 0; i < shiftInfo.matches.length; i++) {
+        var m = shiftInfo.matches[i], n = qualOf(m.match_key);
+        if (n < lastPlayed) continue;
+        var sh = shiftInfo.shifts.find(function (x) { return inShift(x, n); });
+        var team = sh ? RSSchedule.teamAt(m, sh.station) : null;
+        if (team && !done.has(n + "|" + team)) return { n: n, team: team, shift: sh, played: m.played };
+      }
+      return null;
+    }
+    function renderShift() {
+      var box = get("shiftBanner");
+      if (!shiftInfo || !shiftInfo.shifts.length) { box.style.display = "none"; return; }
+      var next = nextShiftMatch(), sh = next ? next.shift : shiftInfo.shifts[0];
+      box.className = "shift-banner " + sh.station.slice(0, -1);
+      box.style.display = "";
+      box.innerHTML = next
+        ? "<span>Your seat: <strong>" + esc(RSSchedule.stationLabel(sh.station)) + "</strong>, quals " + sh.first_match + "–" + sh.last_match + "</span>" +
+          "<span>Next: <strong>Qual " + next.n + "</strong>, team <strong>" + next.team + "</strong>" + (next.played ? " (played)" : "") + "</span>" +
+          '<button type="button" class="btn btn-primary" id="shiftFill">Fill in</button>' +
+          '<a class="small" href="/shifts.html">All shifts</a>'
+        : "<span>You've entered every match in your shifts so far.</span>" + '<a class="small" href="/shifts.html">All shifts</a>';
+      var btn = get("shiftFill");
+      if (btn) btn.addEventListener("click", function () { startEntry(next.team, next.n); });
+    }
+    // A fresh match entry for this team and match (from the banner, or a ?team=&match= link)
+    function startEntry(team, match) {
+      if (mode !== "match") setMode("match"); else resetEntryForm();
+      get("fTeam").value = team || "";
+      get("fMatch").value = match || "";
+      applyVision();
+      get("entryFormCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // ── Vision pre-fill ─────────────────────────────────────────────
+    // Once vision has agreed with this event's scouts often enough on a field (js/visioncheck.js,
+    // explained on ratings.html#vision-prefill), a new entry starts with vision's answer for it,
+    // marked so the scout checks it. The entry records which fields were filled that way.
+    var visionCheck = null, visionRows = {};
+    async function loadVision() {
+      if (!currentEvent) return;
+      var evId = currentEvent.id;
+      var res = await Promise.all([
+        quick(RSRatings.pagedRows(function () {
+          return sb.from("vision_robots").select("match_key,team_number,data,confidence").eq("event_id", evId).order("match_key").order("team_number");
+        }), 20000),
+        quick(RSRatings.pagedRows(function () {
+          return sb.from("scouting_entries").select("team_number,match_number,data,prefilled").eq("event_id", evId).order("id");
+        }), 20000)
+      ]);
+      if (!currentEvent || currentEvent.id !== evId) return;
+      if (res[0].error || res[1].error) return;   // optional: the form works the same without it
+      visionRows = {};
+      res[0].data.forEach(function (v) { visionRows[v.match_key + "|" + v.team_number] = v; });
+      visionCheck = {};
+      RSVisionCheck.compare(res[1].data.filter(RSRatings.isThisSeason), res[0].data).forEach(function (c) { visionCheck[c.key] = c; });
+    }
+    function clearVisionNotes() {
+      document.querySelectorAll(".vision-filled, .vision-hint").forEach(function (el) { el.remove(); });
+    }
+    function applyVision() {
+      clearVisionNotes();
+      // A field vision filled in earlier and the scout never touched goes back to blank
+      prefillKeys.forEach(function (k) {
+        var el = get("field_" + k);
+        if (el && el.type === "checkbox") el.checked = false;
+      });
+      prefillKeys = new Set();
+      if (mode !== "match" || editingId || !visionCheck) return;
+      var team = wholeNumber(get("fTeam").value), match = wholeNumber(get("fMatch").value);
+      var v = visionRows["qm" + match + "|" + team];
+      if (!v || !v.data || Number(v.confidence) < RSVision.LOW_CONFIDENCE) return;
+      RSVisionCheck.CHECKS.forEach(function (c) {
+        var stats = visionCheck[c.key], value = c.vision(v.data);
+        if (!stats || !stats.ready || value == null) return;
+        var pct = Math.round(stats.share * 100) + "%";
+        if (c.prefill) {
+          var el = get("field_" + c.prefill);
+          if (!el || el.type !== "checkbox" || touchedFields.has(c.prefill)) return;
+          el.checked = value;
+          prefillKeys.add(c.prefill);
+          var note = document.createElement("div");
+          note.className = "vision-filled";
+          note.innerHTML = '<i class="fa fa-eye"></i> Filled in from vision (it agrees with scouts here ' + pct + " of the time). Check it.";
+          el.closest(".form-group").appendChild(note);
+        } else if (c.key === "fuel") {
+          var total = get("field_teleop_fuel_hub");
+          if (!total) return;
+          var hint = document.createElement("div");
+          hint.className = "vision-hint";
+          hint.innerHTML = '<i class="fa fa-eye"></i> Vision estimate: about ' + Math.round(value) + " FUEL in the whole match, AUTO and teleop together (within " +
+            Math.round(RSVisionCheck.fuelTolerance(value)) + " of the scouts " + pct + " of the time).";
+          total.closest(".form-group").appendChild(hint);
+        }
+      });
+    }
+    // A field the scout changes is theirs: it's no longer marked as filled in from vision
+    get("dynamicFields").addEventListener("change", function (e) {
+      var key = e.target.dataset && e.target.dataset.fieldKey;
+      if (!key) return;
+      touchedFields.add(key);
+      if (prefillKeys.delete(key)) {
+        var note = e.target.closest(".form-group").querySelector(".vision-filled");
+        if (note) note.remove();
+      }
+    });
+    ["fTeam", "fMatch"].forEach(function (id) {
+      get(id).addEventListener("change", function () { if (mode === "match") applyVision(); });
+    });
+
+    // ── QR hand-off ─────────────────────────────────────────────────
+    // A scout with no connection shows their waiting new entries as QR codes; a scout who is
+    // online scans them, and relay_scouting_entry() saves each one as the first scout's, with
+    // its own id, so it can't be saved twice when the first device reconnects.
+    var JSQR_URL = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+    var JSQR_SRI = "sha384-b5Ya4Bq3qCyz39m2ISh+4DxjAIljdeFwK/BsXLuj9gugaNwAcj/ia15fxNZL9Nlx";
+    var qrList = [], qrIdx = 0;
+    // The code carries plain ASCII, so any other character goes in as a \u escape
+    function asciiJson(obj) {
+      return JSON.stringify(obj).replace(/[\u007f-￿]/g, function (c) { return "\\u" + ("000" + c.charCodeAt(0).toString(16)).slice(-4); });
+    }
+    function drawQr() {
+      var d = qrList[qrIdx], box = get("qrCode");
+      box.innerHTML = "";
+      var text = "RS1:" + asciiJson({ id: d.id, event_id: d.event_id, team_number: d.team_number, match_number: d.match_number,
+        data: d.data, scouted_by: d.scouted_by, prefilled: d.prefilled || null });
+      if (typeof QRCode === "undefined") {
+        box.textContent = "The QR code maker didn't load. Open this page once with a connection so it's saved for offline use.";
+      } else {
+        try { new QRCode(box, { text: text, width: 280, height: 280, correctLevel: QRCode.CorrectLevel.L }); }
+        catch (e) { box.textContent = "This entry is too long for one QR code. It will send once this device is online."; }
+      }
+      get("qrCaption").textContent = "Team " + d.team_number + ", match " + (d.match_number || "—") + " · " + (qrIdx + 1) + " of " + qrList.length;
+      get("qrPrev").disabled = qrIdx === 0;
+      get("qrNext").disabled = qrIdx === qrList.length - 1;
+    }
+    get("showQr").addEventListener("click", function () {
+      qrList = getDrafts().filter(function (d) { return !d.editId && d.id; });
+      if (!qrList.length) { toast("Only new entries can be handed off. Edits wait for this device to get a connection.", true); return; }
+      qrIdx = 0;
+      drawQr();
+      $("#qrModal").modal("show");
+    });
+    get("qrPrev").addEventListener("click", function () { if (qrIdx > 0) { qrIdx--; drawQr(); } });
+    get("qrNext").addEventListener("click", function () { if (qrIdx < qrList.length - 1) { qrIdx++; drawQr(); } });
+
+    var scanStream = null, scanTimer = null, scanSeen = new Set(), scanRequest = 0;
+    function scanStatus(text) { get("scanStatus").textContent = text; }
+    function scanLog(text) { var li = document.createElement("li"); li.textContent = text; get("scanLog").appendChild(li); }
+    function loadScript(src, sri) {
+      return new Promise(function (resolve, reject) {
+        var el = document.createElement("script");
+        el.src = src; el.integrity = sri; el.crossOrigin = "anonymous";
+        el.onload = resolve; el.onerror = reject;
+        document.head.appendChild(el);
+      });
+    }
+    // The browser's own QR reader where there is one (Chrome, Android), otherwise jsQR
+    async function qrDecoder() {
+      if ("BarcodeDetector" in window) {
+        try {
+          var formats = await BarcodeDetector.getSupportedFormats();
+          if (formats.indexOf("qr_code") !== -1) {
+            var det = new BarcodeDetector({ formats: ["qr_code"] });
+            return async function (video) {
+              if (video.readyState < 2) return null;
+              var codes = await det.detect(video);
+              return codes.length ? codes[0].rawValue : null;
+            };
+          }
+        } catch (e) {}
+      }
+      if (!window.jsQR) { try { await loadScript(JSQR_URL, JSQR_SRI); } catch (e) {} }
+      if (!window.jsQR) return null;
+      var canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+      return async function (video) {
+        if (video.readyState < 2 || !video.videoWidth) return null;
+        var w = Math.min(640, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+        canvas.width = w; canvas.height = h;
+        ctx.drawImage(video, 0, 0, w, h);
+        var code = window.jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
+        return code ? code.data : null;
+      };
+    }
+    async function handleScan(text) {
+      if (text.indexOf("RS1:") !== 0 || scanSeen.has(text)) return;
+      scanSeen.add(text);
+      var entry;
+      try { entry = JSON.parse(text.slice(4)); } catch (e) { scanLog("That code isn't a 1307scout entry."); return; }
+      var what = "Team " + entry.team_number + ", match " + (entry.match_number || "—");
+      var r = await sb.rpc("relay_scouting_entry", { p_entry: entry });
+      if (r.error) { scanSeen.delete(text); scanLog(what + ": couldn't save (" + r.error.message + ")."); return; }
+      scanLog(what + ": " + (r.data === "already saved" ? "already saved." : "saved."));
+      loadEntries();
+    }
+    function stopScanner() {
+      scanRequest++;
+      clearInterval(scanTimer); scanTimer = null;
+      if (scanStream) { scanStream.getTracks().forEach(function (t) { t.stop(); }); scanStream = null; }
+    }
+    $("#scanModal").on("hidden.bs.modal", stopScanner);
+    get("scanQr").addEventListener("click", async function () {
+      if (navigator.onLine === false) { toast("This device needs a connection to save scanned entries.", true); return; }
+      var request = ++scanRequest;
+      get("scanLog").innerHTML = "";
+      scanStatus("Starting the camera…");
+      $("#scanModal").modal("show");
+      var stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); }
+      catch (e) { scanStatus("Couldn't open the camera (" + e.message + ")."); return; }
+      if (request !== scanRequest) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+      scanStream = stream;
+      get("scanVideo").srcObject = stream;
+      var decode = await qrDecoder();
+      if (request !== scanRequest) return;
+      if (!decode) { scanStatus("Couldn't load the QR reader. Check the connection and try again."); return; }
+      scanStatus("Point the camera at the code. Each entry saves as soon as it's read.");
+      var busy = false;
+      scanTimer = setInterval(async function () {
+        if (busy) return;
+        busy = true;
+        try { var text = await decode(get("scanVideo")); if (text) await handleScan(text); }
+        catch (e) {}
+        finally { busy = false; }
+      }, 300);
+    });
+
     // ── Boot ─────────────────────────────────────────────────────────
     // Both requests go out together. Fields are applied first (the form needs them), then events
     // (which triggers loading entries), then any waiting drafts.
@@ -1925,6 +2274,12 @@
     await loadFields();
     await loadEvents(eventsReq);
     if (usingOfflineCopy) toast("Offline: using the form and events saved on this device.");
+    // A link from Scout Shifts: /scout.html?team=1234&match=16 starts that entry
+    var linkParams = new URLSearchParams(location.search);
+    if (linkParams.get("team") || linkParams.get("match")) {
+      history.replaceState(null, "", location.pathname);
+      if (currentEvent) startEntry(wholeNumber(linkParams.get("team")) || "", wholeNumber(linkParams.get("match")) || "");
+    }
     flushDrafts();
     cleanUpPhotos();
 

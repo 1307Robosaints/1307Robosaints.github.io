@@ -79,6 +79,7 @@
               <a class="dropdown-item" href="/about-the-students.html">The Students</a>
               <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
               <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
             </div>
           </li>
 
@@ -317,11 +318,24 @@
       </div>
       <p>Treat this as a rough guide:</p>
       <ul>
-        <li><strong>It hasn't been tested against real results yet,</strong> so a 70% isn't proven to mean winning 7 times out of 10.</li>
+        <li><strong>Check how it has held up</strong> (below) before trusting a 70% to mean winning 7 times out of 10.</li>
         <li><strong>It only knows past scores.</strong> It can't see defense, strategy, match-ups, penalties or a robot that was just repaired.</li>
         <li><strong>It treats robots as independent,</strong> so it misses alliances that work especially well or badly together.</li>
         <li><strong>Scouted points are estimates</strong> and leave out penalty points, and OPR is still an estimate from alliance totals.</li>
       </ul>
+
+      <h3 id="win-chance-check">How the win chance has held up</h3>
+      <p>
+        Our Matches saves the win chance it shows for each upcoming match, and keeps updating it until
+        the match has a score. After that the prediction is frozen, so it can be checked against what
+        happened. Only matches whose line-up didn't change are counted. A tie counts as half a win.
+      </p>
+      <ul>
+        <li><strong>Brier score</strong> is the average of (predicted chance − result)², where the result is 1 for a red win and 0 for a loss. 0 is perfect, and always guessing 50% scores 0.25, so lower than 0.25 means the estimate is adding something.</li>
+        <li><strong>Favorite won</strong> is how often the alliance given over 50% won.</li>
+        <li><strong>By range</strong> groups predictions into 10-point bands. If the estimate is well calibrated, red should win about as often as each band says.</li>
+      </ul>
+      <div id="calibration" class="text-muted" style="font-size:.9rem;">Sign in as a team member to see the numbers so far.</div>
 
       <h2 id="playoff-selection">Playoff Selection ranking</h2>
       <p>
@@ -414,6 +428,35 @@
         robots in each with the smallest share of their played matches scouted by a person.
       </p>
 
+      <h2 id="vision-prefill">Vision vs scouts, and pre-filling</h2>
+      <p>
+        Match Flags compares vision with the scouts at each event, field by field, using only vision
+        data with 50% confidence or more, and leaving out answers that were themselves filled in from
+        vision. Once a field has been compared on at least 15 robot-matches and agrees often enough,
+        the Scout page uses it for new entries at that event:
+      </p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Field</th><th>Counts as agreeing when</th><th>Needed</th><th>What the Scout page does</th></tr></thead>
+        <tbody>
+          <tr><td>Left starting zone (auto)</td><td>Vision and the scout give the same answer</td><td>90% of the time</td><td>Ticks or clears the box, marked "Filled in from vision" for the scout to check. Changing it makes it the scout's own answer.</td></tr>
+          <tr><td>FUEL scored</td><td>Within 10 FUEL or 25% of the larger number, whichever is more, of the scout's AUTO + teleop total</td><td>80% of the time</td><td>Shows vision's estimate under the teleop FUEL box as a hint. It isn't filled in, because vision counts the whole match and the form splits AUTO from teleop.</td></tr>
+        </tbody>
+      </table></div>
+      <p>Each entry records which fields were filled in from vision, so they can always be told apart from a scout's own answers.</p>
+
+      <h2 id="scout-accuracy">Scout accuracy</h2>
+      <p>Staff see this on Match Flags, for one event at a time. It's meant for coaching: a hard robot to watch makes anyone's numbers look worse.</p>
+      <div class="table-responsive"><table class="table r-table">
+        <thead><tr><th>Column</th><th>How it's worked out</th></tr></thead>
+        <tbody>
+          <tr><td>TOWER right</td><td>Share of the scout's auto and endgame TOWER answers that match FRC's official result for that robot.</td></tr>
+          <tr><td>FUEL gap to other scouts</td><td>For robots someone else also scouted in the same match, the average difference between this scout's FUEL total and the others' average. The number in brackets is how many robot-matches.</td></tr>
+          <tr><td>FUEL gap to vision</td><td>The average difference from vision's FUEL estimate, where vision had 50% confidence or more.</td></tr>
+          <tr><td>Wrong match</td><td>Entries for a team that isn't in that match's line-up.</td></tr>
+          <tr><td>Missed seats</td><td>Seats given to the scout on Scout Shifts, in played matches, with no entry from them for that team.</td></tr>
+        </tbody>
+      </table></div>
+
       <h2>Other derived stats</h2>
       <p>These appear on the Team Database and Alliance View. They use plain, unweighted numbers, so they won't always match the rating's inputs.</p>
       <div class="table-responsive"><table class="table r-table">
@@ -436,6 +479,7 @@
           <tr><td>Usual role / Main FUEL source</td><td>The most common answer, with how often it was chosen.</td></tr>
           <tr><td>Combined scouted pts</td><td>On the Alliance View, the sum of each team's Avg pts / match.</td></tr>
           <tr><td>OPR (pts added / match)</td><td>On the Alliance View and Team Database, the team's official rating score, explained <a href="#official-rating">above</a>.</td></tr>
+          <tr><td>Trend charts</td><td>On the Team Database: scouted points per match (the same Table 6-4 points as the scouting rating, averaged when two scouts saw one match), the official alliance score per match, and the team's OPR at each event, in date and match order. The dashed line is the average.</td></tr>
         </tbody>
       </table></div>
 
@@ -443,7 +487,8 @@
         The calculations live in <code>team_ratings()</code> and <code>team_official_ratings()</code> in
         <code>SQL/rebuild_all.sql</code>, and the Team Database applies the final grading. OPR is in
         <code>js/opr.js</code>, the vision estimates in the <code>vision/</code> worker, and the flag checks
-        in <code>flags.html</code>. If they change, this page should change with them.
+        in <code>flags.html</code>, the vision comparison in <code>js/visioncheck.js</code>, and the win chance
+        check in <code>prediction_calibration()</code>. If they change, this page should change with them.
       </p>
     </div>
   </div>
@@ -483,5 +528,23 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script>
+  // How the win chance has held up: live numbers for team members (prediction_calibration())
+  (async function () {
+    var box = document.getElementById("calibration");
+    var s = await RS.session();
+    if (!s) return;
+    var r = await RS.sb.rpc("prediction_calibration");
+    if (r.error || !r.data) return;   // not a team member, or not installed yet
+    var d = r.data, pct = function (v) { return v == null ? "—" : Math.round(v * 100) + "%"; };
+    if (!d.matches) { box.textContent = "No predicted match has been played yet."; return; }
+    box.innerHTML = "<p class=\"mb-2\"><strong>" + d.matches + "</strong> played matches · Brier score <strong>" + d.brier +
+      "</strong> · favorite won <strong>" + pct(d.favorite_won) + "</strong></p>" +
+      '<div class="table-responsive"><table class="table r-table"><thead><tr><th>Red predicted</th><th>Matches</th><th>Average prediction</th><th>Red won</th></tr></thead><tbody>' +
+      d.buckets.map(function (b) {
+        return "<tr><td>" + b.from + "–" + b.to + "%</td><td>" + b.matches + "</td><td>" + pct(b.predicted) + "</td><td>" + pct(b.red_won) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  })();
+  </script>
 </body>
 </html>

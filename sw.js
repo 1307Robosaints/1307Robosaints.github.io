@@ -10,9 +10,11 @@
      CDN libraries          saved copy first (their URLs name an exact version, so they never change)
      everything else        not handled here at all
 
+   It also shows the match alerts the server pushes (see the push handler near the end).
+
    Bump VERSION when the PRECACHE list changes; old caches are deleted when the new worker starts.
    ========================================================================================================= */
-var VERSION = "v2";
+var VERSION = "v3";
 var SITE_CACHE = "rs-site-" + VERSION;
 var CDN_CACHE = "rs-cdn-" + VERSION;
 
@@ -21,11 +23,13 @@ var PRECACHE = [
   "/1307scout.html", "/scout.html", "/signin.html", "/account.html", "/app.html", "/offline.html",
   "/matches.html", "/query.html", "/alliance.html", "/strategy.html", "/flags.html",
   "/playoffs.html", "/bracket.html", "/ratings.html",
+  "/shifts.html", "/picklist.html", "/pitcrew.html",
   "/css/modern.css",
   "/vendor/bootstrap/css/bootstrap.min.css", "/vendor/jquery/jquery.min.js",
   "/vendor/bootstrap/js/bootstrap.bundle.min.js",
   "/js/theme.js", "/js/auth-config.js", "/js/auth.js", "/js/pwa.js", "/js/teams.js", "/js/ratings.js",
   "/js/opr.js", "/js/vision.js", "/js/resync.js", "/js/alliance.js", "/js/offline.js",
+  "/js/schedule.js", "/js/visioncheck.js", "/js/alerts.js",
   "/manifest.webmanifest", "/img/robosaintslogo.png", "/img/robosaintslogo-dark.png", "/img/app/icon-192.png"
 ];
 
@@ -131,6 +135,27 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(cacheFirst(req));
   }
   // Anything else (Supabase, hCaptcha, EmailJS, The Blue Alliance...) goes straight to the network
+});
+
+// Match alerts (js/alerts.js, supabase/functions/match-alerts): show the notification the server
+// sent. The message only says which match is coming up; nothing in it is stored here.
+self.addEventListener("push", function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "1307scout", {
+    body: d.body || "", tag: d.tag || "match-alert", icon: "/img/app/icon-192.png",
+    data: { url: typeof d.url === "string" && d.url.charAt(0) === "/" ? d.url : "/matches.html" }
+  }));
+});
+// Tapping it opens the page it names, in an open 1307scout window if there is one
+self.addEventListener("notificationclick", function (e) {
+  e.notification.close();
+  var url = new URL((e.notification.data && e.notification.data.url) || "/matches.html", self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+    var open = list.find(function (c) { return new URL(c.url).origin === self.location.origin && "focus" in c; });
+    if (open) return open.navigate(url).then(function (c) { return (c || open).focus(); });
+    return self.clients.openWindow(url);
+  }));
 });
 
 // pwa.js sends the libraries and fonts each page loaded before this worker was in control,

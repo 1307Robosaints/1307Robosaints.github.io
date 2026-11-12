@@ -125,6 +125,7 @@
               <a class="dropdown-item" href="/about-the-students.html">The Students</a>
               <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
               <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
             </div>
           </li>
 
@@ -443,10 +444,29 @@
         '<span class="m-who">with ' + partners.join(", ") + " vs " + opponents.join(", ") + "</span>" +
         '<span class="m-actions">' + planLink(m, true) + allianceLink(m) + editButton(m) + "</span></div>";
     }
+    // Each upcoming match's win chance is saved (log_prediction() in rebuild_all.sql) until it's
+    // played, so How Ratings Work can show how often these estimates come true.
+    var logged = {};   // match_key -> what was last sent, so an unchanged chance isn't resent
+    function logPredictions(upcoming) {
+      upcoming.forEach(function (m) {
+        if (m.red_teams.length !== 3 || m.blue_teams.length !== 3) return;
+        var c = R.winChance(m.red_teams.map(data.team), m.blue_teams.map(data.team), data.testTeams);
+        if (!c) return;
+        var round = function (v) { return v == null ? null : Math.round(v * 1000) / 1000; };
+        var sig = [m.red_teams, m.blue_teams, round(c.overall)].join("|");
+        if (logged[eventId + m.match_key] === sig) return;
+        logged[eventId + m.match_key] = sig;
+        sb.rpc("log_prediction", {
+          p_event: eventId, p_match: m.match_key, p_red: m.red_teams, p_blue: m.blue_teams,
+          p_chance: round(c.overall), p_scouted: round(c.scouted), p_official: round(c.official)
+        }).then(function (r) { if (r.error) console.warn("Our Matches: prediction not saved:", r.error.message); });
+      });
+    }
     function render() {
       if (!data) return;
       var list = schedule();
       var upcoming = list.filter(function (m) { return !isPlayed(m); });
+      logPredictions(upcoming);
       var done = list.filter(isPlayed);
       var ev = events.find(function (e) { return e.id === eventId; }) || {};
       var linked = ev.frc_event_code || ev.tba_event_key;

@@ -95,16 +95,19 @@ def project(H, pts):
     return p[:, :2] / p[:, 2:3]
 
 
-def calibrate(event_key, video_path, at_s, g):
-    """Interactive: draw the three scoreboard boxes, then click the field landmarks."""
+def calibrate(event_key, video_path, at_s, g, overlay=None):
+    """Interactive: draw the three scoreboard boxes (unless overlay already has them, from
+    autocal), then click the field landmarks."""
     import cv2
     from .video import frame_at
     frame = frame_at(video_path, at_s)
     h, w = frame.shape[:2]
     view = frame.copy()
 
-    overlay = {}
-    for name in OVERLAY_BOXES:
+    overlay = dict(overlay or {})
+    for name, (x, y, bw, bh) in overlay.items():
+        cv2.rectangle(view, (int(x * w), int(y * h)), (int((x + bw) * w), int((y + bh) * h)), (0, 255, 255), 2)
+    for name in [n for n in OVERLAY_BOXES if n not in overlay]:
         title = f"Draw a box around the {name.replace('_', ' ')}, then press Enter"
         x, y, bw, bh = cv2.selectROI(title, view, showCrosshair=False)
         cv2.destroyWindow(title)

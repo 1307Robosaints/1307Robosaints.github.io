@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Scout Shifts – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .s-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .s-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .s-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .s-intro h1::after { display: none; }
+    .s-intro p { font-size: .92rem; max-width: none; margin: 0; }
+    .s-controls { display: flex; align-items: flex-end; gap: .5rem; flex-wrap: wrap; }
+    .s-controls label { display: block; margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); }
+    .s-controls select { width: auto; max-width: 260px; }
+    .s-note { font-size: .82rem; color: var(--muted); margin: 0 0 .6rem; }
+    .s-section { font-size: 1.05rem; margin: 1.3rem 0 .45rem; }
+    .s-section::after { display: none; }
+    .s-empty { padding: 1.5rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+
+    /* Your shifts */
+    .s-mine { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .5rem; }
+    .s-mine-card { background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--blue); padding: .5rem .7rem; font-size: .9rem; }
+    .s-mine-card.red { border-left-color: #c0392b; }
+    .s-mine-card h3 { font-size: 1rem; margin: 0 0 .2rem; }
+    .s-mine-card h3::after { display: none; }
+    .s-mine-card .btn { font-size: .8rem; padding: .15rem .55rem; margin-top: .35rem; }
+
+    /* Staff editor */
+    .s-editor { background: var(--white); border: 1px solid var(--line); padding: .75rem; margin-bottom: 1rem; }
+    .s-editor h2 { font-size: 1rem; margin: 0 0 .5rem; }
+    .s-editor h2::after { display: none; }
+    .s-form { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: flex-end; }
+    .s-form label { display: block; margin: 0; font-size: .72rem; font-weight: 600; color: var(--muted); }
+    .s-form .s-num { width: 5rem; }
+    .s-form select { width: auto; }
+    .s-form .s-text { width: 14rem; }
+    .s-msg { font-size: .85rem; min-height: 1.2em; margin-top: .35rem; color: var(--red); }
+    .s-msg.ok { color: var(--green); }
+    .s-people { display: flex; flex-wrap: wrap; gap: .25rem .9rem; margin: .4rem 0; font-size: .86rem; }
+    .s-people label { font-weight: 400; color: var(--ink); margin: 0; }
+    .s-list { font-size: .86rem; margin-top: .6rem; }
+    .s-list-row { display: flex; gap: .6rem; align-items: center; padding: .2rem 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .s-list-row:last-child { border-bottom: 0; }
+    .s-list-row strong { font-family: var(--display); min-width: 4.5rem; }
+    .s-list-row .s-who { flex: 1; min-width: 8rem; }
+    .s-list-row .btn { font-size: .75rem; padding: 0 .45rem; }
+
+    /* Seat grid */
+    .s-grid { width: 100%; border-collapse: collapse; background: var(--white); font-size: .84rem; }
+    .s-grid th, .s-grid td { border: 1px solid var(--line); padding: .2rem .35rem; vertical-align: top; }
+    .s-grid thead th { background: var(--tint); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; text-align: center; }
+    .s-grid thead th.red { color: var(--red); }
+    .s-grid thead th.blue { color: var(--blue); }
+    .s-grid tbody th { white-space: nowrap; font-weight: 600; }
+    .s-grid td .t { font-family: var(--display); font-weight: 600; color: var(--heading); }
+    .s-grid td .who { display: block; font-size: .76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9rem; }
+    .s-grid td.open { background: var(--amber-bg); }
+    .s-grid td.open .who { color: var(--amber); }
+    .s-grid td.mine { outline: 2px solid var(--blue); outline-offset: -2px; }
+    .s-grid td.done .who::before { content: "\2713  "; color: var(--green); }
+    .s-grid td.missed { background: var(--red-bg); }
+    .s-grid td.missed .who { color: var(--red); }
+    .s-grid tr.next th { color: var(--blue); }
+    .s-grid tr.played { opacity: .75; }
+    .s-legend { font-size: .78rem; color: var(--muted); display: flex; gap: 1rem; flex-wrap: wrap; margin: .3rem 0 .5rem; }
+    .s-legend span::before { content: ""; display: inline-block; width: .8rem; height: .8rem; margin-right: .3rem; vertical-align: -2px; border: 1px solid var(--line); }
+    .s-legend .open::before { background: var(--amber-bg); }
+    .s-legend .missed::before { background: var(--red-bg); }
+    .s-legend .mine::before { outline: 2px solid var(--blue); outline-offset: -2px; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="s-page">
+    <div class="s-intro">
+      <div>
+        <h1>Scout Shifts</h1>
+        <p class="text-muted">Who scouts which driver-station seat, for which qualification matches. The Scout page fills in your next team for you.</p>
+      </div>
+      <div class="s-controls">
+        <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
+      </div>
+    </div>
+    <div id="loadError"></div>
+
+    <h2 class="s-section">Your shifts</h2>
+    <div id="mine"><div class="s-empty">Loading…</div></div>
+
+    <!-- Staff only: hand out seats -->
+    <section class="s-editor" id="editor" hidden aria-labelledby="editorTitle">
+      <h2 id="editorTitle">Add a shift</h2>
+      <form class="s-form" id="shiftForm" autocomplete="off">
+        <div><label for="fWho">Scout</label><select id="fWho" class="custom-select custom-select-sm" required></select></div>
+        <div><label for="fSeat">Seat</label><select id="fSeat" class="custom-select custom-select-sm"></select></div>
+        <div><label for="fFirst">From qual</label><input type="number" id="fFirst" class="form-control form-control-sm s-num" min="1" max="999" required></div>
+        <div><label for="fLast">To qual</label><input type="number" id="fLast" class="form-control form-control-sm s-num" min="1" max="999" required></div>
+        <div><label for="fNote">Note (optional)</label><input type="text" id="fNote" class="form-control form-control-sm s-text" maxlength="200"></div>
+        <button type="submit" class="btn btn-primary btn-sm">Add shift</button>
+      </form>
+      <div class="s-msg" id="shiftMsg" role="status"></div>
+
+      <details class="mt-2">
+        <summary style="font-size:.9rem;">Make a rotation</summary>
+        <p class="s-note mt-2">Tick the scouts who are here. Each block of matches fills up to six seats from this list in turn, so with more than six people everyone gets breaks. Seats already given out in that range are left alone where they'd clash.</p>
+        <div class="s-people" id="rotPeople"></div>
+        <div class="s-form">
+          <div><label for="rFirst">From qual</label><input type="number" id="rFirst" class="form-control form-control-sm s-num" min="1" max="999"></div>
+          <div><label for="rLast">To qual</label><input type="number" id="rLast" class="form-control form-control-sm s-num" min="1" max="999"></div>
+          <div><label for="rBlock">Matches per shift</label><input type="number" id="rBlock" class="form-control form-control-sm s-num" min="1" max="100" value="10"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="rotMake">Make shifts</button>
+        </div>
+        <div class="s-msg" id="rotMsg" role="status"></div>
+      </details>
+
+      <div class="s-list" id="shiftList"></div>
+      <button type="button" class="btn btn-outline-danger btn-sm mt-2" id="clearAll">Remove every shift at this event</button>
+    </section>
+
+    <h2 class="s-section">Seats by match</h2>
+    <p class="s-legend"><span class="open">Nobody assigned</span><span class="missed">Played, not scouted</span><span class="mine">Your seat</span></p>
+    <div class="table-responsive" id="grid"><div class="s-empty">Loading…</div></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/schedule.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var S = RSSchedule;
+    var POLL_MS = 60000;
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ── Access gate: the team reads, staff edit (the database enforces both) ──
+    var s = await RS.session();
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var isStaff = lvl === "staff", me = s.user.id;
+
+    var events = [], eventId = null;
+    var shifts = [], names = {}, quals = [], entries = [], people = [];
+
+    function nameOf(id) { return names[id] || "A team member"; }
+    function qualNo(m) { var k = S.parseKey(m.match_key); return k && k.level === "qm" ? k.n : null; }
+    function shiftFor(n, st) {
+      return shifts.find(function (x) { return x.station === st && x.first_match <= n && n <= x.last_match; }) || null;
+    }
+
+    // ── Loading ──────────────────────────────────────────────────────
+    var loadCount = 0;
+    async function load() {
+      var thisLoad = ++loadCount, id = eventId;
+      var res = await Promise.all([
+        sb.from("scout_shifts").select("id,user_id,station,first_match,last_match,note").eq("event_id", id).order("first_match"),
+        S.load(sb, id),
+        RSRatings.pagedRows(function () {
+          return sb.from("scouting_entries").select("team_number,match_number,scouted_by").eq("event_id", id).order("id");
+        })
+      ]);
+      if (thisLoad !== loadCount) return;
+      var err = res[0].error || res[1].error || res[2].error;
+      $("loadError").innerHTML = err
+        ? '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Some data couldn\'t be loaded, so this may be out of date. It will keep trying.</div>' : "";
+      if (err) console.warn("Scout Shifts:", err.message);
+      shifts = res[0].data || shifts;
+      quals = res[1].matches.filter(function (m) { return qualNo(m) != null; });
+      entries = res[2].data || [];
+      var ids = Array.from(new Set(shifts.map(function (x) { return x.user_id; }).concat(entries.map(function (e) { return e.scouted_by; }))))
+        .filter(function (u) { return !names[u]; });
+      if (ids.length) {
+        var n = await sb.rpc("team_member_names", { p_ids: ids });
+        (n.data || []).forEach(function (r) { names[r.user_id] = r.name; });
+      }
+      render();
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    function scoutedBy(n, team) {
+      return entries.filter(function (e) { return e.match_number === n && e.team_number === team; })
+        .map(function (e) { return e.scouted_by; });
+    }
+    function nextMatch() { return quals.find(function (m) { return !m.played; }) || null; }
+
+    function mineHtml() {
+      var list = shifts.filter(function (x) { return x.user_id === me; });
+      if (!list.length) return '<div class="s-empty">You have no shifts at this event.' + (isStaff ? " Add one below." : "") + "</div>";
+      var next = nextMatch(), nextN = next ? qualNo(next) : null;
+      return '<div class="s-mine">' + list.map(function (x) {
+        var upcoming = quals.filter(function (m) { var n = qualNo(m); return !m.played && n >= x.first_match && n <= x.last_match; });
+        var first = upcoming[0], team = first ? S.teamAt(first, x.station) : null;
+        var state = nextN == null ? "" : nextN > x.last_match ? "Finished" : nextN >= x.first_match ? "On now" : "Starts at Qual " + x.first_match;
+        return '<div class="s-mine-card ' + x.station.slice(0, -1) + '"><h3>' + esc(S.stationLabel(x.station)) + " · Quals " + x.first_match + "–" + x.last_match + "</h3>" +
+          '<div class="text-muted">' + esc(state) + (x.note ? " · " + esc(x.note) : "") + "</div>" +
+          (first ? "<div>Next: <strong>" + esc(S.label(first.match_key)) + "</strong>" + (team ? ", team <strong>" + team + "</strong>" : "") + "</div>" +
+            '<a class="btn btn-primary" href="/scout.html?team=' + (team || "") + "&match=" + qualNo(first) + '"><i class="fa fa-pencil"></i> Scout it</a>' : "") +
+          "</div>";
+      }).join("") + "</div>";
+    }
+
+    function gridHtml() {
+      if (!quals.length) return '<div class="s-empty">No qualification schedule yet. It appears once it syncs from FRC/TBA, or once matches are added on Our Matches. Shifts can still be added.</div>';
+      var next = nextMatch();
+      return '<table class="s-grid"><thead><tr><th>Match</th>' + S.STATIONS.map(function (st) {
+        return '<th class="' + st.slice(0, -1) + '">' + esc(S.stationLabel(st)) + "</th>";
+      }).join("") + "</tr></thead><tbody>" + quals.map(function (m) {
+        var n = qualNo(m);
+        return '<tr class="' + (m === next ? "next" : m.played ? "played" : "") + '"><th>' + esc(S.label(m.match_key)) + "</th>" +
+          S.STATIONS.map(function (st) {
+            var team = S.teamAt(m, st), sh = shiftFor(n, st), by = team ? scoutedBy(n, team) : [];
+            var cls = [];
+            if (!sh) cls.push("open");
+            if (sh && sh.user_id === me) cls.push("mine");
+            if (m.played && team && !by.length) cls.push("missed");
+            if (by.length) cls.push("done");
+            var who = sh ? nameOf(sh.user_id) : "—";
+            var title = by.length ? "Scouted by " + by.map(nameOf).join(", ") : m.played ? "Not scouted" : "";
+            return '<td class="' + cls.join(" ") + '" title="' + esc(title) + '"><span class="t">' + (team || "—") + '</span><span class="who">' + esc(who) + "</span></td>";
+          }).join("") + "</tr>";
+      }).join("") + "</tbody></table>";
+    }
+
+    function listHtml() {
+      if (!shifts.length) return '<p class="text-muted mb-0">No shifts yet.</p>';
+      return shifts.slice().sort(function (a, b) { return a.first_match - b.first_match || S.STATIONS.indexOf(a.station) - S.STATIONS.indexOf(b.station); })
+        .map(function (x) {
+          return '<div class="s-list-row"><strong>' + esc(S.stationLabel(x.station)) + '</strong><span class="s-who">' + esc(nameOf(x.user_id)) +
+            " · Quals " + x.first_match + "–" + x.last_match + (x.note ? " · " + esc(x.note) : "") + "</span>" +
+            '<button type="button" class="btn btn-outline-danger" data-remove="' + x.id + '">Remove</button></div>';
+        }).join("");
+    }
+
+    function render() {
+      $("mine").innerHTML = mineHtml();
+      $("grid").innerHTML = gridHtml();
+      if (isStaff) $("shiftList").innerHTML = listHtml();
+    }
+
+    // ── Staff: adding and removing shifts ────────────────────────────
+    function say(id, text, ok) { $(id).textContent = text; $(id).classList.toggle("ok", !!ok); }
+    async function loadPeople() {
+      var r = await sb.rpc("staff_list_members");
+      if (r.error) { say("shiftMsg", "Couldn't load the member list: " + r.error.message); return; }
+      people = (r.data || []).filter(function (p) { return p.level !== "guest" && !p.banned; })
+        .sort(function (a, b) { return (a.display_name || a.email).localeCompare(b.display_name || b.email); });
+      people.forEach(function (p) { names[p.user_id] = names[p.user_id] || p.display_name || p.email.split("@")[0]; });
+      var label = function (p) { return (p.display_name || p.email.split("@")[0]) + (p.display_name ? " (" + p.email + ")" : ""); };
+      $("fWho").innerHTML = people.map(function (p) { return '<option value="' + esc(p.user_id) + '">' + esc(label(p)) + "</option>"; }).join("");
+      $("rotPeople").innerHTML = people.map(function (p) {
+        return '<label><input type="checkbox" value="' + esc(p.user_id) + '"> ' + esc(p.display_name || p.email.split("@")[0]) + "</label>";
+      }).join("");
+      render();
+    }
+    function lastQual() { var q = quals.map(qualNo); return q.length ? Math.max.apply(null, q) : null; }
+
+    async function addShifts(rows, msgId) {
+      var r = await sb.from("scout_shifts").insert(rows.map(function (x) {
+        return Object.assign({ event_id: eventId, created_by: me }, x);
+      }));
+      if (r.error) { say(msgId, "Couldn't save: " + r.error.message); return false; }
+      say(msgId, rows.length + (rows.length === 1 ? " shift" : " shifts") + " added.", true);
+      await load();
+      return true;
+    }
+    $("shiftForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var first = Number($("fFirst").value), last = Number($("fLast").value);
+      if (!(first >= 1 && last >= first && last <= 999)) { say("shiftMsg", "Enter a match range, like 1 to 10."); return; }
+      addShifts([{ user_id: $("fWho").value, station: $("fSeat").value, first_match: first, last_match: last,
+        note: $("fNote").value.trim() || null }], "shiftMsg");
+    });
+
+    // A rotation: each block of matches seats the next (up to) six people from the list in turn.
+    // Seats or people already busy in a block are skipped, so it fits around shifts already given out.
+    $("rotMake").addEventListener("click", function () {
+      var picked = Array.from($("rotPeople").querySelectorAll("input:checked")).map(function (c) { return c.value; });
+      var first = Number($("rFirst").value), last = Number($("rLast").value), block = Number($("rBlock").value);
+      if (!picked.length) { say("rotMsg", "Tick at least one scout."); return; }
+      if (!(first >= 1 && last >= first && last <= 999 && block >= 1)) { say("rotMsg", "Enter a match range and how many matches each shift lasts."); return; }
+      var rows = [], turn = 0;
+      var busy = function (list, a, b, test) {
+        return list.some(function (x) { return x.first_match <= b && a <= x.last_match && test(x); });
+      };
+      for (var a = first; a <= last; a += block) {
+        var b = Math.min(last, a + block - 1), all = shifts.concat(rows), seated = 0;
+        S.STATIONS.forEach(function (st) {
+          if (seated >= picked.length || busy(all, a, b, function (x) { return x.station === st; })) return;
+          for (var tries = 0; tries < picked.length; tries++) {
+            var who = picked[turn % picked.length];
+            turn++;
+            if (!busy(all, a, b, function (x) { return x.user_id === who; })) {
+              var row = { user_id: who, station: st, first_match: a, last_match: b };
+              rows.push(row); all.push(row); seated++;
+              return;
+            }
+          }
+        });
+      }
+      if (!rows.length) { say("rotMsg", "Every seat in that range is already taken."); return; }
+      if (!confirm("Add " + rows.length + " shifts for quals " + first + "–" + last + "?")) return;
+      addShifts(rows, "rotMsg");
+    });
+
+    $("shiftList").addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-remove]");
+      if (!btn) return;
+      var r = await sb.from("scout_shifts").delete().eq("id", Number(btn.dataset.remove));
+      if (r.error) { say("shiftMsg", "Couldn't remove it: " + r.error.message); return; }
+      load();
+    });
+    $("clearAll").addEventListener("click", async function () {
+      if (!shifts.length || !confirm("Remove all " + shifts.length + " shifts at this event?")) return;
+      var r = await sb.from("scout_shifts").delete().eq("event_id", eventId);
+      if (r.error) { say("shiftMsg", "Couldn't remove them: " + r.error.message); return; }
+      load();
+    });
+
+    // ── Start ────────────────────────────────────────────────────────
+    $("fSeat").innerHTML = S.STATIONS.map(function (st) { return '<option value="' + st + '">' + S.stationLabel(st) + "</option>"; }).join("");
+    var r = await sb.from("events").select("id,name,event_date,is_default_event").order("event_date", { ascending: false, nullsFirst: false });
+    if (r.error || !(r.data || []).length) {
+      $("mine").innerHTML = '<div class="s-empty">' + (r.error ? "Couldn't load the events. Try refreshing the page." : "No events yet. Staff can add one in the Staff Portal.") + "</div>";
+      $("grid").innerHTML = "";
+      return;
+    }
+    events = r.data;
+    $("eventPick").innerHTML = events.map(function (ev) {
+      return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
+    }).join("");
+    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    $("eventPick").value = eventId;
+    $("eventPick").addEventListener("change", function () { eventId = this.value; load(); });
+    if (isStaff) { $("editor").hidden = false; loadPeople(); }
+    await load();
+    if (isStaff) {
+      var lq = lastQual();
+      $("rFirst").value = 1; $("rLast").value = lq || 60;
+    }
+    setInterval(function () { if (!document.hidden) load(); }, POLL_MS);
+  })();
+  </script>
+</body>
+</html>

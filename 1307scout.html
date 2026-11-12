@@ -374,6 +374,7 @@
                 <a class="dropdown-item" href="/about-the-students.html">The Students</a>
                 <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
                 <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+                <a class="dropdown-item" href="/results.html">Season Results</a>
               </div>
             </li>
 
@@ -452,14 +453,14 @@
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-wifi"></i></div>
               <h3>Works offline</h3>
-              <p>Match entries are saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns. Install the <a href="#get-the-app">1307scout app</a> and it opens with no connection at all.</p>
+              <p>Match entries are saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns, or handed to a scout who is online by QR code. Install the <a href="#get-the-app">1307scout app</a> and it opens with no connection at all.</p>
             </div>
           </div>
           <div class="col-lg-3 col-md-6 mb-4">
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-refresh"></i></div>
               <h3>Official results, synced</h3>
-              <p>Link an event to its FRC or TBA code and 1307scout pulls official match scores automatically — no re-typing results by hand. On competition day, staff can set the current event to refresh every 2 minutes for the day, and anyone on the team can press Resync data to pull the latest results right away. Scouting entries are checked against those results, and any match that needs a second look is flagged.</p>
+              <p>Link an event to its FRC or TBA code and 1307scout pulls official match scores automatically — no re-typing results by hand. On competition day, staff can set the current event to refresh every 2 minutes for the day, and anyone on the team can press Resync data to pull the latest results right away. Scouting entries are checked against those results, and any match that needs a second look is flagged. Turn on match alerts and your phone tells you when the team is about to play.</p>
             </div>
           </div>
           <div class="col-lg-3 col-md-6 mb-4">
@@ -559,6 +560,9 @@
           <p id="greetingEmail"></p>
         </div>
 
+        <!-- Our next match at the default event (team members), from js/schedule.js -->
+        <div id="nextMatch"></div>
+
         <!-- Primary actions (label + tiles are built by the script, depending on access level) -->
         <div id="primaryTiles"></div>
 
@@ -632,6 +636,8 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/schedule.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;   // Supabase client created by auth.js
@@ -680,7 +686,8 @@
       ] });
       groups.push({ label: "Playoffs", tiles: [
         tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Track alliances as they form and rank the teams still available"),
-        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results")
+        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results"),
+        tile("/picklist.html", "fa-list-ol", "Pick List", "Our ranked list for alliance selection, with notes and do-not-picks")
       ] });
     } else {
       groups.push({ label: "Data access", tiles: [
@@ -689,7 +696,9 @@
     }
     // Not in the menu, to keep it short
     groups.push({ label: "More tools", tiles: (isTeam ? [
-      tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next")
+      tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next"),
+      tile("/shifts.html", "fa-users", "Scout Shifts", "Who scouts which seat for which matches. The Scout page fills in your next team"),
+      tile("/pitcrew.html", "fa-wrench", "Pit Crew", "Our robot's pre-match checklist, batteries, repairs and notes")
     ] : []).concat([
       tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance, and the other numbers are worked out")
     ]).concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, members, and the audit log", "staff-tile")] : []) });
@@ -721,6 +730,26 @@
 
     // Last step: reveal the logged-in view (it starts hidden in the CSS)
     document.getElementById("loggedInView").style.display = "block";
+
+    // Our next match at the default event: how many matches away, and links to plan it
+    if (isTeam && navigator.onLine !== false) {
+      var evr = await sb.from("events").select("id,name").eq("is_default_event", true).maybeSingle();
+      if (evr.data) {
+        var sched = await RSSchedule.load(sb, evr.data.id);
+        var list = sched.matches, now = list.findIndex(function (m) { return !m.played; });
+        var i = now < 0 ? -1 : list.findIndex(function (m, k) { return k >= now && m.red_teams.concat(m.blue_teams).indexOf(1307) !== -1; });
+        if (i >= 0) {
+          var m = list[i], away = i - now, red = m.red_teams.indexOf(1307) !== -1;
+          var esc = function (t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
+          document.getElementById("nextMatch").innerHTML =
+            '<a class="nav-tile mt-3" href="/strategy.html?event=' + encodeURIComponent(evr.data.id) + "&match=" + encodeURIComponent(m.match_key) + '">' +
+            '<div class="tile-icon"><i class="fa fa-flag-checkered"></i></div><div class="tile-text"><strong>Next: ' + esc(RSSchedule.label(m.match_key)) +
+            (away === 0 ? " is up next" : ", " + away + " match" + (away === 1 ? "" : "es") + " away") + "</strong><small>" + (red ? "Red" : "Blue") + " with " +
+            (red ? m.red_teams : m.blue_teams).filter(function (t) { return t !== 1307; }).join(", ") + " vs " + (red ? m.blue_teams : m.red_teams).join(", ") +
+            " · " + esc(evr.data.name) + " · open the strategy plan</small></div><i class=\"fa fa-chevron-right tile-chevron\"></i></a>";
+        }
+      }
+    }
   })();
   </script>
 </body>

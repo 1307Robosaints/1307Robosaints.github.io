@@ -71,8 +71,23 @@ For a step-by-step version with a check after each step and fixes for common pro
 
 ## Each event
 
+**The quick way:** `python run.py auto <YouTube link>`, with the event's livestream or any one
+match video. It finds the event on TBA, gets the videos (cutting matches from a livestream),
+calibrates, processes every match, uploads, and redoes who's who with all robot looks. The
+calibration is reused if the event has one, carried over from an earlier event at the same
+venue, or found automatically (`rsvision/autocal.py`): the scoreboard from the overlay's "BLUE"
+and "RED" labels, the field from the two colored zone-line structures and the white center line.
+A check image always asks for a yes; if it's wrong, or the camera angle is too low to find the
+lines, it falls back to clicking the landmarks by hand. `--watch 10` keeps checking for new match
+videos every 10 minutes during an event, `--yes` runs unattended, `--no-upload` tests.
+
+The same steps one at a time:
+
 1. Link the event to its TBA key in the Staff Portal and let it sync.
-2. Download the match videos TBA lists: `python run.py download --event 2026nhrr`.
+2. Download the match videos TBA lists: `python run.py download --event 2026nhrr`. With no
+   match videos on TBA (common off-season), `--stream` cuts each match out of the event's
+   livestream using TBA's match start times (needs the `imageio-ffmpeg` package). `--playoffs`
+   includes playoff matches, for `run` too.
 3. Calibrate once per event, from a video with a clear wide shot:
    ```
    python run.py calibrate --event 2026nhrr --video work\videos\2026nhrr\qm1.mp4 --at 60
@@ -120,6 +135,37 @@ Robot looks don't carry over: every team builds a new robot. They're kept per se
 first event of a new season starts with an empty gallery and fills it as it runs. Nothing
 needs doing, but old seasons' `work\appearance\<season>.npz` files and `work\tracks\` folders
 can be deleted to save space.
+
+## Improving the models without labeling
+
+Each step only installs its result when it beats what's in use on held-out data, so running
+them can't make things worse.
+
+1. `python run.py harvest` (`--per-event 10`): runs the current bumper model over downloaded
+   match videos of every event and saves training data to `work\training-data\`
+   (`rsvision/harvest.py`). It needs only the TBA line-ups, no calibration:
+   - `pseudo\`: frames labeled by the model, kept only when tracking backs up every box and
+     the frame has exactly the line-up's 3 red and 3 blue robots, so no robot is left
+     unlabeled. Boxes the detector missed for a moment are filled in from the track.
+   - `robots\<team>\`: crops of robots whose bumper number read clearly. Every crop of that
+     track gets the label, also the blurry ones.
+   - `digits\<team>\`: those tracks' bumper-number strips, where OCR read at least half the number.
+2. `python run.py train-looks`: fine-tunes the look model (ResNet-18, cosine classifier over the
+   teams) on the robot crops and saves `models\looks.pt`. Looks are tagged with the model that
+   made them, so after a new look model, run events from video again.
+3. `python run.py train-digits`: trains a small bumper-number reader (CRNN with CTC loss) on the
+   number strips and saves `models\digits.pt`. Bumper reads then try it before EasyOCR.
+4. `python run.py universe <link>`: downloads a public Roboflow Universe dataset (needs
+   `ROBOFLOW_API_KEY` in `.env` and `pip install roboflow`) and converts it: red/blue classes from
+   the names or the box colors, and each robot's per-side bumper boxes joined into one. Check
+   its `previews\` folder before using it.
+5. `python run.py selftrain`: retrains the bumper model on the hand-reviewed Roboflow export plus
+   `pseudo\` and every converted Universe dataset, starting from the model in use. It replaces
+   `models\bumpers.pt` (keeping `bumpers-prev.pt`) only if it scores better on the hand-reviewed
+   validation images.
+
+Repeating harvest after selftrain finds more robots, which gives more complete frames for the
+next round.
 
 ## Checking accuracy
 

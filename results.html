@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Season Results – STA Robotics Team 1307</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .y-page { max-width: 1000px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .y-page h1 { font-size: 1.8rem; margin: 1rem 0 .3rem; }
+    .y-lead { font-size: .95rem; color: var(--muted); margin-bottom: 1rem; }
+    .y-season { font-size: 1.3rem; margin: 1.6rem 0 .6rem; }
+    .y-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .5rem; margin-bottom: .8rem; }
+    .y-tile { background: var(--white); border: 1px solid var(--line); padding: .5rem .7rem; }
+    .y-tile b { display: block; font-family: var(--display); font-size: 1.4rem; color: var(--heading); line-height: 1.2; }
+    .y-tile span { font-size: .78rem; color: var(--muted); }
+    .y-event { background: var(--white); border: 1px solid var(--line); margin-bottom: .6rem; }
+    .y-event summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .9rem; padding: .55rem .8rem; cursor: pointer; }
+    .y-event summary h3 { font-size: 1.05rem; margin: 0; }
+    .y-event summary h3::after { display: none; }
+    .y-meta { color: var(--muted); font-size: .86rem; }
+    .y-finish { font-weight: 600; font-size: .86rem; color: var(--heading); }
+    .y-finish.won { color: var(--green); }
+    .y-table { width: 100%; font-size: .86rem; }
+    .y-table th, .y-table td { padding: .25rem .6rem; border-top: 1px solid var(--line); }
+    .y-table th { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .y-table td.W { color: var(--green); font-weight: 600; }
+    .y-table td.L { color: var(--red); font-weight: 600; }
+    .y-season { scroll-margin-top: 90px; }
+    .y-flat { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .9rem; padding: .55rem .8rem; }
+    .y-flat h3 { font-size: 1.05rem; margin: 0; }
+    .y-finish .fa { margin-right: .15rem; }
+    .y-award { font-size: .8rem; color: var(--purple); background: var(--purple-bg); padding: .05rem .45rem; }
+    .y-note { padding: .6rem .8rem; margin: 1rem 0; color: var(--amber); background: var(--amber-bg); font-size: .9rem; }
+
+    /* Highlight reel: one navy plate per event win (navy is dark in both themes, so the gold and white are fixed) */
+    .y-reel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .8rem; margin: 1.2rem 0 .6rem; }
+    .y-reel-head h2 { font-size: 1.4rem; margin: 0; }
+    .y-reel-head span { color: var(--muted); font-size: .9rem; }
+    .y-reel { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: .7rem;
+              overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: .4rem; margin-bottom: .8rem; }
+    .y-win { position: relative; scroll-snap-align: start; background: var(--navy); color: #fff; padding: 1rem 1rem .9rem;
+             border-top: 3px solid #F2B84B; clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+             display: flex; flex-direction: column; gap: .2rem; }
+    .y-win > .fa-trophy { position: absolute; right: 1.4rem; top: .9rem; font-size: 2.6rem; color: #F2B84B; opacity: .9; }
+    .y-win-year { font-family: var(--display); font-weight: 700; font-size: 2.1rem; line-height: 1; color: #F2B84B; }
+    .y-win h3 { color: #fff; font-size: 1.05rem; margin: .45rem 0 .1rem; padding-right: 2.6rem; }
+    .y-win-meta { font-size: .82rem; color: rgba(255,255,255,.78); }
+    .y-win-teams { margin: .45rem 0 .2rem; }
+    .y-team { display: inline-block; font-family: var(--display); font-weight: 600; font-size: .85rem; padding: .05rem .45rem;
+              margin: 0 .25rem .25rem 0; background: rgba(255,255,255,.14); }
+    .y-team.us { background: #F2B84B; color: #0A2352; }
+    .y-win-foot { margin-top: auto; font-size: .8rem; color: rgba(255,255,255,.78); }
+    .y-win-foot a { color: #fff; text-decoration: underline; }
+
+    .y-jump { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .4rem 0 .2rem; font-size: .82rem; }
+    .y-jump span { color: var(--muted); margin-right: .2rem; }
+    .y-jump a { padding: .1rem .5rem; background: var(--white); border: 1px solid var(--line); color: var(--link); }
+    .y-jump a.won { border-color: var(--green); color: var(--green); font-weight: 600; }
+    .y-empty { padding: 2rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="y-page">
+    <h1>Season Results</h1>
+    <p class="y-lead">Every event Team 1307 has played since our rookie year in 2004, match by match. Past seasons come from The Blue Alliance; this season's results come from the FIRST FRC Events API and The Blue Alliance, and update on their own during competitions.</p>
+    <section id="reel" aria-label="Event wins"></section>
+    <nav class="y-jump" id="jump" aria-label="Seasons"></nav>
+    <div id="results"><div class="y-empty">Loading…</div></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script src="/js/history.js"></script>
+  <script>
+  // Public page: Team 1307's events since 2004. Past seasons come from /js/history.js (a copy of The Blue
+  // Alliance's record); live seasons from public_team_results() (no sign-in), which wins for any event in both.
+  (async function () {
+    var reel = document.getElementById("reel"), jump = document.getElementById("jump"), box = document.getElementById("results");
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    var KIND = { regional: "Regional", district: "District event", qualifier: "District event", offseason: "Off-season",
+                 district_championship: "District Championship", championship: "FIRST Championship" };
+    var ROLE = { "Captain": "Alliance captain", "Pick 1": "First pick", "Pick 2": "Second pick", "Pick 3": "Third pick", "Backup": "Backup robot" };
+    var LEVEL = { qm: 0, ef: 1, qf: 2, sf: 3, f: 4 };
+    function lv(k) { return (k.match(/^[a-z]+/) || ["qm"])[0]; }
+    function nums(k) { var m = k.match(/(\d+)(?:m(\d+))?$/); return m ? [+m[1], +(m[2] || 0)] : [0, 0]; }
+    function label(k, year) {
+      var l = lv(k), n = nums(k);
+      if (l === "qm") return "Qual " + n[0];
+      if (l === "f") return "Final " + (n[1] || n[0]);
+      // Double elimination (2023 on) numbers every playoff match as its own set
+      if (l === "sf" && year >= 2023) return "Playoff " + n[0];
+      return { ef: "Eighth-final ", qf: "Quarterfinal ", sf: "Semifinal " }[l] + n[0] + (n[1] ? "-" + n[1] : "");
+    }
+    function result(m) { return m.us > m.them ? "W" : m.us < m.them ? "L" : "T"; }
+    function record(list) {
+      var w = 0, l = 0, t = 0;
+      list.forEach(function (m) { var x = result(m); if (x === "W") w++; else if (x === "L") l++; else t++; });
+      return w + "-" + l + "-" + t;
+    }
+    function playoffs(ev) { return ev.matches.filter(function (m) { return lv(m.k) !== "qm"; }); }
+    function finals(ev) { return ev.matches.filter(function (m) { return lv(m.k) === "f"; }); }
+    // Live events: won with 2 final wins, finalist for any final, otherwise just "made playoffs"
+    function liveFinish(ev) {
+      var f = finals(ev);
+      if (f.length) return f.filter(function (m) { return result(m) === "W"; }).length >= 2 ? "Winner" : "Finalist";
+      return playoffs(ev).length ? "Playoffs" : "";
+    }
+
+    // ── Past seasons (history.js) ──
+    var byKey = {}, events = [];
+    (window.RS_HISTORY || []).forEach(function (h) {
+      var ev = { key: h.key, year: h.year, name: h.name, date: h.start, loc: h.loc, kind: h.kind, rank: h.rank,
+                 awards: h.awards || [], finish: h.finish, role: h.role, alliance: h.alliance || [], cancelled: h.cancelled,
+                 matches: h.m.map(function (x) { return { k: x[0], us: x[1], them: x[2], partners: x[3], opponents: x[4] }; }) };
+      byKey[ev.key] = ev; events.push(ev);
+    });
+
+    function tbaKey(ev) { return ev.tba === false ? null : ev.key; }
+    function when(ev, opts) {
+      return ev.date ? new Date(ev.date + "T00:00:00Z").toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts)) : "";
+    }
+    function teamChips(list, cls) {
+      return list.map(function (t) { return '<span class="' + cls + (t === 1307 ? " us" : "") + '">' + esc(t) + "</span>"; }).join("");
+    }
+
+    // Draws the reel, season links and seasons from events (newest first)
+    function render(liveFailed) {
+      events.forEach(function (ev) {
+        ev.matches.sort(function (a, b) {
+          var x = nums(a.k), y = nums(b.k);
+          return LEVEL[lv(a.k)] - LEVEL[lv(b.k)] || x[0] - y[0] || x[1] - y[1];
+        });
+      });
+      events.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+      if (!events.length) { box.innerHTML = '<div class="y-empty">Results couldn\'t load. Try refreshing the page.</div>'; return; }
+
+      // ── Highlight reel: every event win, newest first ──
+      var wins = events.filter(function (ev) { return ev.finish === "Winner"; });
+      var all = [];
+      events.forEach(function (ev) { all = all.concat(ev.matches); });
+      var years = {};
+      events.forEach(function (ev) { if (!ev.cancelled) years[ev.year] = true; });
+      var played = events.filter(function (ev) { return ev.matches.length; }).length;
+      reel.innerHTML =
+        '<div class="y-reel-head"><h2>Event wins</h2><span>' + wins.length + " " + (wins.length === 1 ? "title" : "titles") +
+          " since our rookie year, 2004</span></div>" +
+        '<div class="y-reel">' + wins.map(function (ev) {
+          var f = finals(ev), w = f.filter(function (m) { return result(m) === "W"; }).length;
+          // The alliance as recorded, else the teams 1307 played the finals with
+          var alliance = ev.alliance.length ? ev.alliance : f.length ? [1307].concat(f[0].partners) : [];
+          var lines = [esc(KIND[ev.kind] || "") + (ev.loc ? " · " + esc(ev.loc.replace(/, USA$/, "")) : "")];
+          if (ev.role) lines.push("1307 as " + esc(ROLE[ev.role] || ev.role).toLowerCase());
+          var fin = f.length ? (ev.year === 2015 ? "Finals won on total points" : "Finals " + w + "-" + (f.length - w)) : "";
+          var link = tbaKey(ev) && f.length ? '<a href="https://www.thebluealliance.com/match/' + esc(ev.key) + "_" + esc(f[f.length - 1].k) +
+            '" target="_blank" rel="noopener">Watch the final</a>' : "";
+          return '<article class="y-win"><i class="fa fa-trophy" aria-hidden="true"></i>' +
+            '<div class="y-win-year">' + esc(ev.year) + "</div>" +
+            "<h3>" + esc(ev.name) + "</h3>" +
+            lines.map(function (l) { return '<div class="y-win-meta">' + l + "</div>"; }).join("") +
+            (alliance.length ? '<div class="y-win-teams">' + teamChips(alliance, "y-team") + "</div>" : "") +
+            '<div class="y-win-foot">' + esc(fin) + (fin && link ? " · " : "") + link + "</div></article>";
+        }).join("") + "</div>" +
+        '<div class="y-tiles">' + [[Object.keys(years).length, "Seasons"], [played, "Events played"], [record(all), "All-time record"],
+          [wins.length, wins.length === 1 ? "Event win" : "Event wins"]].map(function (t) {
+            return '<div class="y-tile"><b>' + esc(t[0]) + "</b><span>" + esc(t[1]) + "</span></div>";
+          }).join("") + "</div>";
+
+      // ── Seasons, newest first ──
+      var seasons = {}, order = [];
+      events.forEach(function (ev) {
+        if (!seasons[ev.year]) { seasons[ev.year] = []; order.push(ev.year); }
+        seasons[ev.year].push(ev);
+      });
+      jump.innerHTML = '<span>Jump to</span>' + order.map(function (y) {
+        var won = seasons[y].some(function (ev) { return ev.finish === "Winner"; });
+        return '<a href="#season-' + y + '"' + (won ? ' class="won" title="Event win this season"' : "") + ">" +
+          (won ? '<i class="fa fa-trophy" aria-hidden="true"></i> ' : "") + y + "</a>";
+      }).join("");
+
+      var NOTE = {
+        2015: "In 2015 teams were ranked by average score and playoffs were decided by total points, so W/L here only says which alliance scored more.",
+        2021: "No in-person district events in 2021; the season ran remotely."
+      };
+      box.innerHTML = (liveFailed ? '<div class="y-note">This season\'s live results couldn\'t load, so recent events may be missing. Try refreshing the page.</div>' : "") +
+        order.map(function (year) {
+          var list = seasons[year], ms = [];
+          list.forEach(function (ev) { ms = ms.concat(ev.matches); });
+          var w = list.filter(function (ev) { return ev.finish === "Winner"; }).length;
+          var tiles = [[list.filter(function (ev) { return !ev.cancelled; }).length, "Events"]];
+          if (ms.length) tiles.unshift([record(ms), "Season record"]), tiles.push([Math.max.apply(null, ms.map(function (m) { return m.us; })), "High score"]);
+          if (w) tiles.push([w, w === 1 ? "Event win" : "Event wins"]);
+          return '<h2 class="y-season" id="season-' + year + '">' + esc(year) + " season</h2>" +
+            (NOTE[year] ? '<p class="y-meta">' + esc(NOTE[year]) + "</p>" : "") +
+            '<div class="y-tiles">' + tiles.map(function (t) { return '<div class="y-tile"><b>' + esc(t[0]) + "</b><span>" + esc(t[1]) + "</span></div>"; }).join("") + "</div>" +
+            list.map(eventBlock).join("");
+        }).join("");
+    }
+
+    function eventBlock(ev) {
+      var quals = ev.matches.filter(function (m) { return lv(m.k) === "qm"; }), po = playoffs(ev);
+      var fin = ev.finish === "Winner" ? "Event winner" : ev.finish === "Playoffs" ? "Playoffs " + record(po) : ev.finish || "";
+      var meta = [when(ev, { month: "short", day: "numeric" }), KIND[ev.kind], ev.loc && ev.loc.replace(/, USA$/, "")].filter(Boolean).join(" · ");
+      var stats = [];
+      if (ev.rank) stats.push("Rank " + ev.rank);
+      if (quals.length) stats.push("Quals " + record(quals));
+      if (ev.matches.length) stats.push("avg score " + (ev.matches.reduce(function (t, m) { return t + m.us; }, 0) / ev.matches.length).toFixed(1));
+      if (ev.role) stats.push(ROLE[ev.role] || ev.role);
+      var head = "<h3>" + esc(ev.name) + '</h3><span class="y-meta">' + esc(meta) + "</span>" +
+        (stats.length ? '<span class="y-meta">' + esc(stats.join(" · ")) + "</span>" : "") +
+        (fin ? '<span class="y-finish' + (ev.finish === "Winner" ? " won" : "") + '">' + (ev.finish === "Winner" ? '<i class="fa fa-trophy" aria-hidden="true"></i> ' : "") + esc(fin) + "</span>" : "") +
+        ev.awards.map(function (a) { return '<span class="y-award"><i class="fa fa-certificate" aria-hidden="true"></i> ' + esc(a) + "</span>"; }).join("");
+      if (!ev.matches.length) {
+        return '<div class="y-event y-flat">' + head + '<span class="y-meta">' + (ev.cancelled ? "Cancelled (COVID-19)" : "No match results on record") + "</span></div>";
+      }
+      var tba = tbaKey(ev);
+      return '<details class="y-event"><summary>' + head + "</summary>" +
+        '<div class="table-responsive"><table class="y-table"><thead><tr><th>Match</th><th>Result</th><th>Score</th><th>With</th><th>Against</th></tr></thead><tbody>' +
+        ev.matches.map(function (m) {
+          var x = result(m), name = esc(label(m.k, ev.year));
+          return "<tr><td>" + (tba ? '<a href="https://www.thebluealliance.com/match/' + esc(tba) + "_" + esc(m.k) + '" target="_blank" rel="noopener">' + name + "</a>" : name) +
+            '</td><td class="' + x + '">' + x + "</td><td>" + m.us + "–" + m.them + "</td><td>" + esc(m.partners.join(", ")) +
+            "</td><td>" + esc(m.opponents.join(", ")) + "</td></tr>";
+        }).join("") + "</tbody></table></div></details>";
+    }
+
+    // ── Live seasons (database) ──
+    // The archive draws straight away; live results are merged in when they arrive
+    if (events.length) render(false);
+    var liveFailed = false;
+    if (window.RS && RS.sb) {
+      var r = await RS.sb.rpc("public_team_results");
+      if (r.error) liveFailed = true;
+      else {
+        var live = {};
+        (r.data || []).forEach(function (m) {
+          var key = m.tba_event_key || (m.event_name + "|" + m.event_date);
+          var ev = live[key] = live[key] || { key: key, tba: !!m.tba_event_key, year: +(m.event_date || "0").slice(0, 4), name: m.event_name,
+                                              date: m.event_date, kind: m.event_tier, awards: [], alliance: [], matches: [] };
+          ev.matches.push({ k: m.match_key, us: m.our_score, them: m.their_score, partners: m.partners || [], opponents: m.opponents || [] });
+        });
+        Object.keys(live).forEach(function (key) {
+          var ev = live[key], old = byKey[key], f = liveFinish(ev);
+          if (old) {
+            // Same event in both: live matches, plus the official name, rank, awards and alliance from the archive
+            ev.name = old.name; ev.loc = old.loc; ev.rank = old.rank; ev.awards = old.awards; ev.role = old.role; ev.alliance = old.alliance;
+            ev.finish = f === "Winner" || old.finish === "Winner" ? "Winner" : f || old.finish;
+            events[events.indexOf(old)] = ev;
+          } else { ev.finish = f; events.push(ev); }
+        });
+      }
+    } else liveFailed = true;
+    if (!events.length) { box.innerHTML = '<div class="y-empty">Results couldn\'t load. Try refreshing the page.</div>'; return; }
+    render(liveFailed);
+  })();
+  </script>
+</body>
+</html>

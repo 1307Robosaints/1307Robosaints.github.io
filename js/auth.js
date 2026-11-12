@@ -11,6 +11,33 @@
     return;
   }
 
+  // Release info, put in by deploy/build.sh (absent locally): the version goes in the footer, and
+  // the experimental site gets a bar saying so, with a link to the stable one. See RELEASING.md.
+  var BUILD = window.RS_BUILD;
+  if (BUILD && BUILD.site !== "info") {
+    document.addEventListener("DOMContentLoaded", function () {
+      var foot = document.querySelector("#bottomrow .container");
+      if (foot) {
+        var v = document.createElement("p");
+        v.className = "m-0 mt-2 text-center";
+        v.style.cssText = "font-size:.72rem;opacity:.75;color:#fff;";
+        v.textContent = "1307scout " + (BUILD.channel === "experimental" ? "experimental " : "v") + BUILD.version;
+        foot.appendChild(v);
+      }
+      if (BUILD.channel === "experimental") {
+        var bar = document.createElement("div");
+        bar.setAttribute("role", "note");
+        bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2000;padding:.2rem .75rem;" +
+          "font-size:.75rem;text-align:center;background:#B45309;color:#fff;";
+        bar.innerHTML = "Experimental 1307scout: new features being tried out, on the real data. " +
+          "<a href=\"https://scout.robosaints1307.com" + location.pathname.replace(/"/g, "") +
+          "\" style=\"color:#fff;text-decoration:underline;\">Use the stable version</a>";
+        document.body.appendChild(bar);
+        document.body.style.paddingBottom = "1.6rem";
+      }
+    });
+  }
+
   // A banner for problems that stop an app page from working
   function showNote(text) {
     var note = document.createElement("div");
@@ -24,7 +51,7 @@
   // Supabase comes from a CDN that ad blockers and school filters can block. Public pages work
   // without it; the app pages would otherwise hang, so tell the person what happened.
   if (!window.supabase) {
-    if (/\/(1307scout|account|alliance|bracket|flags|matches|playoffs|portal|query|scout|signin|strategy)(\.html)?$/.test(location.pathname)) {
+    if (/\/(1307scout|account|alliance|bracket|flags|matches|picklist|pitcrew|playoffs|portal|query|scout|shifts|signin|strategy)(\.html)?$/.test(location.pathname)) {
       showNote("1307scout couldn't load its sign-in service. Check your connection, " +
         "turn off any ad blocker for this site, or try a different network, then refresh.");
     }
@@ -134,7 +161,7 @@
     });
     // 1307scout pages left out of the short menu still highlight it
     var scoutToggle = document.getElementById("navScout");
-    if (scoutToggle && /\/(flags|ratings)(\.html)?$/.test(here)) scoutToggle.classList.add("active");
+    if (scoutToggle && /\/(flags|ratings|shifts|picklist|pitcrew)(\.html)?$/.test(here)) scoutToggle.classList.add("active");
   }
 
   function renderNav(session, level) {

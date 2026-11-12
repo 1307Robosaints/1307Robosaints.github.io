@@ -4,14 +4,15 @@ One codebase, two branches, three sites:
 
 | Branch   | Site                                                         | What it is |
 |----------|--------------------------------------------------------------|------------|
-| `master` | [beta.robosaints1307.com](https://beta.robosaints1307.com)   | 1307scout **experimental**. Push and try it, same as always. |
+| `master` | [beta.robosaints1307.com](https://beta.robosaints1307.com)   | **Experimental**: the whole site (1307scout and the public pages). Push and try it, same as always. |
 | `stable` | [scout.robosaints1307.com](https://scout.robosaints1307.com) | 1307scout **stable**: released versions only. |
 | `stable` | [robosaints1307.com](https://robosaints1307.com)             | The informational site (team, robot, sponsors, contact, results). |
 
 `.github/workflows/deploy.yml` deploys on every push: `master` to beta, `stable` to both the
-informational site and scout. `deploy/build.sh` makes each site from the same files. It replaces
-pages that belong on the other site with redirect stubs, points links across the two sites, and
-writes `version.json` and `window.RS_BUILD`. Locally nothing changes: open any page, or serve the
+informational site and scout. `deploy/build.sh` makes each site from the same files. On the two
+stable sites it replaces pages that belong on the other site with redirect stubs and points links
+across the two. Beta keeps every page, so you never leave it while browsing. Every site gets
+`version.json` and `window.RS_BUILD`. Locally nothing changes: open any page, or serve the
 repo root.
 
 **Both sites use the same Supabase project**, so experimental runs on real data. That means:
@@ -79,14 +80,14 @@ Done once when switching to this workflow (November 2026). Kept here as a record
 
 Do the steps in order. Nothing changes on the live site until step 4.
 
-### 1. DNS (domain.com, where robosaints1307.com is registered)
+### 1. DNS (Network Solutions, where robosaints1307.com is registered)
 
-1. Sign in at domain.com. Under **Domains**, open **robosaints1307.com**, then **DNS & Nameservers**.
-2. Add a DNS record: type **CNAME**, name/host **`scout`**, pointing to (value)
+1. Sign in at networksolutions.com. Under **Domains**, open **robosaints1307.com**, then the **DNS** tab.
+2. Click **+ Add Record**: type **CNAME**, name **`scout`**, points to
    **`1307robosaints.github.io`**. Leave the TTL at its default.
-3. Add a second one the same way, with name/host **`beta`**.
-4. Leave the existing records for `robosaints1307.com` (the four `A` records to `185.199.x.153`)
-   alone: the informational site still uses them.
+3. Add a second one the same way, with name **`beta`**.
+4. Leave the existing records alone: the `www` CNAME and the four `A` records to `185.199.x.153`.
+   The informational site still uses them.
 
 The records can take up to a few hours to work. To check, run `nslookup scout.robosaints1307.com`:
 once it's working, the output names `1307robosaints.github.io` with `185.199.x.153` addresses.
