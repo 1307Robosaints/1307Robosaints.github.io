@@ -43,7 +43,9 @@ backward compatible with it (add, don't rename or drop; remove the old thing in 
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `theme.js`, `contact-config.js`,
 `contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `visioncheck.js`, `schedule.js`, `alerts.js`,
-`resync.js`, `offline.js`, `history.js`, plus the vendored `jqBootstrapValidation.js`).
+`resync.js`, `offline.js`, `history.js`, `team.js`, plus the vendored `jqBootstrapValidation.js`).
+`team.js` (`RSTeam`) is the team-settings defaults and helpers: the features a manager can open to
+members (must match `team_feature_default()` in SQL), the default Pit Crew checklist and low-battery voltage.
 `schedule.js` is an event's merged schedule (official matches with the `match_schedule` edits laid over
 them, in play order) and the match-key helpers; `visioncheck.js` is the vision-vs-scouts comparison
 that Match Flags shows and the Scout page uses to decide what to pre-fill (documented on
@@ -63,7 +65,7 @@ grade, alliance-grade and win-chance math, and the loader for it, used by `allia
 `playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
 to a page (`scout.html`, `query.html`, `flags.html`, `alliance.html`, `matches.html`, `playoffs.html`,
 `bracket.html`, `strategy.html`, `shifts.html`, `picklist.html`, `pitcrew.html`, `results.html`, `portal.html`,
-`account.html`, `1307scout.html`) is written as a
+`account.html`, `team.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -81,7 +83,10 @@ Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 `RS.sb` (aliased locally as `sb`), e.g. `sb.from("scouting_entries").select(...)`,
 `sb.rpc("my_access_level")`, `sb.storage.from("scouting-photos").upload(...)`. Gated pages get the
 level from `RS.accessLevel()`, which returns null after showing a banner if the server can't be
-reached, so a bad connection isn't mistaken for guest access. CDN `<script>`
+reached, so a bad connection isn't mistaken for guest access. Team pages get the person's team from
+`RS.team()` (`my_team_info()`: `team_number`, `role`, `settings`, `can`), cached per page load and on the
+device for offline use; `RS.teamChanged()` forgets it after a join or leave. "Our team" on a page is
+always that `team_number`, never a hardcoded 1307. CDN `<script>`
 tags and the Font Awesome stylesheet carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
 drives the shared nav: it hides/shows `[data-role="staff"]` / `[data-role="team"]` elements and
 highlights the active nav link — this is cosmetic only, not the real access control. It also
@@ -113,7 +118,31 @@ in `SQL/rebuild_all.sql`.
 
 Access levels: `staff`, `mentor`/`student` (team), `guest`. `staff_members` is an allowlist
 editable from the SQL Editor or by existing staff through `staff_set_level()`; `member_grants` covers mentors/students on personal emails and
-explicit guest grants; students otherwise qualify via a `@stalux.org` login.
+explicit guest grants. `my_access_level()` still answers only those three words, because stable
+pages send any other value to My Account: the team role is separate.
+
+Teams (section 3b): an account is on at most one FRC team, as `manager` or `member`, decided by
+`member_team()`: a `team_members` row (`removed` means no team). Quarantine
+(`app_settings.require_team_claims`) is on, so otherwise only a login at `teams.email_domain`
+(stalux.org) counts, and only until the account answers the team prompt, because the stable release
+can't ask. With quarantine off, `legacy_team()` counts too (staff are home-team managers,
+mentor/student grants are home-team members). `home_team()` is 1307. Every account
+answers once which team it's on (`team_claims`, via `claim_team()`: the sign-up form's
+`user_metadata.team_claim`, or the prompt `js/auth.js` shows when `my_team_info().needs_prompt`;
+`staff_members.no_team_prompt` skips it). A claim is verified by `team_domains`, `team_invites`, a join
+code or `legacy_team()`; otherwise it's pending (a guest) until `verify_team_claim()` by the team's
+manager or staff. Pages and policies get the caller's team through `my_team_role()`, which for staff
+acting as a team (`staff_act_as_team()`, `staff_members.acting_team`) is that team, as manager.
+`is_student()` is "on a team", so every existing policy accepts other teams' members. Team-owned
+tables (`match_strategies`, `robot_log`, `pick_list`, `scout_shifts`) have `owner_team` (default
+`my_team()`) and policies on `owner_team = my_team()` plus `team_can('<feature>')` for writes; site
+staff get no special access to them. A new team-owned feature needs the same: the column, policies,
+a key in `team_feature_default()`/`team_update_settings()`/`my_team_info()` and `js/team.js` if it's
+configurable. Verification: `request_team_manager()`, reviewed by site staff with
+`staff_review_team_request()` (Staff Portal, Teams tab); after that managers vouch with
+`team_join_codes` and `team_set_role()`. Section 16b (commented out) swaps `match_strategies` and
+`pick_list` onto per-team primary keys: run it only once a release with teams is on stable, and
+don't verify a second team before then.
 
 ### `SQL/rebuild_all.sql` is the single source of truth for the schema
 
@@ -143,12 +172,12 @@ Key tables/functions to know when touching 1307scout:
   can't know: `playoff_tiebreaks` (who won a tied match) and `playoff_lineups` (who sits out on a
   4-team alliance). `events.alliance_size` overrides the 3-or-4 rule for an event.
 - `match_schedule` — hand edits for `matches.html`, laid over the official schedule by `match_key`.
-- `scout_shifts` (8m) — staff-assigned seats (`red1`..`blue3`) for a range of quals; a trigger stops
+- `scout_shifts` (8m) — a team's seats, assigned by its managers (`red1`..`blue3`) for a range of quals; a trigger stops
   overlaps. `team_member_names()` gives the team display names for the account ids a page shows.
-- `pick_list` (8n) — staff's ranked pick list per event; Playoff Selection reads it.
+- `pick_list` (8n) — each team's ranked pick list per event; Playoff Selection reads it.
 - `match_predictions` (8o) — the last win chance Our Matches showed before each match, written only
   through `log_prediction()` (refuses played matches); `prediction_calibration()` scores them.
-- `robot_log` (8p) — Pit Crew's checklists, batteries, repairs and notes for our robot.
+- `robot_log` (8p) — Pit Crew's checklists, batteries, repairs and notes for the team's own robot.
 - `push_subscriptions` / `match_alerts_sent` (8q) — match alerts. `push_subscribe()`/`push_unsubscribe()`
   from the page; `run_match_alerts()` (pg_cron) calls the `match-alerts` Edge Function in this repo,
   which needs VAPID secrets, and `js/auth-config.js` needs the public key as `pushKey`. It uses FRC
@@ -159,9 +188,13 @@ Key tables/functions to know when touching 1307scout:
   `scouted_by`, who must pass `is_team_member()`).
 - `public_team_results()` (8s) — 1307's played official matches for the public `results.html`; the only
   function granted to `anon`. Keep it limited to public competition results.
-- `match_strategies` (section 8k) — one `strategy.html` plan per match (`plan` jsonb: line-up
-  override, robot spots, drawn strokes), any team member reads/writes, last save wins. Kept after
-  the match for review; the page locks a played match's plan until someone clicks Edit.
+- `alliance_strategies` / `match_strategies` (section 8k) — `strategy.html` plans (`plan` jsonb:
+  line-up override, robot spots, drawn strokes), last save wins. For a match the team plays in, one
+  plan per alliance, shared by the alliance's teams (`my_alliance()`: the official line-up, or a
+  `match_schedule` edit only when the official schedule lacks the match, so a schedule edit can't
+  open another alliance's plan). Otherwise one team-private plan per match (`owner_team`). Writes
+  need `team_can('strategy')`. Kept after the match for review; the page locks a played match's plan
+  until someone clicks Edit.
 - `vision_matches` / `vision_robots` (section 8j) — written only by the vision worker in `vision/`
   (Python, runs on a team laptop with the service role key; see `vision/README.md`). Team reads,
   nobody writes through the API. Estimates only: no rating reads them. The per-robot keys in

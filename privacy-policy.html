@@ -92,14 +92,20 @@
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
                 <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-                <div class="dropdown-divider" data-role="team" hidden></div>
+                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+                <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+                <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+                <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+                <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
                 <div class="dropdown-divider" data-role="staff" hidden></div>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
@@ -153,9 +159,21 @@
             <strong>1307scout account:</strong> your name, plus a phone number if you add one on the
             My Account page, which staff can use to reach you, and your light or dark theme choice. If you sign in to Scout, the Team Database, or the
             Staff Portal, your email address and authentication info are stored by our database
-            provider, Supabase. Students generally sign in with their school (<code>@stalux.org</code>)
+            provider, Supabase. Team 1307 students generally sign in with their school (<code>@stalux.org</code>)
             email; mentors and approved guests can be granted access with another email address by
             a staff member.
+          </li>
+          <li>
+            <strong>Your team:</strong> which FRC team you told us you're on (or that you're not on one), whether
+            and how you were verified, and whether you're one of its managers. Until you're verified, that team's
+            managers and site staff see your name and email address so they can verify you. If a manager invites
+            you, we keep your email address with the invitation for up to 30 days. A team can list email domains
+            (such as its school's) that verify its members.
+            Your team's managers see your name, email address, how you joined and when you last signed in, on the
+            Team Management page; other members of your team see your name and role. If you ask to manage a
+            team, we keep the team number, the role you gave, your message about how to confirm it, and what
+            site staff decided, and site staff see your email address with it. Join codes record who made them
+            and how many times they were used.
           </li>
           <li>
             <strong>Scouting data:</strong> team members using 1307scout record match statistics, match schedules,
@@ -172,18 +190,20 @@
           <li>
             <strong>Match strategy plans:</strong> on the Match Strategy page, team members place robots and draw
             a plan for a match. Each plan is saved with its match so the team can review it later, and we
-            record who last changed it and when.
+            record who last changed it and when. For a match your team plays in, the plan is shared with the
+            other teams on your alliance for that match, who can see and change it, and the record of who last
+            changed it; the other alliance can't see it. A plan for a match your team isn't in is seen only by your team.
           </li>
           <li>
-            <strong>Scout shifts:</strong> staff can give a team member a driver-station seat for a range of
-            matches. Team members can see who has which seat, by display name (or the part of the email
+            <strong>Scout shifts:</strong> a team's managers can give its members a driver-station seat for a range of
+            matches. Members of that team can see who has which seat, by display name (or the part of the email
             address before the @ if no name is set).
           </li>
           <li>
-            <strong>Pick list and robot log:</strong> staff keep a ranked list of other teams for alliance
-            selection, with notes. Team members can log our own robot's checklists, batteries, repairs and
-            notes on the Pit Crew page; we record who added each one and when, and other team members see
-            their name beside it.
+            <strong>Pick list and robot log:</strong> each team keeps its own ranked list of other teams for alliance
+            selection, with notes. Team members can log their own robot's checklists, batteries, repairs and
+            notes on the Pit Crew page; we record who added each one and when, and other members of the team see
+            their name beside it. Neither is shown to any other team.
           </li>
           <li>
             <strong>Match alerts:</strong> if you turn them on in My Account, we store your browser's push
@@ -224,7 +244,7 @@
           </li>
           <li>
             So the Scout page can open with no connection: a copy of the scouting form, the list of events,
-            your scout shifts, and your access level. Signing out deletes them.
+            your scout shifts, your access level, and your team and its settings. Signing out deletes them.
           </li>
           <li>
             A QR code shown by <strong>Hand off by QR</strong> holds that draft entry, including your account
@@ -265,11 +285,12 @@
         <p>We do not sell, rent, or trade your information, and we don't use it for advertising.</p>
 
         <h2>Who can see what</h2>
-        <p>1307scout has four access levels, set by a staff member:</p>
+        <p>1307scout has four access levels:</p>
         <ul>
-          <li><strong>Staff</strong> (mentors with admin rights) — can see and manage everything in 1307scout.</li>
-          <li><strong>Mentor</strong> and <strong>Student</strong> — can scout matches/pits and view team data; students generally only edit the match entries they personally scouted.</li>
-          <li><strong>Guest</strong> — signed in but no scouting access; can only view data through a specific share code a staff member created.</li>
+          <li><strong>Staff</strong> (site admins) — manage events, form fields, share codes and member accounts, approve team managers, and read the audit log. Staff can't see another team's own data (its strategy plans, pick list, robot log or scout shifts).</li>
+          <li><strong>Team manager</strong> — a member of an FRC team who can add and remove its members, make other members managers, and choose who on the team can change its own data. A team's first manager is approved by staff after checking with the team.</li>
+          <li><strong>Mentor</strong> and <strong>Student</strong> (team members) — can scout matches/pits and view the scouting data, which every team shares, plus their own team's data; students generally only edit the match entries they personally scouted.</li>
+          <li><strong>Guest</strong> — signed in but on no team; can only view data through a specific share code a staff member created.</li>
         </ul>
 
         <h2>Third-party services we use</h2>

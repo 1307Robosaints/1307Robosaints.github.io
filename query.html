@@ -318,14 +318,20 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -455,6 +461,7 @@
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var MY_TEAM = ((await RS.team()) || {}).team_number || null;   // the signed-in person's team (js/auth.js)
 
     // ── Rating config ────────────────────────────────────────────────
     // Tiers come from a team's percentile among rated teams, ranked by the weighted score from
@@ -1608,7 +1615,7 @@
     // Events doesn't send its ranking table through the sync). Ranked by average ranking points
     // when every played match reports them, else by record; then by average alliance score.
     // Explained on ratings.html#event-rankings, which must change with this code.
-    var OUR_TEAM = 1307;
+    var OUR_TEAM = MY_TEAM;
     var eventTeams = null;     // Set of teams on the picked event's schedule, or null for all events
     var eventRank = null;      // { eventId, rows, hasRp, played, scheduled, err } for the picked event
     var rankLoadId = 0;        // ignores a slow load once a different event is picked

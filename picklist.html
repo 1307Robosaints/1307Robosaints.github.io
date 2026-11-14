@@ -117,14 +117,20 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -142,7 +148,7 @@
     <div class="p-intro">
       <div>
         <h1>Pick List</h1>
-        <p class="text-muted">Our ranked list for alliance selection, made before it starts. Playoff Selection uses it to show who to pick next. <a href="/playoffs.html">Playoff Selection</a></p>
+        <p class="text-muted">Your team's ranked list for alliance selection, made before it starts. Playoff Selection uses it to show who to pick next. <a href="/playoffs.html">Playoff Selection</a></p>
       </div>
       <div class="p-controls">
         <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
@@ -199,6 +205,7 @@
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/schedule.js"></script>
+  <script src="/js/team.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -212,13 +219,16 @@
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
-    // ── Access gate: the team reads, staff edit (the database enforces both) ──
+    // ── Access gate: the team reads, its managers edit (the database enforces both) ──
     var s = await RS.session();
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
-    var isStaff = lvl === "staff";
+    var team = await RS.team();
+    if (!team || !team.team_number) { location.replace("team.html"); return; }
+    // Each team has its own list; managers can let every member change it (Team Management)
+    var OUR_TEAM = team.team_number, canEdit = RSTeam.can(team, "pick_list");
 
     var events = [], eventId = null, list = [], picks = {}, eventTeams = [], data = null, dataTeams = "";
     var textFields = [];
@@ -283,20 +293,20 @@
       return rows;
     }
     function nextUp() {
-      return list.find(function (r) { return r.tier !== "dnp" && !picks[r.team_number] && r.team_number !== 1307; }) || null;
+      return list.find(function (r) { return r.tier !== "dnp" && !picks[r.team_number] && r.team_number !== OUR_TEAM; }) || null;
     }
     function rowHtml(r, i, canMove) {
       var t = data.team(r.team_number), taken = picks[r.team_number], next = nextUp();
       var notes = scoutedNotes(t);
       return '<div class="p-row ' + r.tier + (taken ? " taken" : "") + (next && next.team_number === r.team_number ? " next" : "") + '"' +
-          (isStaff && canMove ? ' draggable="true"' : "") + ' data-team="' + r.team_number + '">' +
-        (isStaff && canMove ? '<span class="p-handle" title="Drag to reorder"><i class="fa fa-bars"></i></span>' : "") +
+          (canEdit && canMove ? ' draggable="true"' : "") + ' data-team="' + r.team_number + '">' +
+        (canEdit && canMove ? '<span class="p-handle" title="Drag to reorder"><i class="fa fa-bars"></i></span>' : "") +
         '<span class="p-rank">' + (i + 1) + "</span>" +
         '<span class="p-team"><a href="/query.html?team=' + r.team_number + '"><strong>' + r.team_number + "</strong></a> " + esc(RSTeams.name(t.info)) + "</span>" +
         R.gradeBadge(t.gradeScout, "Scouting") + R.gradeBadge(t.gradeOfficial, "Official") +
         '<span class="p-stats">' + stat("OPR", t.official && t.official.score) + stat("Scouted pts", t.scout && t.scout.avg_points) + "</span>" +
         (taken ? '<span class="p-taken">Alliance ' + taken.alliance_number + (taken.slot === 1 ? " captain" : "") + "</span>" : "") +
-        (isStaff
+        (canEdit
           ? '<select class="custom-select p-tier" data-tier aria-label="Tier">' + Object.keys(TIERS).map(function (k) {
               return '<option value="' + k + '"' + (k === r.tier ? " selected" : "") + ">" + TIERS[k] + "</option>";
             }).join("") + "</select>" +
@@ -313,27 +323,27 @@
       if (!data) return;
       var canMove = $("sortPick").value === "rank";
       var missing = eventTeams.filter(function (t) { return !list.some(function (r) { return r.team_number === t; }); });
-      $("addAll").hidden = !isStaff || !missing.length;
+      $("addAll").hidden = !canEdit || !missing.length;
       $("addAll").innerHTML = '<i class="fa fa-plus"></i> Add ' + missing.length + " team" + (missing.length === 1 ? "" : "s") + " from the schedule";
-      $("howTo").textContent = isStaff
+      $("howTo").textContent = canEdit
         ? "Drag rows, or use the arrows, to reorder. Changes save as you make them, and Playoff Selection shows the best team still available."
-        : "Staff build this list. It updates as teams are picked.";
+        : "Your team's managers build this list. It updates as teams are picked.";
       var next = nextUp();
       $("next").innerHTML = next && Object.keys(picks).length
         ? '<div class="p-next">Best available: <strong>' + next.team_number + "</strong> " + esc(RSTeams.name(data.team(next.team_number).info)) + " (" + TIERS[next.tier] + ")</div>" : "";
       $("list").innerHTML = list.length
         ? ordered().map(function (r, i) { return rowHtml(r, i, canMove); }).join("")
-        : '<div class="p-empty">No teams on the list yet.' + (isStaff ? " Use Add teams from the schedule, then put them in order." : "") + "</div>";
+        : '<div class="p-empty">No teams on the list yet.' + (canEdit ? " Use Add teams from the schedule, then put them in order." : "") + "</div>";
     }
 
-    // ── Staff edits ─────────────────────────────────────────────────
+    // ── Edits (managers, or everyone if the team allows it) ─────────
     function say(text) { $("msg").textContent = text; }
     async function saveOrder() {
       list.forEach(function (r, i) { r.rank = i + 1; });
       var r = await sb.from("pick_list").upsert(list.map(function (x) {
-        return { event_id: eventId, team_number: x.team_number, rank: x.rank, tier: x.tier, note: x.note || null,
+        return { owner_team: OUR_TEAM, event_id: eventId, team_number: x.team_number, rank: x.rank, tier: x.tier, note: x.note || null,
           updated_by: s.user.id, updated_at: new Date().toISOString() };
-      }), { onConflict: "event_id,team_number" });
+      }), { onConflict: "owner_team,event_id,team_number" });
       if (r.error) { say("Couldn't save the order: " + r.error.message); load(); }
     }
     function rowOf(el) {
@@ -342,22 +352,22 @@
     }
     $("list").addEventListener("change", async function (e) {
       var r = rowOf(e.target);
-      if (!r || !isStaff) return;
+      if (!r || !canEdit) return;
       if (e.target.matches("[data-tier]")) r.tier = e.target.value;
       else if (e.target.matches("[data-note]")) r.note = e.target.value.trim();
       else return;
       var res = await sb.from("pick_list").update({ tier: r.tier, note: r.note || null, updated_by: s.user.id, updated_at: new Date().toISOString() })
-        .eq("event_id", eventId).eq("team_number", r.team_number);
+        .eq("owner_team", OUR_TEAM).eq("event_id", eventId).eq("team_number", r.team_number);
       if (res.error) say("Couldn't save: " + res.error.message);
       render();
     });
     $("list").addEventListener("click", async function (e) {
       var btn = e.target.closest("[data-move],[data-drop]");
-      if (!btn || !isStaff) return;
+      if (!btn || !canEdit) return;
       var r = rowOf(btn), i = list.indexOf(r);
       if (btn.hasAttribute("data-drop")) {
         if (!confirm("Take " + r.team_number + " off the list?")) return;
-        var res = await sb.from("pick_list").delete().eq("event_id", eventId).eq("team_number", r.team_number);
+        var res = await sb.from("pick_list").delete().eq("owner_team", OUR_TEAM).eq("event_id", eventId).eq("team_number", r.team_number);
         if (res.error) { say("Couldn't remove it: " + res.error.message); return; }
         list.splice(i, 1);
         render();

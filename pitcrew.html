@@ -113,14 +113,20 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -138,13 +144,15 @@
     <div class="c-intro">
       <div>
         <h1>Pit Crew</h1>
-        <p class="text-muted">Our own robot at an event: the pre-match checklist, battery use, repairs and notes, for the whole pit crew.</p>
+        <p class="text-muted"><span id="teamName">Your team</span>'s robot at an event: the pre-match checklist, battery use, repairs and notes, for the whole pit crew.
+          Managers set the checklist on <a href="/team.html">Team Management</a>.</p>
       </div>
       <div class="c-controls">
         <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
       </div>
     </div>
     <div id="next"></div>
+    <div class="c-next" id="viewOnly" hidden>Your team's managers keep Pit Crew to managers, so you can see the log but not add to it.</div>
 
     <div class="c-grid">
       <section class="c-card" aria-labelledby="checkTitle">
@@ -231,24 +239,14 @@
   <script src="/js/pwa.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/schedule.js"></script>
+  <script src="/js/team.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
     var $ = function (id) { return document.getElementById(id); };
     var S = RSSchedule;
-    var OUR_TEAM = 1307;
-    var LOW_VOLTS = 12.5;   // a battery under this before a match is flagged
-    // The pre-match checklist. Change the items here; saved checklists keep the items they had.
-    var CHECKLIST = [
-      "Fresh battery in, strapped down, connector tight",
-      "Bumpers on, right color, numbers showing",
-      "Radio powered, ethernet and power plugs secure",
-      "Main breaker on, no loose wires",
-      "Mechanisms move freely, nothing rubbing",
-      "Bolts on the drivetrain and intake checked",
-      "Robot in its starting setup, preloaded FUEL",
-      "Driver station charged, controllers plugged in, right auto picked"
-    ];
+    // The team, its checklist and its low-battery voltage are set on Team Management (js/team.js)
+    var OUR_TEAM, LOW_VOLTS, CHECKLIST;
 
     function esc(s) {
       return String(s == null ? "" : s)
@@ -261,7 +259,17 @@
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
-    var isStaff = lvl === "staff", me = s.user.id;
+    var team = await RS.team();
+    if (!team || !team.team_number) { location.replace("team.html"); return; }
+    OUR_TEAM = team.team_number;
+    LOW_VOLTS = RSTeam.lowVolts(team);
+    CHECKLIST = RSTeam.checklist(team);
+    var isManager = team.role === "manager", canLog = RSTeam.can(team, "pit_crew"), me = s.user.id;
+    $("teamName").textContent = team.name;
+    if (!canLog) {
+      $("viewOnly").hidden = false;
+      document.querySelectorAll(".c-grid button, .c-grid input, .c-grid select, .c-grid textarea").forEach(function (el) { el.disabled = true; });
+    }
 
     var events = [], eventId = null, ourMatches = [], log = [], names = {};
 
@@ -347,7 +355,7 @@
       if (!rows.length) return '<div class="c-empty">Nothing logged at this event yet.</div>';
       return '<table class="c-table"><thead><tr><th>When</th><th>Kind</th><th>Match</th><th>Details</th><th>Who</th><th></th></tr></thead><tbody>' +
         rows.map(function (r) {
-          var mine = isStaff || r.created_by === me;
+          var mine = isManager || (canLog && r.created_by === me);
           return "<tr><td>" + esc(when(r.created_at)) + '</td><td><span class="c-kind ' + r.kind + '">' + r.kind + "</span></td><td>" +
             (r.match_key ? esc(S.label(r.match_key)) : "—") + "</td><td>" + detailOf(r) + "</td><td>" + esc(names[r.created_by] || "—") + "</td><td>" +
             (mine ? '<button type="button" class="btn btn-outline-danger btn-sm" data-remove="' + r.id + '" aria-label="Delete">&times;</button>' : "") + "</td></tr>";

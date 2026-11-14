@@ -256,6 +256,7 @@
       clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
     }
     .greeting-badge.staff   { background: var(--blue); color: #fff; }
+    .claim-status { font-size: .88rem; margin: .4rem 0 0; padding: .35rem .6rem; border-left: 4px solid var(--amber); background: var(--amber-bg); color: var(--ink); max-width: 60ch; }
     .greeting-badge.student { background: rgba(255,255,255,.2); color: #fff; }
     .greeting-badge.guest   { background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); }
 
@@ -391,14 +392,20 @@
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
                 <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-                <div class="dropdown-divider" data-role="team" hidden></div>
+                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+                <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+                <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+                <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+                <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
                 <div class="dropdown-divider" data-role="staff" hidden></div>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
@@ -479,19 +486,23 @@
       <div class="container">
         <div class="row">
           <div class="col-12 col-lg-5 mb-4 mb-lg-0">
-            <h2>Three levels of access</h2>
+            <h2>Who sees what</h2>
             <p style="color:rgba(255,255,255,.65); font-size:.95rem; max-width:38ch; margin-top:.5rem;">
               Everyone sees exactly what they need — nothing more.
             </p>
           </div>
           <div class="col-12 col-lg-7">
             <div class="tier-item">
-              <strong>Staff</strong>
-              <p>Set up events and form fields, manage share codes, enter playoff alliances, see all scouting data across the team, and review an audit log of who changed what. Access is granted by allowlist.</p>
+              <strong>Site staff</strong>
+              <p>Set up events and form fields, manage share codes, enter playoff alliances, verify team managers, and review an audit log of who changed what. Access is granted by allowlist.</p>
+            </div>
+            <div class="tier-item">
+              <strong>Team managers</strong>
+              <p>Run their own team on Team Management: verify people who say they're on the team, invite members by email or link, list the school email domain that verifies members at once, make other members managers, choose who can change the team's strategy plans, pick list, pit crew log and scout shifts, and set up the pit crew checklist. Site staff confirm a team's first manager with the team before approving them.</p>
             </div>
             <div class="tier-item">
               <strong>Team members</strong>
-              <p>Sign in with an account attached to your school's domain to enter match data and look up any team's history, robot parameters, official results, and letter-grade rating.</p>
+              <p>Tell us your team when you sign up. You're verified right away from your school email if your team listed its domain, or by an invitation or join code; otherwise you're a guest until one of its managers verifies you. Scouting data is shared by every team: enter match data and look up any team's history, robot parameters, official results, and letter-grade rating. Your team's strategy plans, pick list, pit crew log and scout shifts are seen only by your team.</p>
             </div>
             <div class="tier-item">
               <strong>Guests</strong>
@@ -656,6 +667,19 @@
     var lvl  = await RS.accessLevel({ offline: true });   // offline: the level last seen on this device
     if (lvl === null) return;
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
+    // The person's team and role on it (my_team_info(), saved on the device for offline use)
+    var team = (await RS.team()) || { team_number: null };
+    var MY_TEAM = team.team_number, isManager = team.role === "manager";
+
+    // Where an account with no team stands: waiting to be verified, turned down, or not said (team.html)
+    function claimLine(t) {
+      var c = t && t.claim;
+      if (!t || t.team_number) return "";
+      if (!c) return "You haven't said which FRC team you're on. Tell us on Team Management to join your team.";
+      if (c.status === "pending") return "Waiting to be verified on team " + c.team_number + ". Until one of its managers or site staff verifies you, you use 1307scout as a guest.";
+      if (c.status === "denied") return "Team " + c.team_number + " didn't verify you" + (c.note ? ': "' + c.note + '"' : "") + ". See Team Management.";
+      return "";
+    }
 
     // Greeting: first name if we have one, otherwise a plain welcome.
     var meta = user.user_metadata || {};
@@ -666,42 +690,60 @@
 
     // Role badge (styles come from .greeting-badge.staff / .student / .guest)
     var badge = document.getElementById("greetingBadge");
-    badge.textContent = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
+    badge.textContent = (isStaff ? "Staff" : isManager ? "Team manager" : isStudent ? "Team member" : "Guest") +
+      (MY_TEAM ? " · Team " + MY_TEAM : "");
     badge.className = "greeting-badge " + (isStaff ? "staff" : isStudent ? "student" : "guest");
 
     document.getElementById("greetingEmail").textContent = user.email;
+    // Quarantine and other no-team states, under the greeting
+    var line = claimLine(team);
+    if (line) {
+      var note = document.createElement("p");
+      note.className = "claim-status";
+      note.textContent = line + " ";
+      var link = document.createElement("a"); link.href = "/team.html"; link.textContent = "Team Management";
+      note.appendChild(link);
+      document.getElementById("greetingEmail").insertAdjacentElement("afterend", note);
+    }
 
-    // ── Tiles: the menu's pages in the same order, then the tools that are only linked from here ──
+    // ── Tiles: the menu's two sections, Data (shared by every team) and My Team (your team's own) ──
     function tile(href, icon, title, desc, cls) {
       return { href: href, icon: icon, title: title, desc: desc, cls: cls || "" };
     }
     var groups = [];
     if (isTeam) {
-      groups.push({ label: "Most used", tiles: [
+      // Shared by every team: scouting data, official results and the playoffs
+      groups.push({ label: "Data", tiles: [
         tile("/query.html", "fa-database", "Team Database", "Match history, robot parameters, official results, event rankings, and ratings"),
-        tile("/matches.html", "fa-calendar", "Our Matches", "Every match today, with partners, opponents, and win chance"),
         tile("/alliance.html", "fa-columns", "Alliance View", "Compare red and blue alliances, six robots side by side"),
-        tile("/strategy.html", "fa-map-o", "Match Strategy", "Plan each match on the field map, and look back at the plans that worked"),
-        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event")
-      ] });
-      groups.push({ label: "Playoffs", tiles: [
+        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event"),
+        tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next"),
         tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Track alliances as they form and rank the teams still available"),
-        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results"),
-        tile("/picklist.html", "fa-list-ol", "Pick List", "Our ranked list for alliance selection, with notes and do-not-picks")
-      ] });
-    } else {
-      groups.push({ label: "Data access", tiles: [
-        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from Team 1307")
+        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results")
       ] });
     }
-    // Not in the menu, to keep it short
-    groups.push({ label: "More tools", tiles: (isTeam ? [
-      tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next"),
-      tile("/shifts.html", "fa-users", "Scout Shifts", "Who scouts which seat for which matches. The Scout page fills in your next team"),
-      tile("/pitcrew.html", "fa-wrench", "Pit Crew", "Our robot's pre-match checklist, batteries, repairs and notes")
-    ] : []).concat([
+    if (isTeam && MY_TEAM) {
+      // Your team's own: only its members see these
+      groups.push({ label: "My Team" + (team.name ? ": " + team.name : ""), tiles: [
+        tile("/matches.html", "fa-calendar", "Our Matches", "Every match today, with partners, opponents, and win chance"),
+        tile("/strategy.html", "fa-map-o", "Match Strategy", "Plan each match on the field map, and look back at the plans that worked"),
+        tile("/pitcrew.html", "fa-wrench", "Pit Crew", "The robot's pre-match checklist, batteries, repairs and notes"),
+        tile("/picklist.html", "fa-list-ol", "Pick List", "Your ranked list for alliance selection, with notes and do-not-picks"),
+        tile("/shifts.html", "fa-users", "Scout Shifts", "Who scouts which seat for which matches. The Scout page fills in your next team"),
+        tile("/team.html", "fa-id-badge", "Team Management", isManager
+          ? "Members, join codes, who can change what, and the pit crew checklist"
+          : "Who's on your team, and its managers")
+      ] });
+    }
+    if (!isTeam) {
+      groups.push({ label: "Data access", tiles: [
+        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from a team"),
+        tile("/team.html", "fa-id-badge", "Join or manage a team", "Join your team with a code from its managers, or ask to manage your team")
+      ] });
+    }
+    groups.push({ label: "More", tiles: [
       tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance, and the other numbers are worked out")
-    ]).concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, members, and the audit log", "staff-tile")] : []) });
+    ].concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, teams, members, and the audit log", "staff-tile")] : []) });
 
     var area = document.getElementById("primaryTiles");
     groups.forEach(function (g, i) {
@@ -731,21 +773,21 @@
     // Last step: reveal the logged-in view (it starts hidden in the CSS)
     document.getElementById("loggedInView").style.display = "block";
 
-    // Our next match at the default event: how many matches away, and links to plan it
-    if (isTeam && navigator.onLine !== false) {
+    // The team's next match at the default event: how many matches away, and links to plan it
+    if (MY_TEAM && navigator.onLine !== false) {
       var evr = await sb.from("events").select("id,name").eq("is_default_event", true).maybeSingle();
       if (evr.data) {
         var sched = await RSSchedule.load(sb, evr.data.id);
         var list = sched.matches, now = list.findIndex(function (m) { return !m.played; });
-        var i = now < 0 ? -1 : list.findIndex(function (m, k) { return k >= now && m.red_teams.concat(m.blue_teams).indexOf(1307) !== -1; });
+        var i = now < 0 ? -1 : list.findIndex(function (m, k) { return k >= now && m.red_teams.concat(m.blue_teams).indexOf(MY_TEAM) !== -1; });
         if (i >= 0) {
-          var m = list[i], away = i - now, red = m.red_teams.indexOf(1307) !== -1;
+          var m = list[i], away = i - now, red = m.red_teams.indexOf(MY_TEAM) !== -1;
           var esc = function (t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
           document.getElementById("nextMatch").innerHTML =
             '<a class="nav-tile mt-3" href="/strategy.html?event=' + encodeURIComponent(evr.data.id) + "&match=" + encodeURIComponent(m.match_key) + '">' +
             '<div class="tile-icon"><i class="fa fa-flag-checkered"></i></div><div class="tile-text"><strong>Next: ' + esc(RSSchedule.label(m.match_key)) +
             (away === 0 ? " is up next" : ", " + away + " match" + (away === 1 ? "" : "es") + " away") + "</strong><small>" + (red ? "Red" : "Blue") + " with " +
-            (red ? m.red_teams : m.blue_teams).filter(function (t) { return t !== 1307; }).join(", ") + " vs " + (red ? m.blue_teams : m.red_teams).join(", ") +
+            (red ? m.red_teams : m.blue_teams).filter(function (t) { return t !== MY_TEAM; }).join(", ") + " vs " + (red ? m.blue_teams : m.red_teams).join(", ") +
             " · " + esc(evr.data.name) + " · open the strategy plan</small></div><i class=\"fa fa-chevron-right tile-chevron\"></i></a>";
         }
       }

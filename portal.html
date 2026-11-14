@@ -399,14 +399,20 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -430,6 +436,7 @@
       <button class="portal-tab" role="tab" aria-selected="false" data-tab="codes">Share Codes</button>
       <button class="portal-tab" role="tab" aria-selected="false" data-tab="testteams">Test Teams</button>
       <button class="portal-tab" role="tab" aria-selected="false" data-tab="teaminfo">Team Info</button>
+      <button class="portal-tab" role="tab" aria-selected="false" data-tab="teams">Teams <span id="teamReqBadge" class="badge badge-warning" hidden></span></button>
       <button class="portal-tab" role="tab" aria-selected="false" data-tab="members">Members</button>
       <button class="portal-tab" role="tab" aria-selected="false" data-tab="audit">Audit Log</button>
     </div>
@@ -749,6 +756,59 @@
     </div>
   </div>
 
+  <!-- ===== TEAMS: manager requests and verified teams (SQL section 3b) ===== -->
+  <div class="portal-section" id="tab-teams">
+  <div class="form-panel">
+    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Quarantine for unverified accounts</h3>
+    <p class="text-muted" style="font-size:.9rem;" id="claimsSwitchText"></p>
+    <div class="custom-control custom-switch">
+      <input type="checkbox" class="custom-control-input" id="requireClaims">
+      <label class="custom-control-label" for="requireClaims">Only verified team members are on a team</label>
+    </div>
+  </div>
+  <div class="form-panel">
+    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Waiting to be verified</h3>
+    <p class="text-muted" style="font-size:.9rem;">Accounts that say they're on a team, which no domain, invitation or code verified. A team's
+      managers usually handle their own; verify here when a team has no manager, or isn't on 1307scout yet (verifying as manager
+      adds the team).</p>
+    <div class="table-responsive">
+      <table class="table table-sm scout-table">
+        <thead><tr><th>Waiting since</th><th>Who</th><th>Says they're on</th><th></th></tr></thead>
+        <tbody id="claimRows"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="form-panel">
+    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Requests to manage a team</h3>
+    <p class="text-muted" style="font-size:.9rem;">Before approving, check with the team that this person really is on it: for
+      example, write to the contact the team lists on its website or The Blue Alliance, or ask a mentor you know there.
+      Approving makes them a manager of the team (verifying the team if it's new). From then on its managers add members
+      and make other managers themselves.</p>
+    <div class="table-responsive">
+      <table class="table table-sm scout-table">
+        <thead><tr><th>Sent</th><th>Who</th><th>Team</th><th>Their role and how to check</th><th>Status</th><th></th></tr></thead>
+        <tbody id="teamReqRows"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="form-panel">
+    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Verified teams</h3>
+    <p class="text-muted" style="font-size:.9rem;">Each team's managers set the domains that verify its members. <strong>Act as</strong>
+      makes you a manager of that team on every page, to see its pages or change any of its members, roles and settings,
+      until you stop. Use Remove here when a team disputes one of its managers.</p>
+    <div class="table-responsive">
+      <table class="table table-sm scout-table">
+        <thead><tr><th>Team</th><th>Managers</th><th>Members</th><th>Waiting</th><th>Verify domains</th><th>Verified</th><th></th></tr></thead>
+        <tbody id="teamRows"></tbody>
+      </table>
+    </div>
+    <div class="d-flex align-items-center" style="gap:.5rem;">
+      <button class="btn btn-outline-secondary btn-sm" id="refreshTeams" type="button">Refresh</button>
+      <span id="teamsMsg" class="small" role="status" aria-live="polite"></span>
+    </div>
+  </div>
+  </div>
+
   <!-- ===== MEMBER MANAGEMENT ===== -->
 
   <div class="portal-section" id="tab-members">
@@ -821,6 +881,10 @@
           <option value="match_schedule">Match schedule</option>
           <option value="staff_members">Staff members</option>
           <option value="member_grants">Access grants</option>
+          <option value="teams">Teams</option>
+          <option value="team_members">Team roles</option>
+          <option value="team_join_codes">Team join codes</option>
+          <option value="team_manager_requests">Team manager requests</option>
           <option value="auth.sessions">Sign-outs</option>
           <option value="auth.users">Bans</option>
         </select>
@@ -2106,8 +2170,111 @@
       loadAuditLog(false);
     });
 
+    // ══════════════════════════════════════════════════════════════════
+    // TEAMS: requests to manage a team, and the verified teams (SQL section 3b)
+    // ══════════════════════════════════════════════════════════════════
+    var teamReqs = [], teamList = [], claims = [];
+    async function loadTeams() {
+      var res = await Promise.all([sb.rpc("staff_list_team_requests"), sb.rpc("staff_list_teams"),
+                                   sb.rpc("staff_list_claims"), sb.rpc("my_team_info")]);
+      var bad = res.find(function (r) { return r.error; });
+      if (bad) { document.getElementById("teamsMsg").textContent = "Couldn't load teams: " + bad.error.message; return; }
+      teamReqs = res[0].data || []; teamList = res[1].data || []; claims = res[2].data || [];
+      var on = !!(res[3].data && res[3].data.require_claims);
+      document.getElementById("requireClaims").checked = on;
+      document.getElementById("claimsSwitchText").textContent = on
+        ? "On: an account is on a team only once it's verified; anyone else is a guest, with their status shown. An @stalux.org " +
+          "account that hasn't answered the team prompt yet is still on team 1307, since the domain verifies it."
+        : "Off: accounts from before teams existed (staff, Staff Portal grants, @stalux.org logins) are on team 1307 without " +
+          "being verified, and people waiting to be verified still are guests.";
+      document.getElementById("claimRows").innerHTML = claims.length ? claims.map(function (c) {
+        return "<tr><td>" + esc(fmtDT(c.created_at)) + "</td><td>" + (c.display_name ? esc(c.display_name) + "<br>" : "") +
+          '<span class="small text-muted">' + esc(c.email) + "</span></td><td><strong>" + c.team_number + "</strong>" +
+          (c.team_name ? " " + esc(c.team_name) : "") + '<br><span class="small text-muted">' + (c.team_verified ? "On 1307scout" : "Not on 1307scout yet") + "</span></td><td>" +
+          '<button class="btn btn-sm btn-success mb-1" data-claim="' + esc(c.user_id) + '" data-as="member"' + (c.team_verified ? "" : " disabled title=\"The team isn't on 1307scout: verify its first person as manager\"") + ">Verify</button> " +
+          '<button class="btn btn-sm btn-outline-success mb-1" data-claim="' + esc(c.user_id) + '" data-as="manager">As manager</button> ' +
+          '<button class="btn btn-sm btn-outline-danger mb-1" data-claim="' + esc(c.user_id) + '" data-deny="1">Deny</button></td></tr>';
+      }).join("") : '<tr><td colspan="4" class="text-muted">Nobody is waiting.</td></tr>';
+      var open = teamReqs.filter(function (r) { return r.status === "pending"; }).length + claims.length;
+      var badge = document.getElementById("teamReqBadge");
+      badge.hidden = !open; badge.textContent = open;
+      document.getElementById("teamReqRows").innerHTML = teamReqs.length ? teamReqs.map(function (r) {
+        var who = (r.display_name ? esc(r.display_name) + "<br>" : "") + '<span class="text-muted small">' + esc(r.email) + "</span>";
+        var team = "<strong>" + esc(r.team_number) + "</strong>" + (r.team_name ? " " + esc(r.team_name) : "") +
+          '<br><span class="small text-muted">' + (r.team_verified ? "Verified team" : "New team") +
+          (r.current_team && r.current_team !== r.team_number ? " · now on team " + esc(r.current_team) : "") + "</span>";
+        var act = r.status === "pending"
+          ? '<button class="btn btn-sm btn-success mb-1" data-treq="' + r.id + '" data-ok="1">Approve</button> ' +
+            '<button class="btn btn-sm btn-outline-danger mb-1" data-treq="' + r.id + '" data-ok="0">Deny</button>'
+          : '<span class="small text-muted">' + esc(fmtDT(r.reviewed_at)) + (r.review_note ? ": " + esc(r.review_note) : "") + "</span>";
+        return "<tr><td>" + esc(fmtDT(r.created_at)) + "</td><td>" + who + "</td><td>" + team + "</td><td><strong>" + esc(r.role_on_team) +
+          '</strong><br><span class="small" style="white-space:pre-wrap;">' + esc(r.message) + "</span></td><td>" + esc(r.status) + "</td><td>" + act + "</td></tr>";
+      }).join("") : '<tr><td colspan="6" class="text-muted">No requests.</td></tr>';
+      document.getElementById("teamRows").innerHTML = teamList.length ? teamList.map(function (t) {
+        var mgrs = (t.managers || []).map(function (m) {
+          return esc(m.email) + ' <button class="btn btn-link btn-sm p-0 text-danger" data-unmgr="' + esc(m.user_id) + '" data-team="' + t.team_number + '">Remove</button>';
+        }).join("<br>") || '<span class="text-muted">None</span>';
+        return "<tr><td><strong>" + t.team_number + "</strong>" + (t.team_name ? " " + esc(t.team_name) : "") + "</td><td>" + mgrs + "</td><td>" + t.member_count +
+          "</td><td>" + (t.pending_count || "") + "</td><td>" + ((t.domains || []).map(function (d) { return "@" + esc(d); }).join("<br>") || '<span class="text-muted">None</span>') +
+          "</td><td>" + esc(fmtDT(t.verified_at)) + '</td><td><button class="btn btn-sm btn-outline-secondary" data-act="' + t.team_number + '">Act as</button></td></tr>';
+      }).join("") : '<tr><td colspan="7" class="text-muted">No teams.</td></tr>';
+    }
+    document.getElementById("teamReqRows").addEventListener("click", async function (e) {
+      var b = e.target.closest("[data-treq]");
+      if (!b) return;
+      var ok = b.dataset.ok === "1", req = teamReqs.find(function (r) { return String(r.id) === b.dataset.treq; });
+      var note = prompt(ok ? "Approve " + req.email + " as a manager of team " + req.team_number + "? Optional note (they'll see it):"
+                           : "Deny this request? Optional reason (they'll see it):", "");
+      if (note === null) return;
+      var r = await sb.rpc("staff_review_team_request", { p_id: req.id, p_approve: ok, p_note: note || null });
+      if (r.error) { toast(r.error.message, true); return; }
+      toast(ok ? "Approved. They manage team " + req.team_number + " now." : "Denied.");
+      loadTeams(); loadMembers();
+    });
+    document.getElementById("teamRows").addEventListener("click", async function (e) {
+      var b = e.target.closest("[data-unmgr]");
+      if (!b || !confirm("Take this manager off team " + b.dataset.team + "? Their account stays; they're no longer on the team.")) return;
+      var r = await sb.rpc("staff_set_team_role", { target: b.dataset.unmgr, p_team: Number(b.dataset.team), new_role: "removed" });
+      if (r.error) { toast(r.error.message, true); return; }
+      toast("Removed."); loadTeams();
+    });
+    // Act as a team: its manager on every page, until stopped (bar at the top of each page)
+    document.getElementById("teamRows").addEventListener("click", async function (e) {
+      var b = e.target.closest("[data-act]");
+      if (!b) return;
+      var r = await sb.rpc("staff_act_as_team", { p_team: Number(b.dataset.act) });
+      if (r.error) { toast(r.error.message, true); return; }
+      RS.teamChanged();
+      location.href = "/team.html";
+    });
+    document.getElementById("claimRows").addEventListener("click", async function (e) {
+      var b = e.target.closest("[data-claim]");
+      if (!b) return;
+      var c = claims.find(function (x) { return x.user_id === b.dataset.claim; });
+      var deny = !!b.dataset.deny, note = null;
+      if (deny) {
+        note = prompt("Deny " + c.email + "'s claim to team " + c.team_number + "? Optional note (they'll see it):", "");
+        if (note === null) return;
+      } else if (!confirm("Verify " + c.email + " as a " + b.dataset.as + " of team " + c.team_number + "?" +
+                          (c.team_verified ? "" : " This adds team " + c.team_number + " to 1307scout."))) return;
+      var r = await sb.rpc("verify_team_claim", { target: c.user_id, p_approve: !deny, p_role: b.dataset.as || "member", p_note: note || null });
+      if (r.error) { toast(r.error.message, true); return; }
+      toast(deny ? "Denied." : "Verified."); loadTeams(); loadMembers();
+    });
+    document.getElementById("requireClaims").addEventListener("change", async function () {
+      var on = this.checked;
+      if (!on && !confirm("Turn off quarantine? Staff, Staff Portal grants and @stalux.org logins go back on team 1307 without being verified.")) { this.checked = true; return; }
+      if (on && !confirm("Turn on quarantine? Every account that isn't a verified team member becomes a guest until it's verified.")) { this.checked = false; return; }
+      var r = await sb.rpc("staff_set_require_claims", { p_on: on });
+      if (r.error) { toast(r.error.message, true); }
+      else toast(on ? "Quarantine is on." : "Quarantine is off.");
+      loadTeams();
+    });
+    document.getElementById("refreshTeams").addEventListener("click", loadTeams);
+
     // ── Boot ─────────────────────────────────────────────────────────
     await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams()]);
+    loadTeams();
     loadMembers();
     cleanUpPhotos();
     loadAuditLog(false);

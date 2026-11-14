@@ -174,14 +174,20 @@
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
                 <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-                <div class="dropdown-divider" data-role="team" hidden></div>
+                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+                <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+                <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+                <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+                <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
                 <div class="dropdown-divider" data-role="staff" hidden></div>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
@@ -410,12 +416,26 @@
     if (!s) { location.replace("signin.html"); return; }
     // Came through sign-in from a share link: finish the trip (scout.html clears the saved code)
     if (sessionStorage.getItem("rs_code")) { location.replace("scout.html"); return; }
+    // Came through sign-in from a team invite link: back to Team Management (team.html fills in the code)
+    if (sessionStorage.getItem("rs_join")) { location.replace("team.html"); return; }
 
     var user = s.user;
     // null = the server couldn't be reached (auth.js shows a banner). Keep going so Sign out still
     // works, but don't call a team member a guest.
     var lvl  = await RS.accessLevel();
     var isStaff = lvl === "staff", isStudent = lvl === "student";
+    var myTeam = lvl === null ? null : await RS.team();   // { team_number, role, name, ... } (js/auth.js)
+    var MY_TEAM = myTeam && myTeam.team_number, isManager = !!myTeam && myTeam.role === "manager";
+
+    // Where an account with no team stands: waiting to be verified, turned down, or not said (team.html)
+    function claimLine(t) {
+      var c = t && t.claim;
+      if (!t || t.team_number) return "";
+      if (!c) return "You haven't said which FRC team you're on. Tell us on Team Management to join your team.";
+      if (c.status === "pending") return "Waiting to be verified on team " + c.team_number + ". Until one of its managers or site staff verifies you, you use 1307scout as a guest.";
+      if (c.status === "denied") return "Team " + c.team_number + " didn't verify you" + (c.note ? ': "' + c.note + '"' : "") + ". See Team Management.";
+      return "";
+    }
 
     function flash(el, ok, text) {
       el.className = "small " + (ok ? "ok" : "text-danger");
@@ -440,7 +460,8 @@
     }
 
     // ── Header ───────────────────────────────────────────────────────
-    var levelLabel = lvl === null ? "Unknown" : isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
+    var levelLabel = lvl === null ? "Unknown" : (isStaff ? "Staff" : isManager ? "Team manager" : isStudent ? "Team member" : "Guest") +
+      (MY_TEAM ? " · Team " + MY_TEAM : "");
     var badge = $("roleBadge");
     badge.textContent = levelLabel;
     if (isStaff) badge.classList.add("staff"); else if (isStudent) badge.classList.add("student");
@@ -457,6 +478,12 @@
     if (isStaff) tiles.push({
       href: "/portal.html", icon: "fa-cog", cls: "staff-tile",
       title: "Staff Portal", desc: "Configure events, form fields, and share codes"
+    });
+    if (lvl !== null) tiles.push({
+      href: "/team.html", icon: "fa-id-badge", cls: "",
+      title: MY_TEAM ? "Team Management" : "Join or manage a team",
+      desc: MY_TEAM ? (isManager ? "Members, join codes, permissions and pit crew setup" : "Your team and its managers")
+                    : "Join with a code from your team's managers, or ask to manage your team"
     });
     if (isStaff || isStudent) tiles.push({
       href: "/scout.html", icon: "fa-clipboard", cls: "",
@@ -504,6 +531,7 @@
     }
     if (isStaff || isStudent) {
       $("alertsCard").hidden = false;
+      if (MY_TEAM) $("alertTeam").value = MY_TEAM;   // showAlerts() puts in the saved team, if alerts are on
       showAlerts();
       $("alertsOn").addEventListener("click", async function () {
         var team = Number($("alertTeam").value);
@@ -655,8 +683,8 @@
       .map(function (p) { return labels[p] || p; }).join(", ");
     $("dtCreated").textContent = fmtDate(user.created_at, false);
     $("dtLast").textContent    = fmtDate(user.last_sign_in_at, true);
-    $("levelHelp").textContent = (isStaff || isStudent || lvl === null) ? "" :
-      "Team members get full access by signing in with their school Google account (stalux.org). If you should have team access, contact a staff member.";
+    $("levelHelp").textContent = claimLine(myTeam) || ((isStaff || isStudent || lvl === null) ? "" :
+      "Team members get full access once verified on their team: say which team you're on, on Team Management.");
 
     // ── Sign out ─────────────────────────────────────────────────────
     // RS.signOut clears this device even if the server can't be reached or the session

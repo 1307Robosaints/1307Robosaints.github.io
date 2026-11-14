@@ -22,11 +22,27 @@ Past seasons come from `js/history.js`, a one-time copy of The Blue Alliance's r
 live seasons come from `public_team_results()`, the one function anyone can call without signing in,
 and win over the copy for any event in both. It's in the About Us menu.
 
-**1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). The 1307scout
-menu is kept short, ordered by use: Team Database, Our Matches, Alliance View, Scout, then the two
-playoff pages and (staff) the Staff Portal. Every page is on the 1307scout home page; Match Flags, Pick
-List, Scout Shifts, Pit Crew and How Ratings Work are linked only from there (and from the pages that
-reference them). For team members the home page also shows our next match at the default event:
+**1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
+and the 1307scout menu and home page are split the same way:
+- **Data**, shared by every team: Team Database, Alliance View, Scout, Match Flags, Playoff Selection
+  and Playoff Bracket. Scouting entries, pit data, official results, flag reviews and playoff
+  alliances belong to nobody in particular.
+- **My Team**, your own team's: Our Matches, Match Strategy, Pit Crew, Pick List, Scout Shifts and
+  Team Management. Strategy plans, the robot log, the pick list and scout shifts carry an
+  `owner_team`, and only that team's members can see them.
+
+Each account is on at most one FRC team, as a **manager** or a **member** (SQL section 3b). Every
+account says which team it's on, or that it isn't on one: the sign-up form requires it, and every
+1307scout page asks an account that hasn't answered (`js/auth.js`; the site owner's account is never
+asked). A claim is verified at once by an email domain the team listed (1307: `stalux.org`), an email
+invitation from its managers, a join code or invite link, or access staff had already given that
+account. Otherwise the account is in quarantine: a guest, with its status shown on the home page, My
+Account and Team Management, until one of the team's managers or site staff verifies it. A team's first
+manager is approved by site staff (Teams tab). Site staff can act as any team, as its manager, to see
+every page and change any setting. Quarantine is on (`app_settings.require_team_claims`, a switch in
+the Teams tab): quarantined accounts have exactly a guest's access. The one exception is for the stable
+release, which has no team prompt: an `@stalux.org` account that hasn't answered the prompt yet is
+still on team 1307 as a member, since that domain verifies it anyway. How Ratings Work is linked from the home page. For team members the home page also shows their team's next match at the default event:
 - `1307scout.html` — landing/command-center page, links out based on your access level.
 - `app.html` — Get the app: how to install 1307scout as an app on each kind of device, and what
   works offline. Linked as "Get the app" in the 1307scout menu, and from the home page and My Account.
@@ -38,7 +54,7 @@ reference them). For team members the home page also shows our next match at the
   and shows vision's FUEL estimate as a hint (`js/visioncheck.js`). Offline, **Hand off by QR** shows
   each new draft as a QR code, and a scout who is online saves it with **Scan a scout's QR**, through
   `relay_scouting_entry()`: it stays the first scout's entry, with its own id, so it can't be saved twice.
-- `shifts.html` — Scout Shifts: staff give team members a driver-station seat for a range of
+- `shifts.html` — Scout Shifts: a team's managers give its members a driver-station seat for a range of
   qualification matches (`scout_shifts`), one at a time or as a rotation over the people ticked.
   Everyone sees the seat grid, with seats nobody has, and played seats nobody entered.
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
@@ -89,7 +105,10 @@ reference them). For team members the home page also shows our next match at the
   starting spots and turn them, then draw on the field with a pen or arrows in six colors. The
   eraser removes the lines it touches; Clear removes all drawing, one color, just arrows or
   freehand lines, or puts the robots back. Flip turns the map to read from either end. Each plan
-  is saved with its match (`match_strategies`) for the whole team as it's drawn; other screens
+  is saved as it's drawn. For a match your team plays in, there's one plan per alliance
+  (`alliance_strategies`), shared by the three teams on it and hidden from the other alliance; who
+  is on an alliance comes from the official line-up. A match your team isn't in gets a plan only your
+  team sees (`match_strategies`). Other screens
   showing it pick up changes within 15 seconds, and the last save wins. Once the match is played,
   the plan locks and shows the result beside it, for reviewing what worked (Edit unlocks it), and
   the match list can be narrowed to matches with a plan. Plans for a custom line-up aren't a real
@@ -111,13 +130,14 @@ reference them). For team members the home page also shows our next match at the
   AUTO and endgame climb rates from FRC's per-robot TOWER data, so a team nobody scouted still has
   numbers. To change the table's stats, edit `COLUMNS` in the page. The first column is the team's
   place on our Pick List, and the board names the best team on it still available.
-- `picklist.html` — Pick List: staff's ranked list for alliance selection (`pick_list`), built before
+- `picklist.html` — Pick List: your team's ranked list for alliance selection (`pick_list`), built before
   it starts. Drag or use the arrows to reorder, give each team a tier (first pick, second pick, maybe,
   do not pick) and a note. Teams already picked are greyed as Playoff Selection fills. Each row shows
   the team's grades, OPR, scouted points and its scouted notes from the event.
-- `pitcrew.html` — Pit Crew: our own robot at an event (`robot_log`). A pre-match checklist per match
-  (the items are `CHECKLIST` in the page), batteries with voltage and which match they went into,
-  repairs and notes. The top line says whether the next match has its checklist and battery.
+- `pitcrew.html` — Pit Crew: your team's robot at an event (`robot_log`). A pre-match checklist per
+  match (the items and the low-battery voltage are the team's settings, set on Team Management; the
+  defaults are in `js/team.js`), batteries with voltage and which match they went into, repairs and
+  notes. The top line says whether the next match has its checklist and battery.
   **Download for offline** saves a simplified pick board for the event as one .html file: the
   alliances as they stand, and every team's stats for both All season and This event, worked out at
   download time. Offline, anyone can fill spots in draft order (Pick, or type a number), remove
@@ -128,8 +148,17 @@ reference them). For team members the home page also shows our next match at the
   alliance it would have played moves on without playing. When official scores are tied, staff click who won the
   tiebreaker. On a 4-team alliance staff click who sits out each match (the 3rd pick by default).
   The match layout is `MATCHES` in the page.
+- `team.html` — Team Management: for someone on no team, where their claim stands, invitations to
+  accept, which team they're on, a join code (`team.html?join=CODE` is an invite link), and asking
+  site staff to manage a team. For a member, the team's roster and managers. For a manager: verify or
+  turn down people waiting, invite by email, make members managers or take them off the team, make and
+  revoke join codes and invite links, list the email domains that verify members at once, choose whether members or only managers can
+  change Match Strategy, Pit Crew, Pick List and Scout Shifts (`teams.settings.permissions`), and
+  set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). A team keeps at least
+  one manager.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
-  team names/logos, member access levels, and an audit log of who changed what and when (staff,
+  team names/logos, teams (everyone waiting to be verified on any team, requests to manage a team,
+  the quarantine switch, act as a team, take a disputed manager off a team), member access levels, and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
   The clock button on an event row turns on competition-day auto-sync for that event.
@@ -144,8 +173,9 @@ the account's `user_metadata.theme`, which `js/auth.js` applies on other devices
 dark-theme copy name it in `data-dark-src` (`img/robosaintslogo-dark.png`,
 `img/Sponsorphotos/staluxlogo-dark.png`).
 
-Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
-row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.
+Access levels (`staff`, `mentor`, `student`, `guest`) and team roles (`manager`, `member`) are
+enforced server-side with Postgres row-level security, not just by hiding nav links — see
+`SQL/rebuild_all.sql`. Site staff run the site; they get no special access to another team's own data.
 GitHub Pages can't send security headers, so `js/auth.js` also refuses to run any page inside
 another site's frame (on robosaints1307.com only, so local previews still work).
 

@@ -15,6 +15,7 @@
 --   1  Remove objects from earlier versions
 --   2  Staff allowlist                       7  Policies for events / match entries
 --   3  Grants, students, access levels       8  Official match data (FRC + TBA)
+--  3b  Teams: members, managers, join codes, manager requests, team settings
 --   4  Form fields (incl. picture fields)     9  Team rating (A-F grade)
 --   5  Events, entries, share codes          9b Storage: scouting photos
 --   6  Pit entries + validation             10  Guest access via share codes
@@ -26,6 +27,7 @@
 --  8p  Robot log   8q Match alerts   8r Vision pre-fill + relayed entries   8s Public results
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
+-- 16b  Teams step 2 (commented out until the Teams release is on stable)
 --  17  Check query
 --
 -- After running, the Edge Function (official-sync) still needs its own
@@ -82,6 +84,10 @@
 -- 8p the robot log (pitcrew.html), 8q match alerts (push notifications, match-alerts Edge
 -- Function), 8r vision pre-fill and QR-relayed entries (scout.html), 8s public season results
 -- (results.html, the only function anon can call).
+--
+-- Teams update: section 3b gives each FRC team its own members, managers (verified by site staff,
+-- then vouching for others), join codes and settings. Strategy plans, the robot log, the pick list
+-- and scout shifts belong to a team (owner_team); scouting data stays shared by every team.
 -- =====================================================================
 
 
@@ -179,22 +185,928 @@ create table if not exists public.member_grants (
 alter table public.member_grants enable row level security;
 revoke all on public.member_grants from anon, authenticated;
 
--- Student = verified, not banned, current session not kicked, and either a grant or a
--- school login. A 'guest' grant turns off the school-domain rule for that account.
+-- =====================================================================
+-- 3b. Teams: each FRC team has its own members, managers and settings
+--
+--    Scouting data (match and pit entries, official results, flags, playoff alliances) is
+--    shared by every team. What a team does with it is its own: strategy plans, the pit
+--    crew's robot log, the pick list and scout shifts carry an owner_team, and only that
+--    team's members can see them (sections 8k-8p).
+--
+--    An account is on at most one team. member_team() decides which: its team_members row
+--    (role 'removed' means no team). Quarantine (app_settings.require_team_claims) is on: an
+--    unverified account is a guest, with its status shown. One exception keeps the stable release
+--    (which has no team prompt) working: a login at teams.email_domain (stalux.org) is a member of
+--    that team until the account answers the prompt. If staff turn quarantine off, the rules from
+--    before teams existed count again (legacy_team()): staff are home-team managers, mentor/student
+--    grants are home-team members, a teams.email_domain login is a member.
+--
+--    Joining a team: every account says which FRC team it's on, or that it isn't on one
+--    (team_claims; the sign-up form asks, and every page prompts an account that hasn't said).
+--    A claim is verified at once when the email's domain is on the team's list (team_domains),
+--    the team's managers invited that email (team_invites), or staff had already given the
+--    account that team (legacy_team()). Any other claim waits ("quarantine": a guest, with its
+--    status shown) until one of the team's managers or site staff verifies it (verify_team_claim()).
+--    Join codes from a manager also verify. Site staff can act as any team (staff_members.acting_team),
+--    which makes them its manager everywhere, so they can see every page and manage every setting.
+--
+--    Becoming a manager: the person files a request (request_team_manager()), and site staff
+--    check it with the team outside the app and approve it in the Staff Portal's Teams tab
+--    (staff_review_team_request()). That makes the team verified if it wasn't. After that,
+--    managers vouch for others: they make join codes for members and promote members to
+--    manager on the Team Management page (team.html), with no staff step.
+--
+--    A team is a "team member" for the old access checks: is_student() is true for anyone
+--    member_team() places on a team, so my_access_level() still answers 'staff', 'student'
+--    or 'guest' and the current pages need no change. The team role is separate, from
+--    my_team_info(). Site staff get no special access to another team's own data.
+-- =====================================================================
+-- The team every account from before teams existed belongs to
+create or replace function public.home_team() returns int
+language sql immutable set search_path = '' as $$ select 1307 $$;
+
+-- A row here means site staff verified the team
+create table if not exists public.teams (
+  team_number  int primary key check (team_number between 1 and 99999),
+  email_domain text unique check (email_domain ~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$' and char_length(email_domain) <= 100),
+  settings     jsonb not null default '{}'::jsonb
+               check (jsonb_typeof(settings) = 'object' and octet_length(settings::text) <= 20000),
+  verified_by  uuid references auth.users(id) on delete set null,
+  verified_at  timestamptz not null default now()
+);
+alter table public.teams enable row level security;
+insert into public.teams (team_number, email_domain) values (public.home_team(), 'stalux.org')
+  on conflict (team_number) do nothing;
+
+create table if not exists public.team_members (
+  user_id     uuid primary key references auth.users(id) on delete cascade,
+  team_number int  not null references public.teams(team_number) on delete cascade,
+  role        text not null check (role in ('manager','member','removed')),
+  added_by    uuid references auth.users(id) on delete set null,
+  added_at    timestamptz not null default now()
+);
+create index if not exists team_members_team_idx on public.team_members (team_number);
+alter table public.team_members enable row level security;
+revoke all on public.team_members from anon, authenticated;
+
+-- Site-wide switches (one row). require_team_claims ("quarantine"): only a verified team_members
+-- row puts an account on a team, apart from the home team's domain rule below. Staff can turn it
+-- off in the Staff Portal's Teams tab. quarantine_since records when it was first turned on, so a
+-- re-run of this file never turns it back on after staff turned it off.
+create table if not exists public.app_settings (
+  id                  boolean primary key default true check (id),
+  require_team_claims boolean not null default true,
+  updated_at          timestamptz not null default now()
+);
+alter table public.app_settings add column if not exists quarantine_since timestamptz;
+insert into public.app_settings (id, quarantine_since) values (true, now()) on conflict (id) do nothing;
+update public.app_settings set require_team_claims = true, quarantine_since = now(), updated_at = now()
+ where id and quarantine_since is null;
+alter table public.app_settings enable row level security;
+revoke all on public.app_settings from anon, authenticated;
+
+create or replace function public.require_team_claims() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce((select a.require_team_claims from public.app_settings a where a.id), false);
+$$;
+
+-- Staff: the team they're acting as (null = their own), and whether they skip the team prompt
+alter table public.staff_members add column if not exists acting_team int check (acting_team between 1 and 99999);
+alter table public.staff_members add column if not exists no_team_prompt boolean not null default false;
+
+-- Login domains that verify a claim to the team at once, set by its managers. Free email
+-- providers are refused (is_free_email_domain()). A school with two teams can list it on both,
+-- since a domain only verifies people who claimed that team.
+create table if not exists public.team_domains (
+  team_number int  not null references public.teams(team_number) on delete cascade,
+  domain      text not null check (domain ~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$' and char_length(domain) <= 100),
+  added_by    uuid default auth.uid() references auth.users(id) on delete set null,
+  added_at    timestamptz not null default now(),
+  primary key (team_number, domain)
+);
+alter table public.team_domains enable row level security;
+-- The domain staff set before team_domains existed (stalux.org for 1307), for a team with none
+insert into public.team_domains (team_number, domain)
+select t.team_number, t.email_domain from public.teams t
+where t.email_domain is not null and not exists (select 1 from public.team_domains d where d.team_number = t.team_number)
+on conflict do nothing;
+
+create or replace function public.is_free_email_domain(p_domain text) returns boolean
+language sql immutable set search_path = '' as $$
+  select lower(p_domain) = any (array['gmail.com','googlemail.com','yahoo.com','ymail.com','outlook.com','hotmail.com',
+    'live.com','msn.com','icloud.com','me.com','mac.com','aol.com','proton.me','protonmail.com','pm.me','gmx.com',
+    'gmx.net','mail.com','yandex.com','zoho.com','comcast.net','verizon.net','att.net']);
+$$;
+
+-- What each account said about its team. team_number null: not on an FRC team.
+--   status 'none' (not on a team), 'pending' (quarantine), 'verified', 'denied'
+create table if not exists public.team_claims (
+  user_id     uuid primary key references auth.users(id) on delete cascade,
+  team_number int  check (team_number between 1 and 99999),
+  status      text not null check (status in ('none','pending','verified','denied')),
+  how         text check (how in ('domain','invite','code','manager','staff','existing')),
+  created_at  timestamptz not null default now(),
+  decided_by  uuid references auth.users(id) on delete set null,
+  decided_at  timestamptz,
+  note        text check (char_length(note) <= 300),
+  check ((team_number is null) = (status = 'none'))
+);
+create index if not exists team_claims_team_idx on public.team_claims (team_number, status);
+alter table public.team_claims enable row level security;
+drop policy if exists "own team claim" on public.team_claims;
+create policy "own team claim" on public.team_claims for select to authenticated
+  using (user_id = auth.uid() or (select public.is_staff()));
+
+-- Invitations by email from a team's managers. The invited account sees it when signed in with
+-- that email (no email is sent), and accepting, or claiming the team, verifies it.
+create table if not exists public.team_invites (
+  id          bigint generated always as identity primary key,
+  team_number int  not null references public.teams(team_number) on delete cascade,
+  email       text not null check (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' and char_length(email) <= 254),
+  role        text not null default 'member' check (role in ('member','manager')),
+  invited_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  expires_at  timestamptz not null default now() + interval '30 days',
+  unique (team_number, email)
+);
+alter table public.team_invites enable row level security;
+
+-- The rules from before teams existed (see the section comment). Internal.
+create or replace function public.legacy_team(p_user uuid)
+returns table (team_number int, role text)
+language sql stable security definer set search_path = '' as $$
+  select x.team_number, x.role
+  from (
+    select public.home_team() as team_number, 'manager'::text as role, 2 as pri
+      from public.staff_members s where s.user_id = p_user
+    union all
+    select public.home_team(), 'member', 3 from public.member_grants g
+      where g.user_id = p_user and g.level in ('mentor','student')
+    union all
+    select t.team_number, 'member', 4
+      from auth.users u join public.teams t on t.email_domain = lower(split_part(u.email::text, '@', 2))
+      where u.id = p_user
+        and not exists (select 1 from public.member_grants g where g.user_id = u.id and g.level = 'guest')
+  ) x
+  order by x.pri
+  limit 1;
+$$;
+revoke all on function public.legacy_team(uuid) from public, anon, authenticated;
+
+-- An account's team and role. Internal: pages use my_team_info().
+create or replace function public.member_team(p_user uuid)
+returns table (team_number int, role text)
+language sql stable security definer set search_path = '' as $$
+  select x.team_number, x.role
+  from (
+    select m.team_number, m.role, 1 as pri from public.team_members m where m.user_id = p_user
+    union all
+    select l.team_number, l.role, 2 from public.legacy_team(p_user) l where not public.require_team_claims()
+    union all
+    -- With quarantine on, a login at a team's staff-set domain (stalux.org for 1307) is still a
+    -- member until the account answers the team prompt: the stable release can't ask, and the
+    -- domain already verifies them. Once they answer, team_claims and team_members decide.
+    select t.team_number, 'member', 3
+      from auth.users u join public.teams t on t.email_domain = lower(split_part(u.email::text, '@', 2))
+      where u.id = p_user and public.require_team_claims()
+        and not exists (select 1 from public.team_claims c where c.user_id = p_user)
+        and not exists (select 1 from public.member_grants g where g.user_id = u.id and g.level = 'guest')
+  ) x
+  where exists (select 1 from auth.users u where u.id = p_user and u.email_confirmed_at is not null
+                  and (u.banned_until is null or u.banned_until <= now()))
+    and (x.pri = 1 or not exists (select 1 from public.team_members m where m.user_id = p_user))
+    and x.role <> 'removed'
+  order by x.pri
+  limit 1;
+$$;
+revoke all on function public.member_team(uuid) from public, anon, authenticated;
+
+-- The caller's team for every team page and policy: the team site staff are acting as, else
+-- their own. Acting staff are that team's manager. Internal.
+create or replace function public.my_team_role()
+returns table (team_number int, role text, acting boolean)
+language sql stable security definer set search_path = '' as $$
+  select x.team_number, x.role, x.acting
+  from (
+    select s.acting_team as team_number, 'manager'::text as role, true as acting, 1 as pri
+      from public.staff_members s join public.teams t on t.team_number = s.acting_team
+      where s.user_id = auth.uid() and public.is_staff()
+    union all
+    select m.team_number, m.role, false, 2 from public.member_team(auth.uid()) m
+  ) x
+  where public.session_live()
+  order by x.pri
+  limit 1;
+$$;
+revoke all on function public.my_team_role() from public, anon, authenticated;
+
+-- Records what an account said about its team. Internal.
+create or replace function public.set_team_claim(p_user uuid, p_team int, p_status text, p_how text,
+  p_by uuid default null, p_note text default null)
+returns void language sql security definer set search_path = '' as $$
+  insert into public.team_claims as c (user_id, team_number, status, how, created_at, decided_by, decided_at, note)
+  values (p_user, p_team, p_status, p_how, now(), p_by,
+          case when p_status in ('verified','denied') then now() end, nullif(left(trim(p_note), 300), ''))
+  on conflict (user_id) do update set team_number = excluded.team_number, status = excluded.status,
+    how = excluded.how, decided_by = excluded.decided_by, decided_at = excluded.decided_at, note = excluded.note,
+    -- The waiting time restarts only when the claim changes team or goes back to waiting
+    created_at = case when c.team_number is distinct from excluded.team_number
+                        or (c.status <> excluded.status and excluded.status = 'pending')
+                      then now() else c.created_at end;
+$$;
+revoke all on function public.set_team_claim(uuid, int, text, text, uuid, text) from public, anon, authenticated;
+
+-- Puts an account on a team (verified) and records why. Internal.
+create or replace function public.add_team_member(p_user uuid, p_team int, p_role text, p_how text, p_by uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.team_members (user_id, team_number, role, added_by)
+  values (p_user, p_team, p_role, p_by)
+  on conflict (user_id) do update set team_number = excluded.team_number, role = excluded.role,
+    added_by = excluded.added_by, added_at = now();
+  perform public.set_team_claim(p_user, p_team, 'verified', p_how, p_by);
+end $$;
+revoke all on function public.add_team_member(uuid, int, text, text, uuid) from public, anon, authenticated;
+
+create or replace function public.my_team() returns int
+language sql stable security definer set search_path = '' as $$
+  select (select r.team_number from public.my_team_role() r);
+$$;
+
+create or replace function public.is_team_manager() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce((select r.role = 'manager' from public.my_team_role() r), false);
+$$;
+
+-- Team features a manager can open to every member or keep to managers. Strategy and the pit
+-- crew log start open; the pick list and scout shifts start with managers, as they were staff-only.
+create or replace function public.team_feature_default(p_feature text) returns text
+language sql immutable set search_path = '' as $$
+  select case when p_feature in ('pick_list', 'scout_shifts') then 'managers' else 'members' end;
+$$;
+
+-- Can the caller change this team feature? Managers always can.
+create or replace function public.team_can(p_feature text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce((
+    select r.role = 'manager'
+        or coalesce(t.settings -> 'permissions' ->> p_feature, public.team_feature_default(p_feature)) = 'members'
+    from public.my_team_role() r join public.teams t on t.team_number = r.team_number
+  ), false);
+$$;
+
+-- Requests to manage a team, reviewed by site staff
+create table if not exists public.team_manager_requests (
+  id           bigint generated always as identity primary key,
+  user_id      uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  team_number  int  not null check (team_number between 1 and 99999),
+  role_on_team text not null check (char_length(role_on_team) between 1 and 80),
+  message      text not null check (char_length(message) between 1 and 1000),
+  status       text not null default 'pending' check (status in ('pending','approved','denied')),
+  created_at   timestamptz not null default now(),
+  reviewed_by  uuid references auth.users(id) on delete set null,
+  reviewed_at  timestamptz,
+  review_note  text check (char_length(review_note) <= 500)
+);
+create index if not exists team_manager_requests_status_idx on public.team_manager_requests (status, created_at);
+create unique index if not exists team_manager_requests_one_pending
+  on public.team_manager_requests (user_id) where status = 'pending';
+alter table public.team_manager_requests enable row level security;
+drop policy if exists "own team requests"           on public.team_manager_requests;
+drop policy if exists "withdraw own pending request" on public.team_manager_requests;
+create policy "own team requests" on public.team_manager_requests for select to authenticated
+  using (user_id = auth.uid() or (select public.is_staff()));
+create policy "withdraw own pending request" on public.team_manager_requests for delete to authenticated
+  using (user_id = auth.uid() and status = 'pending');
+
+-- Join codes a manager makes for team members. 12 random hex digits, shown as XXXX-XXXX-XXXX.
+create or replace function public.gen_join_code() returns text
+language sql volatile set search_path = '' as $$
+  select upper(regexp_replace(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), '(....)(....)(....)', '\1-\2-\3'));
+$$;
+create table if not exists public.team_join_codes (
+  code        text primary key default public.gen_join_code(),
+  team_number int  not null default public.my_team() references public.teams(team_number) on delete cascade,
+  label       text check (char_length(label) <= 80),
+  expires_at  timestamptz,
+  max_uses    int check (max_uses between 1 and 500),
+  use_count   int not null default 0,
+  revoked     boolean not null default false,
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+alter table public.team_join_codes enable row level security;
+drop policy if exists "managers read join codes"   on public.team_join_codes;
+drop policy if exists "managers add join codes"    on public.team_join_codes;
+drop policy if exists "managers revoke join codes" on public.team_join_codes;
+drop policy if exists "managers delete join codes" on public.team_join_codes;
+create policy "managers read join codes" on public.team_join_codes for select to authenticated
+  using (team_number = (select public.my_team()) and (select public.is_team_manager()));
+create policy "managers add join codes" on public.team_join_codes for insert to authenticated
+  with check (team_number = (select public.my_team()) and (select public.is_team_manager())
+              and created_by = auth.uid() and use_count = 0 and not revoked);
+create policy "managers revoke join codes" on public.team_join_codes for update to authenticated
+  using (team_number = (select public.my_team()) and (select public.is_team_manager()))
+  with check (team_number = (select public.my_team()));
+create policy "managers delete join codes" on public.team_join_codes for delete to authenticated
+  using (team_number = (select public.my_team()) and (select public.is_team_manager()));
+
+-- Everything a page needs about the caller's team, in one call (js/auth.js caches it)
+-- plpgsql so it can be created before team_info (section 8f) exists
+create or replace function public.my_team_info() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_uid   uuid := auth.uid();
+  v_email text;
+  v_team  jsonb;
+  v_claim public.team_claims;
+begin
+  if v_uid is null or not public.session_live() then return null; end if;
+  select lower(u.email::text) into v_email from auth.users u where u.id = v_uid;
+  select * into v_claim from public.team_claims c where c.user_id = v_uid;
+  select jsonb_build_object(
+      'team_number', r.team_number,
+      'role', r.role,
+      'staff_acting', r.acting,
+      'name', coalesce(i.display_name, 'Team ' || r.team_number),
+      'settings', t.settings,
+      'can', (select jsonb_object_agg(f, r.role = 'manager'
+                 or coalesce(t.settings -> 'permissions' ->> f, public.team_feature_default(f)) = 'members')
+              from unnest(array['strategy','pit_crew','pick_list','scout_shifts']) f))
+    into v_team
+    from public.my_team_role() r
+    join public.teams t on t.team_number = r.team_number
+    left join public.team_info i on i.team_number = r.team_number;
+  return coalesce(v_team, jsonb_build_object('team_number', null)) || jsonb_build_object(
+    'is_staff', public.is_staff(),
+    'require_claims', public.require_team_claims(),
+    -- Ask which team this account is on: it hasn't said, and isn't on a team by a row
+    'needs_prompt', v_claim.user_id is null
+      and not exists (select 1 from public.team_members m where m.user_id = v_uid and m.role <> 'removed')
+      and not exists (select 1 from public.staff_members s where s.user_id = v_uid and s.no_team_prompt),
+    'claim', case when v_claim.user_id is null then null else jsonb_build_object(
+      'team_number', v_claim.team_number, 'status', v_claim.status, 'created_at', v_claim.created_at,
+      'note', v_claim.note) end,
+    'invites', coalesce((
+      select jsonb_agg(jsonb_build_object('id', iv.id, 'team_number', iv.team_number, 'role', iv.role,
+               'name', coalesce(i.display_name, 'Team ' || iv.team_number)) order by iv.created_at)
+      from public.team_invites iv left join public.team_info i on i.team_number = iv.team_number
+      where iv.email = v_email and iv.expires_at > now()), '[]'::jsonb),
+    'request', (
+      select jsonb_build_object('id', r.id, 'team_number', r.team_number, 'status', r.status,
+                                'created_at', r.created_at, 'review_note', r.review_note)
+      from public.team_manager_requests r where r.user_id = v_uid
+      order by r.created_at desc limit 1));
+end $$;
+
+-- The caller's team, for Team Management. Emails are shown to managers only.
+create or replace function public.team_roster()
+returns table (user_id uuid, name text, email text, role text, how text, added_at timestamptz, last_sign_in timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_team int := public.my_team();
+  v_mgr  boolean := public.is_team_manager();
+begin
+  if v_team is null then raise exception 'You are not on a team.'; end if;
+  return query
+    select u.id,
+           coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), split_part(u.email::text, '@', 1)),
+           case when v_mgr then u.email::text end,
+           m.role,
+           (case when tm.user_id is not null then 'added'
+                 when exists (select 1 from public.staff_members s where s.user_id = u.id) then 'staff'
+                 when exists (select 1 from public.member_grants g where g.user_id = u.id) then 'grant'
+                 else 'domain' end)::text,
+           coalesce(tm.added_at, u.created_at),
+           u.last_sign_in_at
+    from auth.users u
+    cross join lateral public.member_team(u.id) m
+    left join public.team_members tm on tm.user_id = u.id
+    where m.team_number = v_team
+    order by m.role, 2;
+end $$;
+
+-- A manager makes someone on their team a manager or a member, or takes them off the team.
+-- A team always keeps at least one manager.
+create or replace function public.team_set_role(target uuid, new_role text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_team int := public.my_team();
+  v_old  text;
+begin
+  if not public.is_team_manager() then raise exception 'Team managers only.'; end if;
+  if new_role not in ('manager','member','removed') then raise exception 'Unknown team role.'; end if;
+  select m.role into v_old from public.member_team(target) m where m.team_number = v_team;
+  if v_old is null then raise exception 'That account is not on your team.'; end if;
+  if v_old = 'manager' and new_role <> 'manager'
+     and (select count(*) from auth.users u cross join lateral public.member_team(u.id) m
+          where m.team_number = v_team and m.role = 'manager') <= 1 then
+    raise exception 'Your team needs at least one manager. Make someone else a manager first.';
+  end if;
+  insert into public.team_members (user_id, team_number, role, added_by)
+  values (target, v_team, new_role, auth.uid())
+  on conflict (user_id) do update set team_number = excluded.team_number, role = excluded.role,
+    added_by = excluded.added_by, added_at = now();
+  -- Someone taken off the team is asked again which team they're on; a claim back to this team
+  -- then waits for a manager, even from the team's domain (claim_team())
+  if new_role = 'removed' then
+    delete from public.team_claims where user_id = target;
+  else
+    perform public.set_team_claim(target, v_team, 'verified', 'manager', auth.uid());
+  end if;
+end $$;
+
+-- Anyone on a team can leave it, except its last manager
+create or replace function public.team_leave() returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_team int;
+  v_role text;
+begin
+  select m.team_number, m.role into v_team, v_role from public.member_team(auth.uid()) m;
+  if v_team is null or not public.session_live() then raise exception 'You are not on a team.'; end if;
+  if v_role = 'manager'
+     and (select count(*) from auth.users u cross join lateral public.member_team(u.id) m
+          where m.team_number = v_team and m.role = 'manager') <= 1 then
+    raise exception 'You are the last manager. Make someone else a manager before you leave.';
+  end if;
+  insert into public.team_members (user_id, team_number, role, added_by)
+  values (auth.uid(), v_team, 'removed', auth.uid())
+  on conflict (user_id) do update set team_number = excluded.team_number, role = 'removed',
+    added_by = excluded.added_by, added_at = now();
+  delete from public.team_claims where user_id = auth.uid();   -- asked again which team they're on
+end $$;
+
+-- Join a team with a code from one of its managers. Wrong codes count toward the same
+-- per-account guess limit as share codes (share_code_attempts, section 5).
+create or replace function public.join_team(p_code text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid  uuid := auth.uid();
+  v_code public.team_join_codes;
+begin
+  if v_uid is null or not public.session_live() or not exists (
+    select 1 from auth.users u where u.id = v_uid and u.email_confirmed_at is not null
+      and (u.banned_until is null or u.banned_until <= now())) then
+    raise exception 'Sign in with a confirmed account first.';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 0));
+  delete from public.share_code_attempts where attempted_at < now() - interval '10 minutes';
+  if (select count(*) from public.share_code_attempts where user_id = v_uid) >= 10 then
+    return jsonb_build_object('error', 'rate_limited');
+  end if;
+
+  select * into v_code from public.team_join_codes c
+  where c.code = regexp_replace(regexp_replace(upper(coalesce(p_code, '')), '[^0-9A-F]', '', 'g'),
+                                '^(....)(....)(....)$', '\1-\2-\3')
+    and not c.revoked
+    and (c.expires_at is null or c.expires_at > now())
+    and (c.max_uses is null or c.use_count < c.max_uses);
+  if v_code.code is null then
+    insert into public.share_code_attempts (user_id) values (v_uid);
+    return jsonb_build_object('error', 'invalid');
+  end if;
+  if exists (select 1 from public.team_members m where m.user_id = v_uid and m.role in ('manager','member')
+             and m.team_number = v_code.team_number) then
+    return jsonb_build_object('team_number', v_code.team_number, 'already', true);
+  end if;
+  if exists (select 1 from public.team_members m where m.user_id = v_uid and m.role in ('manager','member')) then
+    return jsonb_build_object('error', 'on_team',
+      'team_number', (select m.team_number from public.team_members m where m.user_id = v_uid));
+  end if;
+
+  perform public.add_team_member(v_uid, v_code.team_number, 'member', 'code', v_code.created_by);
+  update public.team_join_codes set use_count = use_count + 1 where code = v_code.code;
+  return jsonb_build_object('team_number', v_code.team_number);
+end $$;
+
+-- A manager saves the team's settings: who can change each feature, and the pit crew setup.
+-- Shape: { permissions: { strategy|pit_crew|pick_list|scout_shifts: 'members'|'managers' },
+--          pit: { checklist: [up to 30 items of up to 120 characters], low_volts: 10-14 } }
+create or replace function public.team_update_settings(p_settings jsonb)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_perm jsonb := coalesce(p_settings -> 'permissions', '{}'::jsonb);
+  v_pit  jsonb := coalesce(p_settings -> 'pit', '{}'::jsonb);
+  v_list jsonb := v_pit -> 'checklist';
+begin
+  if not public.is_team_manager() then raise exception 'Team managers only.'; end if;
+  if jsonb_typeof(p_settings) <> 'object' or jsonb_typeof(v_perm) <> 'object' or jsonb_typeof(v_pit) <> 'object' then
+    raise exception 'Settings must be an object.';
+  end if;
+  if exists (select 1 from jsonb_each(v_perm) e
+             where e.key not in ('strategy','pit_crew','pick_list','scout_shifts')
+                or e.value not in ('"members"'::jsonb, '"managers"'::jsonb)) then
+    raise exception 'Unknown permission setting.';
+  end if;
+  if v_list is not null and (jsonb_typeof(v_list) <> 'array' or jsonb_array_length(v_list) > 30
+       or exists (select 1 from jsonb_array_elements(v_list) i
+                  where jsonb_typeof(i) <> 'string' or char_length(i #>> '{}') not between 1 and 120)) then
+    raise exception 'The checklist takes up to 30 items of up to 120 characters.';
+  end if;
+  if v_pit ? 'low_volts' and (jsonb_typeof(v_pit -> 'low_volts') <> 'number'
+       or (v_pit ->> 'low_volts')::numeric not between 10 and 14) then
+    raise exception 'The low-battery voltage must be between 10 and 14.';
+  end if;
+  update public.teams
+     set settings = jsonb_build_object('permissions', v_perm, 'pit', v_pit)
+   where team_number = public.my_team();
+end $$;
+
+-- Ask to manage a team. One open request per account, and at most 5 a week.
+create or replace function public.request_team_manager(p_team int, p_role text, p_message text)
+returns bigint language plpgsql security definer set search_path = '' as $$
+declare
+  v_id bigint;
+begin
+  if auth.uid() is null or not public.session_live() or not exists (
+    select 1 from auth.users u where u.id = auth.uid() and u.email_confirmed_at is not null
+      and (u.banned_until is null or u.banned_until <= now())) then
+    raise exception 'Sign in with a confirmed account first.';
+  end if;
+  if p_team is null or p_team not between 1 and 99999 then raise exception 'Enter your team number.'; end if;
+  if public.my_team() = p_team and public.is_team_manager() then
+    raise exception 'You already manage team %.', p_team;
+  end if;
+  if exists (select 1 from public.team_manager_requests where user_id = auth.uid() and status = 'pending') then
+    raise exception 'You already have a request waiting. Withdraw it to send a different one.';
+  end if;
+  if (select count(*) from public.team_manager_requests
+      where user_id = auth.uid() and created_at > now() - interval '7 days') >= 5 then
+    raise exception 'Too many requests this week. Contact the site staff instead.';
+  end if;
+  insert into public.team_manager_requests (user_id, team_number, role_on_team, message)
+  values (auth.uid(), p_team, trim(p_role), trim(p_message))
+  returning id into v_id;
+  return v_id;
+end $$;
+
+-- Staff Portal, Teams tab: open and recent requests, with who sent them
+create or replace function public.staff_list_team_requests()
+returns table (id bigint, user_id uuid, email text, display_name text, team_number int, team_name text,
+               role_on_team text, message text, status text, created_at timestamptz,
+               reviewed_at timestamptz, review_note text, team_verified boolean, current_team int)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  return query
+    select r.id, r.user_id, u.email::text, coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
+           r.team_number, i.display_name, r.role_on_team, r.message, r.status, r.created_at,
+           r.reviewed_at, r.review_note,
+           exists (select 1 from public.teams t where t.team_number = r.team_number),
+           (select m.team_number from public.member_team(r.user_id) m)
+    from public.team_manager_requests r
+    join auth.users u on u.id = r.user_id
+    left join public.team_info i on i.team_number = r.team_number
+    where r.status = 'pending' or r.reviewed_at > now() - interval '60 days'
+    order by (r.status = 'pending') desc, r.created_at desc;
+end $$;
+
+-- Approve (verifying the team if it's new, and making the person its manager) or deny
+create or replace function public.staff_review_team_request(p_id bigint, p_approve boolean, p_note text default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_req public.team_manager_requests;
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  select * into v_req from public.team_manager_requests where id = p_id for update;
+  if v_req.id is null or v_req.status <> 'pending' then raise exception 'That request is no longer open.'; end if;
+  if p_approve then
+    insert into public.teams (team_number, verified_by) values (v_req.team_number, auth.uid())
+      on conflict (team_number) do nothing;
+    perform public.add_team_member(v_req.user_id, v_req.team_number, 'manager', 'staff', auth.uid());
+  end if;
+  update public.team_manager_requests
+     set status = case when p_approve then 'approved' else 'denied' end,
+         reviewed_by = auth.uid(), reviewed_at = now(), review_note = nullif(left(trim(p_note), 500), '')
+   where id = p_id;
+end $$;
+
+-- Staff Portal, Teams tab: every verified team, its managers and how many members it has
+drop function if exists public.staff_list_teams();
+create or replace function public.staff_list_teams()
+returns table (team_number int, team_name text, domains text[], verified_at timestamptz,
+               managers jsonb, member_count int, pending_count int)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  return query
+    with roster as (
+      select m.team_number, m.role, u.id, u.email::text as email
+      from auth.users u cross join lateral public.member_team(u.id) m
+    )
+    select t.team_number, i.display_name,
+           coalesce((select array_agg(d.domain order by d.domain) from public.team_domains d
+                     where d.team_number = t.team_number), '{}'::text[]),
+           t.verified_at,
+           coalesce((select jsonb_agg(jsonb_build_object('user_id', r.id, 'email', r.email) order by r.email)
+                     from roster r where r.team_number = t.team_number and r.role = 'manager'), '[]'::jsonb),
+           (select count(*)::int from roster r where r.team_number = t.team_number),
+           (select count(*)::int from public.team_claims c where c.team_number = t.team_number and c.status = 'pending')
+    from public.teams t
+    left join public.team_info i on i.team_number = t.team_number
+    order by t.team_number;
+end $$;
+
+-- Staff moderation: change anyone's team role (e.g. take a manager off a team that disputes them)
+create or replace function public.staff_set_team_role(target uuid, p_team int, new_role text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  if new_role not in ('manager','member','removed') then raise exception 'Unknown team role.'; end if;
+  if not exists (select 1 from public.teams where team_number = p_team) then raise exception 'That team is not verified.'; end if;
+  if new_role = 'removed' then
+    insert into public.team_members (user_id, team_number, role, added_by)
+    values (target, p_team, 'removed', auth.uid())
+    on conflict (user_id) do update set team_number = excluded.team_number, role = 'removed',
+      added_by = excluded.added_by, added_at = now();
+    delete from public.team_claims where user_id = target;
+  else
+    perform public.add_team_member(target, p_team, new_role, 'staff', auth.uid());
+  end if;
+end $$;
+
+-- Staff set the login domain that puts accounts on a team automatically (blank turns it off).
+-- Only for a domain the team alone uses, such as a school's: everyone with it joins as a member.
+create or replace function public.staff_set_team_domain(p_team int, p_domain text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  update public.teams set email_domain = nullif(lower(trim(p_domain)), '') where team_number = p_team;
+  if not found then raise exception 'That team is not verified.'; end if;
+end $$;
+
+-- ── Claims: which team an account is on (see the section comment) ──
+-- Called by the team prompt on every page and the sign-up answer. p_team null: not on a team.
+-- Returns { status: 'none' | 'pending' | 'verified', team_number, role, team_known }.
+create or replace function public.claim_team(p_team int) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_email  text;
+  v_cur    int;
+  v_inv    public.team_invites;
+  v_role   text;
+  v_how    text;
+begin
+  if v_uid is null or not public.session_live() or not exists (
+    select 1 from auth.users u where u.id = v_uid and u.email_confirmed_at is not null
+      and (u.banned_until is null or u.banned_until <= now())) then
+    raise exception 'Sign in with a confirmed account first.';
+  end if;
+  select lower(u.email::text) into v_email from auth.users u where u.id = v_uid;
+  select m.team_number into v_cur from public.team_members m where m.user_id = v_uid and m.role in ('manager','member');
+  if v_cur is not null then
+    if v_cur = p_team then
+      perform public.set_team_claim(v_uid, v_cur, 'verified', coalesce((select c.how from public.team_claims c where c.user_id = v_uid), 'existing'));
+      return jsonb_build_object('status', 'verified', 'team_number', v_cur);
+    end if;
+    raise exception 'You are on team %. Leave it on Team Management first.', v_cur;
+  end if;
+  if p_team is null then
+    perform public.set_team_claim(v_uid, null, 'none', null);
+    return jsonb_build_object('status', 'none');
+  end if;
+  if p_team not between 1 and 99999 then raise exception 'Enter your team number.'; end if;
+
+  -- Verified at once by an invitation, the team's domain, or access staff already gave
+  if exists (select 1 from public.teams t where t.team_number = p_team) then
+    select * into v_inv from public.team_invites iv
+     where iv.team_number = p_team and iv.email = v_email and iv.expires_at > now();
+    if v_inv.id is not null then
+      v_role := v_inv.role; v_how := 'invite';
+    elsif exists (select 1 from public.team_domains d
+                  where d.team_number = p_team and d.domain = split_part(v_email, '@', 2)) then
+      v_role := 'member'; v_how := 'domain';
+    else
+      select l.role into v_role from public.legacy_team(v_uid) l where l.team_number = p_team;
+      if v_role is not null then v_how := 'existing'; end if;
+    end if;
+    -- Someone a manager took off this team waits for a manager, unless they were invited back
+    if v_how in ('domain', 'existing') and exists (
+         select 1 from public.team_members m where m.user_id = v_uid and m.team_number = p_team
+           and m.role = 'removed' and m.added_by is distinct from v_uid) then
+      v_role := null;
+    end if;
+  end if;
+
+  if v_role is not null then
+    perform public.add_team_member(v_uid, p_team, v_role, v_how, v_inv.invited_by);
+    if v_inv.id is not null then delete from public.team_invites where id = v_inv.id; end if;
+    return jsonb_build_object('status', 'verified', 'team_number', p_team, 'role', v_role);
+  end if;
+  perform public.set_team_claim(v_uid, p_team, 'pending', null);
+  return jsonb_build_object('status', 'pending', 'team_number', p_team,
+    'team_known', exists (select 1 from public.teams t where t.team_number = p_team));
+end $$;
+
+-- People waiting for the caller's team to verify them (managers, and staff acting as the team)
+create or replace function public.team_pending_claims()
+returns table (user_id uuid, name text, email text, created_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_team int := public.my_team();
+begin
+  if v_team is null or not public.is_team_manager() then raise exception 'Team managers only.'; end if;
+  return query
+    select u.id,
+           coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), split_part(u.email::text, '@', 1)),
+           u.email::text, c.created_at
+    from public.team_claims c join auth.users u on u.id = c.user_id
+    where c.team_number = v_team and c.status = 'pending'
+    order by c.created_at;
+end $$;
+
+-- Verify or deny a waiting claim: a manager of that team, or site staff. Staff can also verify a
+-- claim to a team that isn't on 1307scout yet, which verifies the team (best as its manager).
+create or replace function public.verify_team_claim(target uuid, p_approve boolean,
+  p_role text default 'member', p_note text default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_claim public.team_claims;
+  v_staff boolean := public.is_staff();
+begin
+  select * into v_claim from public.team_claims c where c.user_id = target for update;
+  if v_claim.user_id is null or v_claim.status <> 'pending' then raise exception 'That person is no longer waiting.'; end if;
+  if not v_staff and not (public.is_team_manager() and public.my_team() = v_claim.team_number) then
+    raise exception 'Only that team''s managers or site staff can verify it.';
+  end if;
+  if p_role not in ('member','manager') then raise exception 'Unknown team role.'; end if;
+  if not p_approve then
+    perform public.set_team_claim(target, v_claim.team_number, 'denied', null, auth.uid(), p_note);
+    return;
+  end if;
+  if not exists (select 1 from public.teams t where t.team_number = v_claim.team_number) then
+    if not v_staff then raise exception 'That team is not on 1307scout yet. Site staff verify a new team.'; end if;
+    insert into public.teams (team_number, verified_by) values (v_claim.team_number, auth.uid());
+  end if;
+  perform public.add_team_member(target, v_claim.team_number, p_role,
+    case when public.is_team_manager() and public.my_team() = v_claim.team_number
+              and not coalesce((select r.acting from public.my_team_role() r), false) then 'manager' else 'staff' end,
+    auth.uid());
+  update public.team_claims set note = nullif(left(trim(p_note), 300), '') where user_id = target;
+end $$;
+
+-- Staff Portal, Teams tab: everyone waiting, on every team
+create or replace function public.staff_list_claims()
+returns table (user_id uuid, email text, display_name text, team_number int, team_name text,
+               team_verified boolean, created_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  return query
+    select c.user_id, u.email::text, coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
+           c.team_number, i.display_name,
+           exists (select 1 from public.teams t where t.team_number = c.team_number), c.created_at
+    from public.team_claims c
+    join auth.users u on u.id = c.user_id
+    left join public.team_info i on i.team_number = c.team_number
+    where c.status = 'pending'
+    order by c.created_at;
+end $$;
+
+-- ── Domains a team's managers set; a claim from one is verified at once ──
+create or replace function public.team_add_domain(p_domain text) returns int
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_team int := public.my_team();
+  v_d    text := lower(trim(both ' @' from coalesce(p_domain, '')));
+  v_n    int := 0;
+  r      record;
+begin
+  if v_team is null or not public.is_team_manager() then raise exception 'Team managers only.'; end if;
+  if v_d !~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$' or char_length(v_d) > 100 then
+    raise exception 'Enter a domain like yourschool.org.';
+  end if;
+  if public.is_free_email_domain(v_d) then
+    raise exception '% is a free email provider, so it can''t verify anyone. Use your school''s or team''s own domain.', v_d;
+  end if;
+  if (select count(*) from public.team_domains d where d.team_number = v_team) >= 10 then
+    raise exception 'A team can list up to 10 domains.';
+  end if;
+  insert into public.team_domains (team_number, domain, added_by) values (v_team, v_d, auth.uid())
+    on conflict do nothing;
+  -- Verify anyone already waiting from this domain (not people a manager took off the team)
+  for r in
+    select c.user_id from public.team_claims c join auth.users u on u.id = c.user_id
+    where c.team_number = v_team and c.status = 'pending' and u.email_confirmed_at is not null
+      and lower(split_part(u.email::text, '@', 2)) = v_d
+      and not exists (select 1 from public.team_members m where m.user_id = c.user_id and m.team_number = v_team
+                        and m.role = 'removed' and m.added_by is distinct from c.user_id)
+  loop
+    perform public.add_team_member(r.user_id, v_team, 'member', 'domain', auth.uid());
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+create or replace function public.team_remove_domain(p_domain text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if public.my_team() is null or not public.is_team_manager() then raise exception 'Team managers only.'; end if;
+  delete from public.team_domains where team_number = public.my_team() and domain = lower(trim(p_domain));
+end $$;
+
+-- ── Invitations by email ──
+-- Returns 'invited', or 'verified' if that account was already waiting to join this team.
+create or replace function public.team_invite(p_email text, p_role text default 'member') returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_team  int := public.my_team();
+  v_email text := lower(trim(coalesce(p_email, '')));
+  v_user  uuid;
+begin
+  if v_team is null or not public.is_team_manager() then raise exception 'Team managers only.'; end if;
+  if p_role not in ('member','manager') then raise exception 'Unknown team role.'; end if;
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' or char_length(v_email) > 254 then
+    raise exception 'Enter an email address.';
+  end if;
+  if (select count(*) from public.team_invites iv where iv.team_number = v_team and iv.expires_at > now()) >= 200 then
+    raise exception 'Your team has 200 open invitations. Remove some first.';
+  end if;
+  select u.id into v_user from auth.users u where lower(u.email::text) = v_email and u.email_confirmed_at is not null;
+  if v_user is not null and exists (select 1 from public.member_team(v_user) m where m.team_number = v_team) then
+    raise exception 'That account is already on your team.';
+  end if;
+  -- Already waiting to join this team: the invitation verifies them now
+  if v_user is not null and exists (select 1 from public.team_claims c
+                                    where c.user_id = v_user and c.team_number = v_team and c.status = 'pending') then
+    perform public.add_team_member(v_user, v_team, p_role, 'invite', auth.uid());
+    return 'verified';
+  end if;
+  insert into public.team_invites (team_number, email, role, invited_by)
+  values (v_team, v_email, p_role, auth.uid())
+  on conflict (team_number, email) do update set role = excluded.role, invited_by = excluded.invited_by,
+    created_at = now(), expires_at = now() + interval '30 days';
+  return 'invited';
+end $$;
+
+-- The invited person accepts or declines (only invitations to their own email)
+create or replace function public.accept_team_invite(p_id bigint) returns int
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_inv public.team_invites;
+begin
+  if not public.session_live() then raise exception 'Sign in first.'; end if;
+  select iv.* into v_inv from public.team_invites iv join auth.users u on lower(u.email::text) = iv.email
+   where iv.id = p_id and u.id = auth.uid() and u.email_confirmed_at is not null and iv.expires_at > now();
+  if v_inv.id is null then raise exception 'That invitation is gone or expired.'; end if;
+  if exists (select 1 from public.team_members m where m.user_id = auth.uid() and m.role in ('manager','member')
+             and m.team_number <> v_inv.team_number) then
+    raise exception 'You are on another team. Leave it on Team Management first.';
+  end if;
+  perform public.add_team_member(auth.uid(), v_inv.team_number, v_inv.role, 'invite', v_inv.invited_by);
+  delete from public.team_invites where id = p_id;
+  return v_inv.team_number;
+end $$;
+
+create or replace function public.decline_team_invite(p_id bigint) returns void
+language sql security definer set search_path = '' as $$
+  delete from public.team_invites iv using auth.users u
+  where iv.id = p_id and u.id = auth.uid() and lower(u.email::text) = iv.email;
+$$;
+
+-- ── Site staff ──
+-- Act as a team (null: stop), to see its pages and manage it as its manager
+create or replace function public.staff_act_as_team(p_team int) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  if p_team is not null and not exists (select 1 from public.teams t where t.team_number = p_team) then
+    raise exception 'Team % is not on 1307scout.', p_team;
+  end if;
+  update public.staff_members set acting_team = p_team where user_id = auth.uid();
+end $$;
+
+-- Turn quarantine on: from then on only verified team_members rows put accounts on teams
+create or replace function public.staff_set_require_claims(p_on boolean) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  update public.app_settings set require_team_claims = p_on, updated_at = now() where id;
+end $$;
+
+drop policy if exists "team reads its domains"     on public.team_domains;
+drop policy if exists "managers read invitations"   on public.team_invites;
+drop policy if exists "managers delete invitations" on public.team_invites;
+create policy "team reads its domains" on public.team_domains for select to authenticated
+  using (team_number = (select public.my_team()) or (select public.is_staff()));
+create policy "managers read invitations" on public.team_invites for select to authenticated
+  using (team_number = (select public.my_team()) and (select public.is_team_manager()));
+create policy "managers delete invitations" on public.team_invites for delete to authenticated
+  using (team_number = (select public.my_team()) and (select public.is_team_manager()));
+
+drop policy if exists "team reads own team" on public.teams;
+create policy "team reads own team" on public.teams for select to authenticated
+  using (team_number = (select public.my_team()) or (select public.is_staff()));
+
+
+-- Student ("team member") = verified, not banned, current session not kicked, and on a team
+-- (member_team(), section 3b: a team_members row, a mentor/student grant, or a team's login
+-- domain such as @stalux.org). A 'guest' grant turns off the domain rule for that account.
 create or replace function public.is_student() returns boolean
 language sql stable security definer set search_path = '' as $$
-  select exists (
-    select 1
-    from auth.users u
-    left join public.member_grants g on g.user_id = u.id
-    where u.id = auth.uid()
-      and u.email_confirmed_at is not null
-      and (u.banned_until is null or u.banned_until <= now())
-      and (
-        g.level in ('mentor','student')
-        or (lower(u.email) like '%@stalux.org' and coalesce(g.level, '') <> 'guest')
-      )
-  ) and public.session_live();
+  select exists (select 1 from public.member_team(auth.uid())) and public.session_live();
 $$;
 
 -- One call the site uses to pick a view: 'staff', 'student', or 'guest'
@@ -1391,9 +2303,10 @@ create policy "team deletes flag reviews" on public.match_flag_reviews for delet
 --
 --    One plan per match: where each robot starts and what was drawn on the
 --    field map. plan is the page's own JSON ({ teams, robots, strokes }); the
---    database only checks that it's an object of a sane size. Any team member
---    can make, change or remove a plan, and the last save wins. Plans stay
---    after the match is played, so the team can review the ones that worked.
+--    database only checks that it's an object of a sane size. Each team has its
+--    own plans. Its members can make, change or remove one (unless a manager kept
+--    that to managers), and the last save wins. Plans stay after the match is
+--    played, so the team can review the ones that worked.
 -- =====================================================================
 create table if not exists public.match_strategies (
   event_id   uuid not null references public.events(id) on delete cascade,
@@ -1405,19 +2318,98 @@ create table if not exists public.match_strategies (
 );
 alter table public.match_strategies enable row level security;
 
+-- Each team's own plans (section 3b). Rows from before teams existed are the home team's. A page
+-- that doesn't send owner_team gets the saver's team. The (owner_team, event_id, match_key) key
+-- replaces the old primary key in step 2 (section 16b), once every live page sends owner_team.
+alter table public.match_strategies add column if not exists owner_team int;
+update public.match_strategies set owner_team = public.home_team() where owner_team is null;
+alter table public.match_strategies alter column owner_team set default public.my_team();
+alter table public.match_strategies alter column owner_team set not null;
+do $$
+begin
+  if not exists (select 1 from pg_index i where i.indrelid = 'public.match_strategies'::regclass and i.indisunique
+                 and pg_get_indexdef(i.indexrelid) like '%(owner_team, event_id, match_key)%') then
+    create unique index match_strategies_team_key on public.match_strategies (owner_team, event_id, match_key);
+  end if;
+end $$;
+
 drop policy if exists "team reads match strategies"   on public.match_strategies;
 drop policy if exists "team adds match strategies"    on public.match_strategies;
 drop policy if exists "team edits match strategies"   on public.match_strategies;
 drop policy if exists "team deletes match strategies" on public.match_strategies;
 create policy "team reads match strategies" on public.match_strategies for select to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()));
 create policy "team adds match strategies" on public.match_strategies for insert to authenticated
-  with check (((select public.is_staff()) or (select public.is_student())) and updated_by = auth.uid());
+  with check (owner_team = (select public.my_team()) and (select public.team_can('strategy')) and updated_by = auth.uid());
 create policy "team edits match strategies" on public.match_strategies for update to authenticated
-  using ((select public.is_staff()) or (select public.is_student()))
-  with check (updated_by = auth.uid());
+  using (owner_team = (select public.my_team()) and (select public.team_can('strategy')))
+  with check (owner_team = (select public.my_team()) and updated_by = auth.uid());
 create policy "team deletes match strategies" on public.match_strategies for delete to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()) and (select public.team_can('strategy')));
+
+-- Alliance plans. For a match a team plays in, the plan belongs to its alliance, not to one team:
+-- one plan per alliance per match, shared by the three teams on it (each team's members who may
+-- change plans, per team_can('strategy')). The other alliance never sees it. match_strategies
+-- above keeps a team's private plans for matches it isn't in.
+--
+-- Who is on an alliance comes from the official line-up. A match_schedule edit (which any team
+-- member can make) only counts for a match the official schedule doesn't have yet, so nobody can
+-- edit the schedule to put their team on someone else's alliance and read its plan.
+create table if not exists public.alliance_strategies (
+  event_id   uuid not null references public.events(id) on delete cascade,
+  match_key  text not null check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
+  alliance   text not null check (alliance in ('red', 'blue')),
+  plan       jsonb not null check (jsonb_typeof(plan) = 'object' and octet_length(plan::text) <= 300000),
+  updated_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  primary key (event_id, match_key, alliance)
+);
+alter table public.alliance_strategies enable row level security;
+
+-- Which alliance a team is on in a match ('red', 'blue', or null). Internal.
+create or replace function public.match_alliance(p_event uuid, p_match text, p_team int) returns text
+language sql stable security definer set search_path = '' as $$
+  select case when p_team = any(l.red) then 'red' when p_team = any(l.blue) then 'blue' end
+  from (
+    select case when o.match_key is not null then o.red_teams  else e.red_teams  end as red,
+           case when o.match_key is not null then o.blue_teams else e.blue_teams end as blue
+    from (select 1) x
+    left join public.official_matches_combined o
+      on o.event_id = p_event and o.match_key = p_match and cardinality(o.red_teams) > 0
+    left join public.match_schedule e on e.event_id = p_event and e.match_key = p_match
+  ) l;
+$$;
+revoke all on function public.match_alliance(uuid, text, int) from public, anon, authenticated;
+
+-- The caller's alliance in a match, through their team
+create or replace function public.my_alliance(p_event uuid, p_match text) returns text
+language sql stable security definer set search_path = '' as $$
+  select public.match_alliance(p_event, p_match, public.my_team());
+$$;
+
+drop policy if exists "alliance reads its plan"    on public.alliance_strategies;
+drop policy if exists "alliance adds its plan"     on public.alliance_strategies;
+drop policy if exists "alliance edits its plan"    on public.alliance_strategies;
+drop policy if exists "alliance deletes its plan"  on public.alliance_strategies;
+create policy "alliance reads its plan" on public.alliance_strategies for select to authenticated
+  using (alliance = public.my_alliance(event_id, match_key));
+create policy "alliance adds its plan" on public.alliance_strategies for insert to authenticated
+  with check (alliance = public.my_alliance(event_id, match_key) and (select public.team_can('strategy'))
+              and updated_by = auth.uid());
+create policy "alliance edits its plan" on public.alliance_strategies for update to authenticated
+  using (alliance = public.my_alliance(event_id, match_key) and (select public.team_can('strategy')))
+  with check (alliance = public.my_alliance(event_id, match_key) and updated_by = auth.uid());
+create policy "alliance deletes its plan" on public.alliance_strategies for delete to authenticated
+  using (alliance = public.my_alliance(event_id, match_key) and (select public.team_can('strategy')));
+
+-- Copy each team's plans for its own matches onto its alliance (safe to re-run: a plan already
+-- there wins). The stable release still saves to match_strategies until it has this change.
+insert into public.alliance_strategies (event_id, match_key, alliance, plan, updated_by, updated_at)
+select ms.event_id, ms.match_key, a.alliance, ms.plan, ms.updated_by, ms.updated_at
+from public.match_strategies ms
+cross join lateral (select public.match_alliance(ms.event_id, ms.match_key, ms.owner_team) as alliance) a
+where a.alliance is not null
+on conflict (event_id, match_key, alliance) do nothing;
 
 
 -- =====================================================================
@@ -1430,17 +2422,10 @@ create policy "team deletes match strategies" on public.match_strategies for del
 -- =====================================================================
 create or replace function public.is_team_member(p_user uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select exists (
-    select 1
-    from auth.users u
-    left join public.staff_members s on s.user_id = u.id
-    left join public.member_grants g on g.user_id = u.id
-    where u.id = p_user
-      and u.email_confirmed_at is not null
-      and (u.banned_until is null or u.banned_until <= now())
-      and (s.user_id is not null or g.level in ('mentor','student')
-           or (lower(u.email) like '%@stalux.org' and coalesce(g.level, '') <> 'guest'))
-  );
+  select exists (select 1 from public.member_team(p_user))
+      or exists (select 1 from public.staff_members s join auth.users u on u.id = s.user_id
+                 where s.user_id = p_user and u.email_confirmed_at is not null
+                   and (u.banned_until is null or u.banned_until <= now()));
 $$;
 revoke all on function public.is_team_member(uuid) from public, anon, authenticated;
 
@@ -1458,8 +2443,9 @@ $$;
 -- =====================================================================
 -- 8m. Scout shifts (shifts.html)
 --
---    Staff hand out driver-station seats for a range of qualification matches: "red 2,
---    quals 14-25". The whole team can read them, so scouts know where to sit, and the Scout
+--    A team's managers hand out driver-station seats to its members for a range of
+--    qualification matches: "red 2, quals 14-25" (a manager can let every member do it). The
+--    whole team can read them, so scouts know where to sit, and the Scout
 --    page fills in the team and match for the scout's next assigned match. A seat can't have
 --    two scouts at once, and a scout can't be in two seats at once (checked by the trigger).
 -- =====================================================================
@@ -1478,20 +2464,26 @@ create table if not exists public.scout_shifts (
 create index if not exists scout_shifts_event_idx on public.scout_shifts (event_id, station);
 alter table public.scout_shifts enable row level security;
 
--- Security definer so it can call is_team_member(), which the API can't
+-- Each team hands out its own seats (section 3b); rows from before teams are the home team's
+alter table public.scout_shifts add column if not exists owner_team int;
+update public.scout_shifts set owner_team = public.home_team() where owner_team is null;
+alter table public.scout_shifts alter column owner_team set default public.my_team();
+alter table public.scout_shifts alter column owner_team set not null;
+
+-- Security definer so it can call member_team(), which the API can't
 create or replace function public.scout_shift_overlap() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   if exists (
     select 1 from public.scout_shifts s
-    where s.event_id = new.event_id and s.id is distinct from new.id
+    where s.event_id = new.event_id and s.owner_team = new.owner_team and s.id is distinct from new.id
       and s.first_match <= new.last_match and new.first_match <= s.last_match
       and (s.station = new.station or s.user_id = new.user_id)
   ) then
     raise exception 'That overlaps another shift: a seat holds one scout, and a scout sits in one seat, at a time.';
   end if;
-  if not public.is_team_member(new.user_id) then
-    raise exception 'Shifts can only go to team members.';
+  if not exists (select 1 from public.member_team(new.user_id) m where m.team_number = new.owner_team) then
+    raise exception 'Shifts can only go to members of your team.';
   end if;
   return new;
 end $$;
@@ -1501,18 +2493,21 @@ create trigger scout_shift_overlap before insert or update on public.scout_shift
 
 drop policy if exists "team reads scout shifts"    on public.scout_shifts;
 drop policy if exists "staff manages scout shifts" on public.scout_shifts;
+drop policy if exists "team manages scout shifts" on public.scout_shifts;
 create policy "team reads scout shifts" on public.scout_shifts for select to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
-create policy "staff manages scout shifts" on public.scout_shifts for all to authenticated
-  using ((select public.is_staff())) with check ((select public.is_staff()));
+  using (owner_team = (select public.my_team()));
+create policy "team manages scout shifts" on public.scout_shifts for all to authenticated
+  using (owner_team = (select public.my_team()) and (select public.team_can('scout_shifts')))
+  with check (owner_team = (select public.my_team()) and (select public.team_can('scout_shifts')));
 
 
 -- =====================================================================
 -- 8n. Pick list (picklist.html)
 --
---    The ranked list staff build before alliance selection: order, a tier, and a note per
---    team. Playoff Selection highlights the best-ranked team still available. Staff write,
---    the team reads. Rank isn't unique, so a reorder can be saved in one upsert.
+--    The ranked list a team builds before alliance selection: order, a tier, and a note per
+--    team. Playoff Selection highlights the best-ranked team still available. Each team has its
+--    own; its managers write (or every member, if a manager allows it) and the team reads.
+--    Rank isn't unique, so a reorder can be saved in one upsert.
 -- =====================================================================
 create table if not exists public.pick_list (
   event_id    uuid not null references public.events(id) on delete cascade,
@@ -1526,12 +2521,27 @@ create table if not exists public.pick_list (
 );
 alter table public.pick_list enable row level security;
 
+-- Each team's own list (section 3b). Same key change as match_strategies (step 2, section 16b).
+alter table public.pick_list add column if not exists owner_team int;
+update public.pick_list set owner_team = public.home_team() where owner_team is null;
+alter table public.pick_list alter column owner_team set default public.my_team();
+alter table public.pick_list alter column owner_team set not null;
+do $$
+begin
+  if not exists (select 1 from pg_index i where i.indrelid = 'public.pick_list'::regclass and i.indisunique
+                 and pg_get_indexdef(i.indexrelid) like '%(owner_team, event_id, team_number)%') then
+    create unique index pick_list_team_key on public.pick_list (owner_team, event_id, team_number);
+  end if;
+end $$;
+
 drop policy if exists "team reads pick list"    on public.pick_list;
 drop policy if exists "staff manages pick list" on public.pick_list;
+drop policy if exists "team manages pick list"  on public.pick_list;
 create policy "team reads pick list" on public.pick_list for select to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
-create policy "staff manages pick list" on public.pick_list for all to authenticated
-  using ((select public.is_staff())) with check ((select public.is_staff()));
+  using (owner_team = (select public.my_team()));
+create policy "team manages pick list" on public.pick_list for all to authenticated
+  using (owner_team = (select public.my_team()) and (select public.team_can('pick_list')))
+  with check (owner_team = (select public.my_team()) and (select public.team_can('pick_list')));
 
 
 -- =====================================================================
@@ -1616,9 +2626,10 @@ $$;
 -- =====================================================================
 -- 8p. Robot log (pitcrew.html)
 --
---    Our own robot at an event: the pre-match checklist ticked off for each match, battery
---    use (which battery, its voltage, which match), repairs, and notes. Any team member adds
---    rows and changes their own; staff can change any. event_id is blank for shop work.
+--    A team's own robot at an event: the pre-match checklist ticked off for each match, battery
+--    use (which battery, its voltage, which match), repairs, and notes. The checklist items and
+--    low-battery voltage are the team's settings (teams.settings.pit, section 3b). event_id is
+--    blank for shop work.
 -- =====================================================================
 create table if not exists public.robot_log (
   id          bigint generated always as identity primary key,
@@ -1632,22 +2643,32 @@ create table if not exists public.robot_log (
   created_by  uuid default auth.uid() references auth.users(id) on delete set null,
   created_at  timestamptz not null default now()
 );
-create index if not exists robot_log_event_idx on public.robot_log (event_id, created_at desc);
 alter table public.robot_log enable row level security;
 
 drop policy if exists "team reads robot log"    on public.robot_log;
 drop policy if exists "team adds robot log"     on public.robot_log;
 drop policy if exists "team edits own robot log" on public.robot_log;
 drop policy if exists "team deletes robot log"  on public.robot_log;
+-- Each team's own robot (section 3b); rows from before teams are the home team's. Anyone the
+-- team lets use Pit Crew adds rows and changes their own; the team's managers can change any.
+alter table public.robot_log add column if not exists owner_team int;
+update public.robot_log set owner_team = public.home_team() where owner_team is null;
+alter table public.robot_log alter column owner_team set default public.my_team();
+alter table public.robot_log alter column owner_team set not null;
+drop index if exists public.robot_log_event_idx;   -- replaced by the per-team index
+create index if not exists robot_log_team_event_idx on public.robot_log (owner_team, event_id, created_at desc);
+
 create policy "team reads robot log" on public.robot_log for select to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()));
 create policy "team adds robot log" on public.robot_log for insert to authenticated
-  with check (((select public.is_staff()) or (select public.is_student())) and created_by = auth.uid());
+  with check (owner_team = (select public.my_team()) and (select public.team_can('pit_crew')) and created_by = auth.uid());
 create policy "team edits own robot log" on public.robot_log for update to authenticated
-  using ((select public.is_staff()) or ((select public.is_student()) and created_by = auth.uid()))
-  with check ((select public.is_staff()) or created_by = auth.uid());
+  using (owner_team = (select public.my_team())
+         and ((select public.is_team_manager()) or ((select public.team_can('pit_crew')) and created_by = auth.uid())))
+  with check (owner_team = (select public.my_team()));
 create policy "team deletes robot log" on public.robot_log for delete to authenticated
-  using ((select public.is_staff()) or ((select public.is_student()) and created_by = auth.uid()));
+  using (owner_team = (select public.my_team())
+         and ((select public.is_team_manager()) or ((select public.team_can('pit_crew')) and created_by = auth.uid())));
 
 
 -- =====================================================================
@@ -2901,9 +3922,8 @@ begin
            coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
            (case
               when s.user_id is not null then 'staff'
-              when g.level in ('mentor','student') then g.level
-              when g.level = 'guest' then 'guest'
-              when lower(u.email) like '%@stalux.org' then 'student'
+              when g.level = 'mentor' and exists (select 1 from public.member_team(u.id)) then 'mentor'
+              when exists (select 1 from public.member_team(u.id)) then 'student'
               else 'guest'
             end)::text,
            (u.banned_until is not null and u.banned_until > now()),
@@ -2941,6 +3961,14 @@ begin
     values (target, new_level, auth.uid())
     on conflict (user_id) do update
       set level = excluded.level, granted_by = excluded.granted_by, updated_at = now();
+    -- Guest means no team at all, including one joined with a code (section 3b). A mentor or
+    -- student grant undoes an earlier removal, so the grant puts them on the home team again.
+    if new_level = 'guest' then
+      update public.team_members set role = 'removed', added_by = auth.uid(), added_at = now()
+       where user_id = target and role <> 'removed';
+    else
+      delete from public.team_members where user_id = target and role = 'removed';
+    end if;
   end if;
 end $$;
 
@@ -2984,9 +4012,16 @@ grant select, insert, update, delete on public.playoff_lineups  to authenticated
 grant select, insert, update, delete on public.match_schedule   to authenticated;
 grant select, insert, update, delete on public.match_flag_reviews to authenticated;
 grant select, insert, update, delete on public.match_strategies to authenticated;
+grant select, insert, update, delete on public.alliance_strategies to authenticated;
 grant select, insert, update, delete on public.scout_shifts     to authenticated;
 grant select, insert, update, delete on public.pick_list        to authenticated;
 grant select, insert, update, delete on public.robot_log        to authenticated;
+grant select on public.teams                     to authenticated;
+grant select on public.team_claims               to authenticated;
+grant select on public.team_domains              to authenticated;
+grant select, delete on public.team_invites      to authenticated;
+grant select, insert, update, delete on public.team_join_codes to authenticated;
+grant select, delete on public.team_manager_requests to authenticated;
 grant select on public.match_predictions         to authenticated;
 grant select on public.push_subscriptions        to authenticated;
 revoke all on public.match_alerts_sent from anon, authenticated;
@@ -3032,6 +4067,38 @@ revoke all on function public.push_subscribe(text, text, text, int) from public,
 revoke all on function public.push_unsubscribe(text)        from public, anon;
 revoke all on function public.relay_scouting_entry(jsonb)   from public, anon;
 revoke all on function public.public_team_results()         from public;
+revoke all on function public.home_team()                   from public, anon;
+revoke all on function public.my_team()                     from public, anon;
+revoke all on function public.is_team_manager()             from public, anon;
+revoke all on function public.team_feature_default(text)    from public, anon;
+revoke all on function public.team_can(text)                from public, anon;
+revoke all on function public.gen_join_code()               from public, anon;
+revoke all on function public.my_team_info()                from public, anon;
+revoke all on function public.my_alliance(uuid, text)       from public, anon;
+revoke all on function public.team_roster()                 from public, anon;
+revoke all on function public.team_set_role(uuid, text)     from public, anon;
+revoke all on function public.team_leave()                  from public, anon;
+revoke all on function public.join_team(text)               from public, anon;
+revoke all on function public.team_update_settings(jsonb)   from public, anon;
+revoke all on function public.request_team_manager(int, text, text) from public, anon;
+revoke all on function public.staff_list_team_requests()    from public, anon;
+revoke all on function public.staff_review_team_request(bigint, boolean, text) from public, anon;
+revoke all on function public.staff_list_teams()            from public, anon;
+revoke all on function public.staff_set_team_role(uuid, int, text) from public, anon;
+revoke all on function public.staff_set_team_domain(int, text) from public, anon;
+revoke all on function public.require_team_claims() from public, anon;
+revoke all on function public.is_free_email_domain(text) from public, anon;
+revoke all on function public.claim_team(int) from public, anon;
+revoke all on function public.team_pending_claims() from public, anon;
+revoke all on function public.verify_team_claim(uuid, boolean, text, text) from public, anon;
+revoke all on function public.staff_list_claims() from public, anon;
+revoke all on function public.team_add_domain(text) from public, anon;
+revoke all on function public.team_remove_domain(text) from public, anon;
+revoke all on function public.team_invite(text, text) from public, anon;
+revoke all on function public.accept_team_invite(bigint) from public, anon;
+revoke all on function public.decline_team_invite(bigint) from public, anon;
+revoke all on function public.staff_act_as_team(int) from public, anon;
+revoke all on function public.staff_set_require_claims(boolean) from public, anon;
 
 grant execute on function public.session_live()                to authenticated;
 grant execute on function public.is_staff()                   to authenticated;
@@ -3058,6 +4125,39 @@ grant execute on function public.prediction_calibration()     to authenticated;
 grant execute on function public.push_subscribe(text, text, text, int) to authenticated;
 grant execute on function public.push_unsubscribe(text)       to authenticated;
 grant execute on function public.relay_scouting_entry(jsonb)  to authenticated;
+-- Teams (section 3b)
+grant execute on function public.home_team()                  to authenticated;
+grant execute on function public.my_team()                    to authenticated;
+grant execute on function public.is_team_manager()            to authenticated;
+grant execute on function public.team_feature_default(text)   to authenticated;
+grant execute on function public.team_can(text)               to authenticated;
+grant execute on function public.gen_join_code()              to authenticated;
+grant execute on function public.my_team_info()               to authenticated;
+grant execute on function public.my_alliance(uuid, text)      to authenticated;
+grant execute on function public.team_roster()                to authenticated;
+grant execute on function public.team_set_role(uuid, text)    to authenticated;
+grant execute on function public.team_leave()                 to authenticated;
+grant execute on function public.join_team(text)              to authenticated;
+grant execute on function public.team_update_settings(jsonb)  to authenticated;
+grant execute on function public.request_team_manager(int, text, text) to authenticated;
+grant execute on function public.staff_list_team_requests()   to authenticated;
+grant execute on function public.staff_review_team_request(bigint, boolean, text) to authenticated;
+grant execute on function public.staff_list_teams()           to authenticated;
+grant execute on function public.staff_set_team_role(uuid, int, text) to authenticated;
+grant execute on function public.staff_set_team_domain(int, text) to authenticated;
+grant execute on function public.require_team_claims() to authenticated;
+grant execute on function public.is_free_email_domain(text) to authenticated;
+grant execute on function public.claim_team(int) to authenticated;
+grant execute on function public.team_pending_claims() to authenticated;
+grant execute on function public.verify_team_claim(uuid, boolean, text, text) to authenticated;
+grant execute on function public.staff_list_claims() to authenticated;
+grant execute on function public.team_add_domain(text) to authenticated;
+grant execute on function public.team_remove_domain(text) to authenticated;
+grant execute on function public.team_invite(text, text) to authenticated;
+grant execute on function public.accept_team_invite(bigint) to authenticated;
+grant execute on function public.decline_team_invite(bigint) to authenticated;
+grant execute on function public.staff_act_as_team(int) to authenticated;
+grant execute on function public.staff_set_require_claims(boolean) to authenticated;
 -- The public Season Results page calls this without signing in (section 8s)
 grant execute on function public.public_team_results()        to anon, authenticated;
 
@@ -3158,6 +4258,9 @@ insert into public.staff_members (user_id, note)
 select id, 'Danny' from auth.users
 where lower(email) = 'dmartinl878@gmail.com'
 on conflict (user_id) do nothing;
+-- The site owner's own account isn't asked which team it's on (section 3b)
+update public.staff_members set no_team_prompt = true
+where user_id = (select id from auth.users where lower(email) = 'dmartinl878@gmail.com') and not no_team_prompt;
 
 -- To add or remove staff later:
 -- insert into public.staff_members (user_id, note)
@@ -3340,7 +4443,7 @@ declare
   v_tba_cols constant text[] := array['tba_name', 'tba_logo_url', 'tba_checked_at', 'display_name', 'display_logo'];
 begin
   -- A share-code redemption only bumps its counters. Logging that would add a row per use.
-  if TG_TABLE_NAME = 'share_codes' and TG_OP = 'UPDATE'
+  if TG_TABLE_NAME in ('share_codes', 'team_join_codes') and TG_OP = 'UPDATE'
      and to_jsonb(NEW) - 'use_count' - 'last_used_at' = to_jsonb(OLD) - 'use_count' - 'last_used_at' then
     return NEW;
   end if;
@@ -3384,6 +4487,8 @@ begin
       format('%s schedule: %s, red %s, blue %s', v_verb, v_row ->> 'match_key', v_row ->> 'red_teams', v_row ->> 'blue_teams')
     when 'match_strategies' then
       format('%s strategy plan: %s', v_verb, v_row ->> 'match_key')
+    when 'alliance_strategies' then
+      format('%s %s alliance plan: %s', v_verb, v_row ->> 'alliance', v_row ->> 'match_key')
     when 'scout_shifts' then
       format('%s scout shift: %s, quals %s-%s', v_verb, v_row ->> 'station', v_row ->> 'first_match', v_row ->> 'last_match')
     when 'pick_list' then
@@ -3396,6 +4501,30 @@ begin
     when 'staff_members' then
       format('%s staff member %s', v_verb,
         coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'))
+    when 'teams' then
+      format('%s team %s', case TG_OP when 'INSERT' then 'Verified' when 'DELETE' then 'Removed' else 'Updated settings for' end,
+        v_row ->> 'team_number')
+    when 'team_members' then
+      format('%s team %s role: %s -> %s', v_verb, v_row ->> 'team_number',
+        coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'),
+        v_row ->> 'role')
+    when 'team_join_codes' then
+      format('%s join code for team %s%s', v_verb, v_row ->> 'team_number',
+        case when (v_row ->> 'revoked')::boolean then ' (revoked)' else '' end)
+    when 'team_claims' then
+      format('Team claim: %s says team %s, %s%s',
+        coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'),
+        coalesce(v_row ->> 'team_number', 'none'), v_row ->> 'status',
+        case when v_row ->> 'how' is not null then ' (' || (v_row ->> 'how') || ')' else '' end)
+    when 'team_domains' then
+      format('%s domain %s for team %s', v_verb, v_row ->> 'domain', v_row ->> 'team_number')
+    when 'team_invites' then
+      format('%s invitation to team %s as %s', v_verb, v_row ->> 'team_number', v_row ->> 'role')
+    when 'app_settings' then
+      format('Quarantine for unverified team claims turned %s',
+        case when (v_row ->> 'require_team_claims')::boolean then 'on' else 'off' end)
+    when 'team_manager_requests' then
+      format('%s request to manage team %s: %s', v_verb, v_row ->> 'team_number', v_row ->> 'status')
     when 'member_grants' then
       format('%s access grant: %s -> %s', v_verb,
         coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'),
@@ -3420,11 +4549,20 @@ drop trigger if exists audit_playoff_lineups on public.playoff_lineups;
 drop trigger if exists audit_match_schedule on public.match_schedule;
 drop trigger if exists audit_flag_reviews   on public.match_flag_reviews;
 drop trigger if exists audit_match_strategies on public.match_strategies;
+drop trigger if exists audit_alliance_strategies on public.alliance_strategies;
 drop trigger if exists audit_scout_shifts   on public.scout_shifts;
 drop trigger if exists audit_pick_list      on public.pick_list;
 drop trigger if exists audit_robot_log      on public.robot_log;
 drop trigger if exists audit_staff_members  on public.staff_members;
 drop trigger if exists audit_member_grants  on public.member_grants;
+drop trigger if exists audit_teams          on public.teams;
+drop trigger if exists audit_team_members   on public.team_members;
+drop trigger if exists audit_team_join_codes on public.team_join_codes;
+drop trigger if exists audit_team_requests  on public.team_manager_requests;
+drop trigger if exists audit_team_claims    on public.team_claims;
+drop trigger if exists audit_team_domains   on public.team_domains;
+drop trigger if exists audit_team_invites   on public.team_invites;
+drop trigger if exists audit_app_settings   on public.app_settings;
 create trigger audit_events        after insert or update or delete on public.events          for each row execute function public.audit_row_change();
 create trigger audit_scouting      after insert or update or delete on public.scouting_entries for each row execute function public.audit_row_change();
 create trigger audit_pit           after insert or update or delete on public.pit_entries      for each row execute function public.audit_row_change();
@@ -3438,12 +4576,22 @@ create trigger audit_match_schedule after insert or update or delete on public.m
 create trigger audit_flag_reviews   after insert or update or delete on public.match_flag_reviews for each row execute function public.audit_row_change();
 -- Plans save as people draw, so only making and removing one is logged, not every change
 create trigger audit_match_strategies after insert or delete on public.match_strategies for each row execute function public.audit_row_change();
+create trigger audit_alliance_strategies after insert or delete on public.alliance_strategies for each row execute function public.audit_row_change();
 create trigger audit_scout_shifts   after insert or update or delete on public.scout_shifts     for each row execute function public.audit_row_change();
 -- A reorder rewrites every row's rank, so only adding and removing teams is logged
 create trigger audit_pick_list      after insert or delete on public.pick_list                  for each row execute function public.audit_row_change();
 create trigger audit_robot_log      after delete on public.robot_log                            for each row execute function public.audit_row_change();
 create trigger audit_staff_members after insert or update or delete on public.staff_members     for each row execute function public.audit_row_change();
 create trigger audit_member_grants after insert or update or delete on public.member_grants     for each row execute function public.audit_row_change();
+create trigger audit_teams         after insert or update or delete on public.teams             for each row execute function public.audit_row_change();
+create trigger audit_team_members  after insert or update or delete on public.team_members      for each row execute function public.audit_row_change();
+-- A redemption only bumps use_count, which is left out like a share code's (above)
+create trigger audit_team_join_codes after insert or update or delete on public.team_join_codes for each row execute function public.audit_row_change();
+create trigger audit_team_requests after insert or update or delete on public.team_manager_requests for each row execute function public.audit_row_change();
+create trigger audit_team_claims   after insert or update or delete on public.team_claims       for each row execute function public.audit_row_change();
+create trigger audit_team_domains  after insert or delete on public.team_domains                for each row execute function public.audit_row_change();
+create trigger audit_team_invites  after insert or delete on public.team_invites                for each row execute function public.audit_row_change();
+create trigger audit_app_settings  after update on public.app_settings                          for each row execute function public.audit_row_change();
 
 -- Powerful search for the Staff Portal's Audit Log tab: free-text search plus filters,
 -- all optional and combinable. p_search matches the summary, actor email, table name,
@@ -3533,6 +4681,35 @@ grant execute on function public.purge_member_data(uuid, text) to service_role;
 
 
 -- =====================================================================
+-- 16b. Teams, step 2: per-team keys for strategy plans and the pick list
+--
+--     Until this runs, match_strategies and pick_list keep their old primary keys
+--     (event_id, match_key) and (event_id, team_number), so two teams can't both have a plan
+--     for the same match, or the same team on their pick lists. The old keys stay because the
+--     stable release's pages save against them. Once a release with the Teams change is on
+--     stable (see RELEASING.md), uncomment this block, run it, and commit it uncommented.
+--     Don't verify a second team before then.
+-- =====================================================================
+-- do $$
+-- begin
+--   if exists (select 1 from pg_constraint where conname = 'match_strategies_pkey'
+--              and conrelid = 'public.match_strategies'::regclass
+--              and pg_get_constraintdef(oid) not like '%owner_team%') then
+--     alter table public.match_strategies drop constraint match_strategies_pkey;
+--     alter table public.match_strategies add constraint match_strategies_pkey
+--       primary key using index match_strategies_team_key;
+--   end if;
+--   if exists (select 1 from pg_constraint where conname = 'pick_list_pkey'
+--              and conrelid = 'public.pick_list'::regclass
+--              and pg_get_constraintdef(oid) not like '%owner_team%') then
+--     alter table public.pick_list drop constraint pick_list_pkey;
+--     alter table public.pick_list add constraint pick_list_pkey
+--       primary key using index pick_list_team_key;
+--   end if;
+-- end $$;
+
+
+-- =====================================================================
 -- 17. Check query. Run this last (or any time). The result lists every
 --     expected table, view, function, and the photo storage bucket;
 --     "present" should be true on every row. Rows that are false sort
@@ -3546,6 +4723,17 @@ with expected(kind, name) as (values
   ('table','vision_matches'), ('table','vision_robots'), ('table','match_flag_reviews'), ('table','match_strategies'),
   ('table','scout_shifts'), ('table','pick_list'), ('table','match_predictions'), ('table','robot_log'),
   ('table','push_subscriptions'), ('table','match_alerts_sent'),
+  ('table','alliance_strategies'), ('function','match_alliance'), ('function','my_alliance'),
+  ('table','team_claims'), ('table','team_domains'), ('table','team_invites'), ('table','app_settings'),
+  ('function','claim_team'), ('function','verify_team_claim'), ('function','team_pending_claims'),
+  ('function','team_add_domain'), ('function','team_invite'), ('function','accept_team_invite'),
+  ('function','staff_act_as_team'), ('function','staff_set_require_claims'), ('function','legacy_team'),
+  ('table','teams'), ('table','team_members'), ('table','team_join_codes'), ('table','team_manager_requests'),
+  ('function','member_team'), ('function','my_team'), ('function','is_team_manager'), ('function','team_can'),
+  ('function','my_team_info'), ('function','team_roster'), ('function','team_set_role'), ('function','team_leave'),
+  ('function','join_team'), ('function','team_update_settings'), ('function','request_team_manager'),
+  ('function','staff_list_team_requests'), ('function','staff_review_team_request'), ('function','staff_list_teams'),
+  ('function','staff_set_team_role'), ('function','staff_set_team_domain'),
   ('function','is_team_member'), ('function','team_member_names'), ('function','log_prediction'),
   ('function','prediction_calibration'), ('function','push_subscribe'), ('function','push_unsubscribe'),
   ('function','run_match_alerts'), ('function','relay_scouting_entry'), ('function','public_team_results'),

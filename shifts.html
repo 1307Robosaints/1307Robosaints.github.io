@@ -46,7 +46,7 @@
     .s-mine-card h3::after { display: none; }
     .s-mine-card .btn { font-size: .8rem; padding: .15rem .55rem; margin-top: .35rem; }
 
-    /* Staff editor */
+    /* Seat editor (managers, or everyone the team allows) */
     .s-editor { background: var(--white); border: 1px solid var(--line); padding: .75rem; margin-bottom: 1rem; }
     .s-editor h2 { font-size: 1rem; margin: 0 0 .5rem; }
     .s-editor h2::after { display: none; }
@@ -143,14 +143,20 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -168,7 +174,7 @@
     <div class="s-intro">
       <div>
         <h1>Scout Shifts</h1>
-        <p class="text-muted">Who scouts which driver-station seat, for which qualification matches. The Scout page fills in your next team for you.</p>
+        <p class="text-muted">Who on your team scouts which driver-station seat, for which qualification matches. The Scout page fills in your next team for you.</p>
       </div>
       <div class="s-controls">
         <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
@@ -179,7 +185,7 @@
     <h2 class="s-section">Your shifts</h2>
     <div id="mine"><div class="s-empty">Loading…</div></div>
 
-    <!-- Staff only: hand out seats -->
+    <!-- Hand out seats: the team's managers, or every member if a manager allows it -->
     <section class="s-editor" id="editor" hidden aria-labelledby="editorTitle">
       <h2 id="editorTitle">Add a shift</h2>
       <form class="s-form" id="shiftForm" autocomplete="off">
@@ -251,6 +257,7 @@
   <script src="/js/pwa.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/schedule.js"></script>
+  <script src="/js/team.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -263,13 +270,16 @@
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
-    // ── Access gate: the team reads, staff edit (the database enforces both) ──
+    // ── Access gate: the team reads, its managers edit (the database enforces both) ──
     var s = await RS.session();
     if (!s) { location.replace("signin.html"); return; }
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
-    var isStaff = lvl === "staff", me = s.user.id;
+    var team = await RS.team();
+    if (!team || !team.team_number) { location.replace("team.html"); return; }
+    // Each team hands out its own seats; managers can let every member do it (Team Management)
+    var canAssign = RSTeam.can(team, "scout_shifts"), me = s.user.id;
 
     var events = [], eventId = null;
     var shifts = [], names = {}, quals = [], entries = [], people = [];
@@ -317,7 +327,7 @@
 
     function mineHtml() {
       var list = shifts.filter(function (x) { return x.user_id === me; });
-      if (!list.length) return '<div class="s-empty">You have no shifts at this event.' + (isStaff ? " Add one below." : "") + "</div>";
+      if (!list.length) return '<div class="s-empty">You have no shifts at this event.' + (canAssign ? " Add one below." : "") + "</div>";
       var next = nextMatch(), nextN = next ? qualNo(next) : null;
       return '<div class="s-mine">' + list.map(function (x) {
         var upcoming = quals.filter(function (m) { var n = qualNo(m); return !m.played && n >= x.first_match && n <= x.last_match; });
@@ -366,21 +376,21 @@
     function render() {
       $("mine").innerHTML = mineHtml();
       $("grid").innerHTML = gridHtml();
-      if (isStaff) $("shiftList").innerHTML = listHtml();
+      if (canAssign) $("shiftList").innerHTML = listHtml();
     }
 
-    // ── Staff: adding and removing shifts ────────────────────────────
+    // ── Handing out seats: adding and removing shifts ─────────────────
     function say(id, text, ok) { $(id).textContent = text; $(id).classList.toggle("ok", !!ok); }
     async function loadPeople() {
-      var r = await sb.rpc("staff_list_members");
-      if (r.error) { say("shiftMsg", "Couldn't load the member list: " + r.error.message); return; }
-      people = (r.data || []).filter(function (p) { return p.level !== "guest" && !p.banned; })
-        .sort(function (a, b) { return (a.display_name || a.email).localeCompare(b.display_name || b.email); });
-      people.forEach(function (p) { names[p.user_id] = names[p.user_id] || p.display_name || p.email.split("@")[0]; });
-      var label = function (p) { return (p.display_name || p.email.split("@")[0]) + (p.display_name ? " (" + p.email + ")" : ""); };
+      // The team's roster (team_roster(), SQL section 3b); emails come back for managers only
+      var r = await sb.rpc("team_roster");
+      if (r.error) { say("shiftMsg", "Couldn't load the team list: " + r.error.message); return; }
+      people = (r.data || []).slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      people.forEach(function (p) { names[p.user_id] = names[p.user_id] || p.name; });
+      var label = function (p) { return p.name + (p.email && p.email.split("@")[0] !== p.name ? " (" + p.email + ")" : ""); };
       $("fWho").innerHTML = people.map(function (p) { return '<option value="' + esc(p.user_id) + '">' + esc(label(p)) + "</option>"; }).join("");
       $("rotPeople").innerHTML = people.map(function (p) {
-        return '<label><input type="checkbox" value="' + esc(p.user_id) + '"> ' + esc(p.display_name || p.email.split("@")[0]) + "</label>";
+        return '<label><input type="checkbox" value="' + esc(p.user_id) + '"> ' + esc(p.name) + "</label>";
       }).join("");
       render();
     }
@@ -463,9 +473,9 @@
     eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
     $("eventPick").value = eventId;
     $("eventPick").addEventListener("change", function () { eventId = this.value; load(); });
-    if (isStaff) { $("editor").hidden = false; loadPeople(); }
+    if (canAssign) { $("editor").hidden = false; loadPeople(); }
     await load();
-    if (isStaff) {
+    if (canAssign) {
       var lq = lastQual();
       $("rFirst").value = 1; $("rLast").value = lq || 60;
     }

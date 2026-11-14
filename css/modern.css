@@ -227,6 +227,8 @@ h1::after {
 }
 .dropdown-item { padding: .5rem 1.1rem; color: var(--ink); font-family: var(--display); font-size: .92rem; }
 .dropdown-item:hover, .dropdown-item:focus { background: var(--tint); color: var(--blue); }
+/* Section labels in the 1307scout menu (Data, My Team) */
+.dropdown-header { padding: .55rem 1.1rem .2rem; color: var(--muted); font-family: var(--display); font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 
 /* Mobile: collapsed menu spacing */
 @media (max-width: 991px) {

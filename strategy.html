@@ -136,14 +136,20 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -259,6 +265,7 @@
   <script src="/js/pwa.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
+  <script src="/js/team.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -276,12 +283,16 @@
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    // Plans belong to the person's team; its managers can keep changing them to managers
+    var team = await RS.team();
+    if (!team || !team.team_number) { location.replace("team.html"); return; }
+    var canPlan = RSTeam.can(team, "strategy");
 
     // ── Settings ─────────────────────────────────────────────────────
     // A season's field picture can be set here for everyone (a path in this repo, e.g.
     // "/img/field-2027.png", drawn over the field area only). Anyone can also pick their own.
     var FIELD_IMAGE = "";
-    var OUR_TEAM = 1307;
+    var OUR_TEAM = team.team_number;
     var PLAN_PREFIX = "rs_strategy:";       // + event id + ":" + match key: this browser's copy
     var LAST_KEY = "rs_strategy_last";      // event and match last opened
     var VIEW_KEY = "rs_strategy_view";      // flip, tool, color, width
@@ -368,7 +379,8 @@
       return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
     }
 
-    // ── Plans: one per match, saved to match_strategies for the whole team ──
+    // ── Plans: for a match the team plays in, one per alliance (alliance_strategies), shared with
+    // the alliance partners; for any other match, the team's own (match_strategies). ──
     // A custom line-up isn't a real match, so its plan stays in this browser only. A match's plan
     // is also copied to this browser until the server has it, so nothing is lost offline.
     function blankPlan() {
@@ -417,7 +429,7 @@
         setStatus(kept ? "Saved in this browser only (custom line-up)" : "This browser won't keep it (storage is full or blocked)", !kept);
         return;
       }
-      pendingJob = { event: eventId, match: matchKey, key: localKey(), plan: JSON.parse(JSON.stringify(plan)) };
+      pendingJob = { event: eventId, match: matchKey, alliance: planAlliance(), key: localKey(), plan: JSON.parse(JSON.stringify(plan)) };
       setStatus("Saving…");
       clearTimeout(saveTimer);
       saveTimer = setTimeout(runSave, SAVE_DELAY);
@@ -430,19 +442,26 @@
       var job = pendingJob, blank = isBlank(job.plan), r;
       pendingJob = null;
       saving = true;
-      if (blank) {
-        r = await sb.from("match_strategies").delete().eq("event_id", job.event).eq("match_key", job.match);
+      var stamp = new Date().toISOString();
+      if (job.alliance) {
+        r = blank
+          ? await sb.from("alliance_strategies").delete().eq("event_id", job.event).eq("match_key", job.match).eq("alliance", job.alliance)
+          : await sb.from("alliance_strategies").upsert({
+              event_id: job.event, match_key: job.match, alliance: job.alliance, plan: job.plan, updated_by: uid, updated_at: stamp
+            }, { onConflict: "event_id,match_key,alliance" }).select("updated_at").single();
+      } else if (blank) {
+        r = await sb.from("match_strategies").delete().eq("owner_team", OUR_TEAM).eq("event_id", job.event).eq("match_key", job.match);
       } else {
         r = await sb.from("match_strategies").upsert({
-          event_id: job.event, match_key: job.match, plan: job.plan, updated_by: uid, updated_at: new Date().toISOString()
-        }).select("updated_at").single();
+          owner_team: OUR_TEAM, event_id: job.event, match_key: job.match, plan: job.plan, updated_by: uid, updated_at: stamp
+        }, { onConflict: "owner_team,event_id,match_key" }).select("updated_at").single();
       }
       saving = false;
       var current = job.event === eventId && job.match === matchKey;
       if (r.error) {
         console.warn("Strategy:", r.error.message);
         if (!pendingJob) pendingJob = job;   // try again, unless there's a newer change to send
-        if (current) setStatus("Not saved for the team yet. It's kept in this browser and will keep trying.", true);
+        if (current) setStatus("Not saved for " + whose(job.alliance) + " yet. It's kept in this browser and will keep trying.", true);
         saveTimer = setTimeout(runSave, RETRY_MS);
         return;
       }
@@ -450,7 +469,7 @@
       if (!pendingJob || pendingJob.key !== job.key) dropLocal(job.key);   // the server has it now
       if (current) {
         serverStamp = blank ? null : r.data.updated_at;
-        if (!pendingJob) setStatus(blank ? "Nothing to save: the plan is empty" : "Saved for the team");
+        if (!pendingJob) setStatus(blank ? "Nothing to save: the plan is empty" : "Saved for " + whose(job.alliance));
       }
       fillMatchPick();
     }
@@ -463,14 +482,33 @@
     function changed() { savePlan(); render(); }
     function say(t) { $("msg").textContent = t || ""; }
 
-    // A played match's plan is shown as it was, until someone clicks Edit
+    // A played match's plan is shown as it was, until someone clicks Edit. Someone the team
+    // doesn't let change plans sees every shared plan this way (custom line-ups stay theirs).
     function locked() {
+      if (!canPlan && shared()) return true;
       var m = currentMatch();
       return !!(m && isPlayed(m) && !unlocked);
     }
 
     // ── Line-up ──────────────────────────────────────────────────────
     function currentMatch() { return matches.find(function (m) { return m.match_key === matchKey; }) || null; }
+    // Our alliance in a match, from the official line-up, or the edited one when the official
+    // schedule doesn't have the match yet. Same rule as my_alliance() in SQL section 8k.
+    function allianceOf(m) {
+      if (!m) return null;
+      var off = m.off_red && m.off_red.length;
+      var red = (off ? m.off_red : m.red_teams) || [], blue = (off ? m.off_blue : m.blue_teams) || [];
+      return red.indexOf(OUR_TEAM) !== -1 ? "red" : blue.indexOf(OUR_TEAM) !== -1 ? "blue" : null;
+    }
+    // The open plan's alliance, or null for a team-only plan (a match we aren't in, or custom)
+    function planAlliance() { return shared() ? allianceOf(currentMatch()) : null; }
+    function whose(alliance) { return alliance ? "the " + alliance + " alliance" : "the team"; }
+    // The open match's saved plan, from whichever table holds it
+    function planQuery(cols) {
+      var a = planAlliance();
+      return a ? sb.from("alliance_strategies").select(cols).eq("event_id", eventId).eq("match_key", matchKey).eq("alliance", a)
+               : sb.from("match_strategies").select(cols).eq("owner_team", OUR_TEAM).eq("event_id", eventId).eq("match_key", matchKey);
+    }
     function matchTeams() {
       var m = currentMatch();
       return { red: m ? (m.red_teams || []).slice(0, 3) : [], blue: m ? (m.blue_teams || []).slice(0, 3) : [] };
@@ -701,12 +739,18 @@
     }
     function renderMatchInfo() {
       var m = currentMatch(), box = $("matchInfo");
+      if (!canPlan && shared()) {
+        box.hidden = false;
+        box.innerHTML = (m && isPlayed(m) ? "<strong>Played:</strong> " + esc(resultText(m)) + ". " : "") +
+          "Your team's managers keep plans to managers, so you can look but not change them. A custom line-up is yours to draw.";
+        return;
+      }
       if (!m || !isPlayed(m)) { box.hidden = true; return; }
       box.hidden = false;
       box.innerHTML = "<strong>Played:</strong> " + esc(resultText(m)) + ". " +
         (locked() ? (planKeys.has(matchKey) ? "This is the plan as it was saved." : "No plan was saved for this match.") +
             ' <button type="button" class="btn btn-outline-secondary btn-sm" id="unlockBtn"><i class="fa fa-pencil"></i> Edit</button>'
-          : "Editing a played match's plan; changes save for the team.");
+          : "Editing a played match's plan; changes save for " + whose(planAlliance()) + ".");
     }
     $("matchInfo").addEventListener("click", function (e) {
       if (!e.target.closest("#unlockBtn")) return;
@@ -1018,7 +1062,8 @@
             .select("match_key,red_teams,blue_teams,red_score,blue_score").eq("event_id", id).order("match_key");
         }),
         sb.from("match_schedule").select("match_key,red_teams,blue_teams").eq("event_id", id),
-        sb.from("match_strategies").select("match_key").eq("event_id", id)
+        sb.from("match_strategies").select("match_key").eq("event_id", id),
+        sb.from("alliance_strategies").select("match_key").eq("event_id", id)   // only our alliances' come back
       ]);
       if (thisLoad !== loadCount || id !== eventId) return false;
       if (res.some(function (r) { return r.error; })) {
@@ -1029,13 +1074,16 @@
         $("loadError").innerHTML = "";
       }
       byKey = {};
-      (res[0].data || []).forEach(function (m) { byKey[m.match_key] = m; });
+      (res[0].data || []).forEach(function (m) { byKey[m.match_key] = Object.assign(m, { off_red: m.red_teams, off_blue: m.blue_teams }); });
       (res[1].data || []).forEach(function (e) {
         byKey[e.match_key] = Object.assign({}, byKey[e.match_key] || { match_key: e.match_key }, { red_teams: e.red_teams, blue_teams: e.blue_teams, edited: true });
       });
       matches = Object.keys(byKey).filter(parseKey).sort(compareKeys).map(function (k) { return byKey[k]; });
-      if (!res[2].error) {
-        planKeys = new Set((res[2].data || []).map(function (p) { return p.match_key; }));
+      if (!res[2].error && !res[3].error) {
+        // A team-only plan counts for a match we aren't in; for our matches the alliance's plan does
+        planKeys = new Set((res[2].data || []).map(function (p) { return p.match_key; })
+          .filter(function (k) { return !allianceOf(byKey[k]); })
+          .concat((res[3].data || []).map(function (p) { return p.match_key; })));
         if (pendingJob && pendingJob.event === id) planKeys.add(pendingJob.match);
       }
       fillMatchPick();
@@ -1082,7 +1130,7 @@
       updateButtons();
       var local = readLocal(), server = null, failed = false;
       if (shared()) {
-        var r = await sb.from("match_strategies").select("plan,updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
+        var r = await planQuery("plan,updated_at").maybeSingle();
         if (thisOpen !== openCount) return;
         if (r.error) { console.warn("Strategy:", r.error.message); failed = true; }
         else server = r.data;
@@ -1094,7 +1142,7 @@
       render();
       if (useLocal && shared() && !failed) savePlan();   // send what didn't reach the server before
       else setStatus(failed ? "Couldn't load the team's plan. Showing this browser's copy, if any." :
-        !shared() ? "Custom line-ups are kept in this browser only" : server ? "Saved for the team" : "", failed);
+        !shared() ? "Custom line-ups are kept in this browser only" : server ? "Saved for " + whose(planAlliance()) : "", failed);
       var t = teams();
       lookUpNames((t.red || []).concat(t.blue || []));
     }
@@ -1107,10 +1155,10 @@
       if (document.hidden || !plan || !shared() || drag || pendingJob || saving) return;
       var open = openCount;
       // Only the timestamp first: a plan can be hundreds of KB, and it usually hasn't changed
-      var head = await sb.from("match_strategies").select("updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
+      var head = await planQuery("updated_at").maybeSingle();
       if (head.error || open !== openCount) return;
       if ((head.data ? head.data.updated_at : null) === serverStamp) return;
-      var r = await sb.from("match_strategies").select("plan,updated_at").eq("event_id", eventId).eq("match_key", matchKey).maybeSingle();
+      var r = await planQuery("plan,updated_at").maybeSingle();
       if (r.error || open !== openCount || drag || pendingJob || saving) return;
       var stamp = r.data ? r.data.updated_at : null;
       if (stamp === serverStamp) return;
@@ -1120,7 +1168,7 @@
       if (r.data) planKeys.add(matchKey); else planKeys.delete(matchKey);
       render();
       fillMatchPick();
-      setStatus("Updated by a teammate");
+      setStatus(planAlliance() ? "Updated by someone on the alliance" : "Updated by a teammate");
     }
     setInterval(pollPlan, POLL_MS);
     setInterval(async function () {
