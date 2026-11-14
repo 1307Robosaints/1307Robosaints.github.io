@@ -166,7 +166,8 @@ what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
 **Team names and logos** fill in on their own: when a page shows a team that hasn't been looked up
 in 30 days, `js/teams.js` asks the `team-names` Edge Function (`supabase/functions/team-names/`) to
 look it up on The Blue Alliance. It saves the nickname and the team's FIRST avatar (stored in the
-`team-logos` bucket under `tba/`). A name or logo staff set on the Team Info tab wins over it. Deploy it once with
+`team-logos` bucket under `tba/`). A name or logo staff set on the Staff Portal's Team Info tab wins over it;
+that tab lists the test teams and teams TBA has no name for, which are the ones that need it. Deploy it once with
 `supabase functions deploy team-names --no-verify-jwt`; it uses the `TBA_API_KEY` secret that
 official-sync already has.
 
