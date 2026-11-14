@@ -161,8 +161,8 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   waiting to be verified on any team, requests to manage a team, the quarantine switch, act as a team,
   take a disputed manager off a team, team names/logos, and test-team tags, all on one Teams tab), members
   (each account's name, team status (verified, quarantined, turned down, no team, hasn't said), access level
-  and last sign-in; staff can set an account's name, and put it on any team as manager or member, which
-  verifies it, or take it off its team), and an audit log of who changed what and when (staff,
+  and last sign-in; double-click a name to change it, and type a team number in the Team box to put the
+  account on that team, verified, or clear it to take them off their team; roles are set on Team Management), and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
   The clock button on an event row turns on competition-day auto-sync for that event.

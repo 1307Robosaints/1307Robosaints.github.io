@@ -229,9 +229,21 @@
     .team-state.st-quarantine { background: var(--amber-bg); color: var(--amber); }
     .team-state.st-denied     { background: var(--red-bg); color: var(--red); }
     .team-state.st-none       { background: var(--grey-bg); color: var(--grey); }
-    .team-edit { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; }
-    .team-edit input { width: 6.5rem; }
-    .team-edit select { width: auto; }
+    /* Members table: smaller text, one line per account */
+    .members-table { font-size: .8rem; }
+    .members-table th { font-size: .75rem; }
+    .members-table td, .members-table th { white-space: nowrap; vertical-align: middle; padding: .3rem .4rem; }
+    .members-table select.custom-select-sm { font-size: .75rem; height: 1.7rem; padding: 0 1.5rem 0 .4rem; width: 6.2rem; }
+    .members-table .btn-icon { font-size: .72rem; padding: .1rem .4rem; }
+    .members-table td:last-child .btn-icon { margin-right: .2rem !important; }
+    .mem-name { cursor: text; }
+    .mem-name.editing { outline: 2px solid var(--blue); background: var(--white); cursor: text; }
+    .mem-team { display: flex; align-items: center; gap: .35rem; }
+    .team-box { width: 4.6rem; height: 1.7rem; font-size: .8rem; padding: 0 .35rem; border: 1px solid var(--line);
+                background: var(--white); color: var(--ink); font-weight: 600; -moz-appearance: textfield; }
+    .team-box::-webkit-outer-spin-button, .team-box::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .team-box::placeholder { color: var(--muted); font-weight: 400; }
+    .team-box:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
 
     /* Audit Log tab — role badges reuse the same color family as the Members tab's level
        select above, so "staff" reads the same way in both places. */
@@ -873,7 +885,7 @@
       </select>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm scout-table" data-sortable="members">
+      <table class="table table-sm scout-table members-table" data-sortable="members">
         <thead><tr><th>Name</th><th>Email</th><th>Team</th><th>Access</th><th>Status</th><th>Last signed in</th><th data-nosort>Actions</th></tr></thead>
         <tbody id="memberRows"></tbody>
       </table>
@@ -2049,15 +2061,16 @@
       b.disabled = !!disabled; b.onclick = handler;
       return b;
     }
-    // Team cell: a status badge (verified, quarantined, ...), the team and role, and Set team, which
-    // opens an editor in the cell. Saving puts the account on that team as manager or member
-    // (verifying it, so it leaves quarantine) or takes it off its team (staff_set_team_role()).
+    // Team cell: a status badge (verified, quarantined, ...) and a team-number box. Typing a team
+    // and pressing Enter (or leaving the box) puts the account on that team, verified, so it leaves
+    // quarantine; their role stays as it was (managers change roles on Team Management). Clearing
+    // the box takes them off their team. Both go through staff_set_team_role().
     var TEAM_STATE = {
-      on:         { label: "Verified",      cls: "st-verified" },
-      pending:    { label: "Quarantined",   cls: "st-quarantine" },
-      denied:     { label: "Turned down",   cls: "st-denied" },
-      none:       { label: "No FRC team",   cls: "st-none" },
-      unanswered: { label: "Hasn't said",   cls: "st-none" }
+      on:         { label: "Verified",    cls: "st-verified" },
+      pending:    { label: "Quarantined", cls: "st-quarantine" },
+      denied:     { label: "Turned down", cls: "st-denied" },
+      none:       { label: "No team",     cls: "st-none" },
+      unanswered: { label: "Hasn't said", cls: "st-none" }
     };
     function memberTeamState(m) {
       return m.team_number ? "on" : m.claim_status === "pending" ? "pending"
@@ -2066,45 +2079,75 @@
     function memberTeamCell(m) {
       var td = document.createElement("td"), st = memberTeamState(m);
       td.setAttribute("data-sort", m.team_number ? String(m.team_number) : m.claim_team ? String(m.claim_team) : "");
-      function show() {
-        var detail = m.team_number
-          ? "<strong>" + m.team_number + "</strong> · " + (m.team_role === "manager" ? "Manager" : "Member") +
-            (m.claim_status ? "" : ' <span class="small text-muted" title="On the team through its school email domain; hasn\'t answered the team question yet">(school login)</span>')
-          : m.claim_team ? "Says team <strong>" + m.claim_team + "</strong>" : "";
-        td.innerHTML = '<span class="team-state ' + TEAM_STATE[st].cls + '">' + TEAM_STATE[st].label + "</span> " + detail +
-          ' <button type="button" class="btn-icon ml-1" data-set-team>Set team</button>';
-        td.querySelector("[data-set-team]").onclick = edit;
+      td.innerHTML = '<div class="mem-team"><span class="team-state ' + TEAM_STATE[st].cls + '">' + TEAM_STATE[st].label + "</span>" +
+        '<input type="number" class="team-box" min="1" max="99999" aria-label="Team for ' + esc(m.email) + '"' +
+        ' value="' + esc(m.team_number || "") + '" placeholder="' + esc(m.claim_team || "—") + '"' +
+        ' title="' + (m.team_number ? "Type a team and press Enter to move them; clear it to take them off the team"
+          : m.claim_team ? "Says team " + m.claim_team + ". Type a team and press Enter to verify them on it" : "Type a team and press Enter") + '"></div>';
+      var box = td.querySelector("input"), busy = false;
+      async function save() {
+        var v = box.value.trim(), n = Number(v);
+        if (busy || (v === "" ? !m.team_number : n === m.team_number)) { box.value = m.team_number || ""; return; }
+        if (v !== "" && !(Number.isInteger(n) && n >= 1 && n <= 99999)) { memFlash(false, "Enter a team number."); box.value = m.team_number || ""; return; }
+        var ask = v === "" ? "Take " + m.email + " off team " + m.team_number + "?"
+          : m.team_number ? "Move " + m.email + " from team " + m.team_number + " to team " + n + "?"
+          : "Put " + m.email + " on team " + n + " as a verified member?";
+        if (!confirm(ask)) { box.value = m.team_number || ""; return; }
+        busy = true;
+        var res = await sb.rpc("staff_set_team_role", { target: m.user_id, p_team: v === "" ? m.team_number : n,
+          new_role: v === "" ? "removed" : (m.team_role === "manager" && n === m.team_number ? "manager" : "member") });
+        busy = false;
+        if (res.error) { memFlash(false, res.error.message); box.value = m.team_number || ""; return; }
+        memFlash(true, v === "" ? m.email + " is off team " + m.team_number + "." : m.email + " is verified on team " + n + ".");
+        loadMembers();
+        if (typeof loadTeams === "function") loadTeams();
       }
-      function edit() {
-        var team = m.team_number || m.claim_team || "";
-        td.innerHTML = '<div class="team-edit">' +
-          '<input type="number" class="form-control form-control-sm" min="1" max="99999" value="' + esc(team) + '" aria-label="Team number" placeholder="Team #">' +
-          '<select class="custom-select custom-select-sm" aria-label="Role on the team">' +
-            '<option value="member"' + (m.team_role === "manager" ? "" : " selected") + ">Member</option>" +
-            '<option value="manager"' + (m.team_role === "manager" ? " selected" : "") + ">Manager</option>" +
-            (m.team_number ? '<option value="removed">Off the team</option>' : "") + "</select>" +
-          '<button type="button" class="btn-icon" data-save>Save</button><button type="button" class="btn-icon" data-cancel>Cancel</button></div>';
-        var num = td.querySelector("input"), role = td.querySelector("select");
-        num.focus();
-        td.querySelector("[data-cancel]").onclick = show;
-        td.querySelector("[data-save]").onclick = async function () {
-          var n = Number(num.value), r = role.value;
-          if (!(Number.isInteger(n) && n >= 1 && n <= 99999)) return memFlash(false, "Enter a team number.");
-          if (r === "removed" && n !== m.team_number) return memFlash(false, "To take " + m.email + " off a team, leave the number as their team (" + m.team_number + ").");
-          if (m.team_number && m.team_number !== n && r !== "removed" &&
-              !confirm(m.email + " is on team " + m.team_number + ". Move them to team " + n + "?")) return;
-          var res = await sb.rpc("staff_set_team_role", { target: m.user_id, p_team: n, new_role: r });
-          if (res.error) return memFlash(false, res.error.message);
-          memFlash(true, r === "removed" ? m.email + " is off team " + n + "." : m.email + " is a verified " + r + " of team " + n + ".");
-          loadMembers();
-          if (typeof loadTeams === "function") loadTeams();
-        };
-        td.querySelector(".team-edit").addEventListener("keydown", function (e) {
-          if (e.key === "Enter") { e.preventDefault(); td.querySelector("[data-save]").click(); }
-          if (e.key === "Escape") show();
-        });
-      }
-      show();
+      box.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); box.blur(); }
+        if (e.key === "Escape") { box.value = m.team_number || ""; box.blur(); }
+      });
+      box.addEventListener("change", save);
+      return td;
+    }
+
+    // Name: double-click to edit it in place (Enter or clicking away saves, Escape cancels)
+    function memberNameCell(m) {
+      var td = memCell(m.display_name || "—");
+      td.className = "mem-name" + (m.display_name ? "" : " text-muted");
+      td.title = "Double-click to edit the name";
+      td.setAttribute("data-sort", m.display_name || "");
+      td.addEventListener("dblclick", function () {
+        if (td.isContentEditable) return;
+        if (!m.display_name) td.textContent = "";
+        td.contentEditable = "true";
+        td.classList.add("editing");
+        td.focus();
+        var range = document.createRange();
+        range.selectNodeContents(td);
+        range.collapse(false);
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      });
+      var cancelled = false;
+      td.addEventListener("keydown", function (e) {
+        if (!td.isContentEditable) return;
+        if (e.key === "Enter") { e.preventDefault(); td.blur(); }
+        if (e.key === "Escape") { cancelled = true; td.blur(); }
+      });
+      td.addEventListener("blur", async function () {
+        if (!td.isContentEditable) return;
+        td.contentEditable = "false";
+        td.classList.remove("editing");
+        var name = td.textContent.trim();
+        if (cancelled || !name || name === m.display_name) {
+          cancelled = false;
+          td.textContent = m.display_name || "—";
+          return;
+        }
+        var r = await sb.rpc("staff_set_display_name", { target: m.user_id, p_name: name.slice(0, 60) });
+        if (r.error) { memFlash(false, r.error.message); td.textContent = m.display_name || "—"; return; }
+        memFlash(true, "Name saved.");
+        loadMembers();
+      });
       return td;
     }
 
@@ -2162,23 +2205,7 @@
       }, self, true));
 
       var tr = document.createElement("tr");
-      // Name, with a button to set it for an account that has none (or a wrong one)
-      var nameCell = memCell(m.display_name || "—");
-      if (!m.display_name) nameCell.classList.add("text-muted");
-      var nameBtn = document.createElement("button");
-      nameBtn.type = "button"; nameBtn.className = "btn-icon ml-1"; nameBtn.textContent = m.display_name ? "Edit" : "Add name";
-      nameBtn.title = "Set the name shown for this account";
-      nameBtn.onclick = async function () {
-        var name = prompt("Name for " + m.email + ":", m.display_name || "");
-        if (name === null || !name.trim()) return;
-        var r = await sb.rpc("staff_set_display_name", { target: m.user_id, p_name: name.trim() });
-        if (r.error) return memFlash(false, r.error.message);
-        memFlash(true, "Name saved.");
-        loadMembers();
-      };
-      nameCell.appendChild(nameBtn);
-      nameCell.setAttribute("data-sort", m.display_name || "");
-      tr.appendChild(nameCell);
+      tr.appendChild(memberNameCell(m));
       tr.appendChild(memCell(m.email || "—"));
       tr.appendChild(memberTeamCell(m));
       tr.setAttribute("data-team-state", memberTeamState(m));
@@ -2200,7 +2227,7 @@
       r.data.forEach(function (m) { tbody.appendChild(memberRow(m)); });
       var unnamed = r.data.filter(function (m) { return !m.display_name; }).length;
       document.getElementById("memberCount").textContent =
-        r.data.length + " accounts" + (unnamed ? ", " + unnamed + " with no name (they're asked for one when they next open 1307scout, or use Add name)" : "") +
+        r.data.length + " accounts" + (unnamed ? ", " + unnamed + " with no name (they're asked for one when they next open 1307scout, or double-click a name to set it)" : "") +
         ". Set access levels, sign people out, or ban accounts.";
     }
     document.getElementById("refreshMembers").addEventListener("click", loadMembers);
