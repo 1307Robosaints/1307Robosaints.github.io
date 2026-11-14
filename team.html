@@ -77,6 +77,8 @@
     select.c-rolesel { width: auto; font-weight: 600; }
     select.c-rolesel.mgr { background: var(--green-bg); border-color: var(--green); color: var(--green); }
     select.c-rolesel.mem { background: var(--grey-bg); border-color: #9a9a9c; color: var(--grey); }
+    select.c-rolesel.mgr:disabled { background-color: var(--green-bg); color: var(--green); cursor: not-allowed; }
+    select.c-rolesel.mem:disabled { background-color: var(--grey-bg); color: var(--grey); cursor: not-allowed; }
     .c-code { font-size: .9rem; color: var(--heading); letter-spacing: .03em; }
     .c-dead td { color: var(--muted); }
     .c-dead .c-code { color: var(--muted); text-decoration: line-through; }
@@ -608,10 +610,10 @@
         "<th>Role</th><th>How</th><th>Last signed in</th>" + (isManager ? "<th></th>" : "") + "</tr></thead><tbody>" +
         roster.map(function (p) {
           var self = p.user_id === me, mgr = p.role === "manager";
-          // Managers change a role with the select (not their own: they leave, or another manager changes it)
-          var role = isManager && !self
-            ? '<select class="custom-select custom-select-sm c-rolesel ' + (mgr ? "mgr" : "mem") + '" data-role-sel data-user="' + esc(p.user_id) +
-                '" aria-label="Role for ' + esc(p.name) + '"><option value="manager"' + (mgr ? " selected" : "") + ">Manager</option>" +
+          // Managers change a role with the select; their own is shown disabled, as on the Staff Portal (they leave, or another manager changes it)
+          var role = isManager
+            ? '<select class="custom-select custom-select-sm c-rolesel ' + (mgr ? "mgr" : "mem") + '" data-role-sel data-user="' + esc(p.user_id) + '"' + (self ? " disabled" : "") +
+                ' aria-label="Role for ' + esc(p.name) + '"><option value="manager"' + (mgr ? " selected" : "") + ">Manager</option>" +
                 '<option value="member"' + (mgr ? "" : " selected") + ">Member</option></select>"
             : '<span class="c-role ' + (mgr ? "mgr" : "") + '">' + (mgr ? "Manager" : "Member") + "</span>";
           return '<tr data-team-role="' + esc(p.role) + '"><td>' + esc(p.name) + (self ? " (you)" : "") + "</td>" + (isManager ? "<td>" + esc(p.email) + "</td>" : "") +
