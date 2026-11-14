@@ -225,7 +225,8 @@
       (d.team_known ? "one of its managers or site staff verify" : "site staff verify (team " + d.team_number + " isn't on 1307scout yet)") +
       " you. Until then you can use 1307scout as a guest. Team Management shows where it stands.";
   }
-  function showTeamPrompt(info) {
+  // Asks for the account's name, its team, or both (askName / askTeam)
+  function showTeamPrompt(info, askName, askTeam) {
     if (document.getElementById("rsTeamPrompt")) return;
     var box = document.createElement("div");
     box.id = "rsTeamPrompt";
@@ -233,26 +234,31 @@
     box.setAttribute("aria-modal", "true");
     box.setAttribute("aria-labelledby", "rsTpTitle");
     box.style.cssText = "position:fixed;inset:0;z-index:3000;background:rgba(10,20,40,.55);display:flex;align-items:center;justify-content:center;padding:16px;";
-    var invites = (info.invites || []).map(function (iv) {
+    var invites = !askTeam ? "" : (info.invites || []).map(function (iv) {
       return '<div style="border:1px solid var(--line);padding:.5rem .6rem;margin-bottom:.5rem;">' + escHtml(iv.name) + " (" + escHtml(iv.team_number) +
         ") invited you as a " + escHtml(iv.role) + '. <button type="button" class="btn btn-primary btn-sm" data-rs-accept="' + escHtml(iv.id) + '">Accept</button></div>';
     }).join("");
     box.innerHTML =
       '<form style="background:var(--white);color:var(--ink);max-width:440px;width:100%;padding:1.2rem 1.3rem;border:1px solid var(--line);box-shadow:0 10px 40px rgba(0,0,0,.3);" autocomplete="off">' +
-        '<h2 id="rsTpTitle" style="font-size:1.2rem;margin:0 0 .4rem;">Which FRC team are you on?</h2>' +
+        '<h2 id="rsTpTitle" style="font-size:1.2rem;margin:0 0 .4rem;">' + (askTeam ? "Which FRC team are you on?" : "What's your name?") + "</h2>" +
+        (askName ? '<label for="rsTpName" style="display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 .15rem;">Your name</label>' +
+          '<input type="text" id="rsTpName" class="form-control form-control-sm" maxlength="60" autocomplete="name" style="margin-bottom:.8rem;">' +
+          (askTeam ? "" : '<p style="font-size:.88rem;color:var(--muted);margin:0 0 .8rem;">So your team knows who entered what. You can change it on My Account.</p>') : "") +
+        (!askTeam ? "" :
         '<p style="font-size:.88rem;color:var(--muted);margin:0 0 .8rem;">1307scout is shared by FRC teams. Your team\'s own pages (strategy, pick list, pit crew) open once you\'re verified as a member: right away from your school email when your team set that up, otherwise by one of its managers.</p>' +
         invites +
         '<label style="display:flex;gap:.5rem;align-items:center;font-weight:400;margin:0 0 .4rem;"><input type="radio" name="rsTp" value="team" checked> I\'m on team ' +
           '<input type="number" id="rsTpTeam" class="form-control form-control-sm" min="1" max="99999" style="width:7rem;" aria-label="Team number"></label>' +
-        '<label style="display:flex;gap:.5rem;align-items:center;font-weight:400;margin:0 0 .8rem;"><input type="radio" name="rsTp" value="none"> I\'m not on an FRC team</label>' +
+        '<label style="display:flex;gap:.5rem;align-items:center;font-weight:400;margin:0 0 .8rem;"><input type="radio" name="rsTp" value="none"> I\'m not on an FRC team</label>') +
         '<div id="rsTpMsg" role="status" style="font-size:.86rem;min-height:1.2em;margin-bottom:.5rem;color:var(--red);"></div>' +
         '<button type="submit" class="btn btn-primary btn-sm" id="rsTpGo">Continue</button> ' +
         '<button type="button" class="btn btn-link btn-sm" id="rsTpLater">Ask me later</button>' +
       "</form>";
     document.body.appendChild(box);
-    var form = box.querySelector("form"), msg = box.querySelector("#rsTpMsg"), num = box.querySelector("#rsTpTeam");
-    num.addEventListener("focus", function () { form.rsTp.value = "team"; });
-    setTimeout(function () { num.focus(); }, 50);
+    var form = box.querySelector("form"), msg = box.querySelector("#rsTpMsg"), num = box.querySelector("#rsTpTeam"),
+        nameBox = box.querySelector("#rsTpName");
+    if (num) num.addEventListener("focus", function () { form.rsTp.value = "team"; });
+    setTimeout(function () { (nameBox || num).focus(); }, 50);
     function done(text) {
       msg.style.color = "var(--green)";
       msg.textContent = text;
@@ -271,13 +277,19 @@
     });
     form.onsubmit = async function (e) {
       e.preventDefault();
-      var team = null;
-      if (form.rsTp.value === "team") {
+      var team = null, name = nameBox ? nameBox.value.trim() : "";
+      if (nameBox && !name) { msg.textContent = "Enter your name."; return; }
+      if (askTeam && form.rsTp.value === "team") {
         team = Number(num.value);
         if (!(Number.isInteger(team) && team >= 1 && team <= 99999)) { msg.textContent = "Enter your team number."; return; }
       }
-      try { done(claimResultText(await sendClaim(team))); }
-      catch (err) { msg.textContent = err.message || "Couldn't save that. Try again."; }
+      try {
+        if (name) {
+          var u = await sb.auth.updateUser({ data: { display_name: name.slice(0, 60) } });
+          if (u.error) throw u.error;
+        }
+        done(askTeam ? claimResultText(await sendClaim(team)) : "Thanks, " + name.split(" ")[0] + ".");
+      } catch (err) { msg.textContent = err.message || "Couldn't save that. Try again."; }
     };
   }
   // Staff acting as a team see it on every page, with a way back
@@ -302,18 +314,28 @@
     var info = await team();
     if (!info) return;
     if (info.staff_acting) showActingBar(info);
-    if (!info.needs_prompt || /\/team(\.html)?$/.test(location.pathname)) return;   // Team Management asks in the page
+    // Every account has a name: a Google sign-in's name is copied in, anyone else is asked
+    var meta = s.user.user_metadata || {}, askName = !String(meta.display_name || "").trim();
+    if (askName) {
+      var google = String(meta.full_name || meta.name || "").trim();
+      if (google) {
+        askName = false;
+        try { await sb.auth.updateUser({ data: { display_name: google.slice(0, 60) } }); } catch (e) { /* tried again next page */ }
+      }
+    }
+    // Team Management asks for the team in the page itself
+    var askTeam = !!info.needs_prompt && !/\/team(\.html)?$/.test(location.pathname);
     // An answer given on the sign-up form is sent once, without asking again
-    var given = s.user.user_metadata && s.user.user_metadata.team_claim;
-    if (given != null && given !== "") {
+    var given = meta.team_claim;
+    if (askTeam && given != null && given !== "") {
       try {
         await sendClaim(given === "none" ? null : Number(given));
         await sb.auth.updateUser({ data: { team_claim: null } });
-        location.reload();
-        return;
+        if (!askName) { location.reload(); return; }
+        askTeam = false;
       } catch (e) { /* ask instead */ }
     }
-    showTeamPrompt(info);
+    if (askName || askTeam) showTeamPrompt(info, askName, askTeam);
   }
 
   renderNav(null, "guest");   // hide team and staff links until we know who is signed in

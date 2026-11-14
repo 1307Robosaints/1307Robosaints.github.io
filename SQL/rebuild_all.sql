@@ -158,6 +158,16 @@ language sql stable security definer set search_path = '' as $$
   );
 $$;
 
+-- An account's name: the one set on sign-up or My Account (display_name), else the name Google
+-- gave (full_name or name). Null if none; callers fall back to the email. js/auth.js copies a
+-- Google name into display_name and asks anyone with no name, so this is rarely null.
+create or replace function public.account_name(p_meta jsonb) returns text
+language sql immutable set search_path = '' as $$
+  select coalesce(nullif(btrim(left(p_meta ->> 'display_name', 60)), ''),
+                  nullif(btrim(left(p_meta ->> 'full_name', 60)), ''),
+                  nullif(btrim(left(p_meta ->> 'name', 60)), ''));
+$$;
+
 -- Staff = verified login on the allowlist, not banned, current session not kicked
 create or replace function public.is_staff() returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -570,7 +580,7 @@ begin
   if v_team is null then raise exception 'You are not on a team.'; end if;
   return query
     select u.id,
-           coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), split_part(u.email::text, '@', 1)),
+           coalesce(public.account_name(u.raw_user_meta_data), split_part(u.email::text, '@', 1)),
            case when v_mgr then u.email::text end,
            m.role,
            (case when tm.user_id is not null then 'added'
@@ -750,7 +760,7 @@ language plpgsql stable security definer set search_path = '' as $$
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
   return query
-    select r.id, r.user_id, u.email::text, coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
+    select r.id, r.user_id, u.email::text, coalesce(public.account_name(u.raw_user_meta_data), '')::text,
            r.team_number, i.display_name, r.role_on_team, r.message, r.status, r.created_at,
            r.reviewed_at, r.review_note,
            exists (select 1 from public.teams t where t.team_number = r.team_number),
@@ -808,13 +818,20 @@ begin
     order by t.team_number;
 end $$;
 
--- Staff moderation: change anyone's team role (e.g. take a manager off a team that disputes them)
+-- Staff put anyone on a team as a manager or member (verifying them, so they leave quarantine),
+-- or take them off one (e.g. a manager a team disputes). Putting someone on a team that isn't
+-- on 1307scout yet adds the team, the same as approving a request to manage it.
 create or replace function public.staff_set_team_role(target uuid, p_team int, new_role text)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
   if new_role not in ('manager','member','removed') then raise exception 'Unknown team role.'; end if;
-  if not exists (select 1 from public.teams where team_number = p_team) then raise exception 'That team is not verified.'; end if;
+  if p_team is null or p_team not between 1 and 99999 then raise exception 'Enter a team number.'; end if;
+  if not exists (select 1 from auth.users u where u.id = target) then raise exception 'No such account.'; end if;
+  if not exists (select 1 from public.teams where team_number = p_team) then
+    if new_role = 'removed' then raise exception 'Team % is not on 1307scout.', p_team; end if;
+    insert into public.teams (team_number, verified_by) values (p_team, auth.uid());
+  end if;
   if new_role = 'removed' then
     insert into public.team_members (user_id, team_number, role, added_by)
     values (target, p_team, 'removed', auth.uid())
@@ -910,7 +927,7 @@ begin
   if v_team is null or not public.is_team_manager() then raise exception 'Team managers only.'; end if;
   return query
     select u.id,
-           coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), split_part(u.email::text, '@', 1)),
+           coalesce(public.account_name(u.raw_user_meta_data), split_part(u.email::text, '@', 1)),
            u.email::text, c.created_at
     from public.team_claims c join auth.users u on u.id = c.user_id
     where c.team_number = v_team and c.status = 'pending'
@@ -955,7 +972,7 @@ language plpgsql stable security definer set search_path = '' as $$
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
   return query
-    select c.user_id, u.email::text, coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
+    select c.user_id, u.email::text, coalesce(public.account_name(u.raw_user_meta_data), '')::text,
            c.team_number, i.display_name,
            exists (select 1 from public.teams t where t.team_number = c.team_number), c.created_at
     from public.team_claims c
@@ -2036,7 +2053,7 @@ create policy "staff manages team info" on public.team_info for all to authentic
 -- =====================================================================
 -- 8g. Storage: team logos
 --
---    Backs the logo-upload option on the Team Info tab (section 8f).
+--    Backs the logo upload under Team names and logos on the Staff Portal's Teams tab (section 8f).
 --    Public, like scouting-photos, so a saved logo_url renders directly.
 --    Path convention the site uses: <team_number>-<timestamp>.<ext>
 -- =====================================================================
@@ -2433,7 +2450,7 @@ create or replace function public.team_member_names(p_ids uuid[])
 returns table (user_id uuid, name text)
 language sql stable security definer set search_path = '' as $$
   select u.id,
-         coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), split_part(u.email::text, '@', 1))
+         coalesce(public.account_name(u.raw_user_meta_data), split_part(u.email::text, '@', 1))
   from auth.users u
   where u.id = any(p_ids[1:500])
     and ((select public.is_staff()) or (select public.is_student()));
@@ -3900,7 +3917,7 @@ language sql stable security definer set search_path = '' as $$
   select c.id, c.code, c.label, c.event_ids, c.team_numbers,
          c.expires_at, c.revoked, c.created_at, c.use_count, c.last_used_at,
          c.created_by,
-         coalesce(nullif(left(u.raw_user_meta_data ->> 'display_name', 60), ''), u.email::text)
+         coalesce(public.account_name(u.raw_user_meta_data), u.email::text)
   from public.share_codes c
   left join auth.users u on u.id = c.created_by
   where public.is_staff()
@@ -3911,15 +3928,19 @@ $$;
 -- =====================================================================
 -- 11. Account management for the Staff Portal Members tab
 -- =====================================================================
+-- team_number/team_role: the team the account is on. claim_team/claim_status: what it said
+-- (team_claims, section 3b), so staff see who is waiting and who hasn't answered.
+drop function if exists public.staff_list_members();
 create or replace function public.staff_list_members()
-returns table (user_id uuid, email text, display_name text, level text, banned boolean, last_sign_in timestamptz)
+returns table (user_id uuid, email text, display_name text, level text, banned boolean, last_sign_in timestamptz,
+               team_number int, team_role text, claim_team int, claim_status text)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
   return query
     select u.id,
            u.email::text,
-           coalesce(left(u.raw_user_meta_data ->> 'display_name', 60), '')::text,
+           coalesce(public.account_name(u.raw_user_meta_data), '')::text,
            (case
               when s.user_id is not null then 'staff'
               when g.level = 'mentor' and exists (select 1 from public.member_team(u.id)) then 'mentor'
@@ -3927,11 +3948,30 @@ begin
               else 'guest'
             end)::text,
            (u.banned_until is not null and u.banned_until > now()),
-           u.last_sign_in_at
+           u.last_sign_in_at,
+           m.team_number, m.role, c.team_number, c.status
     from auth.users u
     left join public.staff_members s on s.user_id = u.id
     left join public.member_grants g on g.user_id = u.id
+    left join lateral public.member_team(u.id) m on true
+    left join public.team_claims c on c.user_id = u.id
     order by u.created_at desc;
+end $$;
+
+-- Set any account's name, for accounts that never gave one
+create or replace function public.staff_set_display_name(target uuid, p_name text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_name  text := btrim(coalesce(p_name, ''));
+  v_email text;
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  if char_length(v_name) not between 1 and 60 then raise exception 'Names are 1 to 60 characters.'; end if;
+  update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object('display_name', v_name)
+   where id = target
+   returning email into v_email;
+  if v_email is null then raise exception 'No such account.'; end if;
+  perform public.log_action('update', 'auth.users', target::text, format('Set the name of %s to "%s"', v_email, v_name));
 end $$;
 
 -- Set any account's level: 'staff', 'mentor', 'student', or 'guest'
@@ -4039,6 +4079,8 @@ revoke all on function public.my_access_level()            from public, anon;
 revoke all on function public.staff_list_members()         from public, anon;
 revoke all on function public.staff_set_level(uuid, text)  from public, anon;
 revoke all on function public.staff_kick(uuid)             from public, anon;
+revoke all on function public.staff_set_display_name(uuid, text) from public, anon;
+revoke all on function public.account_name(jsonb)          from public, anon;
 revoke all on function public.team_ratings()               from public, anon;
 revoke all on function public.team_points_summary()        from public, anon;
 revoke all on function public.team_official_ratings()      from public, anon;
@@ -4107,6 +4149,8 @@ grant execute on function public.my_access_level()            to authenticated;
 grant execute on function public.staff_list_members()         to authenticated;
 grant execute on function public.staff_set_level(uuid, text)  to authenticated;
 grant execute on function public.staff_kick(uuid)             to authenticated;
+grant execute on function public.staff_set_display_name(uuid, text) to authenticated;
+grant execute on function public.account_name(jsonb)          to authenticated;
 grant execute on function public.team_points_summary()        to authenticated;
 grant execute on function public.team_ratings()               to authenticated;
 grant execute on function public.team_official_ratings()      to authenticated;
@@ -4742,6 +4786,7 @@ with expected(kind, name) as (values
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'), ('function','official_set_alliances'),
   ('function','session_live'),
   ('function','staff_list_members'), ('function','staff_set_level'), ('function','staff_kick'),
+  ('function','account_name'), ('function','staff_set_display_name'),
   ('function','validate_data'), ('function','team_ratings'), ('function','team_points_summary'),
   ('function','team_official_ratings'), ('function','event_tier_weight'), ('function','team_official_summary'),
   ('function','team_data_counts'), ('function','team_lists'), ('function','get_shared_scouting'),

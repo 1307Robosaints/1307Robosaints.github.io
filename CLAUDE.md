@@ -120,6 +120,10 @@ button in HTML/JS is UX polish; it is never sufficient on its own to gate a feat
 gated feature needs an RLS policy or a function check in the SQL, mirroring the pattern already
 in `SQL/rebuild_all.sql`.
 
+An account's name is `account_name(raw_user_meta_data)`: `display_name`, else the `full_name`/`name` a
+Google sign-in brings. Use it in any function that shows people. `js/auth.js` copies a Google name into
+`display_name` and asks anyone with no name (together with the team prompt when both are missing).
+
 Access levels: `staff`, `mentor`/`student` (team), `guest`. `staff_members` is an allowlist
 editable from the SQL Editor or by existing staff through `staff_set_level()`; `member_grants` covers mentors/students on personal emails and
 explicit guest grants. `my_access_level()` still answers only those three words, because stable

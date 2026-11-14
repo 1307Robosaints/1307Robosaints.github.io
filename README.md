@@ -157,9 +157,12 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). Site staff search for a team
   by number or name to act as it. A team keeps at least
   one manager.
-- `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
-  team names/logos, teams (everyone waiting to be verified on any team, requests to manage a team,
-  the quarantine switch, act as a team, take a disputed manager off a team), member access levels, and an audit log of who changed what and when (staff,
+- `portal.html` — staff-only admin: events, scouting form fields, share codes, teams (everyone
+  waiting to be verified on any team, requests to manage a team, the quarantine switch, act as a team,
+  take a disputed manager off a team, team names/logos, and test-team tags, all on one Teams tab), members
+  (each account's name, team status (verified, quarantined, turned down, no team, hasn't said), access level
+  and last sign-in; staff can set an account's name, and put it on any team as manager or member, which
+  verifies it, or take it off its team), and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
   The clock button on an event row turns on competition-day auto-sync for that event.
@@ -203,7 +206,7 @@ what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
 **Team names and logos** fill in on their own: when a page shows a team that hasn't been looked up
 in 30 days, `js/teams.js` asks the `team-names` Edge Function (`supabase/functions/team-names/`) to
 look it up on The Blue Alliance. It saves the nickname and the team's FIRST avatar (stored in the
-`team-logos` bucket under `tba/`). A name or logo staff set on the Staff Portal's Team Info tab wins over it;
+`team-logos` bucket under `tba/`). A name or logo staff set in the Staff Portal (Teams tab, Team names and logos) wins over it;
 that tab lists the test teams and teams TBA has no name for, which are the ones that need it. Deploy it once with
 `supabase functions deploy team-names --no-verify-jwt`; it uses the `TBA_API_KEY` secret that
 official-sync already has.
