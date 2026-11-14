@@ -73,6 +73,12 @@
   });
   window.addEventListener("appinstalled", function () { promptEvent = null; refresh(); });
 
+  // Install buttons open the browser's prompt
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-app-install]");
+    if (btn) { e.preventDefault(); install(); }
+  });
+
   // "Get the app", right after "1307scout Home" in the menu, so it's on every page
   function addNavLink() {
     var home = document.querySelector('#navbarResponsive .dropdown-menu a[href="/1307scout.html"]');
@@ -89,7 +95,9 @@
   // A small notice in the corner while there's no connection
   function addOfflineNotice() {
     var style = document.createElement("style");
+    // Page styles like .hero-cta/.btn set display, which would override the hidden attribute
     style.textContent =
+      "[data-app-install][hidden],[data-app-when][hidden]{display:none!important}" +
       ".app-offline{position:fixed;left:1rem;bottom:1rem;z-index:1080;max-width:calc(100% - 2rem);" +
       "background:#0A2352;color:#fff;font-size:.82rem;padding:.5rem .8rem;border-left:3px solid #f0ad4e;" +
       "box-shadow:0 4px 14px rgba(0,0,0,.25)}" +

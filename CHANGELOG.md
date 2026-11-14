@@ -3,6 +3,18 @@
 1307scout stable releases (scout.robosaints1307.com) and the informational site
 (robosaints1307.com). Versioning and cadence: see `RELEASING.md`. Newest first.
 
+## 0.0.4 (2026-11-13)
+
+### Informational site (robosaints1307.com)
+
+- Our Sponsors has a "Contact us about sponsoring" button, which opens the contact form with
+  Sponsorships already ticked.
+
+### 1307scout (scout.robosaints1307.com)
+
+- The "Install the app" button works: it opens the browser's install prompt, and it only shows in
+  browsers that can install from a button (Chrome, Edge, Android). Others follow the install steps.
+
 ## 0.0.3 (2026-11-12)
 
 ### Informational site (robosaints1307.com)

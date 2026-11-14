@@ -14,6 +14,14 @@ $(function () {
     $topics.append($wrap);
   });
 
+  // ?topic=Sponsorships pre-checks that topic (used by links from other pages)
+  var wanted = new URLSearchParams(location.search).get("topic");
+  if (wanted) {
+    cfg.topics.forEach(function (t, i) {
+      if (t.label.toLowerCase() === wanted.toLowerCase()) $("#topic" + i).prop("checked", true);
+    });
+  }
+
   if (window.emailjs) {
     emailjs.init({ publicKey: cfg.emailjs.publicKey });
   }
