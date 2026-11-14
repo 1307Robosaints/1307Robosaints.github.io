@@ -128,12 +128,19 @@
     }
     .tt-row:last-child { border-bottom: 0; }
     .tt-row .row-actions, .ti-row .row-actions { display: flex; gap: .3rem; justify-content: flex-end; }
-    /* Teams tab: jump links, and titles for its names/logos and test teams sections */
-    .teams-jump { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: -1rem 0 1rem; font-size: .85rem; }
-    .teams-jump a { color: var(--link); }
-    .teams-part { margin-top: 2.2rem; scroll-margin-top: 90px; }
-    .form-panel[id^="teams"] { scroll-margin-top: 90px; }
-    .teams-part-title { font-size: 1.15rem; margin: 0 0 .8rem; padding-top: 1.2rem; border-top: 2px solid var(--line); }
+    /* Teams tab: sub-tabs, each showing one part of the tab */
+    .sub-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: -1rem 0 1.2rem; }
+    .sub-tab { border: 1px solid var(--line); background: var(--white); color: var(--muted); font-family: var(--display);
+               font-size: .85rem; font-weight: 600; padding: .35rem .85rem; cursor: pointer; }
+    .sub-tab:hover { color: var(--heading); }
+    .sub-tab.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .sub-part { display: none; }
+    .sub-part.active { display: block; }
+    .part-title { font-size: 1.05rem; margin-bottom: .25rem; }
+    .part-help { font-size: .86rem; color: var(--muted); max-width: 75ch; }
+    .quarantine-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; padding: .6rem .8rem; margin-bottom: 1rem;
+                      background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--amber); }
+    .quarantine-bar .small { flex: 1 1 22rem; }
     .tt-row-header {
       display: grid;
       grid-template-columns: 1fr 2fr 1fr auto;
@@ -444,7 +451,7 @@
 
   <div class="container" style="padding-top: 2rem;">
     <h1 class="mt-4 mb-1">Staff Portal</h1>
-    <p class="text-muted mb-4" style="font-size:.95rem;">Configure events, scouting fields, share codes, and review the audit log.</p>
+    <p class="text-muted mb-4" style="font-size:.95rem;">Configure events, scouting fields and share codes, manage teams and members, and review the audit log.</p>
 
     <div class="portal-tabs" role="tablist">
       <button class="portal-tab active" role="tab" aria-selected="true" data-tab="events">Events</button>
@@ -678,61 +685,70 @@
         <div id="codeList"><div class="empty-state">No share codes yet.</div></div>
       </div>
     </div>
-  </div>
 
   <!-- ===== TEAMS: manager requests and verified teams (SQL section 3b) ===== -->
   <div class="portal-section" id="tab-teams">
-  <nav class="teams-jump" aria-label="Sections of the Teams tab">
-    <a href="#teamsQuarantine">Quarantine</a><a href="#teamsWaiting">Waiting</a><a href="#teamsRequests">Manager requests</a>
-    <a href="#teamsVerified">Verified teams</a><a href="#tab-teaminfo">Names and logos</a><a href="#tab-testteams">Test teams</a>
-  </nav>
-  <!-- Searches and filters the tables of people and teams below (js/tables.js) -->
-  <div class="rs-tools">
-    <input type="search" class="form-control form-control-sm rs-search" data-table-search="claims requests teams"
-           placeholder="Search by team number, name or email" aria-label="Search teams, people waiting and requests">
-    <select id="teamsEvent" class="custom-select custom-select-sm" aria-label="Only teams at an event">
-      <option value="">All events</option>
-    </select>
-    <span class="small text-muted" id="teamsEventNote"></span>
+  <!-- Sub-tabs; the Verification one shows how many people are waiting -->
+  <div class="sub-tabs" role="tablist" aria-label="Teams sections">
+    <button type="button" class="sub-tab active" role="tab" aria-selected="true" data-sub="verify">Verification <span id="verifyBadge" class="badge badge-warning" hidden></span></button>
+    <button type="button" class="sub-tab" role="tab" aria-selected="false" data-sub="teamlist">Teams</button>
+    <button type="button" class="sub-tab" role="tab" aria-selected="false" data-sub="names">Names &amp; logos</button>
+    <button type="button" class="sub-tab" role="tab" aria-selected="false" data-sub="test">Test teams</button>
   </div>
-  <div class="form-panel" id="teamsQuarantine">
-    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Quarantine for unverified accounts</h3>
-    <p class="text-muted" style="font-size:.9rem;" id="claimsSwitchText"></p>
-    <div class="custom-control custom-switch">
-      <input type="checkbox" class="custom-control-input" id="requireClaims">
-      <label class="custom-control-label" for="requireClaims">Only verified team members are on a team</label>
+
+  <!-- Verification: the quarantine switch, people waiting, requests to manage a team -->
+  <div class="sub-part active" data-part="verify">
+    <div class="quarantine-bar" id="teamsQuarantine">
+      <div class="custom-control custom-switch">
+        <input type="checkbox" class="custom-control-input" id="requireClaims">
+        <label class="custom-control-label" for="requireClaims"><strong>Quarantine</strong>: only verified team members are on a team</label>
+      </div>
+      <span class="small text-muted" id="claimsSwitchText"></span>
+    </div>
+    <div class="rs-tools">
+      <input type="search" class="form-control form-control-sm rs-search" data-table-search="claims requests"
+             placeholder="Search by team number, name or email" aria-label="Search people waiting and requests">
+    </div>
+    <div class="form-panel" id="teamsWaiting">
+      <h3 class="part-title">Waiting to be verified</h3>
+      <p class="part-help">Accounts that say they're on a team, which no domain, invitation or code verified. A team's managers
+        usually handle their own; verify here when a team has no manager, or isn't on 1307scout yet (verifying as manager adds the team).</p>
+      <div class="table-responsive">
+        <table class="table table-sm scout-table" data-sortable="claims">
+          <thead><tr><th>Waiting since</th><th>Who</th><th>Says they're on</th><th></th></tr></thead>
+          <tbody id="claimRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="form-panel" id="teamsRequests">
+      <h3 class="part-title">Requests to manage a team</h3>
+      <p class="part-help">Before approving, check with the team that this person really is on it: for example, write to the contact
+        the team lists on its website or The Blue Alliance, or ask a mentor you know there. Approving makes them a manager of the team
+        (adding the team if it's new). From then on its managers add members and make other managers themselves.</p>
+      <div class="table-responsive">
+        <table class="table table-sm scout-table" data-sortable="requests">
+          <thead><tr><th>Sent</th><th>Who</th><th>Team</th><th>Their role and how to check</th><th>Status</th><th></th></tr></thead>
+          <tbody id="teamReqRows"></tbody>
+        </table>
+      </div>
     </div>
   </div>
-  <div class="form-panel" id="teamsWaiting">
-    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Waiting to be verified</h3>
-    <p class="text-muted" style="font-size:.9rem;">Accounts that say they're on a team, which no domain, invitation or code verified. A team's
-      managers usually handle their own; verify here when a team has no manager, or isn't on 1307scout yet (verifying as manager
-      adds the team).</p>
-    <div class="table-responsive">
-      <table class="table table-sm scout-table" data-sortable="claims">
-        <thead><tr><th>Waiting since</th><th>Who</th><th>Says they're on</th><th></th></tr></thead>
-        <tbody id="claimRows"></tbody>
-      </table>
+
+  <!-- Teams: every team on 1307scout -->
+  <div class="sub-part" data-part="teamlist">
+    <div class="rs-tools">
+      <input type="search" class="form-control form-control-sm rs-search" data-table-search="teams"
+             placeholder="Search by team number, name, manager email or domain" aria-label="Search teams">
+      <select id="teamsEvent" class="custom-select custom-select-sm" aria-label="Only teams at an event">
+        <option value="">All events</option>
+      </select>
+      <span class="small text-muted" id="teamsEventNote"></span>
     </div>
-  </div>
-  <div class="form-panel" id="teamsRequests">
-    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Requests to manage a team</h3>
-    <p class="text-muted" style="font-size:.9rem;">Before approving, check with the team that this person really is on it: for
-      example, write to the contact the team lists on its website or The Blue Alliance, or ask a mentor you know there.
-      Approving makes them a manager of the team (verifying the team if it's new). From then on its managers add members
-      and make other managers themselves.</p>
-    <div class="table-responsive">
-      <table class="table table-sm scout-table" data-sortable="requests">
-        <thead><tr><th>Sent</th><th>Who</th><th>Team</th><th>Their role and how to check</th><th>Status</th><th></th></tr></thead>
-        <tbody id="teamReqRows"></tbody>
-      </table>
-    </div>
-  </div>
   <div class="form-panel" id="teamsVerified">
-    <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Verified teams</h3>
-    <p class="text-muted" style="font-size:.9rem;">Each team's managers set the domains that verify its members. <strong>Act as</strong>
-      makes you a manager of that team on every page, to see its pages or change any of its members, roles and settings,
-      until you stop. Use Remove here when a team disputes one of its managers.</p>
+    <h3 class="part-title">Teams on 1307scout</h3>
+    <p class="part-help">Each team's managers set the domains that verify its members. <strong>Act as</strong> makes you a manager of
+      that team on every page, to see its pages or change any of its members, roles and settings, until you stop. Use Remove when a
+      team disputes one of its managers.</p>
     <div class="table-responsive">
       <table class="table table-sm scout-table" data-sortable="teams">
         <thead><tr><th>Team</th><th>Managers</th><th>Members</th><th>Waiting</th><th>Verify domains</th><th>Verified</th><th></th></tr></thead>
@@ -744,10 +760,10 @@
       <span id="teamsMsg" class="small" role="status" aria-live="polite"></span>
     </div>
   </div>
+  </div>
 
-  <!-- Team names and logos (was the Team Info tab) -->
-  <div class="teams-part" id="tab-teaminfo">
-    <h3 class="teams-part-title">Team names and logos</h3>
+  <!-- Names & logos (was the Team Info tab) -->
+  <div class="sub-part" data-part="names" id="tab-teaminfo">
     <div class="form-panel">
       <h4 style="font-size:1rem; margin-bottom:1rem;" id="tiFormTitle">Add Team Name / Logo</h4>
       <p class="text-muted" style="font-size:.9rem;">
@@ -805,8 +821,7 @@
   </div>
 
   <!-- Test teams (was the Test Teams tab) -->
-  <div class="teams-part" id="tab-testteams">
-    <h3 class="teams-part-title">Test teams</h3>
+  <div class="sub-part" data-part="test" id="tab-testteams">
     <div class="form-panel">
       <h4 style="font-size:1rem; margin-bottom:1rem;">Tag a test team</h4>
       <p class="text-muted" style="font-size:.9rem;">
@@ -952,6 +967,7 @@
     </div>
   </div>
 </div>
+  </div><!-- /.container: every tab sits inside it -->
 
   <!-- QR / link modal -->
   <div class="modal fade" id="codeModal" tabindex="-1" role="dialog">
@@ -1939,6 +1955,7 @@
       var t = teamInfo.find(function (x) { return x.team_number === team; });
       var tabBtn = document.querySelector('.portal-tab[data-tab="teams"]');
       if (tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
+      showTeamsPart("names");
       resetTeamInfoForm();
       document.getElementById("tiTeam").value = team;
       document.getElementById("tiTeam").disabled = true; // team number is the key, immutable once saved
@@ -2319,10 +2336,8 @@
       var on = !!(res[3].data && res[3].data.require_claims);
       document.getElementById("requireClaims").checked = on;
       document.getElementById("claimsSwitchText").textContent = on
-        ? "On: an account is on a team only once it's verified; anyone else is a guest, with their status shown. An @stalux.org " +
-          "account that hasn't answered the team prompt yet is still on team 1307, since the domain verifies it."
-        : "Off: accounts from before teams existed (staff, Staff Portal grants, @stalux.org logins) are on team 1307 without " +
-          "being verified, and people waiting to be verified still are guests.";
+        ? "On. Unverified accounts are guests until verified. @stalux.org accounts that haven't answered the team question count as 1307."
+        : "Off. Staff, Staff Portal grants and @stalux.org logins count as team 1307 without being verified.";
       document.getElementById("claimRows").innerHTML = claims.length ? claims.map(function (c) {
         return '<tr data-team="' + c.team_number + '"><td data-sort="' + esc(c.created_at) + '">' + esc(fmtDT(c.created_at)) + "</td><td>" + (c.display_name ? esc(c.display_name) + "<br>" : "") +
           '<span class="small text-muted">' + esc(c.email) + "</span></td><td><strong>" + c.team_number + "</strong>" +
@@ -2332,8 +2347,10 @@
           '<button class="btn btn-sm btn-outline-danger mb-1" data-claim="' + esc(c.user_id) + '" data-deny="1">Deny</button></td></tr>';
       }).join("") : '<tr><td colspan="4" class="text-muted">Nobody is waiting.</td></tr>';
       var open = teamReqs.filter(function (r) { return r.status === "pending"; }).length + claims.length;
-      var badge = document.getElementById("teamReqBadge");
-      badge.hidden = !open; badge.textContent = open;
+      ["teamReqBadge", "verifyBadge"].forEach(function (id) {
+        var badge = document.getElementById(id);
+        badge.hidden = !open; badge.textContent = open;
+      });
       document.getElementById("teamReqRows").innerHTML = teamReqs.length ? teamReqs.map(function (r) {
         var who = (r.display_name ? esc(r.display_name) + "<br>" : "") + '<span class="text-muted small">' + esc(r.email) + "</span>";
         var team = "<strong>" + esc(r.team_number) + "</strong>" + (r.team_name ? " " + esc(r.team_name) : "") +
@@ -2375,6 +2392,19 @@
       if (r.error) { toast(r.error.message, true); return; }
       toast("Removed."); loadTeams();
     });
+    // Teams tab sub-tabs
+    document.querySelectorAll(".sub-tab").forEach(function (b) {
+      b.addEventListener("click", function () { showTeamsPart(b.dataset.sub); });
+    });
+    function showTeamsPart(name) {
+      document.querySelectorAll(".sub-tab").forEach(function (x) {
+        var on = x.dataset.sub === name;
+        x.classList.toggle("active", on);
+        x.setAttribute("aria-selected", String(on));
+      });
+      document.querySelectorAll(".sub-part").forEach(function (x) { x.classList.toggle("active", x.dataset.part === name); });
+    }
+
     // Act as a team: its manager on every page, until stopped (bar at the top of each page)
     document.getElementById("teamRows").addEventListener("click", async function (e) {
       var b = e.target.closest("[data-act]");
@@ -2419,7 +2449,7 @@
     }
     document.getElementById("teamsEvent").addEventListener("change", async function () {
       var id = this.value, note = document.getElementById("teamsEventNote");
-      if (!id) { ["claims", "requests", "teams"].forEach(function (k) { RSTables.setFilter(k, null); }); note.textContent = ""; return; }
+      if (!id) { RSTables.setFilter("teams", null); note.textContent = ""; return; }
       var res = await Promise.all([
         sb.from("official_matches_combined").select("red_teams,blue_teams").eq("event_id", id),
         sb.from("match_schedule").select("red_teams,blue_teams").eq("event_id", id)
@@ -2429,7 +2459,7 @@
       res.forEach(function (r) { (r.data || []).forEach(function (m) { (m.red_teams || []).concat(m.blue_teams || []).forEach(function (t) { at.add(t); }); }); });
       note.textContent = at.size ? at.size + " teams on this event's schedule." : "No schedule synced for this event yet.";
       var fn = function (tr) { return at.has(Number(tr.getAttribute("data-team"))); };
-      ["claims", "requests", "teams"].forEach(function (k) { RSTables.setFilter(k, fn); });
+      RSTables.setFilter("teams", fn);
     });
 
     // ── Boot ─────────────────────────────────────────────────────────
