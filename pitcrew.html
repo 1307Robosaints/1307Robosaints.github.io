@@ -198,6 +198,8 @@
           <option value="">Everything</option><option value="checklist">Checklists</option><option value="battery">Batteries</option>
           <option value="repair">Repairs</option><option value="note">Notes</option>
         </select></div>
+      <div class="c-wide"><label for="logSearch">Search</label>
+        <input type="search" id="logSearch" class="form-control form-control-sm" data-table-search="robotlog" placeholder="Battery, match, repair, who…"></div>
     </div>
     <div class="table-responsive" id="log"><div class="c-empty">Loading…</div></div>
   </div>
@@ -240,6 +242,7 @@
   <script src="/js/ratings.js"></script>
   <script src="/js/schedule.js"></script>
   <script src="/js/team.js"></script>
+  <script src="/js/tables.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -331,10 +334,10 @@
       });
       var ids = Object.keys(by).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
       if (!ids.length) return "";
-      return '<table class="c-table"><thead><tr><th>Battery</th><th>Matches</th><th>Last reading</th></tr></thead><tbody>' +
+      return '<table class="c-table" data-sortable="batteries"><thead><tr><th>Battery</th><th>Matches</th><th>Last reading</th></tr></thead><tbody>' +
         ids.map(function (id) {
           var b = by[id], v = b.last.voltage;
-          return "<tr><td>" + esc(id) + "</td><td>" + b.uses + "</td><td>" +
+          return "<tr><td>" + esc(id) + "</td><td>" + b.uses + "</td><td data-sort=\"" + (v != null ? v : "") + "\">" +   // sorts by voltage
             (v != null ? '<span class="' + (v < LOW_VOLTS ? "c-low" : "") + '">' + v + " V</span> · " : "") + esc(when(b.last.created_at)) + "</td></tr>";
         }).join("") + "</tbody></table>";
     }
@@ -353,10 +356,10 @@
       var kind = $("kindPick").value;
       var rows = log.filter(function (r) { return !kind || r.kind === kind; });
       if (!rows.length) return '<div class="c-empty">Nothing logged at this event yet.</div>';
-      return '<table class="c-table"><thead><tr><th>When</th><th>Kind</th><th>Match</th><th>Details</th><th>Who</th><th></th></tr></thead><tbody>' +
+      return '<table class="c-table" data-sortable="robotlog"><thead><tr><th>When</th><th>Kind</th><th>Match</th><th>Details</th><th>Who</th><th></th></tr></thead><tbody>' +
         rows.map(function (r) {
           var mine = isManager || (canLog && r.created_by === me);
-          return "<tr><td>" + esc(when(r.created_at)) + '</td><td><span class="c-kind ' + r.kind + '">' + r.kind + "</span></td><td>" +
+          return '<tr><td data-sort="' + esc(r.created_at) + '">' + esc(when(r.created_at)) + '</td><td><span class="c-kind ' + r.kind + '">' + r.kind + "</span></td><td>" +
             (r.match_key ? esc(S.label(r.match_key)) : "—") + "</td><td>" + detailOf(r) + "</td><td>" + esc(names[r.created_by] || "—") + "</td><td>" +
             (mine ? '<button type="button" class="btn btn-outline-danger btn-sm" data-remove="' + r.id + '" aria-label="Delete">&times;</button>' : "") + "</td></tr>";
         }).join("") + "</tbody></table>";

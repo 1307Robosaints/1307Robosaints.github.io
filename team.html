@@ -38,6 +38,23 @@
     .c-next.bad { border-left-color: var(--red); }
     .c-next.wait { border-left-color: var(--amber); }
     .c-staff { border-left: 4px solid var(--purple); }
+    /* Team search for "act as a team": suggestions under the box */
+    .c-typeahead { position: relative; flex: 0 1 18rem; }
+    .c-typeahead input { width: 100%; }
+    .c-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; margin: 2px 0 0; padding: 0; list-style: none;
+                 background: var(--white); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.15); max-height: 18rem; overflow-y: auto; }
+    .c-suggest li { padding: .35rem .6rem; font-size: .86rem; cursor: pointer; display: flex; justify-content: space-between; gap: .5rem; }
+    .c-suggest li[aria-selected="true"], .c-suggest li:hover { background: var(--tint); color: var(--heading); }
+    .c-suggest li small { color: var(--muted); }
+    .c-suggest .none { cursor: default; color: var(--muted); }
+    /* Summary under the title: role badge, then a chip per team page */
+    .c-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-bottom: 1rem; font-size: .86rem; }
+    .c-summary .c-role { font-size: .72rem; padding: .15rem .5rem; }
+    .c-sum-label { color: var(--muted); margin-left: .35rem; }
+    .c-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .55rem; border: 1px solid var(--line);
+              background: var(--white); color: var(--muted); font-size: .8rem; white-space: nowrap; }
+    .c-chip.ok { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .c-chip .fa { font-size: .75rem; }
     .c-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .8rem; }
     .c-card { background: var(--white); border: 1px solid var(--line); padding: .7rem .8rem; }
     .c-card h2 { font-size: 1.02rem; margin: 0 0 .5rem; }
@@ -56,6 +73,10 @@
     .c-acts { white-space: nowrap; text-align: right; }
     .c-role { font-size: .7rem; font-weight: 700; text-transform: uppercase; padding: .05rem .4rem; background: var(--grey-bg); color: var(--grey); }
     .c-role.mgr { background: var(--green-bg); color: var(--green); }
+    /* Role select for managers, colored like the Staff Portal's access-level select */
+    select.c-rolesel { width: auto; font-weight: 600; }
+    select.c-rolesel.mgr { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+    select.c-rolesel.mem { background: var(--grey-bg); border-color: #9a9a9c; color: var(--grey); }
     .c-code { font-size: .9rem; color: var(--heading); letter-spacing: .03em; }
     .c-dead td { color: var(--muted); }
     .c-dead .c-code { color: var(--muted); text-decoration: line-through; }
@@ -156,7 +177,10 @@
       <h2 id="staffTitle">Site staff: act as a team</h2>
       <p class="c-help">Acting as a team makes you its manager on every page (strategy, pit crew, pick list, shifts and this one) until you stop. Everything you change is in the audit log.</p>
       <form class="c-form" id="actForm" autocomplete="off">
-        <div><label for="actTeam">Team</label><select id="actTeam" class="custom-select custom-select-sm"></select></div>
+        <div class="c-typeahead"><label for="actTeam">Team</label>
+          <input type="text" id="actTeam" class="form-control form-control-sm" placeholder="Team number or name" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="actList">
+          <ul id="actList" class="c-suggest" role="listbox" hidden></ul></div>
         <button type="submit" class="btn btn-primary btn-sm">Act as this team</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="actStop" hidden>Stop acting</button>
       </form>
@@ -213,7 +237,8 @@
 
     <!-- ===== On a team ===== -->
     <div id="onTeam" hidden>
-      <div class="c-next" id="teamLine"></div>
+      <!-- Your role, and which team pages you can change (filled in by the script) -->
+      <div class="c-summary" id="teamLine"></div>
 
       <!-- Managers: people waiting to be verified -->
       <section class="c-card mb-3" id="pendingBox" hidden aria-labelledby="pendingTitle">
@@ -224,6 +249,13 @@
       </section>
 
       <h2 class="c-section">Members</h2>
+      <div class="rs-tools">
+        <input type="search" class="form-control form-control-sm rs-search" data-table-search="roster"
+               placeholder="Search by name or email" aria-label="Search members">
+        <select id="rosterRole" class="custom-select custom-select-sm" aria-label="Only one role">
+          <option value="">Managers and members</option><option value="manager">Managers</option><option value="member">Members</option>
+        </select>
+      </div>
       <div class="table-responsive" id="roster"><div class="c-empty">Loading…</div></div>
       <div class="c-msg" id="rosterMsg" role="status"></div>
 
@@ -336,6 +368,7 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/tables.js"></script>
   <script src="/js/team.js"></script>
   <script>
   (async function () {
@@ -378,14 +411,62 @@
     if (isStaff) {
       $("staffBox").hidden = false;
       $("actStop").hidden = !acting;
-      var tl = await sb.rpc("staff_list_teams");
-      $("actTeam").innerHTML = (tl.data || []).map(function (t) {
-        return '<option value="' + t.team_number + '"' + (t.team_number === MY_TEAM ? " selected" : "") + ">" + t.team_number +
-          (t.team_name ? " " + esc(t.team_name) : "") + (t.pending_count ? " (" + t.pending_count + " waiting)" : "") + "</option>";
-      }).join("");
+      // Teams on 1307scout, searched by number or name; the box shows up to 8 matches
+      var tl = await sb.rpc("staff_list_teams"), allTeams = tl.data || [], shown = [], cursor = -1, chosen = null;
+      function teamLabel(t) { return t.team_number + (t.team_name ? " " + t.team_name : ""); }
+      function suggest() {
+        var q = $("actTeam").value.trim().toLowerCase(), list = $("actList");
+        chosen = null;
+        if (!q) { list.hidden = true; $("actTeam").setAttribute("aria-expanded", "false"); return; }
+        shown = allTeams.filter(function (t) {
+          return String(t.team_number).indexOf(q) === 0 || (t.team_name || "").toLowerCase().indexOf(q) !== -1;
+        }).sort(function (a, b) {
+          // A team number typed exactly comes first, then by number
+          return (String(b.team_number) === q) - (String(a.team_number) === q) || a.team_number - b.team_number;
+        }).slice(0, 8);
+        cursor = shown.length ? 0 : -1;
+        list.innerHTML = shown.length ? shown.map(function (t, i) {
+          return '<li role="option" id="actOpt' + i + '" data-i="' + i + '" aria-selected="' + (i === cursor) + '"><span><strong>' + t.team_number + "</strong> " +
+            esc(t.team_name || "") + "</span>" + (t.pending_count ? "<small>" + t.pending_count + " waiting</small>" : "") + "</li>";
+        }).join("") : '<li class="none">No team on 1307scout matches. Only verified teams can be acted as.</li>';
+        list.hidden = false;
+        $("actTeam").setAttribute("aria-expanded", "true");
+        $("actTeam").setAttribute("aria-activedescendant", cursor >= 0 ? "actOpt0" : "");
+      }
+      function pick(i) {
+        var t = shown[i];
+        if (!t) return;
+        chosen = t.team_number;
+        $("actTeam").value = teamLabel(t);
+        $("actList").hidden = true;
+        $("actTeam").setAttribute("aria-expanded", "false");
+      }
+      function moveCursor(d) {
+        if (!shown.length) return;
+        cursor = (cursor + d + shown.length) % shown.length;
+        $("actList").querySelectorAll("li[data-i]").forEach(function (li) { li.setAttribute("aria-selected", String(Number(li.dataset.i) === cursor)); });
+        $("actTeam").setAttribute("aria-activedescendant", "actOpt" + cursor);
+      }
+      $("actTeam").addEventListener("input", suggest);
+      $("actTeam").addEventListener("keydown", function (e) {
+        if ($("actList").hidden) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); moveCursor(1); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); moveCursor(-1); }
+        else if (e.key === "Enter" && cursor >= 0 && chosen === null) { e.preventDefault(); pick(cursor); }
+        else if (e.key === "Escape") { $("actList").hidden = true; }
+      });
+      $("actList").addEventListener("mousedown", function (e) {
+        var li = e.target.closest("li[data-i]");
+        if (li) { e.preventDefault(); pick(Number(li.dataset.i)); }
+      });
+      $("actTeam").addEventListener("blur", function () { setTimeout(function () { $("actList").hidden = true; }, 100); });
+      if (acting) $("actTeam").value = teamLabel(allTeams.find(function (t) { return t.team_number === MY_TEAM; }) || { team_number: MY_TEAM });
       $("actForm").addEventListener("submit", async function (e) {
         e.preventDefault();
-        var r = await sb.rpc("staff_act_as_team", { p_team: Number($("actTeam").value) });
+        // A picked suggestion, or a number typed in full
+        var n = chosen || Number(($("actTeam").value.match(/^\s*(\d{1,5})\b/) || [])[1]);
+        if (!n) { say("actMsg", "Type a team number or name, then pick the team."); return; }
+        var r = await sb.rpc("staff_act_as_team", { p_team: n });
         if (r.error) { say("actMsg", errText(r.error)); return; }
         reload();
       });
@@ -503,11 +584,15 @@
       ? "You're acting as this team's manager as site staff."
       : isManager ? "You manage this team: invite and verify members, choose managers, and set up its own pages."
       : "Your team on 1307scout. Its managers add members and set up the team's pages.";
-    $("teamLine").innerHTML = (acting ? "Staff view of team " + esc(MY_TEAM) + ". "
-        : "You're a <strong>" + (isManager ? "manager" : "member") + "</strong> of team " + esc(MY_TEAM) + ". ") +
+    $("teamLine").innerHTML =
+      '<span class="c-role ' + (isManager ? "mgr" : "") + '">' + (acting ? "Staff view" : isManager ? "Manager" : "Member") + "</span>" +
+      '<span class="c-sum-label">You can change:</span>' +
       RSTeam.FEATURES.map(function (f) {
-        return esc(f.label) + ": " + (RSTeam.can(team, f.key) ? "you can change it" : "managers change it");
-      }).join(" · ");
+        var ok = RSTeam.can(team, f.key);
+        return '<span class="c-chip' + (ok ? " ok" : "") + '" title="' + (ok ? "You can change " : "Only managers can change ") + esc(f.label) + '">' +
+          '<i class="fa ' + (ok ? "fa-check" : "fa-lock") + '" aria-hidden="true"></i> ' + esc(f.label) +
+          (ok ? "" : '<span class="sr-only"> (managers only)</span>') + "</span>";
+      }).join("");
     $("leaveBox").hidden = acting;   // staff stop acting instead
 
     // ── Members ──────────────────────────────────────────────────────
@@ -517,20 +602,37 @@
       var r = await sb.rpc("team_roster");
       if (r.error) { $("roster").innerHTML = '<div class="c-empty">Couldn\'t load the members: ' + esc(errText(r.error)) + "</div>"; return; }
       roster = r.data || [];
-      $("roster").innerHTML = '<table class="c-table"><thead><tr><th>Name</th>' + (isManager ? "<th>Email</th>" : "") +
+      $("roster").innerHTML = '<table class="c-table" data-sortable="roster"><thead><tr><th>Name</th>' + (isManager ? "<th>Email</th>" : "") +
         "<th>Role</th><th>How</th><th>Last signed in</th>" + (isManager ? "<th></th>" : "") + "</tr></thead><tbody>" +
         roster.map(function (p) {
           var self = p.user_id === me, mgr = p.role === "manager";
-          return "<tr><td>" + esc(p.name) + (self ? " (you)" : "") + "</td>" + (isManager ? "<td>" + esc(p.email) + "</td>" : "") +
-            '<td><span class="c-role ' + (mgr ? "mgr" : "") + '">' + (mgr ? "Manager" : "Member") + "</span></td><td>" + esc(HOW[p.how] || p.how) +
-            "</td><td>" + esc(when(p.last_sign_in, true)) + "</td>" +
+          // Managers change a role with the select (not their own: they leave, or another manager changes it)
+          var role = isManager && !self
+            ? '<select class="custom-select custom-select-sm c-rolesel ' + (mgr ? "mgr" : "mem") + '" data-role-sel data-user="' + esc(p.user_id) +
+                '" aria-label="Role for ' + esc(p.name) + '"><option value="manager"' + (mgr ? " selected" : "") + ">Manager</option>" +
+                '<option value="member"' + (mgr ? "" : " selected") + ">Member</option></select>"
+            : '<span class="c-role ' + (mgr ? "mgr" : "") + '">' + (mgr ? "Manager" : "Member") + "</span>";
+          return '<tr data-team-role="' + esc(p.role) + '"><td>' + esc(p.name) + (self ? " (you)" : "") + "</td>" + (isManager ? "<td>" + esc(p.email) + "</td>" : "") +
+            "<td>" + role + "</td><td>" + esc(HOW[p.how] || p.how) + '</td><td data-sort="' + esc(p.last_sign_in || "") + '">' + esc(when(p.last_sign_in, true)) + "</td>" +
             (isManager ? '<td class="c-acts">' + (self ? "" :
-              '<button type="button" class="btn btn-outline-secondary btn-sm" data-role-to="' + (mgr ? "member" : "manager") + '" data-user="' + esc(p.user_id) + '">' +
-                (mgr ? "Make member" : "Make manager") + "</button> " +
               '<button type="button" class="btn btn-outline-danger btn-sm" data-role-to="removed" data-user="' + esc(p.user_id) + '">Remove</button>') + "</td>" : "") +
             "</tr>";
         }).join("") + "</tbody></table>";
     }
+    async function setRole(p, to) {
+      var r = await sb.rpc("team_set_role", { target: p.user_id, new_role: to });
+      say("rosterMsg", r.error ? errText(r.error) : to === "removed" ? p.name + " is off the team." : p.name + " is a " + to + " now.", !r.error);
+      loadRoster();
+    }
+    $("roster").addEventListener("change", function (e) {
+      var sel = e.target.closest("[data-role-sel]");
+      if (!sel) return;
+      var p = roster.find(function (x) { return x.user_id === sel.dataset.user; });
+      if (sel.value === "manager" && !confirm("Make " + p.name + " a manager? Managers can add and remove members, and change every team setting.")) {
+        sel.value = p.role; return;
+      }
+      setRole(p, sel.value);
+    });
     $("roster").addEventListener("click", async function (e) {
       var b = e.target.closest("[data-role-to]");
       if (!b) return;
@@ -540,11 +642,13 @@
               : to === "manager" ? "Make " + p.name + " a manager? Managers can add and remove members, and change every team setting."
               : "Make " + p.name + " a member instead of a manager?";
       if (!confirm(ask)) return;
-      var r = await sb.rpc("team_set_role", { target: p.user_id, new_role: to });
-      say("rosterMsg", r.error ? errText(r.error) : "Saved.", !r.error);
-      loadRoster();
+      setRole(p, to);
     });
     await loadRoster();
+    $("rosterRole").addEventListener("change", function () {
+      var r = this.value;
+      RSTables.setFilter("roster", r ? function (tr) { return tr.getAttribute("data-team-role") === r; } : null);
+    });
 
     // ── Becoming a manager (members) ─────────────────────────────────
     if (!isManager) {
@@ -574,9 +678,9 @@
         if (r.error) { say("pendingMsg", errText(r.error)); return; }
         pending = r.data || [];
         $("pendingBox").hidden = !pending.length;
-        $("pending").innerHTML = '<table class="c-table"><thead><tr><th>Name</th><th>Email</th><th>Waiting since</th><th></th></tr></thead><tbody>' +
+        $("pending").innerHTML = '<table class="c-table" data-sortable="pending"><thead><tr><th>Name</th><th>Email</th><th>Waiting since</th><th></th></tr></thead><tbody>' +
           pending.map(function (p) {
-            return "<tr><td>" + esc(p.name) + "</td><td>" + esc(p.email) + "</td><td>" + esc(when(p.created_at, true)) + '</td><td class="c-acts">' +
+            return "<tr><td>" + esc(p.name) + "</td><td>" + esc(p.email) + '</td><td data-sort="' + esc(p.created_at) + '">' + esc(when(p.created_at, true)) + '</td><td class="c-acts">' +
               '<button type="button" class="btn btn-success btn-sm" data-verify="member" data-user="' + esc(p.user_id) + '">Verify</button> ' +
               '<button type="button" class="btn btn-outline-success btn-sm" data-verify="manager" data-user="' + esc(p.user_id) + '">As manager</button> ' +
               '<button type="button" class="btn btn-outline-danger btn-sm" data-deny="1" data-user="' + esc(p.user_id) + '">Not on our team</button></td></tr>';
@@ -604,10 +708,10 @@
         var r = await sb.from("team_invites").select("id,email,role,created_at,expires_at").eq("team_number", MY_TEAM).order("created_at", { ascending: false });
         if (r.error) { $("invites").innerHTML = '<div class="c-empty">Couldn\'t load invitations: ' + esc(errText(r.error)) + "</div>"; return; }
         var now = Date.now(), rows = r.data || [];
-        $("invites").innerHTML = rows.length ? '<table class="c-table"><thead><tr><th>Email</th><th>As</th><th>Expires</th><th></th></tr></thead><tbody>' +
+        $("invites").innerHTML = rows.length ? '<table class="c-table" data-sortable="invites"><thead><tr><th>Email</th><th>As</th><th>Expires</th><th></th></tr></thead><tbody>' +
           rows.map(function (iv) {
             var dead = new Date(iv.expires_at) < now;
-            return '<tr class="' + (dead ? "c-dead" : "") + '"><td>' + esc(iv.email) + "</td><td>" + esc(iv.role) + "</td><td>" + (dead ? "Expired" : esc(when(iv.expires_at))) +
+            return '<tr class="' + (dead ? "c-dead" : "") + '"><td>' + esc(iv.email) + "</td><td>" + esc(iv.role) + '</td><td data-sort="' + esc(iv.expires_at) + '">' + (dead ? "Expired" : esc(when(iv.expires_at))) +
               '</td><td class="c-acts"><button type="button" class="btn btn-outline-secondary btn-sm" data-uninvite="' + esc(iv.id) + '" aria-label="Remove">&times;</button></td></tr>';
           }).join("") + "</tbody></table>" : '<div class="c-empty">No open invitations.</div>';
       }
@@ -635,11 +739,11 @@
         var r = await sb.from("team_join_codes").select("*").eq("team_number", MY_TEAM).order("created_at", { ascending: false });
         if (r.error) { $("codes").innerHTML = '<div class="c-empty">Couldn\'t load the codes: ' + esc(errText(r.error)) + "</div>"; return; }
         var codes = r.data || [], now = Date.now();
-        $("codes").innerHTML = codes.length ? '<table class="c-table"><thead><tr><th>Code</th><th>Label</th><th>Used</th><th>Expires</th><th></th></tr></thead><tbody>' +
+        $("codes").innerHTML = codes.length ? '<table class="c-table" data-sortable="codes"><thead><tr><th>Code</th><th>Label</th><th>Used</th><th>Expires</th><th></th></tr></thead><tbody>' +
           codes.map(function (c) {
             var dead = c.revoked || (c.expires_at && new Date(c.expires_at) < now) || (c.max_uses && c.use_count >= c.max_uses);
             return '<tr class="' + (dead ? "c-dead" : "") + '"><td><code class="c-code">' + esc(c.code) + "</code></td><td>" + esc(c.label || "") +
-              "</td><td>" + c.use_count + (c.max_uses ? " of " + c.max_uses : "") + "</td><td>" +
+              '</td><td data-sort="' + c.use_count + '">' + c.use_count + (c.max_uses ? " of " + c.max_uses : "") + '</td><td data-sort="' + esc(c.expires_at || "") + '">' +
               (c.revoked ? "Revoked" : c.expires_at ? esc(when(c.expires_at)) : "Never") + '</td><td class="c-acts">' +
               (dead ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-delcode="' + esc(c.code) + '" aria-label="Delete">&times;</button>'
                 : '<button type="button" class="btn btn-outline-secondary btn-sm" data-copy="' + esc(INVITE_BASE + encodeURIComponent(c.code)) + '">Copy link</button> ' +

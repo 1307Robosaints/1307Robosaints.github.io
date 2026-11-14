@@ -14,7 +14,7 @@
 
    Bump VERSION when the PRECACHE list changes; old caches are deleted when the new worker starts.
    ========================================================================================================= */
-var VERSION = "v4";
+var VERSION = "v5";
 var SITE_CACHE = "rs-site-" + VERSION;
 var CDN_CACHE = "rs-cdn-" + VERSION;
 
@@ -29,7 +29,7 @@ var PRECACHE = [
   "/vendor/bootstrap/js/bootstrap.bundle.min.js",
   "/js/theme.js", "/js/auth-config.js", "/js/auth.js", "/js/pwa.js", "/js/teams.js", "/js/ratings.js",
   "/js/opr.js", "/js/vision.js", "/js/resync.js", "/js/alliance.js", "/js/offline.js",
-  "/js/schedule.js", "/js/visioncheck.js", "/js/alerts.js", "/js/team.js",
+  "/js/schedule.js", "/js/visioncheck.js", "/js/alerts.js", "/js/team.js", "/js/tables.js",
   "/manifest.webmanifest", "/img/robosaintslogo.png", "/img/robosaintslogo-dark.png", "/img/app/icon-192.png"
 ];
 

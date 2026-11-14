@@ -758,6 +758,15 @@
 
   <!-- ===== TEAMS: manager requests and verified teams (SQL section 3b) ===== -->
   <div class="portal-section" id="tab-teams">
+  <!-- Searches and filters every table on this tab (js/tables.js) -->
+  <div class="rs-tools">
+    <input type="search" class="form-control form-control-sm rs-search" data-table-search="claims requests teams"
+           placeholder="Search by team number, name or email" aria-label="Search teams, people waiting and requests">
+    <select id="teamsEvent" class="custom-select custom-select-sm" aria-label="Only teams at an event">
+      <option value="">All events</option>
+    </select>
+    <span class="small text-muted" id="teamsEventNote"></span>
+  </div>
   <div class="form-panel">
     <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Quarantine for unverified accounts</h3>
     <p class="text-muted" style="font-size:.9rem;" id="claimsSwitchText"></p>
@@ -772,7 +781,7 @@
       managers usually handle their own; verify here when a team has no manager, or isn't on 1307scout yet (verifying as manager
       adds the team).</p>
     <div class="table-responsive">
-      <table class="table table-sm scout-table">
+      <table class="table table-sm scout-table" data-sortable="claims">
         <thead><tr><th>Waiting since</th><th>Who</th><th>Says they're on</th><th></th></tr></thead>
         <tbody id="claimRows"></tbody>
       </table>
@@ -785,7 +794,7 @@
       Approving makes them a manager of the team (verifying the team if it's new). From then on its managers add members
       and make other managers themselves.</p>
     <div class="table-responsive">
-      <table class="table table-sm scout-table">
+      <table class="table table-sm scout-table" data-sortable="requests">
         <thead><tr><th>Sent</th><th>Who</th><th>Team</th><th>Their role and how to check</th><th>Status</th><th></th></tr></thead>
         <tbody id="teamReqRows"></tbody>
       </table>
@@ -797,7 +806,7 @@
       makes you a manager of that team on every page, to see its pages or change any of its members, roles and settings,
       until you stop. Use Remove here when a team disputes one of its managers.</p>
     <div class="table-responsive">
-      <table class="table table-sm scout-table">
+      <table class="table table-sm scout-table" data-sortable="teams">
         <thead><tr><th>Team</th><th>Managers</th><th>Members</th><th>Waiting</th><th>Verify domains</th><th>Verified</th><th></th></tr></thead>
         <tbody id="teamRows"></tbody>
       </table>
@@ -815,9 +824,17 @@
   <div class="form-panel">
     <h3 style="font-size:1.1rem; margin-bottom:.25rem;">Member management</h3>
     <p class="text-muted" style="font-size:.9rem;" id="memberCount"></p>
+    <div class="rs-tools">
+      <input type="search" class="form-control form-control-sm rs-search" data-table-search="members"
+             placeholder="Search by name or email" aria-label="Search members">
+      <select id="memberLevel" class="custom-select custom-select-sm" aria-label="Only one access level">
+        <option value="">Every access level</option><option value="staff">Staff</option><option value="mentor">Mentors</option>
+        <option value="student">Students</option><option value="guest">Guests</option><option value="banned">Banned</option>
+      </select>
+    </div>
     <div class="table-responsive">
-      <table class="table table-sm scout-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Status</th><th>Actions</th></tr></thead>
+      <table class="table table-sm scout-table" data-sortable="members">
+        <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Status</th><th>Last signed in</th><th data-nosort>Actions</th></tr></thead>
         <tbody id="memberRows"></tbody>
       </table>
     </div>
@@ -1021,6 +1038,7 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/tables.js"></script>
   <script src="/js/teams.js"></script>
   <script>
   (async function () {
@@ -2047,7 +2065,11 @@
       tr.appendChild(memCell(m.email || "—"));
       tr.appendChild(memCell(sel));
       tr.appendChild(memCell(m.banned ? "Banned" : "Active"));
+      var last = memCell(m.last_sign_in ? fmtDT(m.last_sign_in) : "Never");
+      last.setAttribute("data-sort", m.last_sign_in || "");
+      tr.appendChild(last);
       tr.appendChild(actions);
+      tr.setAttribute("data-level", m.banned ? "banned" : m.level);
       return tr;
     }
     async function loadMembers() {
@@ -2060,6 +2082,10 @@
         r.data.length + " accounts. Set access levels, sign people out, or ban accounts.";
     }
     document.getElementById("refreshMembers").addEventListener("click", loadMembers);
+    document.getElementById("memberLevel").addEventListener("change", function () {
+      var lvl = this.value;
+      RSTables.setFilter("members", lvl ? function (tr) { return tr.getAttribute("data-level") === lvl; } : null);
+    });
 
     // ══════════════════════════════════════════════════════════════════
     // AUDIT LOG
@@ -2188,7 +2214,7 @@
         : "Off: accounts from before teams existed (staff, Staff Portal grants, @stalux.org logins) are on team 1307 without " +
           "being verified, and people waiting to be verified still are guests.";
       document.getElementById("claimRows").innerHTML = claims.length ? claims.map(function (c) {
-        return "<tr><td>" + esc(fmtDT(c.created_at)) + "</td><td>" + (c.display_name ? esc(c.display_name) + "<br>" : "") +
+        return '<tr data-team="' + c.team_number + '"><td data-sort="' + esc(c.created_at) + '">' + esc(fmtDT(c.created_at)) + "</td><td>" + (c.display_name ? esc(c.display_name) + "<br>" : "") +
           '<span class="small text-muted">' + esc(c.email) + "</span></td><td><strong>" + c.team_number + "</strong>" +
           (c.team_name ? " " + esc(c.team_name) : "") + '<br><span class="small text-muted">' + (c.team_verified ? "On 1307scout" : "Not on 1307scout yet") + "</span></td><td>" +
           '<button class="btn btn-sm btn-success mb-1" data-claim="' + esc(c.user_id) + '" data-as="member"' + (c.team_verified ? "" : " disabled title=\"The team isn't on 1307scout: verify its first person as manager\"") + ">Verify</button> " +
@@ -2207,16 +2233,17 @@
           ? '<button class="btn btn-sm btn-success mb-1" data-treq="' + r.id + '" data-ok="1">Approve</button> ' +
             '<button class="btn btn-sm btn-outline-danger mb-1" data-treq="' + r.id + '" data-ok="0">Deny</button>'
           : '<span class="small text-muted">' + esc(fmtDT(r.reviewed_at)) + (r.review_note ? ": " + esc(r.review_note) : "") + "</span>";
-        return "<tr><td>" + esc(fmtDT(r.created_at)) + "</td><td>" + who + "</td><td>" + team + "</td><td><strong>" + esc(r.role_on_team) +
+        return '<tr data-team="' + r.team_number + '"><td data-sort="' + esc(r.created_at) + '">' + esc(fmtDT(r.created_at)) + "</td><td>" + who + "</td><td>" + team + "</td><td><strong>" + esc(r.role_on_team) +
           '</strong><br><span class="small" style="white-space:pre-wrap;">' + esc(r.message) + "</span></td><td>" + esc(r.status) + "</td><td>" + act + "</td></tr>";
       }).join("") : '<tr><td colspan="6" class="text-muted">No requests.</td></tr>';
       document.getElementById("teamRows").innerHTML = teamList.length ? teamList.map(function (t) {
         var mgrs = (t.managers || []).map(function (m) {
           return esc(m.email) + ' <button class="btn btn-link btn-sm p-0 text-danger" data-unmgr="' + esc(m.user_id) + '" data-team="' + t.team_number + '">Remove</button>';
         }).join("<br>") || '<span class="text-muted">None</span>';
-        return "<tr><td><strong>" + t.team_number + "</strong>" + (t.team_name ? " " + esc(t.team_name) : "") + "</td><td>" + mgrs + "</td><td>" + t.member_count +
-          "</td><td>" + (t.pending_count || "") + "</td><td>" + ((t.domains || []).map(function (d) { return "@" + esc(d); }).join("<br>") || '<span class="text-muted">None</span>') +
-          "</td><td>" + esc(fmtDT(t.verified_at)) + '</td><td><button class="btn btn-sm btn-outline-secondary" data-act="' + t.team_number + '">Act as</button></td></tr>';
+        return '<tr data-team="' + t.team_number + '"><td data-sort="' + t.team_number + '"><strong>' + t.team_number + "</strong>" + (t.team_name ? " " + esc(t.team_name) : "") +
+          "</td><td>" + mgrs + "</td><td>" + t.member_count + "</td><td>" + (t.pending_count || "") + "</td><td>" +
+          ((t.domains || []).map(function (d) { return "@" + esc(d); }).join("<br>") || '<span class="text-muted">None</span>') +
+          '</td><td data-sort="' + esc(t.verified_at) + '">' + esc(fmtDT(t.verified_at)) + '</td><td><button class="btn btn-sm btn-outline-secondary" data-act="' + t.team_number + '">Act as</button></td></tr>';
       }).join("") : '<tr><td colspan="7" class="text-muted">No teams.</td></tr>';
     }
     document.getElementById("teamReqRows").addEventListener("click", async function (e) {
@@ -2272,8 +2299,32 @@
     });
     document.getElementById("refreshTeams").addEventListener("click", loadTeams);
 
+    // Only teams at one event: everyone on its synced schedule or its schedule edits
+    function fillTeamsEvents() {
+      var sel = document.getElementById("teamsEvent"), keep = sel.value;
+      sel.innerHTML = '<option value="">All events</option>' + events.map(function (ev) {
+        return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(fmtEventDate(ev.event_date, { month: "short", year: "numeric" })) + ")" : "") + "</option>";
+      }).join("");
+      sel.value = keep;
+    }
+    document.getElementById("teamsEvent").addEventListener("change", async function () {
+      var id = this.value, note = document.getElementById("teamsEventNote");
+      if (!id) { ["claims", "requests", "teams"].forEach(function (k) { RSTables.setFilter(k, null); }); note.textContent = ""; return; }
+      var res = await Promise.all([
+        sb.from("official_matches_combined").select("red_teams,blue_teams").eq("event_id", id),
+        sb.from("match_schedule").select("red_teams,blue_teams").eq("event_id", id)
+      ]);
+      if (res[0].error) { toast("Couldn't load that event's teams: " + res[0].error.message, true); return; }
+      var at = new Set();
+      res.forEach(function (r) { (r.data || []).forEach(function (m) { (m.red_teams || []).concat(m.blue_teams || []).forEach(function (t) { at.add(t); }); }); });
+      note.textContent = at.size ? at.size + " teams on this event's schedule." : "No schedule synced for this event yet.";
+      var fn = function (tr) { return at.has(Number(tr.getAttribute("data-team"))); };
+      ["claims", "requests", "teams"].forEach(function (k) { RSTables.setFilter(k, fn); });
+    });
+
     // ── Boot ─────────────────────────────────────────────────────────
     await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams()]);
+    fillTeamsEvents();
     loadTeams();
     loadMembers();
     cleanUpPhotos();

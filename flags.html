@@ -261,6 +261,7 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/tables.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
@@ -667,7 +668,7 @@
       if (!rows.some(function (c) { return c.pairs; })) {
         return '<div class="f-empty">No robot-match here has both a scout\'s entry and confident vision data yet.</div>';
       }
-      return '<table class="table f-cov"><thead><tr><th>Field</th><th>Robot-matches compared</th><th>Agree</th><th>Average gap</th><th>On the Scout page</th></tr></thead><tbody>' +
+      return '<table class="table f-cov" data-sortable="visioncheck"><thead><tr><th>Field</th><th>Robot-matches compared</th><th>Agree</th><th>Average gap</th><th>On the Scout page</th></tr></thead><tbody>' +
         rows.map(function (c) {
           var status = c.ready ? (c.prefill ? "Pre-filled for scouts to check" : "Shown as a hint")
             : c.pairs < RSVisionCheck.MIN_PAIRS ? "Needs " + (RSVisionCheck.MIN_PAIRS - c.pairs) + " more to judge"
@@ -731,7 +732,7 @@
       if (!ids.length) return '<p class="text-muted">No entries at this event yet.</p>';
       var avg = function (list) { return list.length ? mean(list).toFixed(1) + " (" + list.length + ")" : "—"; };
       ids.sort(function (a, b) { return by[b].entries - by[a].entries; });
-      return '<table class="table f-cov"><thead><tr><th>Scout</th><th>Entries</th><th title="Share of TOWER answers that match the official per-robot result">TOWER right</th>' +
+      return '<table class="table f-cov" data-sortable="scouts"><thead><tr><th>Scout</th><th>Entries</th><th title="Share of TOWER answers that match the official per-robot result">TOWER right</th>' +
         '<th title="Average FUEL difference from the other scouts on the same robot (how many robot-matches)">FUEL gap to other scouts</th>' +
         '<th title="Average FUEL difference from confident vision estimates (how many robot-matches)">FUEL gap to vision</th>' +
         '<th title="Entries for a team that wasn\'t in that match">Wrong match</th><th title="Shift seats in played matches with no entry from this scout">Missed seats</th></tr></thead><tbody>' +

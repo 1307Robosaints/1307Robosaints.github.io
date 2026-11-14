@@ -441,6 +441,7 @@
   <script src="/js/alliance.js"></script>
   <script src="/js/opr.js"></script>
   <script src="/js/vision.js"></script>
+  <script src="/js/tables.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -966,7 +967,7 @@
           "<td>" + mean(rows.map(function (r) { return r.alliance_score; })).toFixed(1) + "</td>" +
           "<td>" + signed(mean(rows.map(marginOf))) + "</td></tr>";
       }).join("");
-      return '<div class="table-responsive mt-3"><table class="table match-table"><thead><tr>' +
+      return '<div class="table-responsive mt-3"><table data-sortable="q-events" class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Level</th><th>Record</th><th>Win %</th><th>Avg score</th><th>Avg margin</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
@@ -1133,7 +1134,7 @@
           }).join("") + "</tr>";
       }).join("");
       return statBlock("Scouted averages by event", '<span class="src-badge scout">Scouted</span>',
-        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
+        '<div class="table-responsive"><table data-sortable="q-pit" class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
           cols.map(function (f) { return "<th>" + esc(f.label) + "</th>"; }).join("") +
         "</tr></thead><tbody>" + body + "</tbody></table></div>");
     }
@@ -1236,7 +1237,7 @@
       }).join("");
       return '<h3 class="section-title">Vision estimates<span class="src-badge vision">Vision</span></h3>' +
         statTableHtml("Matches", body) +
-        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Match</th><th>Confidence</th>' +
+        '<div class="table-responsive"><table data-sortable="q-vision" class="table match-table"><thead><tr><th>Event</th><th>Match</th><th>Confidence</th>' +
           cols.map(function (f) { return "<th>" + esc(f[1]) + "</th>"; }).join("") +
         "</tr></thead><tbody>" + perMatch + "</tbody></table></div>" +
         '<p class="insight-note mb-3">Read by computer from match video, so treat these as estimates. ' +
@@ -1281,7 +1282,7 @@
             '<p class="insight-note mb-3">Official results are for the whole alliance, so they reflect a team\'s partners too.</p>' +
             scoreBreakdownHtml(played) + oprHtml(team, opr)
           : "") +
-        '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+        '<div class="table-responsive"><table data-sortable="q-official" class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Level</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
         "<th>Partners</th><th>Opponents</th><th>Source</th><th></th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
@@ -1603,7 +1604,7 @@
         visionHtml(extra.vision) +
         '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
         (matches.length
-          ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+          ? '<div class="table-responsive"><table data-sortable="q-scouted" class="table match-table"><thead><tr>' +
               matchCols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
             "</tr></thead><tbody>" + matchRows + "</tbody></table></div>"
           : '<p class="text-muted">No match data yet.</p>') +
@@ -1735,7 +1736,7 @@
         '<p class="text-muted mb-2" style="font-size:.9rem;">' + st.played + " of " + st.scheduled + " qualification matches played · " +
           st.rows.length + " teams · " + (st.hasRp ? "ranked by average ranking points" : "ranked by record (ranking points aren't in the synced data)") +
           ", then average alliance score</p>" +
-        '<div class="table-responsive"><table class="table match-table rank-table"><thead><tr>' +
+        '<div class="table-responsive"><table data-sortable="q-rank" class="table match-table rank-table"><thead><tr>' +
           "<th>Rank</th><th>Team</th>" + (st.hasRp ? "<th>Avg RP</th><th>Total RP</th>" : "") +
           "<th>W-L-T</th><th>Played</th><th>Avg score</th><th>Avg margin</th><th>OPR (rank)</th><th>Scouted</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>" +

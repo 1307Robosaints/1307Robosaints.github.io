@@ -43,8 +43,12 @@ backward compatible with it (add, don't rename or drop; remove the old thing in 
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `theme.js`, `contact-config.js`,
 `contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `visioncheck.js`, `schedule.js`, `alerts.js`,
-`resync.js`, `offline.js`, `history.js`, `team.js`, plus the vendored `jqBootstrapValidation.js`).
-`team.js` (`RSTeam`) is the team-settings defaults and helpers: the features a manager can open to
+`resync.js`, `offline.js`, `history.js`, `team.js`, `tables.js`, plus the vendored `jqBootstrapValidation.js`).
+`tables.js` (`RSTables`) makes any `<table data-sortable="key">` sortable by clicking its headers (arrows show the
+column and direction; `data-sort` on a cell overrides its text) and filterable by an
+`<input data-table-search="key">` box or `RSTables.setFilter(key, fn)`. It re-applies itself when a page redraws the
+table, so pages only add the attributes. Don't use `data-role` on rows or controls: `auth.js` hides every
+`[data-role]` element that isn't a nav marker. `team.js` (`RSTeam`) is the team-settings defaults and helpers: the features a manager can open to
 members (must match `team_feature_default()` in SQL), the default Pit Crew checklist and low-battery voltage.
 `schedule.js` is an event's merged schedule (official matches with the `match_schedule` edits laid over
 them, in play order) and the match-key helpers; `visioncheck.js` is the vision-vs-scouts comparison

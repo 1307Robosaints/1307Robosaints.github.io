@@ -154,7 +154,8 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   turn down people waiting, invite by email, make members managers or take them off the team, make and
   revoke join codes and invite links, list the email domains that verify members at once, choose whether members or only managers can
   change Match Strategy, Pit Crew, Pick List and Scout Shifts (`teams.settings.permissions`), and
-  set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). A team keeps at least
+  set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). Site staff search for a team
+  by number or name to act as it. A team keeps at least
   one manager.
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
   team names/logos, teams (everyone waiting to be verified on any team, requests to manage a team,
@@ -162,6 +163,12 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
   The clock button on an event row turns on competition-day auto-sync for that event.
+
+**Tables** — on the Staff Portal (Teams, Members), Team Management, Pit Crew, Match Flags and the Team
+Database's team card, clicking a column header sorts the table by it (again to reverse; the lit arrow shows
+which), and a search box filters rows by any text in them, such as a name, email or team number
+(`js/tables.js`). The Staff Portal's Teams tab can also narrow to the teams at one event, and Members to one
+access level.
 
 **Dark mode** — chosen on My Account (Light, Dark, or Match device). `js/theme.js` loads in every
 page's `<head>`, before the stylesheets, and sets `<html data-theme>`; `css/modern.css` redefines its

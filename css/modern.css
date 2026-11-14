@@ -723,3 +723,19 @@ label { font-size: .88rem; font-weight: 500; color: var(--heading); }
    keep a light tile behind them. The team's own logos have dark-theme copies, swapped in by theme.js. */
 [data-theme="dark"] .team-logo, [data-theme="dark"] .team-logo-sm, [data-theme="dark"] .ti-logo,
 [data-theme="dark"] .a-head img, [data-theme="dark"] .p-team-cell img { background-color: #E8EDF5; }
+
+/* ---------------------------------------------------------------------
+   Sortable tables (js/tables.js): click a header to sort, arrows show which way
+--------------------------------------------------------------------- */
+th.rs-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.rs-sortable:hover, th.rs-sortable:focus-visible { color: var(--heading); }
+.rs-arrows { display: inline-flex; flex-direction: column; vertical-align: middle; margin-left: .3rem; line-height: .55; font-size: .5rem; }
+.rs-arrows span { opacity: .3; }
+th.rs-asc .rs-up, th.rs-desc .rs-down { opacity: 1; color: var(--blue); }
+/* On a dark header row (Staff Portal tables) the lit arrow stays readable */
+.scout-table thead th.rs-asc .rs-up, .scout-table thead th.rs-desc .rs-down { color: #fff; }
+/* Search box and filters above a table */
+.rs-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .6rem; }
+.rs-tools .rs-search { flex: 1 1 16rem; max-width: 26rem; }
+.rs-tools select { width: auto; max-width: 18rem; }
+.scout-table thead th.rs-sortable:hover, .scout-table thead th.rs-sortable:focus-visible { color: #fff; text-decoration: underline; }
