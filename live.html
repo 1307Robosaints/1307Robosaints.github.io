@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Competition Day – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .c-page { max-width: 1600px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .c-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+    .c-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .c-intro h1::after { display: none; }
+    .c-intro p { font-size: .92rem; max-width: none; margin: 0; }
+    .c-controls { display: flex; align-items: flex-end; gap: .5rem; flex-wrap: wrap; }
+    .c-controls label { display: block; margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); }
+    .c-controls select { width: auto; max-width: 260px; }
+    .c-controls input { width: 6rem; }
+    .c-controls .btn.on { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+
+    /* Live status line */
+    .c-status { display: flex; align-items: center; gap: .4rem 1rem; flex-wrap: wrap; margin-bottom: .6rem; font-size: .82rem; color: var(--muted); }
+    .c-live { display: inline-flex; align-items: center; gap: .35rem; padding: .05rem .5rem; background: var(--green-bg); color: var(--green); font-weight: 600; }
+    .c-live::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+    .c-live.ok::before { animation: c-pulse 2s ease-in-out infinite; }
+    .c-live.stale { background: var(--amber-bg); color: var(--amber); }
+    @keyframes c-pulse { 50% { opacity: .3; } }
+    @media (prefers-reduced-motion: reduce) { .c-live.ok::before { animation: none; } }
+    .c-notes .alert { font-size: .88rem; padding: .45rem .75rem; margin-bottom: .6rem; }
+
+    /* Two columns on a wide screen: stream and lists | tiles and the match */
+    .c-main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    @media (max-width: 1099px) { .c-main { grid-template-columns: minmax(0, 1fr); } }
+    .c-panel { background: var(--white); border: 1px solid var(--line); margin-bottom: 1rem; }
+    .c-panel > h2, .c-panel-head h2 { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; }
+    .c-panel > h2 { padding: .45rem .7rem; border-bottom: 1px solid var(--line); }
+    .c-panel > h2::after, .c-panel-head h2::after { display: none; }
+    .c-empty { padding: 1rem .7rem; color: var(--muted); font-size: .88rem; }
+
+    /* Livestream */
+    .c-stream { background: var(--navy); margin-bottom: 1rem; }
+    .c-player { position: relative; aspect-ratio: 16 / 9; background: #000; }
+    .c-player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .c-player-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem; padding: 1rem; text-align: center; color: #dfe7f5; font-size: .92rem; }
+    .c-player-msg strong { font-family: var(--display); font-size: 1.15rem; color: #fff; }
+    .c-player-msg a { color: #9fc0ff; text-decoration: underline; }
+    .c-stream.hidden .c-player { display: none; }
+    .c-stream-bar { display: flex; align-items: center; gap: .3rem .75rem; flex-wrap: wrap; padding: .35rem .6rem; font-size: .8rem; color: #c9d5ea; }
+    .c-stream-bar .c-src { flex: 1; min-width: 10rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .c-stream-bar button, .c-stream-bar a { padding: 0; background: none; border: 0; color: #fff; font-size: .8rem; text-decoration: underline; cursor: pointer; }
+    .c-stream-form { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; padding: 0 .6rem .6rem; }
+    .c-stream-form input { flex: 1; min-width: 14rem; }
+    .c-stream-form .c-msg { width: 100%; font-size: .8rem; color: #ffb4ab; min-height: 1em; }
+
+    /* Coming up and results */
+    .c-lists { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+    @media (max-width: 700px) { .c-lists { grid-template-columns: minmax(0, 1fr); } }
+    .c-row { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .3rem .7rem; background: none; border: 0; border-bottom: 1px solid var(--line); border-left: 4px solid transparent; text-align: left; font-size: .84rem; color: var(--ink); cursor: pointer; }
+    .c-row:last-child { border-bottom: 0; }
+    .c-row:hover, .c-row.sel { background: var(--tint); }
+    .c-row.ours { border-left-color: var(--blue); }
+    .c-row .c-label { flex: none; width: 5.6rem; font-family: var(--display); font-weight: 700; color: var(--heading); }
+    .c-row .c-time { flex: none; width: 4.2rem; color: var(--muted); font-size: .78rem; }
+    .c-row .c-sides { flex: 1; min-width: 0; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+    .c-row .c-sides span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .c-r { color: var(--red); }
+    .c-b { color: var(--blue); }
+    .c-row .us { font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+    .c-row .c-score { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .c-row .c-score .won { color: var(--green); }
+    .c-row .c-score .lost { color: var(--muted); font-weight: 400; }
+    .c-row.fresh { animation: c-fresh 3s ease-out; }
+    @keyframes c-fresh { from { background: var(--green-bg); } }
+    .c-tag { flex: none; padding: 0 .35rem; background: var(--blue); color: #fff; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* Headline tiles */
+    .c-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+    .c-tile { display: flex; flex-direction: column; gap: .1rem; min-width: 0; padding: .55rem .7rem; background: var(--white); border: 1px solid var(--line); border-top: 3px solid var(--line); text-align: left; color: var(--ink); font: inherit; }
+    button.c-tile { cursor: pointer; }
+    button.c-tile:hover { background: var(--tint); }
+    .c-tile.field { border-top-color: var(--heading); }
+    .c-tile.ours { border-top-color: var(--blue); }
+    .c-tile.W { border-top-color: var(--green); }
+    .c-tile.L { border-top-color: var(--red); }
+    .c-tile .c-k { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .c-tile strong { font-family: var(--display); font-size: 1.35rem; line-height: 1.2; color: var(--heading); }
+    .c-tile .c-sub { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+    /* The match: a small Alliance View */
+    .c-panel-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; padding: .4rem .6rem; border-bottom: 1px solid var(--line); }
+    .c-tabs { display: flex; gap: .25rem; flex-wrap: wrap; }
+    .c-tabs button { padding: .15rem .6rem; background: none; border: 1px solid var(--line); color: var(--ink); font-size: .8rem; cursor: pointer; }
+    .c-tabs button[aria-selected="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .c-match-title { display: flex; align-items: baseline; gap: .3rem .7rem; flex-wrap: wrap; padding: .5rem .7rem 0; }
+    .c-match-title h3 { font-size: 1.2rem; margin: 0; }
+    .c-match-title span { font-size: .82rem; color: var(--muted); }
+    .c-side { margin: .5rem .7rem; border-top: 3px solid var(--red); }
+    .c-side.blue { border-top-color: var(--blue); }
+    .c-side-head { display: flex; align-items: center; gap: .3rem .6rem; flex-wrap: wrap; padding: .3rem 0; font-size: .8rem; color: var(--muted); }
+    .c-side-head h4 { margin: 0; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--red); }
+    .c-side.blue .c-side-head h4 { color: var(--blue); }
+    .c-side-head .c-big { font-family: var(--display); font-size: 1.05rem; font-weight: 700; color: var(--heading); }
+    .c-side-head .c-won { padding: 0 .35rem; background: var(--green-bg); color: var(--green); font-weight: 700; }
+    .c-side-head .c-right { margin-left: auto; }
+    .c-table-wrap { overflow-x: auto; }
+    .c-table { width: 100%; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
+    .c-table th { padding: .15rem .3rem; font-size: .68rem; font-weight: 600; color: var(--muted); text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+    .c-table th:first-child, .c-table td:first-child { text-align: left; }
+    .c-table td { padding: .22rem .3rem; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .c-table tr:last-child td { border-bottom: 0; }
+    .c-table td.c-team { max-width: 13rem; overflow: hidden; text-overflow: ellipsis; }
+    .c-table td.c-team a { color: var(--ink); }
+    .c-table td.c-team strong { font-family: var(--display); color: var(--heading); }
+    .c-table tr.us td.c-team strong { color: var(--blue); }
+    .c-table td.c-grades { text-align: left; }
+    .c-table td.best { color: var(--green); font-weight: 700; }
+    .c-match-actions { display: flex; gap: .35rem; flex-wrap: wrap; padding: .2rem .7rem .7rem; }
+    .c-match-actions .btn { font-size: .78rem; padding: .1rem .5rem; }
+    .c-foot { padding: 0 .7rem .6rem; font-size: .75rem; color: var(--muted); }
+
+    /* Playoff bracket, scaled down to the page width */
+    .c-bracket .c-panel-head { justify-content: space-between; }
+    .c-bracket .c-panel-head a { font-size: .82rem; }
+    .c-bracket-fit { position: relative; overflow: hidden; margin: .6rem; }
+    .c-bracket-fit .b-canvas { transform-origin: 0 0; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Competition Day</a>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="c-page">
+    <div class="c-intro">
+      <div>
+        <h1>Competition Day</h1>
+        <p class="text-muted">The livestream, the match on the field and your next match, kept up to date as results come in. No need to refresh. <a href="/ratings.html#win-chance">How win chance works</a></p>
+      </div>
+      <div class="c-controls" id="controls">
+        <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
+        <div><label for="teamPick">Team</label><input type="number" id="teamPick" class="form-control form-control-sm" min="1" max="99999" inputmode="numeric"></div>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wakeBtn" hidden title="Stop this screen from going to sleep while the page is open"><i class="fa fa-sun-o" aria-hidden="true"></i> Keep screen on</button>
+      </div>
+    </div>
+    <div class="c-status"><span class="c-live" id="livePill" role="status">Loading…</span><span id="syncNote"></span></div>
+    <div class="c-notes" id="notes"></div>
+
+    <div class="c-main">
+      <div>
+        <section class="c-stream" id="streamBox" aria-label="Livestream">
+          <div class="c-player" id="player"></div>
+          <div class="c-stream-bar">
+            <span class="c-src" id="streamSrc"></span>
+            <button type="button" id="streamChange">Change stream</button>
+            <a id="streamOpen" href="#" target="_blank" rel="noopener" hidden>Open in a new tab</a>
+            <button type="button" id="streamHide">Hide stream</button>
+          </div>
+          <form class="c-stream-form" id="streamForm" hidden autocomplete="off">
+            <input type="url" id="streamInput" class="form-control form-control-sm" maxlength="300" placeholder="Paste a YouTube or Twitch link" aria-label="Livestream link">
+            <button type="submit" class="btn btn-primary btn-sm">Use this stream</button>
+            <button type="button" class="btn btn-outline-light btn-sm" id="streamReset">Use the event's stream</button>
+            <button type="button" class="btn btn-outline-light btn-sm" id="streamCancel">Cancel</button>
+            <div class="c-msg" id="streamMsg" role="status"></div>
+          </form>
+        </section>
+        <div class="c-lists">
+          <section class="c-panel"><h2>Coming up</h2><div id="queue"><div class="c-empty">Loading…</div></div></section>
+          <section class="c-panel"><h2>Results</h2><div id="results"><div class="c-empty">Loading…</div></div></section>
+        </div>
+      </div>
+      <div>
+        <div class="c-tiles" id="tiles"></div>
+        <section class="c-panel" aria-label="Match details">
+          <div class="c-panel-head"><div class="c-tabs" id="tabs" role="tablist"></div></div>
+          <div id="matchView"><div class="c-empty">Loading…</div></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="c-panel c-bracket" id="bracketBox" hidden>
+      <div class="c-panel-head"><h2>Playoff bracket</h2><a id="bracketLink" href="/bracket.html">Open the full bracket</a></div>
+      <div class="c-bracket-fit" id="bracketFit"><div class="b-canvas" id="bracket"></div></div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script src="/js/resync.js"></script>
+  <script src="/js/teams.js"></script>
+  <script src="/js/ratings.js"></script>
+  <script src="/js/schedule.js"></script>
+  <script src="/js/bracket.js"></script>
+  <script>
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var R = RSRatings, num = R.num, S = RSSchedule;
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    function store(key, value) {
+      try {
+        if (value === undefined) return JSON.parse(localStorage.getItem(key));
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) { return null; }
+    }
+
+    // ── Access gate: team members, the same as Our Matches ───────────
+    var s = await RS.session();   // the saved login when offline, so this doesn't bounce to Sign in
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var MY_TEAM = ((await RS.team()) || {}).team_number || null;   // the signed-in person's team (js/auth.js)
+
+    // ── Keeping up to date ───────────────────────────────────────────
+    // Every CHECK_MS the page asks for the event's row alone (one tiny request). Only when its
+    // official_synced_at moves (auto-sync or Resync data brought new results) does it reload the
+    // schedule, and it reloads anyway every FULL_MS for hand edits from Our Matches. Grades come from
+    // a cache the server rebuilds every 3 minutes, so they're refetched RATINGS_LAG after a sync.
+    var CHECK_MS = 15000;
+    var FULL_MS = 60000;
+    var RATINGS_LAG = 200000;
+    var RATINGS_MAX_AGE = 300000;   // new scouting entries count too, so never older than this
+    var QUEUE_LEN = 6;              // matches listed under Coming up
+    var RESULTS_LEN = 6;
+
+    var TEAM_KEY = "rs_matches_team";       // the team last viewed, shared with Our Matches
+    var STREAM_KEY = "rs_live_streams";     // this browser's own stream link per event
+    var HIDE_KEY = "rs_live_hide_stream";
+
+    var events = [], eventId = null, ev = {}, team = MY_TEAM;
+    var matches = [];                    // RSSchedule: official with Our Matches edits, in play order
+    var bracket = null, bResults = null;  // js/bracket.js, once alliances exist
+    var data = null, dataTeams = new Set(), dataAt = 0, ratingsDueAt = 0;
+    var teamInfo = {};
+    var view = "field";                  // "field", "ours", or a match_key picked from a list
+    var gen = 0, running = null, lastFull = 0, seenSync, lastOk = null;
+    var knownPlayed = null;              // played match keys, so new results can flash once
+    var hasWebcastCol = true;            // false until rebuild_all.sql adds events.webcast_url
+    if (!team) team = Number(store(TEAM_KEY)) || null;
+    var params = new URLSearchParams(location.search);
+    if (Number(params.get("team")) > 0) team = Number(params.get("team"));
+
+    var EVENT_COLS = "id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,auto_sync,auto_sync_since";
+    function eventCols() { return EVENT_COLS + (hasWebcastCol ? ",webcast_url" : ""); }
+    function missingColumn(err) { return err && (err.code === "42703" || /webcast_url/.test(err.message || "")); }
+
+    // ── Working out where the event is ───────────────────────────────
+    function hasTeam(m, t) { return (m.red_teams || []).indexOf(t) !== -1 || (m.blue_teams || []).indexOf(t) !== -1; }
+    function labelOf(m) { return m.label || S.label(m.match_key); }
+    // Matches still to play, from the one after the last result. A playoff match the sync doesn't
+    // list yet comes from the bracket, once both its alliances are known.
+    function upcoming() {
+      var last = -1;
+      matches.forEach(function (m, i) { if (m.played) last = i; });
+      var list = matches.slice(last + 1).filter(function (m) {
+        return !m.played && (m.red_teams || []).length && (m.blue_teams || []).length;
+      });
+      if (bracket && bResults) {
+        bracket.upcoming(bResults).forEach(function (b) {
+          if (matches.some(function (m) { return m.match_key === b.key; })) return;
+          list.push({ match_key: b.key, label: b.label, red_teams: b.red_teams, blue_teams: b.blue_teams, source: "bracket" });
+        });
+        list.sort(function (a, b) { return S.compare(a.match_key, b.match_key); });
+      }
+      return list;
+    }
+    function played() { return matches.filter(function (m) { return m.played; }); }
+    function quals() { return matches.filter(function (m) { return /^qm/.test(m.match_key); }); }
+    // Alliance selection and the playoffs need the bracket: once every qualification match is played
+    function needBracket() {
+      var q = quals();
+      return !q.length || q.every(function (m) { return m.played; }) ||
+        matches.some(function (m) { return !/^qm/.test(m.match_key); });
+    }
+    function find(key) {
+      var all = upcoming().concat(matches);
+      return all.find(function (m) { return m.match_key === key; }) || null;
+    }
+    function ourNext(list) { return team ? list.find(function (m) { return hasTeam(m, team); }) || null : null; }
+    function resultFor(m, t) {
+      var red = m.red_teams.indexOf(t) !== -1;
+      var us = red ? m.red_score : m.blue_score, them = red ? m.blue_score : m.red_score;
+      return { res: us > them ? "W" : us < them ? "L" : "T", us: us, them: them };
+    }
+    function timeText(m) {
+      return m && m.time ? new Date(m.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    }
+    function awayText(i) { return i === 0 ? "On the field now" : i === 1 ? "Up next" : i + " matches away"; }
+
+    // ── Loading ──────────────────────────────────────────────────────
+    async function loadSchedule(g) {
+      var res = await S.load(sb, eventId);
+      if (g !== gen) return;
+      if (res.error) throw res.error;
+      matches = res.matches;
+      lastFull = Date.now();
+    }
+    async function loadBracket(g) {
+      var d = await RSBracket.load(sb, eventId);
+      if (g !== gen) return;
+      if (d.error) throw d.error;
+      bracket = d.picks.length ? RSBracket.make(d) : null;
+      bResults = bracket ? bracket.resolve() : null;
+      // Names for the picked teams, for the bracket's tooltips
+      var unknown = d.picks.map(function (p) { return p.team_number; }).filter(function (t) { return !teamInfo[t]; });
+      if (unknown.length) {
+        var info = await RSTeams.loadInfo(sb, unknown);
+        Object.assign(teamInfo, info.info || {});
+      }
+    }
+    // Grades and stats for the teams on screen: the next few matches, ours, and the one picked
+    function neededTeams() {
+      var list = upcoming(), set = new Set();
+      var add = function (m) { if (m) m.red_teams.concat(m.blue_teams).forEach(function (t) { set.add(t); }); };
+      list.slice(0, QUEUE_LEN).forEach(add);
+      add(ourNext(list));
+      add(currentMatch(list));
+      return Array.from(set).sort(function (a, b) { return a - b; });
+    }
+    async function loadRatings(g) {
+      var want = neededTeams(), now = Date.now();
+      var missing = want.some(function (t) { return !dataTeams.has(t); });
+      var due = (ratingsDueAt && now >= ratingsDueAt) || now - dataAt >= RATINGS_MAX_AGE;
+      if (data && !missing && !due) return;
+      var d = await R.load(sb, want);
+      if (g !== gen) return;
+      d.failed.forEach(function (e) { console.warn("Competition Day:", e.message); });
+      data = d;
+      Object.assign(teamInfo, d.teamInfo);
+      dataTeams = new Set(want);
+      dataAt = Date.now();
+      ratingsDueAt = 0;
+      render();
+      if (await RSTeams.fillMissing(sb, want, teamInfo)) { if (g === gen) render(); }   // names from TBA
+    }
+
+    // One round: is there anything new? Runs every CHECK_MS while the page is showing.
+    async function tick(force) {
+      if (running === gen && !force) return;
+      var g = running = gen;
+      try {
+        var r = await sb.from("events").select(eventCols()).eq("id", eventId).maybeSingle();
+        if (r.error && missingColumn(r.error) && hasWebcastCol) {
+          hasWebcastCol = false;
+          r = await sb.from("events").select(eventCols()).eq("id", eventId).maybeSingle();
+        }
+        if (g !== gen) return;
+        if (r.error) throw r.error;
+        if (r.data) Object.assign(ev, r.data);
+        var synced = ev.official_synced_at || null;
+        var newSync = seenSync !== undefined && synced !== seenSync;
+        if (force || newSync || Date.now() - lastFull >= FULL_MS) {
+          await loadSchedule(g);
+          if (g !== gen) return;
+          if (newSync && !ratingsDueAt) ratingsDueAt = Date.now() + RATINGS_LAG;
+          seenSync = synced;
+        }
+        // Alliances change fast during selection, so the bracket is checked every round then
+        if (needBracket()) await loadBracket(g);
+        else bracket = bResults = null;
+        if (g !== gen) return;
+        lastOk = new Date();
+        setLive(true);
+        renderStream();
+        render();
+        await loadRatings(g);
+      } catch (e) {
+        if (g !== gen) return;
+        console.warn("Competition Day:", e.message || e);
+        setLive(false);
+      } finally {
+        if (running === g) running = null;
+      }
+    }
+
+    // ── Status line ──────────────────────────────────────────────────
+    function clock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }); }
+    function setLive(ok) {
+      var pill = $("livePill");
+      pill.className = "c-live " + (ok ? "ok" : "stale");
+      pill.textContent = ok ? "Live · checked " + clock(lastOk)
+        : "Can't reach the server, still trying" + (lastOk ? " · last update " + clock(lastOk) : "");
+      $("syncNote").textContent = ev.official_synced_at
+        ? "Official results synced " + new Date(ev.official_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    }
+    function notesHtml() {
+      var out = [];
+      var linked = ev.frc_event_code || ev.tba_event_key;
+      if (!linked) {
+        out.push('<div class="alert alert-info" role="status">This event isn\'t linked to FRC or TBA, so there are no official results to follow. ' +
+          'Staff can link it in the Staff Portal, and matches added on <a href="/matches.html">Our Matches</a> still show here.</div>');
+      } else if (!ev.auto_sync && upcoming().length && played().length) {
+        out.push('<div class="alert alert-warning" role="status">Auto-sync is off for this event, so new results only arrive when someone presses ' +
+          "<strong>Resync data</strong>. Staff turn it on with the clock button on the event in the Staff Portal.</div>");
+      }
+      return out.join("");
+    }
+
+    // ── Livestream ───────────────────────────────────────────────────
+    // A YouTube or Twitch link, as a player address, or null if it can't be shown here.
+    // Other sites aren't framed: the bar links to them instead.
+    function embedFor(url) {
+      var u;
+      try { u = new URL(url); } catch (e) { return null; }
+      if (u.protocol !== "https:") return null;
+      var host = u.hostname.replace(/^(www|m)\./, "");
+      var yt = function (id) {
+        return /^[\w-]{6,20}$/.test(id || "") ? "https://www.youtube.com/embed/" + id + "?autoplay=1&mute=1&playsinline=1" : null;
+      };
+      if (host === "youtu.be") return yt(u.pathname.slice(1));
+      if (host === "youtube.com") {
+        if (u.searchParams.get("v")) return yt(u.searchParams.get("v"));
+        var m = /^\/(?:live|embed|shorts)\/([\w-]+)/.exec(u.pathname);
+        if (m) return yt(m[1]);
+        m = /^\/channel\/(UC[\w-]{10,40})/.exec(u.pathname);
+        if (m) return "https://www.youtube.com/embed/live_stream?channel=" + m[1] + "&autoplay=1&mute=1";
+        return null;
+      }
+      if (host === "twitch.tv" && location.hostname) {
+        var parent = "&parent=" + encodeURIComponent(location.hostname) + "&muted=true";
+        var v = /^\/videos\/(\d+)/.exec(u.pathname);
+        if (v) return "https://player.twitch.tv/?video=v" + v[1] + parent;
+        var c = /^\/([A-Za-z0-9_]{3,25})\/?$/.exec(u.pathname);
+        if (c) return "https://player.twitch.tv/?channel=" + c[1] + parent;
+      }
+      return null;
+    }
+    function ownStreams() { return store(STREAM_KEY) || {}; }
+    function streamChoice() {
+      var own = ownStreams()[eventId];
+      if (own) return { url: own, mine: true };
+      if (ev.webcast_url) return { url: ev.webcast_url, mine: false };
+      return null;
+    }
+    // Only redrawn when the link changes, so a refresh never restarts the video
+    var shownStream = null;
+    function renderStream() {
+      var hidden = !!store(HIDE_KEY), choice = streamChoice();
+      var key = (hidden ? "hide|" : "") + eventId + "|" + (choice ? choice.url : "");
+      if (key === shownStream) return;
+      shownStream = key;
+      $("streamBox").classList.toggle("hidden", hidden);
+      $("streamHide").textContent = hidden ? "Show stream" : "Hide stream";
+      $("streamOpen").hidden = !choice;
+      if (choice) $("streamOpen").href = choice.url;
+      $("streamSrc").textContent = choice ? (choice.mine ? "Your stream for this event (only in this browser)" : "The event's stream, set by staff") : "No stream set";
+      $("streamReset").hidden = !(choice && choice.mine);
+      if (hidden) { $("player").innerHTML = ""; return; }
+      var src = choice ? embedFor(choice.url) : null;
+      if (src) {
+        $("player").innerHTML = '<iframe src="' + esc(src) + '" title="Event livestream" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" ' +
+          'allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+        return;
+      }
+      var tba = ev.tba_event_key ? ' <a href="https://www.thebluealliance.com/event/' + encodeURIComponent(ev.tba_event_key) +
+        '" target="_blank" rel="noopener">The Blue Alliance lists this event\'s webcasts.</a>' : "";
+      $("player").innerHTML = '<div class="c-player-msg">' + (choice
+        ? "<strong>This link can't play here</strong><span>This page plays a YouTube video or /live link, a youtube.com/channel/UC… link, or a Twitch channel. A YouTube @name page can't be shown inside another site: open the stream there and copy its video link. Or use Open in a new tab.</span>"
+        : "<strong>No livestream set for this event</strong><span>Paste a YouTube or Twitch link with Change stream." + tba +
+          " Staff can set one for everyone in the Staff Portal.</span>") + "</div>";
+    }
+    function sayStream(t) { $("streamMsg").textContent = t; }
+    $("streamChange").addEventListener("click", function () {
+      var f = $("streamForm");
+      f.hidden = !f.hidden;
+      sayStream("");
+      if (!f.hidden) { var c = streamChoice(); $("streamInput").value = c ? c.url : ""; $("streamInput").focus(); }
+    });
+    $("streamCancel").addEventListener("click", function () { $("streamForm").hidden = true; });
+    $("streamForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var url = $("streamInput").value.trim();
+      if (!/^https:\/\/\S+$/.test(url)) { sayStream("Paste the whole link, starting with https://"); return; }
+      if (!embedFor(url)) { sayStream("That isn't a YouTube or Twitch link this page can play. It's saved, and Open in a new tab opens it."); }
+      else $("streamForm").hidden = true;
+      var own = ownStreams(); own[eventId] = url; store(STREAM_KEY, own);
+      renderStream();
+    });
+    $("streamReset").addEventListener("click", function () {
+      var own = ownStreams(); delete own[eventId]; store(STREAM_KEY, own);
+      $("streamForm").hidden = true;
+      renderStream();
+    });
+    $("streamHide").addEventListener("click", function () {
+      store(HIDE_KEY, !store(HIDE_KEY));
+      renderStream();
+    });
+
+    // ── The match: a small Alliance View ─────────────────────────────
+    function avgOf(rows, key) {
+      return R.mean(rows.map(function (r) { return num(r.data[key]); }).filter(function (v) { return v != null; }));
+    }
+    function one(v) { return v.toFixed(1); }
+    function pct(v) { return Math.round(v * 100) + "%"; }
+    // The columns for each team. To change them, edit this list (same 2026 keys as alliance.html).
+    var COLS = [
+      { label: "Pts", title: "Scouted points per match, all season", show: one,
+        value: function (t) { return t.scout ? num(t.scout.avg_points) : null; } },
+      { label: "Auto", title: "Scouted AUTO FUEL per match", show: one, value: function (t) { return avgOf(t.rows, "auto_fuel_hub"); } },
+      { label: "Teleop", title: "Scouted teleop FUEL per match", show: one, value: function (t) { return avgOf(t.rows, "teleop_fuel_hub"); } },
+      { label: "Climb", title: "Share of scouted matches with a TOWER climb", show: pct,
+        value: function (t) {
+          var rows = t.rows.filter(function (r) { return r.data.teleop_tower != null && r.data.teleop_tower !== ""; });
+          return rows.length ? rows.filter(function (r) { return r.data.teleop_tower !== "None"; }).length / rows.length : null;
+        } },
+      { label: "OPR", title: "Official OPR: points the team adds per match", show: one,
+        value: function (t) { return t.official ? num(t.official.score) : null; } }
+    ];
+    // Best value in each column across the match, leaving out test teams, as on the Alliance View
+    function bests(all) {
+      return COLS.map(function (c) {
+        var vals = all.filter(function (t) { return !data.testTeams.has(t.team); }).map(c.value).filter(function (v) { return v != null; });
+        if (vals.length < 2) return null;
+        var hi = Math.max.apply(null, vals);
+        return hi === Math.min.apply(null, vals) ? null : hi;
+      });
+    }
+    function teamRowHtml(t, best) {
+      var name = RSTeams.name(teamInfo[t.team] || t.info);
+      return '<tr class="' + (t.team === team ? "us" : "") + '">' +
+        '<td class="c-team" title="' + esc(RSTeams.label(t.team, teamInfo[t.team] || t.info)) + '"><a href="/query.html?team=' + t.team + '"><strong>' + t.team + "</strong> " + esc(name) + "</a></td>" +
+        '<td class="c-grades">' + R.gradeBadge(t.gradeScout, "Scouting") + " " + R.gradeBadge(t.gradeOfficial, "Official") + "</td>" +
+        COLS.map(function (c, i) {
+          var v = c.value(t);
+          var isBest = best[i] != null && v === best[i] && !data.testTeams.has(t.team);
+          return "<td" + (isBest ? ' class="best"' : "") + ">" + (v == null ? "—" : esc(c.show(v))) + "</td>";
+        }).join("") + "</tr>";
+    }
+    function sideHtml(color, m, teams, chance, best) {
+      var numbers = m[color + "_teams"];
+      var score = m.played ? m[color + "_score"] : null, other = m.played ? m[(color === "red" ? "blue" : "red") + "_score"] : null;
+      var alliance = bracket ? bracket.allianceOf(numbers[0]) : null;
+      var withPts = teams.filter(function (t) { return t.scout && num(t.scout.avg_points) != null; });
+      var total = withPts.reduce(function (sum, t) { return sum + num(t.scout.avg_points); }, 0);
+      var mine = chance ? Math.round(100 * (color === "red" ? chance.overall : 1 - chance.overall)) + "%" : null;
+      return '<div class="c-side ' + color + '"><div class="c-side-head">' +
+        "<h4>" + (color === "red" ? "Red" : "Blue") + (alliance && !/^qm/.test(m.match_key) ? " · Alliance " + alliance : "") + "</h4>" +
+        (score != null ? '<span class="c-big">' + score + "</span>" + (score > other ? '<span class="c-won">Won</span>' : "") : "") +
+        '<span title="Alliance grades: where this alliance\'s combined score ranks among every possible alliance">' +
+          R.gradeBadge(R.allianceGrade(data.ratings, numbers, data.testTeams), "Alliance, scouting") + " " +
+          R.gradeBadge(R.allianceGrade(data.officialRatings, numbers, data.testTeams), "Alliance, official") + "</span>" +
+        (withPts.length ? "<span>" + total.toFixed(1) + " scouted pts" + (withPts.length < teams.length ? " (" + withPts.length + " of " + teams.length + ")" : "") + "</span>" : "") +
+        (m.played ? "" : '<span class="c-right" title="An estimate from past results, not a prediction">' +
+          (mine ? '<span class="c-big">' + mine + "</span> win chance" : "Win chance needs more data") + "</span>") +
+      "</div>" +
+      '<div class="c-table-wrap"><table class="c-table"><thead><tr><th>Team</th><th>Grades</th>' +
+        COLS.map(function (c) { return '<th title="' + esc(c.title) + '">' + esc(c.label) + "</th>"; }).join("") +
+      "</tr></thead><tbody>" + teams.map(function (t) { return teamRowHtml(t, best); }).join("") + "</tbody></table></div></div>";
+    }
+    function matchHtml(m, list) {
+      if (!data) return '<div class="c-empty">Loading team stats…</div>';
+      var red = m.red_teams.map(data.team), blue = m.blue_teams.map(data.team);
+      var chance = m.played ? null : R.winChance(red, blue, data.testTeams);
+      var best = bests(red.concat(blue));
+      var usRed = team && m.red_teams.indexOf(team) !== -1;
+      var i = list.indexOf(m);
+      var sub = [timeText(m), i !== -1 ? awayText(i) : m.played ? "Played" : "", m.source === "bracket" ? "From the bracket" : ""]
+        .filter(Boolean).join(" · ");
+      var sides = usRed || !team || !hasTeam(m, team)
+        ? sideHtml("red", m, red, chance, best) + sideHtml("blue", m, blue, chance, best)
+        : sideHtml("blue", m, blue, chance, best) + sideHtml("red", m, red, chance, best);
+      return '<div class="c-match-title"><h3>' + esc(labelOf(m)) + "</h3><span>" + esc(sub) + "</span></div>" + sides +
+        '<div class="c-match-actions">' +
+          '<a class="btn btn-outline-primary btn-sm" href="/alliance.html?red=' + m.red_teams.join(",") + "&blue=" + m.blue_teams.join(",") +
+            '"><i class="fa fa-columns" aria-hidden="true"></i> Full Alliance View</a>' +
+          '<a class="btn btn-outline-primary btn-sm" href="/strategy.html?event=' + encodeURIComponent(eventId) + "&match=" + encodeURIComponent(m.match_key) +
+            '"><i class="fa fa-map-o" aria-hidden="true"></i> Strategy plan</a>' +
+        "</div>" +
+        (data.failed.length ? '<div class="c-foot">Some team data couldn\'t be loaded, so blank stats may be wrong. It will try again.</div>' : "");
+    }
+    function currentMatch(list) {
+      if (view === "field") return list[0] || null;
+      if (view === "ours") return ourNext(list);
+      return find(view);
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    function teamsText(teams) {
+      return teams.map(function (t) { return t === team ? '<span class="us">' + t + "</span>" : t; }).join(" ");
+    }
+    function rowHtml(m, extra, cls) {
+      var key = m.match_key, sel = view === key || (view === "field" && cls === "now") ? " sel" : "";
+      return '<button type="button" class="c-row' + (hasTeam(m, team) ? " ours" : "") + sel + (cls === "fresh" ? " fresh" : "") + '" data-key="' + esc(key) + '">' +
+        '<span class="c-label">' + esc(labelOf(m)) + "</span>" +
+        '<span class="c-sides"><span class="c-r">' + teamsText(m.red_teams) + '</span><span class="c-b">' + teamsText(m.blue_teams) + "</span></span>" +
+        extra + "</button>";
+    }
+    function tilesHtml(list, done) {
+      var now = list[0], next = ourNext(list);
+      var last = team ? done.slice().reverse().find(function (m) { return hasTeam(m, team); }) : null;
+      var tiles = [];
+      tiles.push('<button type="button" class="c-tile field" data-view="field"><span class="c-k">On the field</span>' +
+        "<strong>" + (now ? esc(labelOf(now)) : "—") + '</strong><span class="c-sub">' +
+        (now ? esc(timeText(now) || "The next match without a result") : done.length ? "No more matches scheduled" : "No schedule yet") + "</span></button>");
+      if (!team) {
+        tiles.push('<div class="c-tile ours"><span class="c-k">Your next match</span><strong>—</strong><span class="c-sub">Type a team number above</span></div>');
+      } else {
+        var chance = "";
+        if (next && data && next.red_teams.concat(next.blue_teams).every(function (t) { return dataTeams.has(t); })) {
+          var c = R.winChance(next.red_teams.map(data.team), next.blue_teams.map(data.team), data.testTeams);
+          if (c) chance = " · " + Math.round(100 * (next.red_teams.indexOf(team) !== -1 ? c.overall : 1 - c.overall)) + "% win chance";
+        }
+        tiles.push('<button type="button" class="c-tile ours" data-view="ours"><span class="c-k">Team ' + team + "'s next match</span>" +
+          "<strong>" + (next ? esc(labelOf(next)) + ' <span class="' + (next.red_teams.indexOf(team) !== -1 ? "c-r" : "c-b") + '" style="font-size:.8rem;">' +
+            (next.red_teams.indexOf(team) !== -1 ? "Red" : "Blue") + "</span>" : "—") + "</strong>" +
+          '<span class="c-sub">' + (next ? esc(awayText(list.indexOf(next)) + (timeText(next) ? " · " + timeText(next) : "")) + chance
+            : "No more matches on the schedule") + "</span></button>");
+        if (last) {
+          var r = resultFor(last, team);
+          tiles.push('<button type="button" class="c-tile ' + r.res + '" data-view="' + esc(last.match_key) + '"><span class="c-k">Last result</span>' +
+            "<strong>" + r.res + " " + r.us + "–" + r.them + '</strong><span class="c-sub">' + esc(labelOf(last)) + "</span></button>");
+        }
+        var mine = done.filter(function (m) { return hasTeam(m, team); }).map(function (m) { return resultFor(m, team).res; });
+        var count = function (x) { return mine.filter(function (v) { return v === x; }).length; };
+        var alliance = bracket ? bracket.allianceOf(team) : null;
+        var slot = alliance ? bracket.picks.find(function (p) { return p.team_number === team; }).slot : null;
+        tiles.push('<div class="c-tile"><span class="c-k">Record here</span><strong>' + count("W") + "-" + count("L") + "-" + count("T") +
+          '</strong><span class="c-sub">' + (alliance ? "Alliance " + alliance + ", " + ["", "captain", "1st pick", "2nd pick", "3rd pick"][slot]
+            : mine.length ? "W-L-T, every match played here" : "No matches played yet") + "</span></div>");
+      }
+      return tiles.join("");
+    }
+    function tabsHtml(list) {
+      var tabs = [["field", "On the field"], ["ours", team ? "Team " + team + "'s next" : "Your next match"]];
+      if (view !== "field" && view !== "ours") {
+        var m = find(view);
+        if (m) tabs.push([view, labelOf(m)]);
+      }
+      return tabs.map(function (t) {
+        return '<button type="button" role="tab" aria-selected="' + (view === t[0]) + '" data-view="' + esc(t[0]) + '">' + esc(t[1]) + "</button>";
+      }).join("");
+    }
+    // The bracket is drawn at a fixed size, so it's scaled down to fit the page
+    function fitBracket() {
+      var box = $("bracketFit"), canvas = $("bracket");
+      if ($("bracketBox").hidden) return;
+      var scale = Math.min(1, box.clientWidth / RSBracket.WIDTH);
+      canvas.style.transform = "scale(" + scale + ")";
+      box.style.height = Math.ceil(RSBracket.HEIGHT * scale) + "px";
+    }
+    function render() {
+      var list = upcoming(), done = played();
+      if (view !== "field" && view !== "ours" && !find(view)) view = "field";
+      $("notes").innerHTML = notesHtml();
+      $("tiles").innerHTML = tilesHtml(list, done);
+      $("tabs").innerHTML = tabsHtml(list);
+
+      var m = currentMatch(list);
+      $("matchView").innerHTML = m ? matchHtml(m, list)
+        : '<div class="c-empty">' + (view === "ours"
+            ? (team ? "Team " + team + " has no more matches on the schedule." : "Type a team number above to follow its matches.")
+            : done.length ? "No more matches on the schedule yet. Playoff matches appear as their alliances are decided."
+            : "No schedule yet. It appears here once the event syncs from FRC/TBA, or once matches are added on Our Matches.") + "</div>";
+
+      $("queue").innerHTML = list.length ? list.slice(0, QUEUE_LEN).map(function (x, i) {
+        return rowHtml(x, i === 0 ? '<span class="c-tag">Now</span>' : '<span class="c-time">' + esc(timeText(x)) + "</span>", i === 0 ? "now" : "");
+      }).join("") : '<div class="c-empty">Nothing left on the schedule.</div>';
+
+      var keys = new Set(done.map(function (x) { return x.match_key; }));
+      $("results").innerHTML = done.length ? done.slice(-RESULTS_LEN).reverse().map(function (x) {
+        var redWon = x.red_score > x.blue_score, blueWon = x.blue_score > x.red_score;
+        var fresh = knownPlayed && !knownPlayed.has(x.match_key);
+        return rowHtml(x, '<span class="c-score"><span class="c-r ' + (redWon ? "won" : blueWon ? "lost" : "") + '">' + x.red_score + "</span>" +
+          '<span class="c-b ' + (blueWon ? "won" : redWon ? "lost" : "") + '">' + x.blue_score + "</span></span>", fresh ? "fresh" : "");
+      }).join("") : '<div class="c-empty">No results yet.</div>';
+      if (lastFull) knownPlayed = keys;   // only once the schedule has loaded, or every result would flash
+
+      $("bracketBox").hidden = !bracket;
+      if (bracket) {
+        $("bracketLink").href = "/bracket.html?event=" + encodeURIComponent(eventId);
+        $("bracket").style.width = RSBracket.WIDTH + "px";
+        $("bracket").style.height = RSBracket.HEIGHT + "px";
+        $("bracket").innerHTML = bracket.html(bResults, { compact: true, ourTeam: team, teamInfo: teamInfo });
+        fitBracket();
+      }
+    }
+    window.addEventListener("resize", fitBracket);
+
+    // ── Controls ─────────────────────────────────────────────────────
+    function pick(v) {
+      view = v;
+      render();
+      loadRatings(gen);   // a match picked from a list may need its teams' stats
+    }
+    document.querySelector(".c-page").addEventListener("click", function (e) {
+      var row = e.target.closest("[data-key]");
+      if (row) { pick(row.closest("#queue") && row === $("queue").firstElementChild ? "field" : row.dataset.key); return; }
+      var v = e.target.closest("[data-view]");
+      if (v) pick(v.dataset.view);
+    });
+    function switchEvent(id) {
+      eventId = id;
+      ev = events.find(function (e) { return e.id === id; }) || {};
+      gen++;
+      matches = []; bracket = bResults = null; knownPlayed = null; seenSync = undefined; lastFull = 0;
+      view = "field";
+      renderStream();
+      render();
+      tick(true);
+    }
+    $("eventPick").addEventListener("change", function () { switchEvent(this.value); });
+    $("teamPick").addEventListener("change", function () {
+      var t = Number(this.value);
+      if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team || ""; return; }
+      team = t;
+      store(TEAM_KEY, t);
+      render();
+      loadRatings(gen);
+    });
+
+    // Keep the screen awake, for a laptop or TV in the pit (browsers that support it)
+    var wake = null, wantWake = false;
+    function showWake() {
+      $("wakeBtn").classList.toggle("on", !!wake);
+      $("wakeBtn").lastChild.textContent = wake ? " Screen stays on" : " Keep screen on";
+    }
+    async function setWake(on) {
+      wantWake = on;
+      if (on && !wake) {
+        try {
+          wake = await navigator.wakeLock.request("screen");
+          wake.addEventListener("release", function () { wake = null; showWake(); });
+        } catch (e) { wantWake = false; }
+      } else if (!on && wake) {
+        await wake.release();
+        wake = null;
+      }
+      showWake();
+    }
+    if ("wakeLock" in navigator) {
+      $("wakeBtn").hidden = false;
+      $("wakeBtn").addEventListener("click", function () { setWake(!wake); });
+    }
+
+    // Back on the page or back online: catch up now instead of waiting for the next round
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) return;
+      tick();
+      if (wantWake && !wake) setWake(true);   // the browser drops the lock while the page is hidden
+    });
+    window.addEventListener("online", function () { tick(true); });
+
+    // ── Start ────────────────────────────────────────────────────────
+    $("teamPick").value = team || "";
+    var r = await sb.from("events").select(eventCols()).order("event_date", { ascending: false, nullsFirst: false });
+    if (r.error && missingColumn(r.error)) {
+      hasWebcastCol = false;
+      r = await sb.from("events").select(eventCols()).order("event_date", { ascending: false, nullsFirst: false });
+    }
+    if (r.error) {
+      $("livePill").className = "c-live stale";
+      $("livePill").textContent = "Couldn't load the events. Try refreshing the page.";
+      return;
+    }
+    events = r.data || [];
+    if (!events.length) {
+      $("matchView").innerHTML = '<div class="c-empty">No events yet. Staff can add one in the Staff Portal.</div>';
+      $("livePill").textContent = "No events";
+      return;
+    }
+    $("eventPick").innerHTML = events.map(function (e) {
+      return '<option value="' + esc(e.id) + '">' + esc(e.name) + (e.event_date ? " (" + esc(e.event_date) + ")" : "") + "</option>";
+    }).join("");
+    var first = events.find(function (e) { return e.id === params.get("event"); }) ||
+      events.find(function (e) { return e.is_default_event; }) || events[0];
+    $("eventPick").value = first.id;
+    RSResync.mount($("controls"), function () { return tick(true); });
+    switchEvent(first.id);
+
+    setInterval(function () { if (!document.hidden) tick(); }, CHECK_MS);
+  })();
+  </script>
+</body>
+</html>

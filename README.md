@@ -24,7 +24,7 @@ and win over the copy for any event in both. It's in the About Us menu.
 
 **1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
 and the 1307scout menu and home page are split the same way:
-- **Data**, shared by every team: Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
+- **Data**, shared by every team: Competition Day, Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
   Playoff Bracket and Share Data. Scouting entries, pit data, official results, flag reviews and playoff
   alliances belong to nobody in particular.
 - **My Team**, your own team's: Our Matches, Match Strategy, Pit Crew, Pick List, Scout Shifts and
@@ -153,7 +153,22 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   it only advances once an event syncs. With fewer than 8 alliances, an empty alliance is a bye: the
   alliance it would have played moves on without playing. When official scores are tied, staff click who won the
   tiebreaker. On a 4-team alliance staff click who sits out each match (the 3rd pick by default).
-  The match layout is `MATCHES` in the page.
+  The bracket's format, results and drawing are `js/bracket.js` (`MATCHES` there is the match layout),
+  shared with Competition Day.
+- `live.html` — Competition Day: the event's livestream beside the match on the field, for a laptop or
+  TV in the pit. The livestream is the event's `webcast_url` (a YouTube or Twitch link staff set when
+  editing the event in the Staff Portal), or a link anyone pastes for themselves, kept in that browser.
+  Tiles show the match on the field (the first one without a result yet), your team's next match
+  (how many matches away, side, win chance), your last result and your record at the event. Below
+  them is a small Alliance View of the chosen match: each team's grades, scouted points, AUTO and
+  teleop FUEL, climb rate and OPR, plus alliance grades and win chance, with links to the full
+  Alliance View and the Match Strategy plan. Coming up and Results list the next and latest matches;
+  clicking one shows it. After qualifications, the bracket appears, scaled to the page, and playoff
+  matches the sync doesn't list yet come from it. The page keeps itself current: every 15 seconds
+  it checks the event's last sync, and only reloads the schedule when that moved (or every minute,
+  for hand edits). During selection and the playoffs it rechecks the alliances every 15 seconds too, and grades refresh a few
+  minutes after a sync, once the server's rating cache has caught up. The stream never reloads.
+  Keep screen on stops the screen sleeping, in browsers that allow it.
 - `team.html` — Team Management: for someone on no team, where their claim stands, invitations to
   accept, which team they're on, a join code (`team.html?join=CODE` is an invite link), and asking
   site staff to manage a team. For a member, the team's roster and managers. For a manager: verify or

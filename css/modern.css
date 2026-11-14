@@ -661,6 +661,44 @@ label { font-size: .88rem; font-weight: 500; color: var(--heading); }
 .rs-resync-msg { font-size: .78rem; line-height: 1.3; color: var(--muted); }
 .rs-resync-msg.warn { color: var(--red); }
 
+/* Playoff bracket cards, drawn by RSBracket in js/bracket.js (Playoff Bracket and Competition Day).
+   The canvas is laid out at fixed positions, so the page decides how to scroll or scale it. */
+.b-canvas { position: relative; }
+.b-lines { position: absolute; inset: 0; pointer-events: none; }
+.b-lines path { fill: none; stroke: #9fb3d3; stroke-width: 2; }
+.b-round { position: absolute; top: 0; text-align: center; font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.b-section { position: absolute; left: 0; font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--heading); }
+
+.b-match { position: absolute; display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(10,35,82,.08); }
+.b-match.final { border: 2px solid var(--heading); }
+.b-match-head { display: flex; justify-content: space-between; align-items: center; gap: .3rem; height: 20px; padding: 0 .4rem; background: var(--tint); font-size: .68rem; font-weight: 700; color: var(--heading); }
+.b-compare { padding: 0; background: none; border: 0; color: var(--blue); font-size: .68rem; font-weight: 600; cursor: pointer; }
+.b-compare:hover { text-decoration: underline; }
+.b-t { white-space: nowrap; }
+button.b-t { padding: 0; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+button.b-t:hover { color: var(--blue); }
+.b-t.out { text-decoration: line-through; opacity: .5; }
+.b-side { flex: 1; min-height: 26px; display: flex; align-items: center; gap: .3rem; min-width: 0; padding: 0 .4rem 0 .3rem; border-left: 4px solid #c0392b; font-size: .78rem; line-height: 1.15; }
+.b-side.blue { border-left-color: var(--blue); border-top: 1px solid var(--line); }
+.b-seed { flex: none; min-width: 1.5rem; padding: 0 .15rem; background: var(--navy); color: #fff; text-align: center; font-family: var(--display); font-weight: 700; font-size: .74rem; }
+.b-teams { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.b-wait { flex: 1; min-width: 0; color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-score { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+.b-side.won { background: var(--green-bg); font-weight: 600; }
+.b-side.won .b-score { color: var(--green); }
+.b-side.lost { color: var(--muted); }
+.b-side.lost .b-seed { background: #9a9a9c; }
+.b-side.ours .b-teams { color: var(--blue); font-weight: 600; }
+.b-flag { padding: .1rem .4rem; background: var(--amber-bg); color: var(--amber); font-size: .66rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-flag button { padding: 0 .35rem; background: var(--white); border: 1px solid #d9a441; color: var(--amber); font-size: .66rem; font-weight: 700; cursor: pointer; }
+.b-flag button:hover { background: var(--amber-bg); }
+.b-games { padding: 0 .4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .68rem; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.b-champ { position: absolute; padding: .35rem .5rem; background: var(--navy); color: #fff; text-align: center; }
+.b-champ span { display: block; font-size: .68rem; letter-spacing: .05em; text-transform: uppercase; opacity: .8; }
+.b-champ strong { display: block; font-family: var(--display); font-size: 1rem; }
+.b-champ em { display: block; font-style: normal; font-size: .78rem; }
+
 
 /* =========================================================================================================
    15. DARK THEME: BOOTSTRAP PARTS

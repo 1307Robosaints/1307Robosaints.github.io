@@ -1221,6 +1221,11 @@ alter table public.events add column if not exists official_sync_note   text;
 alter table public.events add column if not exists event_tier text not null default 'qualifier'
   check (event_tier in ('offseason','qualifier','district_championship','championship'));
 
+-- The event's livestream (a YouTube or Twitch link), shown on Competition Day (live.html).
+-- Set by staff in the Staff Portal; anyone can also use their own link there, kept in their browser.
+alter table public.events add column if not exists webcast_url text
+  check (webcast_url ~ '^https://' and char_length(webcast_url) <= 300);
+
 -- The event the Scout page auto-selects, set by staff in the Staff Portal (the "star" button
 -- on an event row) instead of scouts having to find the current event in a dropdown of every
 -- event the team has ever attended. At most one event can be the default — enforced by the

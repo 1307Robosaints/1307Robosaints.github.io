@@ -143,6 +143,7 @@
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
               <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Competition Day</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
@@ -278,16 +279,16 @@
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
     var MY_TEAM = ((await RS.team()) || {}).team_number || null;   // the signed-in person's team (js/auth.js)
 
-    var OUR_TEAM = MY_TEAM || 1307;
     var TEAM_KEY = "rs_matches_team";   // the team last viewed, in this browser
     var POLL_MS = 60000;                // auto-sync runs every 2 minutes at most
 
-    var events = [], eventId = null, team = OUR_TEAM;
+    // Opens on the person's own team; with no team (e.g. staff), the team last viewed in this browser
+    var events = [], eventId = null, team = MY_TEAM;
     var official = {}, edits = {};      // by match_key
     var planned = new Set();            // matches with a saved plan on Match Strategy
     var data = null, dataTeams = "";    // ratings data, and which teams it covers
     var editingKey = null, scrolledFor = null;
-    try { team = Number(localStorage.getItem(TEAM_KEY)) || OUR_TEAM; } catch (e) {}
+    if (!team) try { team = Number(localStorage.getItem(TEAM_KEY)) || null; } catch (e) {}
 
     // ── Match keys: qm12, sf5m1, f1m2 (the same keys the official sync uses) ──
     var LEVEL_ORDER = { qm: 0, sf: 1, f: 2 };
@@ -476,6 +477,11 @@
     }
     function render() {
       if (!data) return;
+      if (!team) {
+        $("upcoming").innerHTML = '<div class="m-empty">Type a team number above to see its matches.</div>';
+        $("played").innerHTML = "";
+        return;
+      }
       var list = schedule();
       var upcoming = list.filter(function (m) { return !isPlayed(m); });
       logPredictions(upcoming);
@@ -597,14 +603,14 @@
     });
     $("teamPick").addEventListener("change", function () {
       var t = Number(this.value);
-      if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team; return; }
+      if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team || ""; return; }
       team = t;
       try { localStorage.setItem(TEAM_KEY, String(t)); } catch (e) {}
       loadRatings(loadCount);
     });
 
     // ── Start ────────────────────────────────────────────────────────
-    $("teamPick").value = team;
+    $("teamPick").value = team || "";
     var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key")
       .order("event_date", { ascending: false, nullsFirst: false });
     if (r.error) {

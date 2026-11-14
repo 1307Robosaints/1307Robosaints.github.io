@@ -448,6 +448,7 @@
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
               <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Competition Day</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
@@ -1064,6 +1065,10 @@
               <option value="championship">Championship (Worlds)</option>
             </select>
           </div>
+          <div class="form-group" id="mEvWebcastGroup">
+            <label for="mEvWebcast">Livestream link <small class="text-muted">(optional: YouTube or Twitch, shown on Competition Day)</small></label>
+            <input type="url" id="mEvWebcast" class="form-control" maxlength="300" placeholder="https://www.youtube.com/watch?v=… or https://www.twitch.tv/…">
+          </div>
           <div class="form-group">
             <label>Official sync status</label>
             <div class="sync-info-box" id="mEvSyncInfo"></div>
@@ -1522,6 +1527,9 @@
       document.getElementById("mEvFrc").value = ev.frc_event_code || "";
       document.getElementById("mEvTba").value = ev.tba_event_key || "";
       document.getElementById("mEvTier").value = ev.event_tier || "qualifier";
+      // Hidden until rebuild_all.sql has added events.webcast_url
+      document.getElementById("mEvWebcastGroup").hidden = !("webcast_url" in ev);
+      document.getElementById("mEvWebcast").value = ev.webcast_url || "";
       document.getElementById("mEvSyncInfo").innerHTML = syncInfoHTML(ev);
       $("#evModal").modal("show");
     };
@@ -1534,10 +1542,16 @@
       var codes = readCodes("mEvFrc", "mEvTba");
       if (!codes) return;
       var tier = document.getElementById("mEvTier").value;
-      var r = await sb.from("events").update({
+      var changes = {
         name: name, location: loc || null, event_date: date,
         frc_event_code: codes.frc, tba_event_key: codes.tba, event_tier: tier
-      }).eq("id", id);
+      };
+      if (!document.getElementById("mEvWebcastGroup").hidden) {
+        var cast = document.getElementById("mEvWebcast").value.trim();
+        if (cast && !/^https:\/\/\S+$/.test(cast)) { toast("The livestream link should start with https://", true); return; }
+        changes.webcast_url = cast || null;
+      }
+      var r = await sb.from("events").update(changes).eq("id", id);
       if (r.error) { toast("Couldn't update event.", true); return; }
       $("#evModal").modal("hide");
       toast("Event updated.");
