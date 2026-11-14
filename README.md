@@ -254,8 +254,8 @@ the current stable release working. Release steps and the one-time setup: `RELEA
 There's no build step — open any `.html` file directly, or serve the folder with any static file
 server. The service worker registers on `localhost` too; since it's network-first, edits still
 show on reload, but use DevTools → Application → Service workers → "Update on reload" when changing
-`sw.js` itself. `gulpfile.js`/`package.json` are leftover from the original Bootstrap template this site
-started from (see below) and aren't required to run or edit the site.
+`sw.js` itself. There's no `package.json`: the original Bootstrap template's npm/gulp files were
+removed, since nothing used them and their old dev dependencies set off Dependabot alerts.
 
 ## Credit
 

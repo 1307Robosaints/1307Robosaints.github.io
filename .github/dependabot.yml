@@ -1,0 +1,8 @@
+# Only GitHub Actions: the site has no npm/pip manifests to watch
+# (vision/ is a local worker, not deployed).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
