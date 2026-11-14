@@ -386,7 +386,7 @@
       var last = -1;
       matches.forEach(function (m, i) { if (m.played) last = i; });
       var list = matches.slice(last + 1).filter(function (m) {
-        return !m.played && (m.red_teams || []).length && (m.blue_teams || []).length;
+        return !m.played && (m.red_teams || []).length && (m.blue_teams || []).length && !notNeeded(m.match_key);
       });
       if (bracket && bResults) {
         bracket.upcoming(bResults).forEach(function (b) {
@@ -396,6 +396,23 @@
         list.sort(function (a, b) { return S.compare(a.match_key, b.match_key); });
       }
       return list;
+    }
+    // The official schedule lists playoff games before anyone knows they're needed (Final 3 most of
+    // all), so an unplayed one is dropped once its series is decided: the finals once an alliance has
+    // FINAL_WINS, and a bracket match once the bracket has its winner.
+    var FINAL_WINS = 2;
+    function finalsDecided() {
+      var wins = {};
+      return matches.some(function (m) {
+        if (!m.played || !/^f/.test(m.match_key) || m.red_score === m.blue_score) return false;
+        var side = (m.red_score > m.blue_score ? m.red_teams : m.blue_teams).slice().sort().join(",");
+        return (wins[side] = (wins[side] || 0) + 1) >= FINAL_WINS;
+      }) || !!(bResults && bResults.final.winner != null);
+    }
+    function notNeeded(key) {
+      if (/^f/.test(key)) return finalsDecided();
+      var sf = /^sf(\d+)m/.exec(key);
+      return !!(sf && bResults && bResults[sf[1]] && bResults[sf[1]].winner != null);
     }
     function played() { return matches.filter(function (m) { return m.played; }); }
     function quals() { return matches.filter(function (m) { return /^qm/.test(m.match_key); }); }
@@ -724,7 +741,8 @@
       var tiles = [];
       tiles.push('<button type="button" class="c-tile field" data-view="field"><span class="c-k">On the field</span>' +
         "<strong>" + (now ? esc(labelOf(now)) : "—") + '</strong><span class="c-sub">' +
-        (now ? esc(timeText(now) || "The next match without a result") : done.length ? "No more matches scheduled" : "No schedule yet") + "</span></button>");
+        (now ? esc(timeText(now) || "The next match without a result") : finalsDecided() ? "The event is over"
+          : done.length ? "No more matches scheduled" : "No schedule yet") + "</span></button>");
       if (!team) {
         tiles.push('<div class="c-tile ours"><span class="c-k">Your next match</span><strong>—</strong><span class="c-sub">Type a team number above</span></div>');
       } else {
