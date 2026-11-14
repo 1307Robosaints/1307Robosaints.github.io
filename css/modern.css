@@ -16,7 +16,7 @@
     11. Contact page (map, social list)
     12. Forms, alerts, badges, tables (sign-in, account, scouting pages)
     13. Motion
-    14. Legacy compatibility (safe to delete once no page loads main.css)
+    14. Shared widgets (grade badge, event tier tag, resync button) and placehold.it fallback
     15. Dark theme: Bootstrap parts the tokens can't reach
    ========================================================================================================= */
 
@@ -618,15 +618,11 @@ label { font-size: .88rem; font-weight: 500; color: var(--heading); }
 
 
 /* =========================================================================================================
-   14. LEGACY COMPATIBILITY
-   Safe to delete once you confirm no page still loads css/main.css or uses placehold.it images.
+   14. SHARED WIDGETS AND PLACEHOLD.IT FALLBACK
    ========================================================================================================= */
 
-/* main.css (old theme) made these white / dim; keep them readable if it is ever loaded */
-#contactuspage, #homepage-text { color: var(--ink); }
-.dropdown-item { opacity: 1; }
-
-/* Hide the image column when it holds a dead placehold.it image, and let the text use the full width */
+/* Safe to delete once no page uses placehold.it images.
+   Hide the image column when it holds a dead placehold.it image, and let the text use the full width */
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) { display: none; }
 .row > [class*="col-md-7"]:has(img[src*="placehold.it"]) + [class*="col-md-5"] { flex: 0 0 100%; max-width: 100%; }
 

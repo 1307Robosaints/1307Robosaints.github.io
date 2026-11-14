@@ -166,7 +166,8 @@ what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
 **Team names and logos** fill in on their own: when a page shows a team that hasn't been looked up
 in 30 days, `js/teams.js` asks the `team-names` Edge Function (`supabase/functions/team-names/`) to
 look it up on The Blue Alliance. It saves the nickname and the team's FIRST avatar (stored in the
-`team-logos` bucket under `tba/`). A name or logo staff set on the Team Info tab wins over it. Deploy it once with
+`team-logos` bucket under `tba/`). A name or logo staff set on the Staff Portal's Team Info tab wins over it;
+that tab lists the test teams and teams TBA has no name for, which are the ones that need it. Deploy it once with
 `supabase functions deploy team-names --no-verify-jwt`; it uses the `TBA_API_KEY` secret that
 official-sync already has.
 
@@ -254,8 +255,8 @@ the current stable release working. Release steps and the one-time setup: `RELEA
 There's no build step — open any `.html` file directly, or serve the folder with any static file
 server. The service worker registers on `localhost` too; since it's network-first, edits still
 show on reload, but use DevTools → Application → Service workers → "Update on reload" when changing
-`sw.js` itself. `gulpfile.js`/`package.json` are leftover from the original Bootstrap template this site
-started from (see below) and aren't required to run or edit the site.
+`sw.js` itself. There's no `package.json`: the original Bootstrap template's npm/gulp files were
+removed, since nothing used them and their old dev dependencies set off Dependabot alerts.
 
 ## Credit
 

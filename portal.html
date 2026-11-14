@@ -127,6 +127,7 @@
       font-size: .9rem;
     }
     .tt-row:last-child { border-bottom: 0; }
+    .tt-row .row-actions, .ti-row .row-actions { display: flex; gap: .3rem; justify-content: flex-end; }
     .tt-row-header {
       display: grid;
       grid-template-columns: 1fr 2fr 1fr auto;
@@ -148,7 +149,7 @@
 
     .ti-row {
       display: grid;
-      grid-template-columns: 48px .8fr 1.2fr auto;
+      grid-template-columns: 48px .6fr 1.2fr 1.2fr auto;
       gap: .5rem; align-items: center;
       padding: .6rem .75rem;
       border-bottom: 1px solid var(--line);
@@ -157,7 +158,7 @@
     .ti-row:last-child { border-bottom: 0; }
     .ti-row-header {
       display: grid;
-      grid-template-columns: 48px .8fr 1.2fr auto;
+      grid-template-columns: 48px .6fr 1.2fr 1.2fr auto;
       gap: .5rem;
       padding: .4rem .75rem;
       background: var(--navy);
@@ -338,9 +339,10 @@
       .code-row > :nth-child(2), .code-row > :nth-child(3), .code-row > :nth-child(4), .code-row > :nth-child(5),
       .code-row-header > :nth-child(2), .code-row-header > :nth-child(3), .code-row-header > :nth-child(4), .code-row-header > :nth-child(5) { display: none; }
 
-      /* Team info: drop the logo thumbnail, keep team # + name + actions */
+      /* Team info: drop the logo thumbnail and the TBA column, keep team # + name + actions */
       .ti-row, .ti-row-header { grid-template-columns: .8fr 1.2fr auto; }
-      .ti-row > :nth-child(1), .ti-row-header > :nth-child(1) { display: none; }
+      .ti-row > :nth-child(1), .ti-row-header > :nth-child(1),
+      .ti-row > :nth-child(4), .ti-row-header > :nth-child(4) { display: none; }
     }
   </style>
 </head>
@@ -694,14 +696,14 @@
     <div class="form-panel">
       <h3 style="font-size:1.1rem; margin-bottom:1rem;" id="tiFormTitle">Add Team Name / Logo</h3>
       <p class="text-muted" style="font-size:.9rem;">
-        Purely cosmetic — attaches a display name and logo to a team number so its card in the
-        Team Database (query.html) shows who it is, instead of just a number. Works for our team
-        or any opponent. Paste a logo link or upload an image (2MB max).
+        Real teams get their name and logo from The Blue Alliance on their own, so you usually don't
+        need this. It's for test teams, teams TBA has nothing for, or replacing what TBA shows.
+        What you set here wins over TBA everywhere in 1307scout. Paste a logo link or upload an image (2MB max).
       </p>
       <div class="form-row">
         <div class="form-group col-md-2">
           <label for="tiTeam">Team #</label>
-          <input type="number" id="tiTeam" class="form-control" min="1" max="99999" placeholder="e.g. 254">
+          <input type="number" id="tiTeam" class="form-control" min="1" max="99999" placeholder="e.g. 9999">
         </div>
         <div class="form-group col-md-4">
           <label for="tiName">Team name <small class="text-muted">(optional)</small></label>
@@ -724,13 +726,24 @@
           <img id="tiPreview" class="ti-logo" style="display:none;" alt="">
         </div>
       </div>
+      <p class="small text-muted mb-2" id="tiHint" aria-live="polite"></p>
       <input type="hidden" id="tiId">
       <button class="btn btn-outline-secondary btn-sm d-none" id="tiCancel">Cancel edit</button>
     </div>
 
+    <h3 style="font-size:1rem; margin:0 0 .5rem;">Missing a name</h3>
+    <p class="text-muted" style="font-size:.85rem;">Test teams, and teams TBA has no name for, that nobody has named here yet.</p>
+    <div class="table-wrap mb-4">
+      <div class="ti-row-header">
+        <span></span><span>Team #</span><span>Why</span><span></span><span></span>
+      </div>
+      <div id="tiNeeds"><div class="empty-state">Loading…</div></div>
+    </div>
+
+    <h3 style="font-size:1rem; margin:0 0 .5rem;">Set here</h3>
     <div class="table-wrap">
       <div class="ti-row-header">
-        <span></span><span>Team #</span><span>Name / Logo</span><span></span>
+        <span></span><span>Team #</span><span>Name shown</span><span>From TBA</span><span></span>
       </div>
       <div id="tiList"><div class="empty-state">No team info saved yet.</div></div>
     </div>
@@ -944,6 +957,7 @@
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/teams.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -1668,6 +1682,7 @@
       if (r.error) { toast("Couldn't load test teams.", true); return; }
       testTeams = r.data;
       renderTestTeams();
+      loadTeamInfo(); // its "Missing a name" list includes the test teams
     }
     function renderTestTeams() {
       var el = document.getElementById("ttList");
@@ -1677,7 +1692,10 @@
           '<span><strong>' + t.team_number + '</strong></span>' +
           '<span>' + esc(t.note || "—") + '</span>' +
           '<span>' + fmt(t.added_at) + '</span>' +
-          '<span><button class="btn-icon danger" title="Remove test tag" aria-label="Remove test tag" onclick="untagTeam(' + t.team_number + ')"><i class="fa fa-trash"></i></button></span>' +
+          '<span class="row-actions">' +
+            '<button class="btn-icon" title="Set its name / logo" aria-label="Set a name and logo for team ' + t.team_number + '" onclick="editTeamInfo(' + t.team_number + ')"><i class="fa fa-id-card-o"></i></button>' +
+            '<button class="btn-icon danger" title="Remove test tag" aria-label="Remove test tag" onclick="untagTeam(' + t.team_number + ')"><i class="fa fa-trash"></i></button>' +
+          '</span>' +
         '</div>';
       }).join("");
     }
@@ -1705,34 +1723,94 @@
     // ══════════════════════════════════════════════════════════════════
     // TEAM INFO (names + logos, shown on the team's card in query.html)
     // ══════════════════════════════════════════════════════════════════
-    var teamInfo = [];
+    var teamInfo = [];       // rows with a name or logo staff set
+    var tiNoTba = [];        // rows TBA was asked about and had no name for, nobody named here
+    var tiTestInfo = {};     // team_info for the test teams, by team number
     async function loadTeamInfo() {
-      // Only rows staff set. Rows holding just a TBA name number in the hundreds and fill in on their own.
-      var r = await sb.from("team_info").select("*").or("team_name.not.is.null,logo_url.not.is.null")
-        .order("team_number", { ascending: true });
-      if (r.error) { toast("Couldn't load team info.", true); return; }
-      teamInfo = r.data;
+      var cols = "team_number,team_name,logo_url,tba_name,tba_logo_url,tba_checked_at,display_name,display_logo";
+      var testNums = testTeams.map(function (t) { return t.team_number; });
+      var res = await Promise.all([
+        sb.from("team_info").select(cols).or("team_name.not.is.null,logo_url.not.is.null").order("team_number"),
+        sb.from("team_info").select(cols).eq("tba_name", "").is("team_name", null).order("team_number").limit(500),
+        testNums.length ? sb.from("team_info").select(cols).in("team_number", testNums) : { data: [] }
+      ]);
+      if (res[0].error || res[1].error || res[2].error) { toast("Couldn't load team info.", true); return; }
+      teamInfo = res[0].data;
+      tiNoTba = res[1].data;
+      tiTestInfo = {};
+      res[2].data.forEach(function (t) { tiTestInfo[t.team_number] = t; });
       renderTeamInfo();
     }
+    function isTestTeam(n) { return testTeams.some(function (t) { return t.team_number === n; }); }
+    function tiLogo(url) {
+      return url ? '<img class="ti-logo" src="' + esc(url) + '" alt="">' : '<span class="ti-logo-placeholder">—</span>';
+    }
+    function tbaText(t) {
+      if (!t || !t.tba_checked_at) return '<span class="text-muted">Not looked up yet</span>';
+      if (t.tba_name === "") return '<span class="text-muted">No name on TBA</span>';
+      return esc(t.tba_name) + (t.tba_logo_url ? "" : ' <span class="text-muted">(no logo)</span>');
+    }
     function renderTeamInfo() {
-      var el = document.getElementById("tiList");
-      var set = teamInfo;
-      if (!set.length) { el.innerHTML = '<div class="empty-state">No team info saved yet. Names fill in from TBA on their own; add one here only to change it.</div>'; return; }
-      el.innerHTML = set.map(function (t) {
-        var logo = t.logo_url
-          ? '<img class="ti-logo" src="' + esc(t.logo_url) + '" alt="">'
-          : '<span class="ti-logo-placeholder">—</span>';
+      // Missing a name: unnamed test teams first, then teams TBA had nothing for
+      var needs = [];
+      testTeams.forEach(function (t) {
+        var i = tiTestInfo[t.team_number];
+        if (!i || !i.display_name) needs.push({ team: t.team_number, why: '<span class="badge-test">Test</span> ' + esc(t.note || "") });
+      });
+      tiNoTba.forEach(function (t) {
+        if (!isTestTeam(t.team_number)) needs.push({ team: t.team_number, why: "TBA has no name for this team" });
+      });
+      var nEl = document.getElementById("tiNeeds");
+      nEl.innerHTML = needs.length ? needs.map(function (n) {
         return '<div class="ti-row">' +
-          '<span>' + logo + '</span>' +
-          '<span><strong>' + t.team_number + '</strong></span>' +
-          '<span>' + esc(t.team_name || "—") + '</span>' +
+          '<span>' + tiLogo("") + '</span>' +
+          '<span><strong>' + n.team + '</strong></span>' +
+          '<span>' + n.why + '</span><span></span>' +
+          '<span class="row-actions"><button class="btn-icon" title="Add a name" aria-label="Add a name for team ' + n.team + '" onclick="editTeamInfo(' + n.team + ')"><i class="fa fa-plus"></i></button></span>' +
+        '</div>';
+      }).join("") : '<div class="empty-state">Every test team and known team has a name.</div>';
+
+      var el = document.getElementById("tiList");
+      if (!teamInfo.length) { el.innerHTML = '<div class="empty-state">Nothing set here yet.</div>'; return; }
+      el.innerHTML = teamInfo.map(function (t) {
+        var same = t.team_name && t.tba_name && t.team_name.trim().toLowerCase() === t.tba_name.trim().toLowerCase();
+        return '<div class="ti-row">' +
+          '<span>' + tiLogo(t.display_logo) + '</span>' +
+          '<span><strong>' + t.team_number + '</strong>' + (isTestTeam(t.team_number) ? ' <span class="badge-test">Test</span>' : '') + '</span>' +
+          '<span>' + esc(t.display_name || "—") + (t.team_name ? '' : ' <span class="text-muted">(TBA)</span>') + '</span>' +
+          '<span>' + tbaText(t) + (same && !t.logo_url ? ' <span class="text-muted" title="TBA already has this name, so this entry can be removed">· same as yours</span>' : '') + '</span>' +
           '<span class="row-actions">' +
             '<button class="btn-icon" title="Edit team info" aria-label="Edit team info" onclick="editTeamInfo(' + t.team_number + ')"><i class="fa fa-pencil"></i></button>' +
-            '<button class="btn-icon danger" title="Remove team info" aria-label="Remove team info" onclick="deleteTeamInfo(' + t.team_number + ')"><i class="fa fa-trash"></i></button>' +
+            '<button class="btn-icon danger" title="Remove (TBA\'s name and logo show again)" aria-label="Remove team info" onclick="deleteTeamInfo(' + t.team_number + ')"><i class="fa fa-trash"></i></button>' +
           '</span>' +
         '</div>';
       }).join("");
     }
+
+    // Under the form: what this team shows now, so staff can tell whether it needs anything set.
+    // Looks the team up on TBA if it never has been.
+    var tiHintSeq = 0;
+    async function showTeamHint() {
+      var hint = document.getElementById("tiHint");
+      var team = parseInt(document.getElementById("tiTeam").value, 10);
+      var seq = ++tiHintSeq;
+      if (!team || team < 1 || team > 99999) { hint.textContent = ""; return; }
+      hint.textContent = "Checking team " + team + "…";
+      var r = await RSTeams.loadInfo(sb, [team]);
+      if (window.RSTeams.fillMissing) await RSTeams.fillMissing(sb, [team], r.info);
+      if (seq !== tiHintSeq) return;
+      var t = r.info[team];
+      var parts = [];
+      if (isTestTeam(team)) parts.push("Test team.");
+      if (!t || !t.tba_checked_at) parts.push("Couldn't reach TBA for this team.");
+      else if (t.tba_name === "") parts.push("TBA has no name for this team, so set one here.");
+      else parts.push("TBA: " + t.tba_name + (t.tba_logo_url ? " (with logo)" : " (no logo)") + ". Only set something to change it.");
+      if (t && t.team_name) parts.push("Currently shown: " + t.team_name + ".");
+      hint.textContent = parts.join(" ");
+      var name = document.getElementById("tiName");
+      if (t && t.tba_name) name.placeholder = "From TBA: " + t.tba_name;
+    }
+    document.getElementById("tiTeam").addEventListener("change", showTeamHint);
 
     function resetTeamInfoForm() {
       document.getElementById("tiId").value = "";
@@ -1743,26 +1821,30 @@
       document.getElementById("tiLogoUrl").value = "";
       document.getElementById("tiLogoFile").value = "";
       document.getElementById("tiPreview").style.display = "none";
+      document.getElementById("tiHint").textContent = "";
       document.getElementById("tiFormTitle").textContent = "Add Team Name / Logo";
       document.getElementById("tiCancel").classList.add("d-none");
     }
     document.getElementById("tiCancel").addEventListener("click", resetTeamInfoForm);
 
+    // Fills the form for a team: its saved entry, or a new one (from "Missing a name" or Test Teams)
     window.editTeamInfo = function (team) {
       var t = teamInfo.find(function (x) { return x.team_number === team; });
-      if (!t) return;
-      document.getElementById("tiId").value = team;
+      var tabBtn = document.querySelector('.portal-tab[data-tab="teaminfo"]');
+      if (tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
+      resetTeamInfoForm();
       document.getElementById("tiTeam").value = team;
       document.getElementById("tiTeam").disabled = true; // team number is the key, immutable once saved
-      document.getElementById("tiName").value = t.team_name || "";
-      document.getElementById("tiName").placeholder = t.tba_name ? "From TBA: " + t.tba_name : "e.g. The Cheesy Poofs";
-      document.getElementById("tiLogoUrl").value = t.logo_url || "";
-      document.getElementById("tiLogoFile").value = "";
+      document.getElementById("tiId").value = t ? team : "";
+      document.getElementById("tiName").value = (t && t.team_name) || "";
+      document.getElementById("tiLogoUrl").value = (t && t.logo_url) || "";
       var prev = document.getElementById("tiPreview");
-      if (t.logo_url) { prev.src = t.logo_url; prev.style.display = ""; } else { prev.style.display = "none"; }
-      document.getElementById("tiFormTitle").textContent = "Edit Team " + team;
+      if (t && t.logo_url) { prev.src = t.logo_url; prev.style.display = ""; }
+      document.getElementById("tiFormTitle").textContent = (t ? "Edit" : "Add a name for") + " Team " + team;
       document.getElementById("tiCancel").classList.remove("d-none");
+      showTeamHint();
       document.getElementById("tab-teaminfo").scrollIntoView({ behavior: "smooth" });
+      document.getElementById("tiName").focus({ preventScroll: true });
     };
 
     document.getElementById("tiLogoFile").addEventListener("change", function () {
@@ -1781,6 +1863,10 @@
       var file = document.getElementById("tiLogoFile").files[0];
       if (!team || team < 1 || team > 99999) { toast("Enter a valid team number.", true); return; }
       if (!file && logoUrl && !/^https:\/\//i.test(logoUrl)) { toast("A logo link must start with https://.", true); return; }
+      if (!name && !logoUrl && !file) {
+        toast(editing ? "To go back to TBA's name and logo, use the trash button." : "Enter a name or a logo.", true);
+        return;
+      }
 
       if (file) {
         var ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "png";
@@ -1802,9 +1888,10 @@
       loadTeamInfo();
     }));
 
+    // Clears only what staff set, so the row keeps TBA's name/logo and when it was looked up
     window.deleteTeamInfo = async function (team) {
-      if (!confirm("Remove the saved name/logo for team " + team + "?")) return;
-      var r = await sb.from("team_info").delete().eq("team_number", team);
+      if (!confirm("Remove the saved name/logo for team " + team + "? TBA's name and logo, if it has them, show again.")) return;
+      var r = await sb.from("team_info").update({ team_name: null, logo_url: null, updated_by: meUid }).eq("team_number", team);
       if (r.error) { toast("Couldn't remove team info.", true); return; }
       toast("Removed team info for " + team + ".");
       loadTeamInfo();
@@ -2020,7 +2107,7 @@
     });
 
     // ── Boot ─────────────────────────────────────────────────────────
-    await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams(), loadTeamInfo()]);
+    await Promise.all([loadEvents(), loadFields(), loadCodes(), loadTestTeams()]);
     loadMembers();
     cleanUpPhotos();
     loadAuditLog(false);

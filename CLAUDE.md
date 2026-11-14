@@ -8,9 +8,8 @@ Public website and **1307scout** scouting app for FRC Team 1307 (St. Thomas Aqui
 Dover NH), hosted on GitHub Pages as three sites from this repo: robosaints1307.com
 (informational) and scout.robosaints1307.com (1307scout) from the `stable` branch, and
 beta.robosaints1307.com (experimental: the whole site, every page) from `master`. Plain static HTML/CSS/JS — no build
-step, no bundler, no framework, no `npm install` needed to work on it. `package.json`/
-`gulpfile.js` are leftovers from the original Bootstrap template and are not part of the
-workflow (see README "Local development" / "Credit").
+step, no bundler, no framework, no `npm install` needed to work on it. Don't add a `package.json`/lockfile back: the
+template's old ones were removed because their dev dependencies set off Dependabot alerts.
 
 Read `README.md` first — it has the site map (public pages vs. 1307scout) and the backend
 overview. This file adds the architecture detail the README doesn't go into.
