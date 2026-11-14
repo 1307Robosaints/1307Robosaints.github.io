@@ -160,7 +160,7 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
 - `portal.html` — staff-only admin: events, scouting form fields, share codes, teams (everyone
   waiting to be verified on any team, requests to manage a team, the quarantine switch, act as a team,
   take a disputed manager off a team, team names/logos, and test-team tags, all on one Teams tab), members
-  (each account's name, team status (verified, quarantined, turned down, no team, hasn't said), access level
+  (each account's name, team status (verified, quarantined, turned down, no team, pending), access level
   and last sign-in; double-click a name to change it, and type a team number in the Team box to put the
   account on that team, verified, or clear it to take them off their team; roles are set on Team Management), and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;

@@ -224,7 +224,8 @@
     select.level-guest   { background: var(--grey-bg); border-color: #9a9a9c; color: var(--grey); font-weight: 600; }
 
     /* Members tab, Team column: verified / quarantined badge and the Set team editor */
-    .team-state { display: inline-block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: .1rem .4rem; margin-right: .2rem; }
+    .team-state { display: inline-block; width: 6.6rem; text-align: center; font-size: .66rem; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: .03em; padding: .1rem .3rem; margin-right: .2rem; white-space: nowrap; }
     .team-state.st-verified   { background: var(--green-bg); color: var(--green); }
     .team-state.st-quarantine { background: var(--amber-bg); color: var(--amber); }
     .team-state.st-denied     { background: var(--red-bg); color: var(--red); }
@@ -244,6 +245,11 @@
     .team-box::-webkit-outer-spin-button, .team-box::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .team-box::placeholder { color: var(--muted); font-weight: 400; }
     .team-box:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+    .claim-note { font-size: .75rem; color: var(--amber); white-space: nowrap; }
+    .claim-note.denied { color: var(--red); }
+    /* Banned accounts: a red row (over the table's striping and hover) */
+    .scout-table.members-table tbody tr.mem-banned, .scout-table.members-table tbody tr.mem-banned:hover { background: var(--red-bg); }
+    .members-table tbody tr.mem-banned td { color: var(--red); }
 
     /* Audit Log tab — role badges reuse the same color family as the Members tab's level
        select above, so "staff" reads the same way in both places. */
@@ -876,7 +882,7 @@
              placeholder="Search by name, email or team number" aria-label="Search members">
       <select id="memberTeamState" class="custom-select custom-select-sm" aria-label="Only one team status">
         <option value="">Any team status</option><option value="on">Verified on a team</option><option value="pending">Quarantined (waiting)</option>
-        <option value="denied">Turned down</option><option value="none">Not on an FRC team</option><option value="unanswered">Hasn't said</option>
+        <option value="denied">Turned down</option><option value="none">Not on an FRC team</option><option value="unanswered">Pending (team not answered)</option>
         <option value="noname">No name</option>
       </select>
       <select id="memberLevel" class="custom-select custom-select-sm" aria-label="Only one access level">
@@ -2070,7 +2076,7 @@
       pending:    { label: "Quarantined", cls: "st-quarantine" },
       denied:     { label: "Turned down", cls: "st-denied" },
       none:       { label: "No team",     cls: "st-none" },
-      unanswered: { label: "Hasn't said", cls: "st-none" }
+      unanswered: { label: "Pending",     cls: "st-none" }   // hasn't answered the team question yet
     };
     function memberTeamState(m) {
       return m.team_number ? "on" : m.claim_status === "pending" ? "pending"
@@ -2081,10 +2087,17 @@
       td.setAttribute("data-sort", m.team_number ? String(m.team_number) : m.claim_team ? String(m.claim_team) : "");
       td.innerHTML = '<div class="mem-team"><span class="team-state ' + TEAM_STATE[st].cls + '">' + TEAM_STATE[st].label + "</span>" +
         '<input type="number" class="team-box" min="1" max="99999" aria-label="Team for ' + esc(m.email) + '"' +
-        ' value="' + esc(m.team_number || "") + '" placeholder="' + esc(m.claim_team || "—") + '"' +
+        ' value="' + esc(m.team_number || "") + '" placeholder="—"' +
         ' title="' + (m.team_number ? "Type a team and press Enter to move them; clear it to take them off the team"
-          : m.claim_team ? "Says team " + m.claim_team + ". Type a team and press Enter to verify them on it" : "Type a team and press Enter") + '"></div>';
+          : "Type a team and press Enter to put them on it, verified") + '">' +
+        // Quarantined or turned down: the team they said they're on, and a one-click Verify for it
+        (!m.team_number && m.claim_team && (st === "pending" || st === "denied")
+          ? '<span class="claim-note ' + st + '">claims <strong>' + m.claim_team + "</strong></span>" +
+            '<button type="button" class="btn-icon" data-verify-claim title="Put them on team ' + m.claim_team + ', verified">Verify</button>' : "") +
+        "</div>";
       var box = td.querySelector("input"), busy = false;
+      var vbtn = td.querySelector("[data-verify-claim]");
+      if (vbtn) vbtn.onclick = function () { box.value = m.claim_team; save(); };
       async function save() {
         var v = box.value.trim(), n = Number(v);
         if (busy || (v === "" ? !m.team_number : n === m.team_number)) { box.value = m.team_number || ""; return; }
@@ -2217,6 +2230,7 @@
       tr.appendChild(last);
       tr.appendChild(actions);
       tr.setAttribute("data-level", m.banned ? "banned" : m.level);
+      if (m.banned) tr.classList.add("mem-banned");
       return tr;
     }
     async function loadMembers() {
