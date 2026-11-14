@@ -1737,7 +1737,7 @@
           : expired
             ? '<span class="badge-inactive">Expired</span>'
             : off
-              ? '<span class="badge-inactive" title="Its maker isn't on a team any more">Off</span>'
+              ? '<span class="badge-inactive" title="Its maker is no longer on a team">Off</span>'
               : '<span class="badge-active">Active</span>';
         return '<div class="code-row' + (revoked || expired || off ? " revoked" : "") + '">' +
           '<span><strong>' + esc(c.label) + '</strong><br>' +
