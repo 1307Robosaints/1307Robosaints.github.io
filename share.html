@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/robosaintslogo.png">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Share Data – 1307scout</title>
+  <!-- Open connections early to the hosts this page needs before it can draw or load data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    .p-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 15px 2rem; }
+    .p-intro h1 { font-size: 1.7rem; margin: 0 0 .15rem; }
+    .p-intro h1::after { display: none; }
+    .p-intro p { font-size: .92rem; max-width: 760px; margin: 0 0 .75rem; }
+    .p-note { font-size: .82rem; color: var(--muted); margin: 0; }
+    .p-empty { padding: 1.5rem 1rem; text-align: center; color: var(--muted); background: var(--white); border: 1px dashed var(--line); }
+    .p-msg { font-size: .85rem; min-height: 1.2em; color: var(--red); }
+    .p-msg.ok { color: var(--green); }
+    .s-panel { background: var(--white); border: 1px solid var(--line); padding: 1rem 1.1rem; margin-bottom: 1rem; }
+    .s-panel h2 { font-size: 1.1rem; margin: 0 0 .75rem; }
+    .s-panel h2::after { display: none; }
+    .s-locked { background: var(--amber-bg); border: 1px solid var(--line); border-left: 4px solid var(--amber); padding: .6rem .8rem; margin-bottom: 1rem; font-size: .92rem; }
+
+    /* Event checklist and team-number chips, as on the Staff Portal's Share Codes tab */
+    .check-list { border: 1px solid var(--line); background: var(--white); max-height: 160px; overflow-y: auto; padding: .4rem .6rem; }
+    .check-list .custom-checkbox { margin-bottom: .15rem; }
+    .team-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
+    .team-chip { display: inline-flex; align-items: center; gap: .3rem; background: var(--tint); border: 1px solid var(--line); font-size: .8rem; padding: .1rem .3rem .1rem .55rem; }
+    .team-chip button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: .9rem; line-height: 1; padding: 0 .15rem; }
+    .team-chip button:hover { color: var(--red); }
+
+    /* Label | Scope | Created by | Expires | Uses | Status | Actions */
+    .code-row, .code-row-header { display: grid; grid-template-columns: 1.6fr 1.4fr 1fr .8fr .5fr .8fr 68px; gap: .5rem; align-items: center; padding: .55rem .75rem; }
+    .code-row { border-bottom: 1px solid var(--line); background: var(--white); font-size: .9rem; }
+    .code-row-header { background: var(--navy); color: #fff; font-family: var(--display); font-size: .8rem; font-weight: 600; }
+    .code-row.revoked { opacity: .5; }
+    .code-row.revoked strong { text-decoration: line-through; }
+    .row-actions { display: flex; gap: .3rem; justify-content: flex-end; }
+    .code-string { font-family: monospace; font-size: .8rem; background: var(--paper); padding: .1rem .4rem; border: 1px solid var(--line); letter-spacing: .03em; }
+    .btn-icon { background: none; border: 1px solid var(--line); color: var(--muted); padding: .2rem .5rem; font-size: .8rem; cursor: pointer; }
+    .btn-icon:hover { background: var(--tint); color: var(--heading); }
+    .btn-icon.danger:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+    .st { padding: .15rem .55rem; font-size: .75rem; font-family: var(--display); }
+    .st.active { background: var(--green-bg); color: var(--green); }
+    .st.off { background: var(--grey-bg); color: var(--grey); }
+    .st.revoked { background: var(--red-bg); color: var(--red); }
+    @media (max-width: 767px) {
+      .code-row, .code-row-header { grid-template-columns: 1fr auto 68px; }
+      .code-row > :nth-child(2), .code-row > :nth-child(3), .code-row > :nth-child(4), .code-row > :nth-child(5),
+      .code-row-header > :nth-child(2), .code-row-header > :nth-child(3), .code-row-header > :nth-child(4), .code-row-header > :nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">
+        <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+        St. Thomas Aquinas Robotics Team 1307
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+              aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Home</a>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+              <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+              <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+            </div>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+              <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+              <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+              <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+              <a class="dropdown-item" href="/results.html">Season Results</a>
+            </div>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/contact.html">Contact Us</a>
+          </li>
+
+          <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+              <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+              <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+              <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
+              <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+              <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
+              <div class="dropdown-divider" data-role="staff" hidden></div>
+              <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+            </div>
+          </li>
+
+          <li class="nav-item" id="authNavItem">
+            <a class="nav-link" href="/signin.html">Sign In</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+
+  <div class="p-page">
+    <div class="p-intro">
+      <h1>Share Data</h1>
+      <p class="text-muted">
+        Every team on 1307scout already sees all the scouting data. A share code lets someone who isn't on a
+        team here, such as an alliance partner, a parent or a team still waiting to be verified, see a slice of it:
+        one or more teams, one or more events, or both. They sign in with a free account and type the code or
+        scan its QR code. It works until it expires, you revoke it, or you leave your team.
+      </p>
+    </div>
+
+    <div class="s-locked" id="locked" hidden>Your team's managers have kept share codes to managers. Ask one of them for a code.</div>
+
+    <div class="s-panel" id="createPanel" hidden>
+      <h2>Make a share code</h2>
+      <div class="form-row">
+        <div class="form-group col-md-6">
+          <label for="cLabel">Label <span class="text-muted" style="font-weight:400;">(who it's for)</span></label>
+          <input type="text" id="cLabel" class="form-control" maxlength="80" placeholder="e.g. Team 254 at Pine Tree">
+        </div>
+        <div class="form-group col-md-3">
+          <label for="cExpiry">Expires</label>
+          <input type="date" id="cExpiry" class="form-control">
+        </div>
+        <div class="form-group col-md-3 d-flex align-items-end">
+          <button class="btn btn-primary w-100" id="cSave" type="button">Make code</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group col-md-6">
+          <label>Events</label>
+          <div class="check-list" id="cEventList"><div class="p-note">Loading…</div></div>
+        </div>
+        <div class="form-group col-md-6">
+          <label for="cTeamInput">Teams</label>
+          <div class="d-flex" style="gap:.4rem;">
+            <input type="number" id="cTeamInput" class="form-control" min="1" max="99999" placeholder="e.g. 254">
+            <button class="btn btn-outline-secondary" id="cTeamAdd" type="button">Add</button>
+            <button class="btn btn-outline-secondary" id="cTeamOurs" type="button" hidden>Our team</button>
+          </div>
+          <div class="team-chips" id="cTeamChips"></div>
+        </div>
+      </div>
+      <p class="p-note" id="cHelp">
+        Check at least one event or add at least one team. Both together share just those teams at those events.
+        Your code works through the end of the day it expires, and can last up to 90 days.
+      </p>
+      <div class="p-msg mt-2" id="cMsg" role="status"></div>
+    </div>
+
+    <h2 style="font-size:1.1rem;" id="listTitle">Your share codes</h2>
+    <div class="code-row-header">
+      <span>Label</span><span>Shares</span><span>Made by</span><span>Expires</span><span>Uses</span><span>Status</span><span></span>
+    </div>
+    <div id="codeList"><div class="p-empty">Loading…</div></div>
+    <p class="p-note mt-2">Anyone with an active code's link or QR code can see what it shares once they sign in. Revoke a code as soon as it's no longer needed.</p>
+  </div>
+
+  <!-- Link and QR code for one share code -->
+  <div class="modal fade" id="codeModal" tabindex="-1" role="dialog" aria-labelledby="codeModalTitle">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="codeModalTitle">Share code</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body text-center">
+          <div id="modalQR" class="qr-box d-inline-block mb-3"></div>
+          <p class="mb-2">Code: <span class="code-string" id="modalCode"></span></p>
+          <input id="modalUrl" class="form-control form-control-sm text-center" readonly style="font-size:.8rem;" aria-label="Share link">
+          <p class="text-muted mt-2 mb-0" style="font-size:.82rem;">
+            They open the link or scan the QR code, sign in (a free account works), and see what the code shares.
+            Or they type the code under View Shared Data on the Scout page.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="copyUrl">Copy link</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Official match data from the
+        <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">FIRST FRC Events API</a>
+        and <a href="https://www.thebluealliance.com" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">The Blue Alliance</a>.
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script src="/js/team.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+  <script>
+  // Share Data: any team member (or staff) makes share codes for data they can already see.
+  // share_codes in SQL section 5 enforces who can make them and the limits (90 days, 20 live
+  // codes); guests redeem them on scout.html through get_shared_scouting() (section 10).
+  (async function () {
+    var sb = RS.sb;
+    var $ = function (id) { return document.getElementById(id); };
+    var MAX_DAYS = 90;
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    function fmtDate(dt) {
+      return dt ? new Date(dt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never";
+    }
+    // A local YYYY-MM-DD for a date input, days from today
+    function dayInput(days) {
+      var d = new Date(); d.setDate(d.getDate() + days);
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+    function say(text, ok) { $("cMsg").textContent = text; $("cMsg").classList.toggle("ok", !!ok); }
+
+    // ── Access: team members and staff (the database checks again) ──
+    var s = await RS.session();
+    if (!s) { location.replace("signin.html"); return; }
+    var lvl = await RS.accessLevel();
+    if (lvl === null) return;
+    if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var team = await RS.team();
+    var isStaff = lvl === "staff";
+    if (!isStaff && (!team || !team.team_number)) { location.replace("team.html"); return; }
+    var OUR_TEAM = team && team.team_number;
+    var isManager = !!(team && team.role === "manager");
+    var canCreate = isStaff || RSTeam.can(team, "share_codes");
+
+    $("createPanel").hidden = !canCreate;
+    $("locked").hidden = canCreate;
+    if (isManager) $("listTitle").textContent = "Your team's share codes";
+
+    // ── Form: events, teams, expiry ─────────────────────────────────
+    var events = [], codes = [], teamNumbers = [];
+    var params = new URLSearchParams(location.search);
+    var askedTeam = parseInt(params.get("team"), 10);
+    if (askedTeam >= 1 && askedTeam <= 99999) teamNumbers.push(askedTeam);
+
+    if (OUR_TEAM) { $("cTeamOurs").hidden = false; $("cTeamOurs").textContent = "Add " + OUR_TEAM; }
+    // Staff codes have no limit, so their expiry can be left blank
+    $("cExpiry").min = dayInput(0);
+    if (!isStaff) { $("cExpiry").max = dayInput(MAX_DAYS); $("cExpiry").value = dayInput(14); $("cExpiry").required = true; }
+    else $("cHelp").textContent = "Check at least one event or add at least one team. Both together share just those teams at those events. As site staff, your codes can be left with no expiry.";
+
+    function renderChips() {
+      $("cTeamChips").innerHTML = teamNumbers.map(function (t) {
+        return '<span class="team-chip">' + t + '<button type="button" aria-label="Remove team ' + t + '" data-team="' + t + '">&times;</button></span>';
+      }).join("");
+    }
+    function addTeam(t) {
+      if (!(t >= 1 && t <= 99999)) { say("Enter a team number first."); return; }
+      if (teamNumbers.indexOf(t) === -1) teamNumbers.push(t);
+      renderChips();
+    }
+    $("cTeamChips").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-team]");
+      if (!b) return;
+      var t = Number(b.dataset.team);
+      teamNumbers = teamNumbers.filter(function (n) { return n !== t; });
+      renderChips();
+    });
+    $("cTeamAdd").addEventListener("click", function () { addTeam(parseInt($("cTeamInput").value, 10)); $("cTeamInput").value = ""; $("cTeamInput").focus(); });
+    $("cTeamInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); $("cTeamAdd").click(); } });
+    $("cTeamOurs").addEventListener("click", function () { addTeam(OUR_TEAM); });
+    renderChips();
+
+    function renderEvents() {
+      var asked = params.get("event");
+      $("cEventList").innerHTML = events.length ? events.map(function (ev) {
+        var id = "cEv_" + ev.id;
+        return '<div class="custom-control custom-checkbox">' +
+          '<input type="checkbox" class="custom-control-input" id="' + id + '" value="' + esc(ev.id) + '"' + (ev.id === asked ? " checked" : "") + ">" +
+          '<label class="custom-control-label" for="' + id + '">' + esc(ev.name) + (ev.event_date ? ' <span class="text-muted">(' + esc(ev.event_date) + ")</span>" : "") + "</label></div>";
+      }).join("") : '<div class="p-note">No events yet.</div>';
+    }
+
+    var saving = false;
+    $("cSave").addEventListener("click", async function () {
+      if (saving) return;
+      var label = $("cLabel").value.trim();
+      var eventIds = Array.from(document.querySelectorAll("#cEventList input:checked")).map(function (cb) { return cb.value; });
+      var day = $("cExpiry").value;
+      if (!label) { say("Give the code a label, such as who it's for."); return; }
+      if (!eventIds.length && !teamNumbers.length) { say("Check at least one event or add at least one team."); return; }
+      if (!day && !isStaff) { say("Pick when the code expires."); return; }
+      // Valid through the end of the chosen day, kept inside the 90-day limit
+      var expires = null;
+      if (day) {
+        var t = new Date(day + "T23:59:59");
+        if (!isStaff) t = new Date(Math.min(t.getTime(), Date.now() + MAX_DAYS * 864e5 - 60000));
+        if (t <= new Date()) { say("Pick a day from today on."); return; }
+        expires = t.toISOString();
+      }
+      saving = true; $("cSave").disabled = true;
+      var row = { label: label, event_ids: eventIds, team_numbers: teamNumbers, expires_at: expires };
+      if (OUR_TEAM) row.owner_team = OUR_TEAM;
+      var r = await sb.from("share_codes").insert(row).select("id").single();
+      saving = false; $("cSave").disabled = false;
+      if (r.error) { say("Couldn't make the code: " + r.error.message); return; }
+      $("cLabel").value = "";
+      document.querySelectorAll("#cEventList input:checked").forEach(function (cb) { cb.checked = false; });
+      teamNumbers = []; renderChips();
+      say("Code made.", true);
+      await loadCodes();
+      showCode(r.data.id);
+    });
+
+    // ── Codes list ───────────────────────────────────────────────────
+    function scopeText(c) {
+      var ev = (c.event_ids || []).map(function (id) { return (events.find(function (e) { return e.id === id; }) || {}).name || "an event"; });
+      var tm = (c.team_numbers || []).map(function (t) { return "Team " + t; });
+      if (ev.length && tm.length) return tm.join(", ") + " at " + ev.join(", ");
+      if (ev.length) return "Everyone at " + ev.join(", ");
+      return tm.join(", ") + " (all events)";
+    }
+    async function loadCodes() {
+      var r = await sb.rpc("list_share_codes");
+      if (r.error) { $("codeList").innerHTML = '<div class="p-empty">Couldn\'t load your codes. Try refreshing the page.</div>'; return; }
+      codes = r.data || [];
+      renderCodes();
+    }
+    function renderCodes() {
+      if (!codes.length) { $("codeList").innerHTML = '<div class="p-empty">No share codes yet.</div>'; return; }
+      var now = new Date();
+      $("codeList").innerHTML = codes.map(function (c) {
+        var expired = c.expires_at && new Date(c.expires_at) < now;
+        var live = !c.revoked && !expired && c.creator_ok;
+        var status = c.revoked ? '<span class="st revoked">Revoked</span>'
+          : expired ? '<span class="st off">Expired</span>'
+          : !c.creator_ok ? '<span class="st off" title="Its maker isn\'t on a team any more">Off</span>'
+          : '<span class="st active">Active</span>';
+        return '<div class="code-row' + (live ? "" : " revoked") + '">' +
+          "<span><strong>" + esc(c.label) + '</strong><br><span class="code-string">' + esc(c.code) + "</span></span>" +
+          "<span>" + esc(scopeText(c)) + "</span>" +
+          "<span>" + (c.mine ? "You" : esc(c.created_by_name)) + "</span>" +
+          "<span>" + fmtDate(c.expires_at) + "</span>" +
+          '<span title="' + (c.last_used_at ? "Last used " + esc(fmtDate(c.last_used_at)) : "Never used") + '">' + (c.use_count || 0) + "</span>" +
+          "<span>" + status + "</span>" +
+          '<span class="row-actions">' +
+            (live ? '<button class="btn-icon" type="button" data-show="' + c.id + '" title="Show link and QR code" aria-label="Show link and QR code for ' + esc(c.label) + '"><i class="fa fa-qrcode"></i></button>' : "") +
+            (!c.revoked ? '<button class="btn-icon danger" type="button" data-revoke="' + c.id + '" title="Revoke" aria-label="Revoke ' + esc(c.label) + '"><i class="fa fa-ban"></i></button>' : "") +
+          "</span></div>";
+      }).join("");
+    }
+    $("codeList").addEventListener("click", async function (e) {
+      var show = e.target.closest("[data-show]"), rev = e.target.closest("[data-revoke]");
+      if (show) showCode(show.dataset.show);
+      if (rev) {
+        var msg = "Anyone using it loses access right away.";
+        var yes = window.RSDialog ? await RSDialog.confirm(msg, { title: "Revoke this code?", ok: "Revoke", danger: true }) : confirm("Revoke this code? " + msg);
+        if (!yes) return;
+        var r = await sb.from("share_codes").update({ revoked: true }).eq("id", rev.dataset.revoke);
+        if (r.error) {
+          var err = "Couldn't revoke it: " + r.error.message;
+          if (window.RSDialog) RSDialog.alert(err, { title: "Not revoked" }); else alert(err);
+          return;
+        }
+        loadCodes();
+      }
+    });
+
+    function showCode(id) {
+      var c = codes.find(function (x) { return x.id === id; });
+      if (!c) return;
+      var url = new URL("/scout.html#code=" + c.code, location.href).href;
+      $("codeModalTitle").textContent = c.label;
+      $("modalCode").textContent = c.code;
+      $("modalUrl").value = url;
+      $("modalQR").innerHTML = "";
+      new QRCode($("modalQR"), { text: url, width: 180, height: 180 });
+      window.jQuery("#codeModal").modal("show");
+    }
+    $("copyUrl").addEventListener("click", function () {
+      var v = $("modalUrl").value;
+      if (navigator.clipboard) navigator.clipboard.writeText(v).then(function () { $("copyUrl").textContent = "Copied"; });
+      else { $("modalUrl").select(); document.execCommand("copy"); $("copyUrl").textContent = "Copied"; }
+      setTimeout(function () { $("copyUrl").textContent = "Copy link"; }, 1500);
+    });
+
+    // ── Start ────────────────────────────────────────────────────────
+    var ev = await sb.from("events").select("id,name,event_date").order("event_date", { ascending: false, nullsFirst: false });
+    events = ev.data || [];
+    renderEvents();
+    loadCodes();
+  })();
+  </script>
+</body>
+</html>

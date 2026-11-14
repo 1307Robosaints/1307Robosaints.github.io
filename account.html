@@ -181,6 +181,7 @@
                 <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
                 <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
                 <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -397,6 +398,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/alerts.js"></script>
   <script>
@@ -477,7 +479,7 @@
     }];
     if (isStaff) tiles.push({
       href: "/portal.html", icon: "fa-cog", cls: "staff-tile",
-      title: "Staff Portal", desc: "Configure events, form fields, and share codes"
+      title: "Staff Portal", desc: "Configure events, form fields, teams and members"
     });
     if (lvl !== null) tiles.push({
       href: "/team.html", icon: "fa-id-badge", cls: "",
@@ -488,6 +490,10 @@
     if (isStaff || isStudent) tiles.push({
       href: "/scout.html", icon: "fa-clipboard", cls: "",
       title: "Scout", desc: "Record match data at a competition"
+    });
+    if (isStaff || isStudent) tiles.push({
+      href: "/share.html", icon: "fa-share-alt", cls: "",
+      title: "Share Data", desc: "Make a share code for someone who isn't on a team here"
     }); else if (lvl !== null) tiles.push({
       href: "/scout.html", icon: "fa-search", cls: "",
       title: "View Shared Data", desc: "Enter a share code to view team scouting data"
@@ -694,15 +700,16 @@
       location.href = "/index.html";
     });
     $("signOutAllBtn").addEventListener("click", async function () {
-      if (!confirm("Sign out of every device, including this one?")) return;
+      if (!(await RSDialog.confirm("You'll be signed out of 1307scout on every device, including this one.",
+          { title: "Sign out everywhere", ok: "Sign out" }))) return;
       await RS.signOut({ scope: "global" });
       location.href = "/signin.html";
     });
 
     // ── Delete account ──────────────────────────────────────────────
     $("deleteAccountBtn").addEventListener("click", async function () {
-      var typed = prompt('This permanently deletes your account and everything tied to it. ' +
-        'This can\'t be undone. Type DELETE to confirm.');
+      var typed = await RSDialog.prompt("This permanently deletes your account and everything tied to it. It can't be undone.\n\nType DELETE to confirm.",
+        { title: "Delete your account", ok: "Delete account", danger: true, placeholder: "DELETE", match: "DELETE" });
       if (typed !== "DELETE") return;
       var msg = $("deleteMsg"), btn = this;
       btn.disabled = true;

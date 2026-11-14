@@ -24,8 +24,8 @@ and win over the copy for any event in both. It's in the About Us menu.
 
 **1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
 and the 1307scout menu and home page are split the same way:
-- **Data**, shared by every team: Team Database, Alliance View, Scout, Match Flags, Playoff Selection
-  and Playoff Bracket. Scouting entries, pit data, official results, flag reviews and playoff
+- **Data**, shared by every team: Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
+  Playoff Bracket and Share Data. Scouting entries, pit data, official results, flag reviews and playoff
   alliances belong to nobody in particular.
 - **My Team**, your own team's: Our Matches, Match Strategy, Pit Crew, Pick List, Scout Shifts and
   Team Management. Strategy plans, the robot log, the pick list and scout shifts carry an
@@ -54,6 +54,12 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   and shows vision's FUEL estimate as a hint (`js/visioncheck.js`). Offline, **Hand off by QR** shows
   each new draft as a QR code, and a scout who is online saves it with **Scan a scout's QR**, through
   `relay_scouting_entry()`: it stays the first scout's entry, with its own id, so it can't be saved twice.
+- `share.html` — Share Data: any team member (or staff) makes share codes (`share_codes`) for people not
+  on a team here: alliance partners, parents, a team still waiting for verification. A code covers the
+  teams and/or events picked, expires within 90 days (staff codes can be open-ended), and works only
+  while its maker is on a team. Up to 20 live codes each. Managers see and revoke all their team's codes
+  and can keep making them to managers (`share_codes` permission). The Team Database's **Share** button
+  opens it for that team. Guests redeem codes on the Scout page (`get_shared_scouting()`).
 - `shifts.html` — Scout Shifts: a team's managers give its members a driver-station seat for a range of
   qualification matches (`scout_shifts`), one at a time or as a rotation over the people ticked.
   Everyone sees the seat grid, with seats nobody has, and played seats nobody entered.
@@ -153,16 +159,17 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   site staff to manage a team. For a member, the team's roster and managers. For a manager: verify or
   turn down people waiting, invite by email, make members managers or take them off the team, make and
   revoke join codes and invite links, list the email domains that verify members at once, choose whether members or only managers can
-  change Match Strategy, Pit Crew, Pick List and Scout Shifts (`teams.settings.permissions`), and
+  change Match Strategy, Pit Crew, Pick List and Scout Shifts, and make share codes (`teams.settings.permissions`), and
   set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). Site staff search for a team
   by number or name to act as it. A team keeps at least
   one manager.
-- `portal.html` — staff-only admin: events, scouting form fields, share codes, teams (everyone
+- `portal.html` — staff-only admin: events, scouting form fields, every share code (including members'), teams (everyone
   waiting to be verified on any team, requests to manage a team, the quarantine switch, act as a team,
   take a disputed manager off a team, team names/logos, and test-team tags, all on one Teams tab), members
   (each account's name, team status (verified, quarantined, turned down, no team, pending), access level
-  and last sign-in; double-click a name to change it, and type a team number in the Team box to put the
-  account on that team, verified, or clear it to take them off their team; roles are set on Team Management), and an audit log of who changed what and when (staff,
+  and last sign-in; double-click a name to change it, type a team number in the Team box to put the account
+  on that team, verified (or clear it to take them off), and change access levels. These edits are highlighted
+  until Save changes applies them all at once, or Discard drops them; roles are set on Team Management), and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
   The clock button on an event row turns on competition-day auto-sync for that event.

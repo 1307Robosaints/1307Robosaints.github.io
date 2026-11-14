@@ -88,6 +88,9 @@
 -- Teams update: section 3b gives each FRC team its own members, managers (verified by site staff,
 -- then vouching for others), join codes and settings. Strategy plans, the robot log, the pick list
 -- and scout shifts belong to a team (owner_team); scouting data stays shared by every team.
+--
+-- Share codes update: any team member can make one (section 5, the Share Data page), not only
+-- staff. A code belongs to its creator and their team, and works only while the creator is on a team.
 -- =====================================================================
 
 
@@ -449,7 +452,8 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 -- Team features a manager can open to every member or keep to managers. Strategy and the pit
--- crew log start open; the pick list and scout shifts start with managers, as they were staff-only.
+-- crew log start open, and so do share codes; the pick list and scout shifts start with managers,
+-- as they were staff-only.
 create or replace function public.team_feature_default(p_feature text) returns text
 language sql immutable set search_path = '' as $$
   select case when p_feature in ('pick_list', 'scout_shifts') then 'managers' else 'members' end;
@@ -542,7 +546,7 @@ begin
       'settings', t.settings,
       'can', (select jsonb_object_agg(f, r.role = 'manager'
                  or coalesce(t.settings -> 'permissions' ->> f, public.team_feature_default(f)) = 'members')
-              from unnest(array['strategy','pit_crew','pick_list','scout_shifts']) f))
+              from unnest(array['strategy','pit_crew','pick_list','scout_shifts','share_codes']) f))
     into v_team
     from public.my_team_role() r
     join public.teams t on t.team_number = r.team_number
@@ -691,7 +695,7 @@ begin
 end $$;
 
 -- A manager saves the team's settings: who can change each feature, and the pit crew setup.
--- Shape: { permissions: { strategy|pit_crew|pick_list|scout_shifts: 'members'|'managers' },
+-- Shape: { permissions: { strategy|pit_crew|pick_list|scout_shifts|share_codes: 'members'|'managers' },
 --          pit: { checklist: [up to 30 items of up to 120 characters], low_volts: 10-14 } }
 create or replace function public.team_update_settings(p_settings jsonb)
 returns void language plpgsql security definer set search_path = '' as $$
@@ -705,7 +709,7 @@ begin
     raise exception 'Settings must be an object.';
   end if;
   if exists (select 1 from jsonb_each(v_perm) e
-             where e.key not in ('strategy','pit_crew','pick_list','scout_shifts')
+             where e.key not in ('strategy','pit_crew','pick_list','scout_shifts','share_codes')
                 or e.value not in ('"members"'::jsonb, '"managers"'::jsonb)) then
     raise exception 'Unknown permission setting.';
   end if;
@@ -1556,6 +1560,82 @@ alter table public.share_codes add constraint share_codes_check
 
 -- Re-point an existing table (created before the 8-digit code format) at the new default.
 alter table public.share_codes alter column code set default public.gen_share_code();
+
+-- Anyone on a team can share what they can see (every team sees all scouting data), so codes
+-- aren't staff-only any more. owner_team is the creator's team, whose managers can see and
+-- revoke the code. A code works only while its creator could still see the data themselves
+-- (share_code_creator_ok()), so leaving a team or a ban turns off that person's codes.
+alter table public.share_codes add column if not exists owner_team int check (owner_team between 1 and 99999);
+alter table public.share_codes alter column owner_team set default public.my_team();
+
+-- Could this account still see shared scouting data? Staff, or on a team. A null creator is a
+-- code from before created_by existed, all made by staff. Internal.
+create or replace function public.share_code_creator_ok(p_user uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_user is null
+      or exists (select 1 from public.staff_members s join auth.users u on u.id = s.user_id
+                 where s.user_id = p_user and u.email_confirmed_at is not null
+                   and (u.banned_until is null or u.banned_until <= now()))
+      or exists (select 1 from public.member_team(p_user));
+$$;
+revoke all on function public.share_code_creator_ok(uuid) from public, anon, authenticated;
+
+-- Limits on codes made by team members (staff have none): it must expire within 90 days, an
+-- account holds at most 20 live codes, and afterwards only its label, expiry and revoking can
+-- change. Not security definer, so current_user tells an API write ('authenticated') from
+-- get_shared_scouting() bumping the use count (runs as the function owner).
+create or replace function public.share_codes_guard() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if current_user <> 'authenticated' or public.is_staff() then return NEW; end if;
+  if (TG_OP = 'INSERT' or NEW.expires_at is distinct from OLD.expires_at)
+     and (NEW.expires_at is null or NEW.expires_at > now() + interval '90 days') then
+    raise exception 'A share code must expire within 90 days.';
+  end if;
+  if TG_OP = 'INSERT' then
+    NEW.created_by := auth.uid();
+    NEW.owner_team := public.my_team();
+    NEW.revoked := false;
+    NEW.use_count := 0;
+    NEW.last_used_at := null;
+    NEW.created_at := now();
+    if (select count(*) from public.share_codes c
+        where c.created_by = auth.uid() and not c.revoked
+          and (c.expires_at is null or c.expires_at > now())) >= 20 then
+      raise exception 'You have 20 active share codes. Revoke one you no longer need first.';
+    end if;
+  elsif (NEW.code, NEW.event_ids, NEW.team_numbers, NEW.created_by, NEW.owner_team, NEW.created_at,
+         NEW.use_count, NEW.last_used_at)
+        is distinct from
+        (OLD.code, OLD.event_ids, OLD.team_numbers, OLD.created_by, OLD.owner_team, OLD.created_at,
+         OLD.use_count, OLD.last_used_at)
+     or (OLD.revoked and not NEW.revoked) then
+    raise exception 'Only a share code''s label and expiry can change, or it can be revoked. Make a new code for a different scope.';
+  end if;
+  return NEW;
+end $$;
+revoke all on function public.share_codes_guard() from public, anon, authenticated;
+drop trigger if exists share_codes_guard on public.share_codes;
+create trigger share_codes_guard before insert or update on public.share_codes
+  for each row execute function public.share_codes_guard();
+
+-- Members make codes when their team allows it (team_can('share_codes'), every member by
+-- default) and see and revoke their own; managers see and revoke all of their team's.
+-- Only staff delete codes, so the use history stays.
+drop policy if exists "members read share codes"   on public.share_codes;
+drop policy if exists "members create share codes" on public.share_codes;
+drop policy if exists "members update share codes" on public.share_codes;
+create policy "members read share codes" on public.share_codes for select to authenticated
+  using (created_by = (select auth.uid())
+         or (owner_team = (select public.my_team()) and (select public.is_team_manager())));
+create policy "members create share codes" on public.share_codes for insert to authenticated
+  with check ((select public.is_student()) and (select public.team_can('share_codes'))
+              and created_by = (select auth.uid()) and owner_team = (select public.my_team()));
+create policy "members update share codes" on public.share_codes for update to authenticated
+  using (created_by = (select auth.uid())
+         or (owner_team = (select public.my_team()) and (select public.is_team_manager())))
+  with check (created_by = (select auth.uid())
+         or (owner_team = (select public.my_team()) and (select public.is_team_manager())));
 
 -- Failed share-code lookups, one row each, read and written only by get_shared_scouting()
 -- (section 10) to limit guessing. Rows are pruned as soon as they age out of the window.
@@ -3617,6 +3697,9 @@ grant execute on function public.photo_cleanup_paths() to authenticated;
 --     Reuses the scoring helpers from section 9 (jnum/jbool/rebuilt_*_points/pit_capability/
 --     event_tier_weight) so the math can't drift from the real ratings.
 --
+--     Any team member or staff can make a code (section 5), since they can already see all of
+--     this; it stops working once its creator couldn't (share_code_creator_ok()).
+--
 --     Codes are short, so guesses are limited: 10 wrong codes in 10 minutes locks that account
 --     out for the rest of the window, returning {"error":"rate_limited"}. Test teams are left
 --     out unless the code names them, so dummy data never reaches or skews a guest's view.
@@ -3655,6 +3738,7 @@ begin
   where c.code = p_code
     and not c.revoked
     and (c.expires_at is null or c.expires_at > now())
+    and public.share_code_creator_ok(c.created_by)   -- its creator can still see this data
   limit 1;
 
   if v_id is null then
@@ -3905,22 +3989,47 @@ $$;
 
 -- Staff Portal's Share Codes tab: same rows as a direct select on share_codes, plus who
 -- created each code (needs a join into auth.users, which a plain client select can't do).
+-- owner_team and creator_ok were added for member-made codes; older pages ignore them.
 drop function if exists public.staff_list_share_codes();
 create or replace function public.staff_list_share_codes()
 returns table (
   id uuid, code text, label text, event_ids uuid[], team_numbers int[],
   expires_at timestamptz, revoked boolean, created_at timestamptz,
   use_count int, last_used_at timestamptz,
-  created_by uuid, created_by_name text
+  created_by uuid, created_by_name text, owner_team int, creator_ok boolean
 )
 language sql stable security definer set search_path = '' as $$
   select c.id, c.code, c.label, c.event_ids, c.team_numbers,
          c.expires_at, c.revoked, c.created_at, c.use_count, c.last_used_at,
          c.created_by,
-         coalesce(public.account_name(u.raw_user_meta_data), u.email::text)
+         coalesce(public.account_name(u.raw_user_meta_data), u.email::text),
+         c.owner_team, public.share_code_creator_ok(c.created_by)
   from public.share_codes c
   left join auth.users u on u.id = c.created_by
   where public.is_staff()
+  order by c.created_at desc;
+$$;
+
+-- Share Data page (share.html): the caller's own codes, plus every code from their team when
+-- they manage it. Names only, no emails, as other teams' members don't see each other's.
+create or replace function public.list_share_codes()
+returns table (
+  id uuid, code text, label text, event_ids uuid[], team_numbers int[],
+  expires_at timestamptz, revoked boolean, created_at timestamptz,
+  use_count int, last_used_at timestamptz,
+  mine boolean, created_by_name text, creator_ok boolean
+)
+language sql stable security definer set search_path = '' as $$
+  select c.id, c.code, c.label, c.event_ids, c.team_numbers,
+         c.expires_at, c.revoked, c.created_at, c.use_count, c.last_used_at,
+         c.created_by = auth.uid(),
+         coalesce(public.account_name(u.raw_user_meta_data), 'A former member'),
+         public.share_code_creator_ok(c.created_by)
+  from public.share_codes c
+  left join auth.users u on u.id = c.created_by
+  where public.session_live()
+    and (c.created_by = auth.uid()
+         or (c.owner_team = public.my_team() and public.is_team_manager()))
   order by c.created_at desc;
 $$;
 
@@ -4100,6 +4209,7 @@ revoke all on function public.official_matches_skip_unchanged() from public, ano
 revoke all on function public.pit_capability(jsonb)        from public, anon;
 revoke all on function public.get_shared_scouting(text)    from public, anon;
 revoke all on function public.staff_list_share_codes()     from public, anon;
+revoke all on function public.list_share_codes()           from public, anon;
 revoke all on function public.validate_data(jsonb, text)    from public, anon;
 revoke all on function public.gen_share_code()              from public, anon;
 revoke all on function public.team_member_names(uuid[])     from public, anon;
@@ -4161,6 +4271,7 @@ grant execute on function public.official_lineups_for(int[])       to authentica
 grant execute on function public.team_data_counts()           to authenticated;
 grant execute on function public.get_shared_scouting(text)    to authenticated;
 grant execute on function public.staff_list_share_codes()     to authenticated;
+grant execute on function public.list_share_codes()           to authenticated;
 grant execute on function public.validate_data(jsonb, text)   to authenticated;
 grant execute on function public.gen_share_code()             to authenticated;
 grant execute on function public.team_member_names(uuid[])    to authenticated;
@@ -4518,7 +4629,8 @@ begin
     when 'scout_fields' then
       format('%s form field "%s"', v_verb, v_row ->> 'label')
     when 'share_codes' then
-      format('%s share code "%s"', v_verb, v_row ->> 'label')
+      format('%s share code "%s"%s', v_verb, v_row ->> 'label',
+        case when v_row ->> 'owner_team' is not null then ' (team ' || (v_row ->> 'owner_team') || ')' else '' end)
     when 'team_info' then
       format('%s team info: team %s', v_verb, v_row ->> 'team_number')
     when 'playoff_picks' then
@@ -4707,6 +4819,7 @@ begin
   delete from public.robot_log where created_by = target;
   delete from public.scout_shifts where user_id = target;
   delete from public.push_subscriptions where user_id = target;
+  update public.share_codes set revoked = true where created_by = target and not revoked;
 
   select coalesce(array_agg(o.name), '{}') into v_paths
     from storage.objects o
@@ -4793,7 +4906,8 @@ with expected(kind, name) as (values
   ('table','official_ratings_cache'), ('table','official_summary_cache'), ('function','refresh_official_cache'),
   ('table','official_opr_cache'), ('function','official_opr_fill'),
   ('table','official_cache_dirty'), ('function','official_matches_skip_unchanged'), ('function','official_matches_changed'),
-  ('function','staff_list_share_codes'), ('function','set_default_event'),
+  ('function','staff_list_share_codes'), ('function','list_share_codes'), ('function','share_code_creator_ok'),
+  ('function','share_codes_guard'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
   ('function','official_sync_request'), ('function','resync_default_event'), ('function','resync_status'),
   ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),

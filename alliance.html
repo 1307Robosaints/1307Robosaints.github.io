@@ -216,6 +216,7 @@
               <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
               <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -288,6 +289,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
@@ -530,8 +532,8 @@
       Alliance.remove(parseInt(btn.dataset.remove, 10));
       render();
     });
-    $("clearAll").addEventListener("click", function () {
-      if (!confirm("Remove all teams from both alliances?")) return;
+    $("clearAll").addEventListener("click", async function () {
+      if (!(await RSDialog.confirm("Remove all teams from both alliances?", { title: "Clear alliances", ok: "Clear", danger: true }))) return;
       Alliance.clear();
       render();
     });

@@ -393,6 +393,7 @@
               <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
               <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -502,7 +503,7 @@
     <div class="guest-wrap">
       <div class="guest-card mt-3">
         <h1 style="font-size:1.5rem;">View Shared Data</h1>
-        <p class="text-muted">Enter the 8-digit share code you received from Team 1307.</p>
+        <p class="text-muted">Enter the 8-digit share code a team member gave you.</p>
         <div class="form-group">
           <label for="guestCode">Share code</label>
           <input type="text" id="guestCode" class="form-control" maxlength="8" inputmode="numeric" pattern="[0-9]*" placeholder="Enter code">
@@ -621,6 +622,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
@@ -824,8 +826,9 @@
           loadEntries();
         }
         // Retrying won't help these, and they'd block nothing but stay forever, so ask
-        if (rejected.length && confirm(rejected.length + " saved draft" + (rejected.length > 1 ? "s were" : " was") +
-            " rejected by the server (" + reason + "). Discard? Cancel keeps a copy on this device.")) {
+        if (rejected.length && await RSDialog.confirm(rejected.length + " saved draft" + (rejected.length > 1 ? "s were" : " was") +
+            " rejected by the server (" + reason + "). Discard " + (rejected.length > 1 ? "them" : "it") + "? Keep saves a copy on this device.",
+            { title: "Drafts not accepted", ok: "Discard", cancel: "Keep", danger: true })) {
           removeDrafts(rejected);
         }
         // Still shown after a reload, so a scout knows entries are waiting on this device
@@ -1928,8 +1931,8 @@
       var cur = await sb.from("pit_entries").select("updated_at")
         .eq("event_id", saveEvent.id).eq("team_number", team).maybeSingle();
       if (cur.data && (!loaded || cur.data.updated_at !== loaded.updated_at)) {
-        if (!confirm("Someone else saved a pit entry for team " + team + " after this page loaded it. " +
-            "Replace theirs with yours? Cancel to go back without saving.")) {
+        if (!(await RSDialog.confirm("Someone else saved a pit entry for team " + team + " after this page loaded it. " +
+            "Replace theirs with yours? Cancel goes back without saving.", { title: "Pit entry changed", ok: "Replace theirs" }))) {
           loadEntries();
           return;
         }
@@ -1971,7 +1974,7 @@
     };
 
     window.deleteEntry = async function(id) {
-      if (!confirm("Delete this entry?")) return;
+      if (!(await RSDialog.confirm("Delete this match entry?", { title: "Delete entry", ok: "Delete", danger: true }))) return;
       var r = await sb.from("scouting_entries").delete().eq("id", id).select("id");
       if (r.error || !r.data.length) { toast("Couldn't delete entry.", true); return; }
       toast("Entry deleted.");
@@ -1994,7 +1997,7 @@
     };
 
     window.deletePit = async function(id) {
-      if (!confirm("Delete this pit entry?")) return;
+      if (!(await RSDialog.confirm("Delete this pit entry?", { title: "Delete pit entry", ok: "Delete", danger: true }))) return;
       var r = await sb.from("pit_entries").delete().eq("id", id).select("id");
       if (r.error || !r.data.length) { toast("Couldn't delete pit entry.", true); return; }
       toast("Pit entry deleted.");

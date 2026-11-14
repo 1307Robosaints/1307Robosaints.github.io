@@ -51,7 +51,7 @@
   // Supabase comes from a CDN that ad blockers and school filters can block. Public pages work
   // without it; the app pages would otherwise hang, so tell the person what happened.
   if (!window.supabase) {
-    if (/\/(1307scout|account|alliance|bracket|flags|matches|picklist|pitcrew|playoffs|portal|query|scout|shifts|signin|strategy|team)(\.html)?$/.test(location.pathname)) {
+    if (/\/(1307scout|account|alliance|bracket|flags|matches|picklist|pitcrew|playoffs|portal|query|scout|share|shifts|signin|strategy|team)(\.html)?$/.test(location.pathname)) {
       showNote("1307scout couldn't load its sign-in service. Check your connection, " +
         "turn off any ad blocker for this site, or try a different network, then refresh.");
     }

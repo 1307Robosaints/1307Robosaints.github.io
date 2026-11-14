@@ -150,6 +150,7 @@
               <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
               <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -254,6 +255,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/ratings.js"></script>
   <script src="/js/schedule.js"></script>
@@ -415,7 +417,7 @@
 
     // A rotation: each block of matches seats the next (up to) six people from the list in turn.
     // Seats or people already busy in a block are skipped, so it fits around shifts already given out.
-    $("rotMake").addEventListener("click", function () {
+    $("rotMake").addEventListener("click", async function () {
       var picked = Array.from($("rotPeople").querySelectorAll("input:checked")).map(function (c) { return c.value; });
       var first = Number($("rFirst").value), last = Number($("rLast").value), block = Number($("rBlock").value);
       if (!picked.length) { say("rotMsg", "Tick at least one scout."); return; }
@@ -440,7 +442,7 @@
         });
       }
       if (!rows.length) { say("rotMsg", "Every seat in that range is already taken."); return; }
-      if (!confirm("Add " + rows.length + " shifts for quals " + first + "–" + last + "?")) return;
+      if (!(await RSDialog.confirm("Add " + rows.length + " shifts for quals " + first + "–" + last + "?", { title: "Add shifts", ok: "Add shifts" }))) return;
       addShifts(rows, "rotMsg");
     });
 
@@ -452,7 +454,7 @@
       load();
     });
     $("clearAll").addEventListener("click", async function () {
-      if (!shifts.length || !confirm("Remove all " + shifts.length + " shifts at this event?")) return;
+      if (!shifts.length || !(await RSDialog.confirm("Remove all " + shifts.length + " shifts at this event?", { title: "Clear shifts", ok: "Remove all", danger: true }))) return;
       var r = await sb.from("scout_shifts").delete().eq("event_id", eventId);
       if (r.error) { say("shiftMsg", "Couldn't remove them: " + r.error.message); return; }
       load();

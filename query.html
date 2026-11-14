@@ -325,6 +325,7 @@
               <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
               <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -433,6 +434,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
@@ -1313,7 +1315,10 @@
         exportButtonsHtml() +
         '<button type="button" class="btn btn-outline-secondary btn-sm offline-btn" data-offline-team="' + team + '" ' +
           'title="Save this team\'s page as a file that opens without a connection">' +
-          '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>';
+          '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>' +
+        '<a class="btn btn-outline-secondary btn-sm" href="/share.html?team=' + team + '" ' +
+          'title="Make a share code for someone who isn't on a team here">' +
+          '<i class="fa fa-share-alt" aria-hidden="true"></i> Share</a>';
     }
     // Offline copy of the open team (js/offline.js). Leaves out the controls and the back link.
     $("detail").addEventListener("click", function (e) {
@@ -1481,7 +1486,7 @@
         var id = btn.dataset.event;
         var r = await RSRatings.pagedRows(function () { return sb.from("scouting_entries").select("*").eq("event_id", id).order("id"); });
         btn.disabled = false;
-        if (r.error) { alert("Couldn't load the entries: " + r.error.message); return; }
+        if (r.error) { RSDialog.alert("Couldn't load the entries: " + r.error.message, { title: "Export failed" }); return; }
         exportMatches(evName(id) + " scouting", r.data);
         return;
       }

@@ -399,6 +399,7 @@
                 <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
                 <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
                 <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -474,7 +475,7 @@
             <div class="feature-card">
               <div class="feature-icon"><i class="fa fa-qrcode"></i></div>
               <h3>Scoped share codes</h3>
-              <p>Generate a QR code scoped to one team, one event, or both. Set an expiry, hand it to an alliance partner, and revoke it when the match is over.</p>
+              <p>Any team member can make a QR code scoped to one team, one event, or both. Set an expiry, hand it to an alliance partner, a parent or a team still waiting to be verified, and revoke it when you're done.</p>
             </div>
           </div>
         </div>
@@ -494,19 +495,19 @@
           <div class="col-12 col-lg-7">
             <div class="tier-item">
               <strong>Site staff</strong>
-              <p>Set up events and form fields, manage share codes, enter playoff alliances, verify team managers, and review an audit log of who changed what. Access is granted by allowlist.</p>
+              <p>Set up events and form fields, oversee share codes, enter playoff alliances, verify team managers, and review an audit log of who changed what. Access is granted by allowlist.</p>
             </div>
             <div class="tier-item">
               <strong>Team managers</strong>
-              <p>Run their own team on Team Management: verify people who say they're on the team, invite members by email or link, list the school email domain that verifies members at once, make other members managers, choose who can change the team's strategy plans, pick list, pit crew log and scout shifts, and set up the pit crew checklist. Site staff confirm a team's first manager with the team before approving them.</p>
+              <p>Run their own team on Team Management: verify people who say they're on the team, invite members by email or link, list the school email domain that verifies members at once, make other members managers, choose who can change the team's strategy plans, pick list, pit crew log and scout shifts and who can make share codes, see and revoke every share code the team has made, and set up the pit crew checklist. Site staff confirm a team's first manager with the team before approving them.</p>
             </div>
             <div class="tier-item">
               <strong>Team members</strong>
-              <p>Tell us your team when you sign up. You're verified right away from your school email if your team listed its domain, or by an invitation or join code; otherwise you're a guest until one of its managers verifies you. Scouting data is shared by every team: enter match data and look up any team's history, robot parameters, official results, and letter-grade rating. Your team's strategy plans, pick list, pit crew log and scout shifts are seen only by your team.</p>
+              <p>Tell us your team when you sign up. You're verified right away from your school email if your team listed its domain, or by an invitation or join code; otherwise you're a guest until one of its managers verifies you. Scouting data is shared by every team: enter match data and look up any team's history, robot parameters, official results, and letter-grade rating, and make share codes so people who aren't on a team here can see part of it. Your team's strategy plans, pick list, pit crew log and scout shifts are seen only by your team.</p>
             </div>
             <div class="tier-item">
               <strong>Guests</strong>
-              <p>Alliance partners and other teams use a share code to view specific data — a single team's record, or a whole event — without seeing anything else.</p>
+              <p>Anyone not on a verified team (yet) can use a share code from a team member to view specific data — a single team's record, or a whole event — without seeing anything else.</p>
             </div>
           </div>
         </div>
@@ -719,7 +720,8 @@
         tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event"),
         tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next"),
         tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Track alliances as they form and rank the teams still available"),
-        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results")
+        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results"),
+        tile("/share.html", "fa-share-alt", "Share Data", "Make a share code so someone who isn't on a team here can see a team or an event")
       ] });
     }
     if (isTeam && MY_TEAM) {
@@ -737,7 +739,7 @@
     }
     if (!isTeam) {
       groups.push({ label: "Data access", tiles: [
-        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from a team"),
+        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from a team member"),
         tile("/team.html", "fa-id-badge", "Join or manage a team", "Join your team with a code from its managers, or ask to manage your team")
       ] });
     }

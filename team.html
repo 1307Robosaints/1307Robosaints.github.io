@@ -143,6 +143,7 @@
               <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
               <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -367,6 +368,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/tables.js"></script>
   <script src="/js/team.js"></script>
@@ -493,9 +495,9 @@
     }
     document.addEventListener("click", async function (e) {
       var b = e.target.closest("[data-withdraw]");
-      if (!b || !confirm("Withdraw your request?")) return;
+      if (!b || !(await RSDialog.confirm("Withdraw your request to manage this team?", { title: "Withdraw request", ok: "Withdraw" }))) return;
       var r = await sb.from("team_manager_requests").delete().eq("id", Number(b.dataset.withdraw));
-      if (r.error) { alert("Couldn't withdraw it: " + errText(r.error)); return; }
+      if (r.error) { RSDialog.alert("Couldn't withdraw it: " + errText(r.error), { title: "Not withdrawn" }); return; }
       reload();
     });
 
@@ -624,11 +626,12 @@
       say("rosterMsg", r.error ? errText(r.error) : to === "removed" ? p.name + " is off the team." : p.name + " is a " + to + " now.", !r.error);
       loadRoster();
     }
-    $("roster").addEventListener("change", function (e) {
+    $("roster").addEventListener("change", async function (e) {
       var sel = e.target.closest("[data-role-sel]");
       if (!sel) return;
       var p = roster.find(function (x) { return x.user_id === sel.dataset.user; });
-      if (sel.value === "manager" && !confirm("Make " + p.name + " a manager? Managers can add and remove members, and change every team setting.")) {
+      if (sel.value === "manager" && !(await RSDialog.confirm("Make " + p.name + " a manager? Managers can add and remove members, and change every team setting.",
+          { title: "Make manager", ok: "Make manager" }))) {
         sel.value = p.role; return;
       }
       setRole(p, sel.value);
@@ -641,7 +644,7 @@
       var ask = to === "removed" ? "Take " + p.name + " off the team? They keep their account and scouting entries, and a claim back to your team waits for a manager."
               : to === "manager" ? "Make " + p.name + " a manager? Managers can add and remove members, and change every team setting."
               : "Make " + p.name + " a member instead of a manager?";
-      if (!confirm(ask)) return;
+      if (!(await RSDialog.confirm(ask, to === "removed" ? { title: "Remove from team", ok: "Remove", danger: true } : { title: "Change role", ok: "Change" }))) return;
       setRole(p, to);
     });
     await loadRoster();
@@ -691,11 +694,13 @@
         if (!b) return;
         var p = pending.find(function (x) { return x.user_id === b.dataset.user; }), r, note = null;
         if (b.dataset.deny) {
-          note = prompt("Turn down " + p.name + "? Optional note (they'll see it):", "");
+          note = await RSDialog.prompt("Turn down " + p.name + "? You can add a note; they'll see it.",
+            { title: "Not on our team", ok: "Turn down", danger: true, placeholder: "Optional note", maxLength: 300 });
           if (note === null) return;
           r = await sb.rpc("verify_team_claim", { target: p.user_id, p_approve: false, p_role: "member", p_note: note || null });
         } else {
-          if (b.dataset.verify === "manager" && !confirm("Verify " + p.name + " as a manager? Managers can change every team setting.")) return;
+          if (b.dataset.verify === "manager" && !(await RSDialog.confirm("Verify " + p.name + " as a manager? Managers can change every team setting.",
+              { title: "Verify as manager", ok: "Verify" }))) return;
           r = await sb.rpc("verify_team_claim", { target: p.user_id, p_approve: true, p_role: b.dataset.verify, p_note: null });
         }
         say("pendingMsg", r.error ? errText(r.error) : b.dataset.deny ? "Turned down." : p.name + " is on the team.", !r.error);
@@ -774,7 +779,7 @@
           return;
         }
         if (b.dataset.revoke) {
-          if (!confirm("Revoke this code? Nobody else can join with it or its link.")) return;
+          if (!(await RSDialog.confirm("Nobody else can join with this code or its link.", { title: "Revoke code", ok: "Revoke", danger: true }))) return;
           r = await sb.from("team_join_codes").update({ revoked: true }).eq("code", b.dataset.revoke);
         } else {
           r = await sb.from("team_join_codes").delete().eq("code", b.dataset.delcode);
@@ -797,8 +802,8 @@
       $("domForm").addEventListener("submit", async function (e) {
         e.preventDefault();
         var d = $("domName").value.trim();
-        if (!confirm("Verify everyone who says they're on team " + MY_TEAM + " and signs in with an @" + d.replace(/^@/, "") +
-          " email? Only add a domain your school or team controls.")) return;
+        if (!(await RSDialog.confirm("Verify everyone who says they're on team " + MY_TEAM + " and signs in with an @" + d.replace(/^@/, "") +
+          " email? Only add a domain your school or team controls.", { title: "Add domain", ok: "Add domain" }))) return;
         var r = await sb.rpc("team_add_domain", { p_domain: d });
         if (r.error) { say("domMsg", errText(r.error)); return; }
         say("domMsg", "Added." + (r.data ? " " + r.data + " waiting " + (r.data === 1 ? "person was" : "people were") + " verified." : ""), true);
@@ -807,7 +812,8 @@
       });
       $("domains").addEventListener("click", async function (e) {
         var b = e.target.closest("[data-undomain]");
-        if (!b || !confirm("Stop verifying @" + b.dataset.undomain + " emails? People already on the team stay on it.")) return;
+        if (!b || !(await RSDialog.confirm("Stop verifying @" + b.dataset.undomain + " emails? People already on the team stay on it.",
+            { title: "Remove domain", ok: "Remove", danger: true }))) return;
         var r = await sb.rpc("team_remove_domain", { p_domain: b.dataset.undomain });
         if (r.error) say("domMsg", errText(r.error));
         loadDomains();
@@ -848,7 +854,8 @@
 
     // ── Leaving ──────────────────────────────────────────────────────
     $("leaveBtn").addEventListener("click", async function () {
-      if (!confirm("Leave team " + MY_TEAM + "? You'll be asked which team you're on again.")) return;
+      if (!(await RSDialog.confirm("You'll lose your team's pages and be asked which team you're on again.",
+          { title: "Leave team " + MY_TEAM, ok: "Leave team", danger: true }))) return;
       var r = await sb.rpc("team_leave");
       if (r.error) { say("leaveMsg", errText(r.error)); return; }
       try { localStorage.removeItem("rs_team_" + me); } catch (e) {}

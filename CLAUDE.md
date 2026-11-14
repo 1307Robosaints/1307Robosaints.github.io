@@ -43,7 +43,10 @@ backward compatible with it (add, don't rename or drop; remove the old thing in 
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `theme.js`, `contact-config.js`,
 `contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `visioncheck.js`, `schedule.js`, `alerts.js`,
-`resync.js`, `offline.js`, `history.js`, `team.js`, `tables.js`, plus the vendored `jqBootstrapValidation.js`).
+`resync.js`, `offline.js`, `history.js`, `team.js`, `tables.js`, `dialog.js`, plus the vendored `jqBootstrapValidation.js`).
+`dialog.js` (`RSDialog.confirm/prompt/alert`, each returning a promise) is the site's own dialog: use it
+instead of the browser's `confirm()`/`prompt()`/`alert()`, with `danger: true` for anything destructive
+(the only exception is the offline pick board in `offline.js`, which can't load other files).
 `tables.js` (`RSTables`) makes any `<table data-sortable="key">` sortable by clicking its headers (arrows show the
 column and direction; `data-sort` on a cell overrides its text) and filterable by an
 `<input data-table-search="key">` box or `RSTables.setFilter(key, fn)`. It re-applies itself when a page redraws the
@@ -68,7 +71,7 @@ Playoff Selection). `vision.js` holds the labels for the vision worker's per-rob
 grade, alliance-grade and win-chance math, and the loader for it, used by `alliance.html`,
 `playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
 to a page (`scout.html`, `query.html`, `flags.html`, `alliance.html`, `matches.html`, `playoffs.html`,
-`bracket.html`, `strategy.html`, `shifts.html`, `picklist.html`, `pitcrew.html`, `results.html`, `portal.html`,
+`bracket.html`, `strategy.html`, `shifts.html`, `share.html`, `picklist.html`, `pitcrew.html`, `results.html`, `portal.html`,
 `account.html`, `team.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
@@ -220,8 +223,12 @@ Key tables/functions to know when touching 1307scout:
   only, called by `manage-member` and `delete-account`, which then remove the photo files it
   returns through the Storage API.
 - `share_codes` — revocable, optionally-expiring codes that give a signed-in guest a slice of
-  data (read via the `get_shared_scouting()` RPC). Wrong guesses are throttled per account
-  through `share_code_attempts`.
+  data (read via the `get_shared_scouting()` RPC). Any team member makes them on `share.html`
+  (`team_can('share_codes')`), since every team already sees the shared scouting data; staff see all
+  of them in the portal. `share_codes_guard()` limits members' codes (90-day expiry, 20 live, scope
+  fixed once made), `owner_team` lets the creator's managers revoke them, and a code only works while
+  `share_code_creator_ok()` (its maker is staff or on a team). Wrong guesses are throttled per
+  account through `share_code_attempts`. Team-owned data is never in a share code.
 - `official_matches` / the per-team views in section 8 — official FRC Events + The Blue Alliance
   results, written only by the `official-sync` Edge Function (service role); staff/students can
   read, nobody writes through the normal API. The table holds a full season, so look up a

@@ -739,3 +739,19 @@ th.rs-asc .rs-up, th.rs-desc .rs-down { opacity: 1; color: var(--blue); }
 .rs-tools .rs-search { flex: 1 1 16rem; max-width: 26rem; }
 .rs-tools select { width: auto; max-width: 18rem; }
 .scout-table thead th.rs-sortable:hover, .scout-table thead th.rs-sortable:focus-visible { color: #fff; text-decoration: underline; }
+
+/* ---------------------------------------------------------------------
+   Dialogs (js/dialog.js): the site's confirm / prompt / alert
+--------------------------------------------------------------------- */
+.rs-dialog-back { position: fixed; inset: 0; z-index: 3100; display: flex; align-items: center; justify-content: center;
+                  padding: 16px; background: rgba(10, 20, 40, .55); animation: rs-dialog-fade .12s ease-out; }
+.rs-dialog { width: 100%; max-width: 440px; background: var(--white); color: var(--ink); border: 1px solid var(--line);
+             border-top: 4px solid var(--blue); box-shadow: 0 14px 44px rgba(0, 0, 0, .3); padding: 1.1rem 1.25rem 1rem; }
+.rs-dialog.danger { border-top-color: var(--red); }
+.rs-dialog-title { font-size: 1.1rem; margin: 0 0 .45rem; color: var(--heading); }
+.rs-dialog-title::after { display: none; }
+.rs-dialog-msg { font-size: .9rem; margin: 0 0 .9rem; white-space: pre-line; max-width: none; color: var(--ink); }
+.rs-dialog-input { margin: -.3rem 0 .9rem; }
+.rs-dialog-buttons { display: flex; justify-content: flex-end; gap: .5rem; }
+@keyframes rs-dialog-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .rs-dialog-back { animation: none; } }

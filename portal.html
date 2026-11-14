@@ -246,6 +246,13 @@
     .team-box::placeholder { color: var(--muted); font-weight: 400; }
     .team-box:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
     .claim-note { font-size: .75rem; color: var(--amber); white-space: nowrap; }
+    /* Staged (unsaved) edits, and the save bar that stays in view while there are any */
+    .members-table td.mem-changed { box-shadow: inset 3px 0 0 var(--amber); background: var(--amber-bg); }
+    .members-table td.mem-changed .team-box { border-color: var(--amber); }
+    .mem-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .5rem .6rem; background: var(--white);
+                   border: 1px solid var(--line); }
+    .mem-savebar.has-changes { position: sticky; bottom: 0; z-index: 5; border-color: var(--amber); box-shadow: 0 -4px 14px rgba(0,0,0,.12); }
+    .mem-savebar.has-changes #memPendingText { color: var(--amber) !important; font-weight: 600; }
     .claim-note.denied { color: var(--red); }
     /* Banned accounts: a red row (over the table's striping and hover) */
     .scout-table.members-table tbody tr.mem-banned, .scout-table.members-table tbody tr.mem-banned:hover { background: var(--red-bg); }
@@ -447,6 +454,7 @@
               <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
               <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
               <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
@@ -692,7 +700,8 @@
         <p class="text-muted mb-0" style="font-size:.82rem;">
           Check at least one event or add at least one team — a code can't be scoped to nothing.
           Combine both to cover, say, one team across several events. Set an expiry for codes
-          you hand to outside teams.
+          you hand to outside teams. Team members make their own codes on <a href="/share.html">Share Data</a>;
+          every code, theirs included, is listed below with the maker's team.
         </p>
       </div>
 
@@ -896,10 +905,15 @@
         <tbody id="memberRows"></tbody>
       </table>
     </div>
-    <div class="d-flex align-items-center" style="gap:.5rem;">
+    <!-- Name, team and access changes wait here until Save (stays in view while there are some) -->
+    <div class="mem-savebar" id="memSaveBar">
+      <button class="btn btn-primary btn-sm" id="memSave" type="button" disabled>Save changes</button>
+      <button class="btn btn-outline-secondary btn-sm" id="memDiscard" type="button" disabled>Discard</button>
+      <span class="small text-muted" id="memPendingText">No unsaved changes.</span>
+      <span class="flex-grow-1"></span>
       <button class="btn btn-outline-secondary btn-sm" id="refreshMembers" type="button">Refresh</button>
-      <span id="memberMsg" class="small" role="status" aria-live="polite"></span>
     </div>
+    <div class="small mt-1" id="memberMsg" role="status" aria-live="polite"></div>
   </div>
 </div>
 
@@ -1096,6 +1110,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/tables.js"></script>
   <script src="/js/teams.js"></script>
@@ -1445,8 +1460,8 @@
       var btn = this;
       var linked = events.filter(function (ev) { return ev.frc_event_code || ev.tba_event_key; });
       if (!linked.length) { toast("No events are linked to an FRC/TBA code yet.", true); return; }
-      if (!confirm("Resync all " + linked.length + " linked event" + (linked.length === 1 ? "" : "s") + "?\n\n" +
-        "Events sync one at a time, so this can take a long time. Keep this page open until it finishes.")) return;
+      if (!(await RSDialog.confirm("Resync all " + linked.length + " linked event" + (linked.length === 1 ? "" : "s") + "?\n\n" +
+        "Events sync one at a time, so this can take a long time. Keep this page open until it finishes.", { title: "Resync events", ok: "Resync" }))) return;
       btn.disabled = true;
       var okCount = 0, failed = [];
       for (var i = 0; i < linked.length; i++) {
@@ -1537,9 +1552,9 @@
         return sb.from(t).select("id", { count: "exact", head: true }).eq("event_id", id);
       }));
       var n = counts.map(function (c) { return c.count == null ? "an unknown number of" : c.count; });
-      var typed = prompt('This permanently deletes "' + ev.name + '" along with ' + n[0] + " match entries, " +
-        n[1] + " pit entries, and " + n[2] + " official match rows. This can't be undone.\n\n" +
-        "Type the event name to confirm:");
+      var typed = await RSDialog.prompt('This permanently deletes "' + ev.name + '" along with ' + n[0] + " match entries, " +
+        n[1] + " pit entries, and " + n[2] + " official match rows. It can't be undone.\n\n" +
+        "Type the event name to confirm:", { title: "Delete event", ok: "Delete event", danger: true, placeholder: ev.name, match: ev.name.trim() });
       if (typed === null) return;
       if (typed.trim() !== ev.name.trim()) { toast("That didn't match the event name. Nothing was deleted.", true); return; }
       var r = await sb.from("events").delete().eq("id", id).select("id");
@@ -1715,22 +1730,26 @@
       el.innerHTML = codes.map(function (c) {
         var expired = c.expires_at && new Date(c.expires_at) < now;
         var revoked = c.revoked;
+        // creator_ok false: its maker left their team or was banned, so the code no longer works
+        var off = c.creator_ok === false;
         var badge = revoked
           ? '<span class="badge-revoked">Revoked</span>'
           : expired
             ? '<span class="badge-inactive">Expired</span>'
-            : '<span class="badge-active">Active</span>';
-        return '<div class="code-row' + (revoked || expired ? " revoked" : "") + '">' +
+            : off
+              ? '<span class="badge-inactive" title="Its maker isn't on a team any more">Off</span>'
+              : '<span class="badge-active">Active</span>';
+        return '<div class="code-row' + (revoked || expired || off ? " revoked" : "") + '">' +
           '<span><strong>' + esc(c.label) + '</strong><br>' +
             '<span class="code-string">' + esc(c.code) + '</span>' +
           '</span>' +
           '<span>' + esc(scopeLabel(c)) + '</span>' +
-          '<span>' + esc(c.created_by_name || "—") + '</span>' +
+          '<span>' + esc(c.created_by_name || "—") + (c.owner_team ? ' <span class="text-muted">(' + c.owner_team + ')</span>' : '') + '</span>' +
           '<span>' + fmtDT(c.expires_at) + '</span>' +
           '<span title="' + (c.last_used_at ? "Last used " + esc(fmtDT(c.last_used_at)) : "Never used") + '">' + (c.use_count || 0) + '</span>' +
           '<span>' + badge + '</span>' +
           '<span class="row-actions">' +
-            (!revoked && !expired ? '<button class="btn-icon" title="Show link and QR code" aria-label="Show link and QR code" onclick="showCode(\'' + c.id + '\')"><i class="fa fa-qrcode"></i></button>' : '') +
+            (!revoked && !expired && !off ? '<button class="btn-icon" title="Show link and QR code" aria-label="Show link and QR code" onclick="showCode(\'' + c.id + '\')"><i class="fa fa-qrcode"></i></button>' : '') +
             (!revoked ? '<button class="btn-icon danger" title="Revoke code" aria-label="Revoke code" onclick="revokeCode(\'' + c.id + '\')"><i class="fa fa-ban"></i></button>' : '') +
           '</span>' +
         '</div>';
@@ -1807,7 +1826,7 @@
     });
 
     window.revokeCode = async function (id) {
-      if (!confirm("Revoke this code? Anyone using it will immediately lose access.")) return;
+      if (!(await RSDialog.confirm("Anyone using this share code loses access straight away.", { title: "Revoke share code", ok: "Revoke", danger: true }))) return;
       var r = await sb.from("share_codes").update({ revoked: true }).eq("id", id);
       if (r.error) { toast("Couldn't revoke code.", true); return; }
       toast("Code revoked.");
@@ -1854,7 +1873,8 @@
     }));
 
     window.untagTeam = async function (team) {
-      if (!confirm("Remove the test-team tag from team " + team + "? Its scouted data stays, but it will start counting toward real team ratings again.")) return;
+      if (!(await RSDialog.confirm("Team " + team + "'s scouted data stays, but it starts counting toward real team ratings again.",
+          { title: "Remove test-team tag", ok: "Remove tag" }))) return;
       var r = await sb.from("test_teams").delete().eq("team_number", team);
       if (r.error) { toast("Couldn't untag team.", true); return; }
       toast("Team " + team + " is no longer tagged as a test team.");
@@ -2032,7 +2052,8 @@
 
     // Clears only what staff set, so the row keeps TBA's name/logo and when it was looked up
     window.deleteTeamInfo = async function (team) {
-      if (!confirm("Remove the saved name/logo for team " + team + "? TBA's name and logo, if it has them, show again.")) return;
+      if (!(await RSDialog.confirm("The Blue Alliance's name and logo for team " + team + ", if it has them, show again.",
+          { title: "Remove saved name and logo", ok: "Remove", danger: true }))) return;
       var r = await sb.from("team_info").update({ team_name: null, logo_url: null, updated_by: meUid }).eq("team_number", team);
       if (r.error) { toast("Couldn't remove team info.", true); return; }
       toast("Removed team info for " + team + ".");
@@ -2067,10 +2088,36 @@
       b.disabled = !!disabled; b.onclick = handler;
       return b;
     }
-    // Team cell: a status badge (verified, quarantined, ...) and a team-number box. Typing a team
-    // and pressing Enter (or leaving the box) puts the account on that team, verified, so it leaves
-    // quarantine; their role stays as it was (managers change roles on Team Management). Clearing
-    // the box takes them off their team. Both go through staff_set_team_role().
+    // ── Unsaved changes on the Members tab ──
+    // Name, team and access edits are staged in memPending (by account) and the edited cells are
+    // highlighted, until Save changes applies them all (or Discard drops them). Bans, sign-outs and
+    // deletes still happen straight away.
+    var memPending = {};   // user_id -> { m, name?, team?, level? }
+    function memPendingCount() {
+      return Object.keys(memPending).reduce(function (n, id) {
+        return n + ["name", "team", "level"].filter(function (f) { return f in memPending[id]; }).length;
+      }, 0);
+    }
+    function updateSaveBar() {
+      var n = memPendingCount();
+      document.getElementById("memSave").disabled = !n;
+      document.getElementById("memDiscard").disabled = !n;
+      document.getElementById("memSaveBar").classList.toggle("has-changes", !!n);
+      document.getElementById("memPendingText").textContent = n ? n + " unsaved change" + (n === 1 ? "" : "s") + "." : "No unsaved changes.";
+    }
+    // Stage one field; a value equal to the saved one unstages it. Returns whether it's now staged.
+    function stage(m, field, value, original) {
+      var p = memPending[m.user_id] = memPending[m.user_id] || { m: m };
+      if (value === original) delete p[field]; else p[field] = value;
+      if (!("name" in p) && !("team" in p) && !("level" in p)) delete memPending[m.user_id];
+      updateSaveBar();
+      return value !== original;
+    }
+    function staged(m, field) { return memPending[m.user_id] && field in memPending[m.user_id] ? memPending[m.user_id][field] : undefined; }
+
+    // Team cell: a status badge (verified, quarantined, ...) and a team-number box. A team typed in
+    // (or Verify, for the team someone claimed) puts the account on that team, verified, on Save;
+    // clearing the box takes them off their team. Roles stay as they were (Team Management sets them).
     var TEAM_STATE = {
       on:         { label: "Verified",    cls: "st-verified" },
       pending:    { label: "Quarantined", cls: "st-quarantine" },
@@ -2083,43 +2130,36 @@
         : m.claim_status === "denied" ? "denied" : m.claim_status === "none" ? "none" : "unanswered";
     }
     function memberTeamCell(m) {
-      var td = document.createElement("td"), st = memberTeamState(m);
+      var td = document.createElement("td"), st = memberTeamState(m), saved = m.team_number ? String(m.team_number) : "";
       td.setAttribute("data-sort", m.team_number ? String(m.team_number) : m.claim_team ? String(m.claim_team) : "");
+      var now = staged(m, "team");
       td.innerHTML = '<div class="mem-team"><span class="team-state ' + TEAM_STATE[st].cls + '">' + TEAM_STATE[st].label + "</span>" +
         '<input type="number" class="team-box" min="1" max="99999" aria-label="Team for ' + esc(m.email) + '"' +
-        ' value="' + esc(m.team_number || "") + '" placeholder="—"' +
-        ' title="' + (m.team_number ? "Type a team and press Enter to move them; clear it to take them off the team"
-          : "Type a team and press Enter to put them on it, verified") + '">' +
-        // Quarantined or turned down: the team they said they're on, and a one-click Verify for it
+        ' value="' + esc(now !== undefined ? now : saved) + '" placeholder="—"' +
+        ' title="' + (m.team_number ? "Type another team to move them, or clear it to take them off the team" : "Type a team to put them on it, verified") + '">' +
+        // Quarantined or turned down: the team they said they're on, and Verify to stage it
         (!m.team_number && m.claim_team && (st === "pending" || st === "denied")
           ? '<span class="claim-note ' + st + '">claims <strong>' + m.claim_team + "</strong></span>" +
-            '<button type="button" class="btn-icon" data-verify-claim title="Put them on team ' + m.claim_team + ', verified">Verify</button>' : "") +
+            '<button type="button" class="btn-icon" data-verify-claim title="Put them on team ' + m.claim_team + ', verified, when you save">Verify</button>' : "") +
         "</div>";
-      var box = td.querySelector("input"), busy = false;
-      var vbtn = td.querySelector("[data-verify-claim]");
-      if (vbtn) vbtn.onclick = function () { box.value = m.claim_team; save(); };
-      async function save() {
-        var v = box.value.trim(), n = Number(v);
-        if (busy || (v === "" ? !m.team_number : n === m.team_number)) { box.value = m.team_number || ""; return; }
-        if (v !== "" && !(Number.isInteger(n) && n >= 1 && n <= 99999)) { memFlash(false, "Enter a team number."); box.value = m.team_number || ""; return; }
-        var ask = v === "" ? "Take " + m.email + " off team " + m.team_number + "?"
-          : m.team_number ? "Move " + m.email + " from team " + m.team_number + " to team " + n + "?"
-          : "Put " + m.email + " on team " + n + " as a verified member?";
-        if (!confirm(ask)) { box.value = m.team_number || ""; return; }
-        busy = true;
-        var res = await sb.rpc("staff_set_team_role", { target: m.user_id, p_team: v === "" ? m.team_number : n,
-          new_role: v === "" ? "removed" : (m.team_role === "manager" && n === m.team_number ? "manager" : "member") });
-        busy = false;
-        if (res.error) { memFlash(false, res.error.message); box.value = m.team_number || ""; return; }
-        memFlash(true, v === "" ? m.email + " is off team " + m.team_number + "." : m.email + " is verified on team " + n + ".");
-        loadMembers();
-        if (typeof loadTeams === "function") loadTeams();
+      var box = td.querySelector("input");
+      td.classList.toggle("mem-changed", now !== undefined);
+      function take() {
+        var v = box.value.trim();
+        if (v !== "" && !(Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 99999)) {
+          memFlash(false, "Enter a team number between 1 and 99999.");
+          box.value = staged(m, "team") !== undefined ? staged(m, "team") : saved;
+          return;
+        }
+        td.classList.toggle("mem-changed", stage(m, "team", v, saved));
       }
+      box.addEventListener("input", take);
       box.addEventListener("keydown", function (e) {
         if (e.key === "Enter") { e.preventDefault(); box.blur(); }
-        if (e.key === "Escape") { box.value = m.team_number || ""; box.blur(); }
+        if (e.key === "Escape") { box.value = saved; take(); box.blur(); }
       });
-      box.addEventListener("change", save);
+      var vbtn = td.querySelector("[data-verify-claim]");
+      if (vbtn) vbtn.onclick = function () { box.value = String(m.claim_team); take(); };
       return td;
     }
 
@@ -2127,7 +2167,7 @@
     function memberNameCell(m) {
       var td = memCell(m.display_name || "—");
       td.className = "mem-name" + (m.display_name ? "" : " text-muted");
-      td.title = "Double-click to edit the name";
+      td.title = "Double-click to edit the name (saved with Save changes)";
       td.setAttribute("data-sort", m.display_name || "");
       td.addEventListener("dblclick", function () {
         if (td.isContentEditable) return;
@@ -2146,21 +2186,20 @@
         if (e.key === "Enter") { e.preventDefault(); td.blur(); }
         if (e.key === "Escape") { cancelled = true; td.blur(); }
       });
-      td.addEventListener("blur", async function () {
+      td.addEventListener("blur", function () {
         if (!td.isContentEditable) return;
         td.contentEditable = "false";
         td.classList.remove("editing");
-        var name = td.textContent.trim();
-        if (cancelled || !name || name === m.display_name) {
+        var name = td.textContent.trim().slice(0, 60), before = staged(m, "name");
+        if (cancelled || !name) {
           cancelled = false;
-          td.textContent = m.display_name || "—";
+          td.textContent = before !== undefined ? before : (m.display_name || "—");
           return;
         }
-        var r = await sb.rpc("staff_set_display_name", { target: m.user_id, p_name: name.slice(0, 60) });
-        if (r.error) { memFlash(false, r.error.message); td.textContent = m.display_name || "—"; return; }
-        memFlash(true, "Name saved.");
-        loadMembers();
+        td.textContent = name;
+        td.classList.toggle("mem-changed", stage(m, "name", name, m.display_name || ""));
       });
+      if (staged(m, "name") !== undefined) { td.textContent = staged(m, "name"); td.classList.add("mem-changed"); }
       return td;
     }
 
@@ -2173,29 +2212,28 @@
       LEVELS.forEach(function (l) {
         var o = document.createElement("option");
         o.value = l; o.textContent = l.charAt(0).toUpperCase() + l.slice(1);
-        o.selected = l === m.level;
+        o.selected = l === (staged(m, "level") || m.level);
         sel.appendChild(o);
       });
-      sel.onchange = async function () {
-        var r = await sb.rpc("staff_set_level", { target: m.user_id, new_level: sel.value });
-        if (r.error) { memFlash(false, r.error.message); sel.value = m.level; return; }
+      sel.className = "custom-select custom-select-sm level-" + sel.value;
+      sel.onchange = function () {
         sel.className = "custom-select custom-select-sm level-" + sel.value;
-        memFlash(true, m.email + " is now " + sel.value + ".");
-        loadMembers();
+        sel.parentNode.classList.toggle("mem-changed", stage(m, "level", sel.value, m.level));
       };
 
       var actions = document.createElement("td");
       actions.appendChild(memButton("Sign out", async function () {
-        if (!confirm("Sign " + m.email + " out of all devices?")) return;
+        if (!(await RSDialog.confirm(m.email + " will be signed out of 1307scout on every device.", { title: "Sign out everywhere", ok: "Sign out" }))) return;
         var r = await sb.rpc("staff_kick", { target: m.user_id });
         memFlash(!r.error, r.error ? r.error.message : m.email + " was signed out everywhere.");
       }, self));
       actions.appendChild(memButton(m.banned ? "Unban" : "Ban", async function () {
         var unban = m.banned;
-        var q = unban ? "Unban " + m.email + "?"
-                      : "Ban " + m.email + "? They will be signed out and unable to sign in, and their scouting " +
-                        "entries, pit entries and photos will be permanently removed. Unbanning won't restore them.";
-        if (!confirm(q)) return;
+        var q = unban ? m.email + " will be able to sign in again. Their removed data doesn't come back."
+                      : m.email + " will be signed out and unable to sign in, and their scouting entries, pit entries " +
+                        "and photos will be permanently removed. Unbanning won't restore them.";
+        if (!(await RSDialog.confirm(q, unban ? { title: "Unban account", ok: "Unban" }
+                                             : { title: "Ban account", ok: "Ban", danger: true }))) return;
         var r = await sb.functions.invoke(MANAGE_MEMBER_FN, {
           body: { action: unban ? "unban" : "ban", target: m.user_id }
         });
@@ -2207,8 +2245,8 @@
         loadMembers();
       }, self));
       actions.appendChild(memButton("Delete", async function () {
-        if (!confirm("Permanently delete " + m.email + "'s account and their scouting entries, pit entries " +
-          "and photos? This can't be undone.")) return;
+        if (!(await RSDialog.confirm(m.email + "'s account, scouting entries, pit entries and photos will be permanently deleted. " +
+          "This can't be undone.", { title: "Delete account", ok: "Delete", danger: true }))) return;
         var r = await sb.functions.invoke(MANAGE_MEMBER_FN, {
           body: { action: "delete", target: m.user_id }
         });
@@ -2223,7 +2261,9 @@
       tr.appendChild(memberTeamCell(m));
       tr.setAttribute("data-team-state", memberTeamState(m));
       tr.setAttribute("data-named", m.display_name ? "1" : "0");
-      tr.appendChild(memCell(sel));
+      var levelCell = memCell(sel);
+      if (staged(m, "level") !== undefined) levelCell.classList.add("mem-changed");
+      tr.appendChild(levelCell);
       tr.appendChild(memCell(m.banned ? "Banned" : "Active"));
       var last = memCell(m.last_sign_in ? fmtDT(m.last_sign_in) : "Never");
       last.setAttribute("data-sort", m.last_sign_in || "");
@@ -2244,7 +2284,44 @@
         r.data.length + " accounts" + (unnamed ? ", " + unnamed + " with no name (they're asked for one when they next open 1307scout, or double-click a name to set it)" : "") +
         ". Set access levels, sign people out, or ban accounts.";
     }
-    document.getElementById("refreshMembers").addEventListener("click", loadMembers);
+    document.getElementById("refreshMembers").addEventListener("click", async function () {
+      if (memPendingCount() && !(await RSDialog.confirm("Refreshing drops your " + memPendingCount() + " unsaved changes.",
+          { title: "Discard unsaved changes?", ok: "Refresh anyway", danger: true }))) return;
+      memPending = {}; updateSaveBar(); loadMembers();
+    });
+    document.getElementById("memDiscard").addEventListener("click", function () {
+      memPending = {}; updateSaveBar(); loadMembers(); memFlash(true, "Changes discarded.");
+    });
+    // Applies every staged change: access level first (guest takes someone off their team), then
+    // name, then team. Reports what failed; the rest are saved.
+    document.getElementById("memSave").addEventListener("click", async function () {
+      var btn = this, ok = 0, failed = [];
+      btn.disabled = true; btn.textContent = "Saving…";
+      for (var id of Object.keys(memPending)) {
+        var c = memPending[id], m = c.m;
+        async function run(label, call) {
+          var r = await call;
+          if (r.error) failed.push(m.email + " (" + label + "): " + r.error.message); else ok++;
+        }
+        if ("level" in c) await run("access", sb.rpc("staff_set_level", { target: m.user_id, new_level: c.level }));
+        if ("name" in c) await run("name", sb.rpc("staff_set_display_name", { target: m.user_id, p_name: c.name }));
+        if ("team" in c) {
+          var n = c.team === "" ? m.team_number : Number(c.team);
+          await run("team", sb.rpc("staff_set_team_role", { target: m.user_id, p_team: n,
+            new_role: c.team === "" ? "removed" : (m.team_role === "manager" && n === m.team_number ? "manager" : "member") }));
+        }
+      }
+      memPending = {};
+      btn.textContent = "Save changes";
+      updateSaveBar();
+      memFlash(!failed.length, (ok ? "Saved " + ok + " change" + (ok === 1 ? "" : "s") + "." : "") +
+        (failed.length ? " Not saved: " + failed.join("; ") : ""));
+      loadMembers();
+      if (typeof loadTeams === "function") loadTeams();
+    });
+    window.addEventListener("beforeunload", function (e) {
+      if (memPendingCount()) { e.preventDefault(); e.returnValue = ""; }
+    });
     function memberFilter() {
       var lvl = document.getElementById("memberLevel").value, st = document.getElementById("memberTeamState").value;
       RSTables.setFilter("members", lvl || st ? function (tr) {
@@ -2418,8 +2495,10 @@
       var b = e.target.closest("[data-treq]");
       if (!b) return;
       var ok = b.dataset.ok === "1", req = teamReqs.find(function (r) { return String(r.id) === b.dataset.treq; });
-      var note = prompt(ok ? "Approve " + req.email + " as a manager of team " + req.team_number + "? Optional note (they'll see it):"
-                           : "Deny this request? Optional reason (they'll see it):", "");
+      var note = await RSDialog.prompt(ok ? req.email + " becomes a manager of team " + req.team_number + ". You can add a note; they'll see it."
+                                          : "Deny " + req.email + "'s request to manage team " + req.team_number + "? You can add a reason; they'll see it.",
+        ok ? { title: "Approve request", ok: "Approve", placeholder: "Optional note", maxLength: 500 }
+           : { title: "Deny request", ok: "Deny", danger: true, placeholder: "Optional reason", maxLength: 500 });
       if (note === null) return;
       var r = await sb.rpc("staff_review_team_request", { p_id: req.id, p_approve: ok, p_note: note || null });
       if (r.error) { toast(r.error.message, true); return; }
@@ -2428,7 +2507,8 @@
     });
     document.getElementById("teamRows").addEventListener("click", async function (e) {
       var b = e.target.closest("[data-unmgr]");
-      if (!b || !confirm("Take this manager off team " + b.dataset.team + "? Their account stays; they're no longer on the team.")) return;
+      if (!b || !(await RSDialog.confirm("Their account stays, but they're no longer on team " + b.dataset.team + ".",
+          { title: "Remove manager", ok: "Remove", danger: true }))) return;
       var r = await sb.rpc("staff_set_team_role", { target: b.dataset.unmgr, p_team: Number(b.dataset.team), new_role: "removed" });
       if (r.error) { toast(r.error.message, true); return; }
       toast("Removed."); loadTeams();
@@ -2461,18 +2541,22 @@
       var c = claims.find(function (x) { return x.user_id === b.dataset.claim; });
       var deny = !!b.dataset.deny, note = null;
       if (deny) {
-        note = prompt("Deny " + c.email + "'s claim to team " + c.team_number + "? Optional note (they'll see it):", "");
+        note = await RSDialog.prompt("Deny " + c.email + "'s claim to team " + c.team_number + "? You can add a note; they'll see it.",
+          { title: "Deny claim", ok: "Deny", danger: true, placeholder: "Optional note", maxLength: 300 });
         if (note === null) return;
-      } else if (!confirm("Verify " + c.email + " as a " + b.dataset.as + " of team " + c.team_number + "?" +
-                          (c.team_verified ? "" : " This adds team " + c.team_number + " to 1307scout."))) return;
+      } else if (!(await RSDialog.confirm("Verify " + c.email + " as a " + b.dataset.as + " of team " + c.team_number + "?" +
+                          (c.team_verified ? "" : " This adds team " + c.team_number + " to 1307scout."), { title: "Verify claim", ok: "Verify" }))) return;
       var r = await sb.rpc("verify_team_claim", { target: c.user_id, p_approve: !deny, p_role: b.dataset.as || "member", p_note: note || null });
       if (r.error) { toast(r.error.message, true); return; }
       toast(deny ? "Denied." : "Verified."); loadTeams(); loadMembers();
     });
     document.getElementById("requireClaims").addEventListener("change", async function () {
       var on = this.checked;
-      if (!on && !confirm("Turn off quarantine? Staff, Staff Portal grants and @stalux.org logins go back on team 1307 without being verified.")) { this.checked = true; return; }
-      if (on && !confirm("Turn on quarantine? Every account that isn't a verified team member becomes a guest until it's verified.")) { this.checked = false; return; }
+      var box = this;
+      if (!on && !(await RSDialog.confirm("Staff, Staff Portal grants and @stalux.org logins go back on team 1307 without being verified.",
+          { title: "Turn off quarantine", ok: "Turn off", danger: true }))) { box.checked = true; return; }
+      if (on && !(await RSDialog.confirm("Every account that isn't a verified team member becomes a guest until it's verified.",
+          { title: "Turn on quarantine", ok: "Turn on" }))) { box.checked = false; return; }
       var r = await sb.rpc("staff_set_require_claims", { p_on: on });
       if (r.error) { toast(r.error.message, true); }
       else toast(on ? "Quarantine is on." : "Quarantine is off.");
