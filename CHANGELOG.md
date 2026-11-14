@@ -3,6 +3,21 @@
 1307scout stable releases (scout.robosaints1307.com) and the informational site
 (robosaints1307.com). Versioning and cadence: see `RELEASING.md`. Newest first.
 
+## 0.0.5 (2026-11-13)
+
+### 1307scout (scout.robosaints1307.com)
+
+- Staff Portal, Team Info: lists the test teams and teams The Blue Alliance has no name for, so
+  you can see which ones need a name. Each saved entry shows TBA's name next to yours, typing a
+  team number shows what TBA has for it, and removing an entry brings TBA's name and logo back.
+- Staff Portal, Test Teams: each team has a button to set its name and logo.
+
+### Behind the scenes
+
+- Removed unused files left over from the original website template (old build tools, unused
+  copies of Bootstrap and jQuery, the old theme). This clears GitHub's 157 security alerts, which
+  were all in those build tools and never reached the site.
+
 ## 0.0.4 (2026-11-13)
 
 ### Informational site (robosaints1307.com)
