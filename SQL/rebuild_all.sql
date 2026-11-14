@@ -4039,10 +4039,14 @@ $$;
 -- =====================================================================
 -- team_number/team_role: the team the account is on. claim_team/claim_status: what it said
 -- (team_claims, section 3b), so staff see who is waiting and who hasn't answered.
+-- email_confirmed / assigned_team: an account that never confirmed its email is on no team (every
+-- check needs a confirmed email), but a team staff or a manager gave it is kept and shown, and
+-- counts as soon as the email is confirmed.
 drop function if exists public.staff_list_members();
 create or replace function public.staff_list_members()
 returns table (user_id uuid, email text, display_name text, level text, banned boolean, last_sign_in timestamptz,
-               team_number int, team_role text, claim_team int, claim_status text)
+               team_number int, team_role text, claim_team int, claim_status text,
+               email_confirmed boolean, assigned_team int, assigned_role text)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   if not public.is_staff() then raise exception 'Staff only.'; end if;
@@ -4058,12 +4062,14 @@ begin
             end)::text,
            (u.banned_until is not null and u.banned_until > now()),
            u.last_sign_in_at,
-           m.team_number, m.role, c.team_number, c.status
+           m.team_number, m.role, c.team_number, c.status,
+           u.email_confirmed_at is not null, tm.team_number, tm.role
     from auth.users u
     left join public.staff_members s on s.user_id = u.id
     left join public.member_grants g on g.user_id = u.id
     left join lateral public.member_team(u.id) m on true
     left join public.team_claims c on c.user_id = u.id
+    left join public.team_members tm on tm.user_id = u.id and tm.role <> 'removed'
     order by u.created_at desc;
 end $$;
 
