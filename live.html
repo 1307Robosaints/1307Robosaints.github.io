@@ -373,7 +373,7 @@
     var params = new URLSearchParams(location.search);
     if (Number(params.get("team")) > 0) team = Number(params.get("team"));
 
-    var EVENT_COLS = "id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,auto_sync,auto_sync_since";
+    var EVENT_COLS = "id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,auto_sync,auto_sync_since,timezone";
     function eventCols() { return EVENT_COLS + (hasWebcastCol ? ",webcast_url,auto_sync_live" : ""); }
     function missingColumn(err) { return err && (err.code === "42703" || /webcast_url|auto_sync_live/.test(err.message || "")); }
 
@@ -433,7 +433,7 @@
       return { res: us > them ? "W" : us < them ? "L" : "T", us: us, them: them };
     }
     function timeText(m) {
-      return m && m.time ? new Date(m.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      return m && m.time ? RS.timeText(m.time, ev) : "";
     }
     function awayText(i) { return i === 0 ? "On the field now" : i === 1 ? "Up next" : i + " matches away"; }
 

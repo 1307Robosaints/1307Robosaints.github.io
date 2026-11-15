@@ -1,0 +1,30 @@
+# Supabase CLI settings for the hosted project. Only the Edge Functions are configured here:
+# the database comes from SQL/rebuild_all.sql, not CLI migrations.
+# Deploy one function with:  supabase functions deploy <name> --use-api
+# Never run `supabase functions deploy` with no name: beta and stable share this project.
+project_id = "nyanwljgsazwuzmnlrcz"
+
+# Functions that check the login themselves (user tokens are ES256-signed) or take the
+# cron secret, so the gateway's legacy JWT check must stay off.
+[functions.official-sync]
+verify_jwt = false
+
+[functions.official-alliances]
+verify_jwt = false
+
+[functions.match-alerts]
+verify_jwt = false
+
+[functions.team-events]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = false
+
+[functions.team-names]
+verify_jwt = false
+
+# manage-member is deployed under the slug portal.html calls.
+[functions.bright-responder]
+verify_jwt = false
+entrypoint = "./functions/manage-member/index.ts"

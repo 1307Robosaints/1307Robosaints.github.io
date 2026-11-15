@@ -206,7 +206,7 @@
           <label>Blue alliance</label>
           <div class="m-trio blue"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 1" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 2" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 3" min="1" max="99999" inputmode="numeric"></div>
         </div>
-        <div><label for="fTime">Time (optional)</label><input type="datetime-local" id="fTime" class="form-control form-control-sm m-time"></div>
+        <div><label for="fTime">Time (optional, in your time zone)</label><input type="datetime-local" id="fTime" class="form-control form-control-sm m-time"></div>
         <div class="m-form-actions">
           <button type="submit" class="btn btn-primary btn-sm" id="saveNext">Save and add the next one</button>
           <button type="button" class="btn btn-outline-primary btn-sm" id="saveClose">Save</button>
@@ -403,9 +403,7 @@
         "</h4>" + teams.map(teamRow).join("") + "</div>";
     }
     function whenText(m) {
-      if (!m.time) return "";
-      var d = new Date(m.time);
-      return d.toLocaleDateString([], { weekday: "short" }) + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      return RS.timeText(m.time, events.find(function (e) { return e.id === eventId; }), { day: true });
     }
     function sourceText(m) {
       return m.source === "official" ? "From FRC/TBA" : m.source === "edited" ? "Edited by hand" : "Entered by hand";
@@ -611,7 +609,7 @@
 
     // ── Start ────────────────────────────────────────────────────────
     $("teamPick").value = team || "";
-    var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key")
+    var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,timezone")
       .order("event_date", { ascending: false, nullsFirst: false });
     if (r.error) {
       $("upcoming").innerHTML = '<div class="m-empty">Couldn\'t load the events. Try refreshing the page.</div>';

@@ -224,9 +224,16 @@ the database's row-level security policies, not the key).
 policy, and function, written to be safe to re-run end-to-end in the Supabase SQL editor. Run it
 whole after cloning a fresh Supabase project, and again any time this file changes.
 
-The other files in `SQL/` are one-off **data** imports (new events, linking an event to its
+The files in `SQL/data/` are one-off **data** imports (new events, linking an event to its
 FRC/TBA code, etc.) — row-only changes that don't touch the schema. They're kept for a record of
 what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
+
+**Edge Functions** all live in `supabase/functions/`: `official-sync`, `official-alliances`,
+`team-events`, `team-names`, `match-alerts`, `delete-account` and `manage-member` (deployed under the
+slug `bright-responder`, which `portal.html` calls). `supabase/config.toml` records each one's
+settings, so deploy one at a time with `supabase functions deploy <name> --use-api` from a clone
+linked with `supabase link --project-ref nyanwljgsazwuzmnlrcz`. Never deploy them all at once:
+beta and stable share the project, so a deploy reaches the live site immediately.
 
 **Team names and logos** fill in on their own: when a page shows a team that hasn't been looked up
 in 30 days, `js/teams.js` asks the `team-names` Edge Function (`supabase/functions/team-names/`) to
@@ -266,7 +273,10 @@ The `team-events` Edge Function (`supabase/functions/team-events/`, deploy with 
 uses official-sync's secrets) reads from TBA and FRC Events which events each team on 1307scout is
 registered for this season, once a day, into `event_teams`. It adds any of those events that isn't in
 the database yet (marked "Added from FRC/TBA" in the Staff Portal) and fills in each linked event's last
-day and time zone, which smart auto-sync uses. Every hour the database picks each team's event: the one
+day and time zone, which smart auto-sync uses. Match times on Our Matches and Competition Day show
+in the event's time zone (with its name, like "CDT", when it isn't the viewer's); an event with no
+zone yet uses the device's. official-sync also reads FRC's event-local times in that zone, asking TBA
+for it when the event has none. Every hour the database picks each team's event: the one
 it's at, else its next within 6 days, else its last within 60 days, else its next one, so the pick moves
 each weekend. On Team Management, members (or only managers, by the team's setting) can choose a
 different event; that choice holds until the automatic pick moves to the next event. A team with no

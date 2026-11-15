@@ -133,6 +133,13 @@ drop policy if exists "staff read entries"    on public.scouting_entries;
 drop policy if exists "staff add entries"     on public.scouting_entries;
 drop policy if exists "staff delete own"      on public.scouting_entries;
 
+-- Photo policies first made in the dashboard. The first let anyone list the bucket and the
+-- second let any student overwrite any photo; section 9b's policies replace all four.
+drop policy if exists "Anyone can view scouting photos" on storage.objects;
+drop policy if exists "Team can update scouting photos" on storage.objects;
+drop policy if exists "Team can upload scouting photos" on storage.objects;
+drop policy if exists "Staff can delete scouting photos" on storage.objects;
+
 drop function if exists public.staff_set_role(uuid, boolean);
 drop function if exists public.is_member();
 drop table if exists public.member_access;
@@ -197,6 +204,23 @@ create table if not exists public.member_grants (
 );
 alter table public.member_grants enable row level security;
 revoke all on public.member_grants from anon, authenticated;
+
+-- Refuse sign-ups from throwaway email services. signin.html and account.html check the same
+-- list before sending, so keep the three in step.
+create or replace function public.block_bad_signups() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if split_part(lower(new.email), '@', 2) = any (array[
+    'mailinator.com','guerrillamail.com','10minutemail.com','tempmail.com','yopmail.com',
+    'trashmail.com','sharklasers.com','getnada.com','throwawaymail.com','dispostable.com','maildrop.cc'
+  ]) then
+    raise exception 'Please use a permanent email address.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists block_bad_signups on auth.users;
+create trigger block_bad_signups before insert on auth.users
+  for each row execute function public.block_bad_signups();
 
 -- =====================================================================
 -- 3b. Teams: each FRC team has its own members, managers and settings
@@ -1337,7 +1361,7 @@ begin
   -- run_auto_sync() would clear the flag on its next run without ever syncing
   if exists (
     select 1 from public.events
-    where id = p_event_id and event_date < (now() at time zone 'America/New_York')::date - 4
+    where id = p_event_id and event_date < (now() at time zone public.event_tz(timezone))::date - 4
   ) then
     raise exception 'This event ended more than 4 days ago, so auto-sync won''t run for it. Use the sync button instead.';
   end if;
@@ -1397,7 +1421,7 @@ begin
   -- Turned on from the SQL Editor instead of the portal: start its 12 hours now
   update public.events set auto_sync_since = now() where auto_sync and auto_sync_since is null;
   update public.events set auto_sync = false, auto_sync_since = null
-    where auto_sync and (event_date < (now() at time zone 'America/New_York')::date - 4
+    where auto_sync and (event_date < (now() at time zone public.event_tz(timezone))::date - 4
                          or auto_sync_since < now() - interval '12 hours');
 
   select id into v_event from public.events
@@ -4781,7 +4805,7 @@ where user_id = (select id from auth.users where lower(email) = 'dmartinl878@gma
 --       supabase functions deploy official-sync --no-verify-jwt
 --       supabase functions deploy official-alliances --no-verify-jwt   (this repo, supabase/functions)
 --       supabase secrets set FRC_API_USER=... FRC_API_TOKEN=... TBA_API_KEY=... SYNC_SECRET=...
---       (EVENT_TZ is optional; default America/New_York)
+--       (EVENT_TZ is optional: the zone for an event with no timezone, default America/New_York)
 --     The function must be deployed with JWT verification OFF; it checks
 --     the secret or a staff login itself. manage-member is a separate function.
 --

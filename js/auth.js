@@ -176,9 +176,31 @@
     return r.data || "guest";
   }
 
+  // Time zones. An event's match times show in the event's own zone (events.timezone, filled from
+  // TBA by team-events or set in the Staff Portal), else the device's, else US Eastern. The zone's
+  // short name is added when it isn't the device's, so a remote viewer knows it's venue time.
+  function validZone(z) {
+    if (!z) return null;
+    try { new Intl.DateTimeFormat("en-US", { timeZone: z }); return z; } catch (e) { return null; }
+  }
+  function deviceZone() {
+    try { return validZone(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) { return null; }
+  }
+  function zoneFor(ev) { return validZone(ev && ev.timezone) || deviceZone() || "America/New_York"; }
+  // "10:05 AM", or "Sat 10:05 AM" with { day: true }; "10:05 AM CDT" when the zone isn't the device's
+  function timeText(iso, ev, opts) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return "";
+    var zone = zoneFor(ev), o = { timeZone: zone, hour: "numeric", minute: "2-digit" };
+    if (opts && opts.day) o.weekday = "short";
+    if (zone !== deviceZone()) o.timeZoneName = "short";
+    return d.toLocaleString([], o);
+  }
+
   window.RS = { sb: sb, recovery: recovery, signOut: signOut, accessLevel: accessLevel, session: session,
                 team: team, teamChanged: teamChanged, defaultEvent: defaultEvent,
-                claimTeam: sendClaim, claimResultText: claimResultText };
+                claimTeam: sendClaim, claimResultText: claimResultText,
+                deviceZone: deviceZone, zoneFor: zoneFor, timeText: timeText };
 
   // Highlight the current page's link. Dropdown toggles use href="#", so skip anything that isn't a real page.
   function markActive() {

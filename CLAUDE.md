@@ -95,7 +95,10 @@ Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 level from `RS.accessLevel()`, which returns null after showing a banner if the server can't be
 reached, so a bad connection isn't mistaken for guest access. Team pages get the person's team from
 `RS.team()` (`my_team_info()`: `team_number`, `role`, `settings`, `can`), cached per page load and on the
-device for offline use; `RS.teamChanged()` forgets it after a join or leave. "Our team" on a page is
+device for offline use; `RS.teamChanged()` forgets it after a join or leave.
+Event times go through `RS.timeText(iso, event)`: the event's own `timezone` (from TBA), else the
+device's, else US Eastern, with the zone's name shown when it isn't the device's. Server-side, an
+event's zone is `event_tz(timezone)`; never hardcode `America/New_York`. "Our team" on a page is
 always that `team_number`, never a hardcoded 1307. CDN `<script>`
 tags and the Font Awesome stylesheet carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
 drives the shared nav: it hides/shows `[data-role="staff"]` / `[data-role="team"]` elements and
@@ -164,8 +167,7 @@ One file, organized in numbered sections (0 through 16, see the header comment f
 list), written to be safe to re-run end-to-end in the Supabase SQL editor against either a fresh
 project or an existing one (tables are `create if not exists`, functions `create or replace`,
 policies dropped and recreated). When changing the data model, edit this file directly rather
-than writing a new migration file — the other files in `SQL/` (`import_*.sql`,
-`link_battle_of_the_bay.sql`, `fix_ne_offseason_tba_keys.sql`) are one-off **data** imports and
+than writing a new migration file — the files in `SQL/data/` are one-off **data** imports and
 fixes (new events, FRC/TBA event-code links), kept only as a record. 1307scout serves every FRC team
 worldwide, so nothing limits events or teams to a region; `team-events` adds each team's events
 itself. An event's `event_date` is the day before its last day (the imports' rule); `start_date`/
@@ -261,8 +263,11 @@ Key tables/functions to know when touching 1307scout:
   `score` column is that OPR in points per match, null under 3 qual matches). See the
   comment on `team_ratings()`/section 9 in `rebuild_all.sql` for the reasoning before changing
   either rating.
-- `official-sync` is a separate Supabase Edge Function (not in this repo) that needs its own
-  deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
+- Every Edge Function is in `supabase/functions/`, and `supabase/config.toml` holds their settings
+  (all `verify_jwt = false`). The repo is linked to the project with the Supabase CLI: deploy one at
+  a time (`supabase functions deploy <name> --use-api`), never all at once, and check before
+  running SQL against the shared project (`supabase db query --remote`; `--read-only` to look).
+- `official-sync` (`supabase/functions/official-sync/`) needs its own secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
   Competition-day auto-sync is a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It syncs
   the clock-button event (`events.auto_sync`, one at a time, set through `set_auto_sync_event()`, off
@@ -271,7 +276,7 @@ Key tables/functions to know when touching 1307scout:
   until the finals are decided), flagged `events.auto_sync_live`, every 2 minutes while matches run and
   10 otherwise, at most 6 per run. `app_settings.smart_auto_sync` is the staff switch. It and the
   Resync data button both send their request through `official_sync_request()`.
-  Team default events (section 5b): `team-events` (in this repo, `supabase/functions/`, daily via pg_cron
+  Team default events (section 5b): `team-events` (daily via pg_cron
   and Team Management's check button) reads each team's registrations from TBA/FRC into `event_teams`,
   adds missing events (`auto_added`) and fills `end_date`/`timezone`; `refresh_team_default_events()`
   (hourly) sets `teams.auto_event`, and a member's `teams.default_event` (`team_set_default_event()`,
@@ -279,14 +284,14 @@ Key tables/functions to know when touching 1307scout:
   pages open on `RS.defaultEvent(events)` (team default, else the staff-starred `is_default_event`).
   `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
   and the Staff Portal shows that next to the auto-sync status.
-  `official-alliances` (in this repo, `supabase/functions/`) is sent alongside every sync request:
+  `official-alliances` is sent alongside every sync request:
   it reads the event's alliances from FRC Events (TBA as fallback) and writes them into
   `playoff_picks` (`source = 'official'`) through `official_set_alliances()`, so the bracket follows them.
-  `manage-member` is a separate Edge Function used by the Staff Portal for member management.
-  Its deployed slug is `bright-responder`, so that is the name `portal.html` invokes.
-  `delete-account` is a separate Edge Function behind the My Account delete button. Both must
-  have "Verify JWT with legacy secret" off: user tokens are signed with the project's ES256
-  key, so each function checks the login itself.
+  `manage-member` (Staff Portal member management) is deployed under the slug `bright-responder`,
+  which is the name `portal.html` invokes; `config.toml` maps that slug to its folder.
+  `delete-account` is behind the My Account delete button. Every function must have "Verify JWT
+  with legacy secret" off: user tokens are signed with the project's ES256 key, so each function
+  checks the login itself.
 
 ## Documentation and comments
 
