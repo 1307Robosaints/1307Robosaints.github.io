@@ -320,7 +320,7 @@
     // Playoff Selection links here with its event in the address
     var wanted = new URLSearchParams(location.search).get("event");
     var first = events.find(function (ev) { return ev.id === wanted; }) ||
-      events.find(function (ev) { return ev.is_default_event; }) || events[0];
+      (await RS.defaultEvent(events)) || events[0];
     $("eventPick").value = eventId = first.id;
     RSResync.mount(document.querySelector(".b-event"), function (done) {
       var ev = events.find(function (e) { return e.id === done.eventId; });

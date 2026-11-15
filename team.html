@@ -252,6 +252,23 @@
         <div class="c-msg" id="pendingMsg" role="status"></div>
       </section>
 
+      <!-- Everyone: the event the team's pages open on (SQL section 5b) -->
+      <section class="c-card mb-3" id="defEventBox" aria-labelledby="defEventTitle">
+        <h2 id="defEventTitle">Default event</h2>
+        <p class="c-help">The event Scout, Our Matches, Strategy and the team's other pages open on. It follows the events FRC and TBA
+          say your team is registered for: the one you're at, else the one you go to in the next 6 days, else your last one.
+          Choosing another holds until the automatic pick moves to your next event.</p>
+        <div id="defEventNow" class="c-next"></div>
+        <form class="c-form" id="defEventForm" autocomplete="off" hidden>
+          <div class="c-wide"><label for="defEventPick">Open on</label>
+            <select id="defEventPick" class="custom-select custom-select-sm"></select></div>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="defEventAuto">Back to automatic</button>
+        </form>
+        <button type="button" class="btn btn-link btn-sm p-0 mt-2" id="defEventCheck">Check FRC and TBA now</button>
+        <div class="c-msg" id="defEventMsg" role="status"></div>
+      </section>
+
       <h2 class="c-section">Members</h2>
       <div class="rs-tools">
         <input type="search" class="form-control form-control-sm rs-search" data-table-search="roster"
@@ -599,6 +616,71 @@
           (ok ? "" : '<span class="sr-only"> (managers only)</span>') + "</span>";
       }).join("");
     $("leaveBox").hidden = acting;   // staff stop acting instead
+
+    // ── Default event (SQL section 5b) ───────────────────────────────
+    var WHY = {
+      now: "your team is at it now", next: "it's your team's next event, within 6 days",
+      last: "it's your team's most recent event", later: "it's your team's next registered event",
+      past: "it's the last event your team was registered for"
+    };
+    var defEvents = [];
+    function showDefEvent() {
+      var d = team.default_event || {};
+      var auto = d.auto_id ? " The automatic pick is " + esc(d.auto_name || "another event") + "." : "";
+      $("defEventNow").innerHTML = d.manual
+        ? "<strong>" + esc(d.name || "An event") + "</strong>, chosen by " + esc(d.set_by || "a team member") +
+          (d.set_at ? " (" + esc(when(d.set_at, true)) + ")" : "") + "." + auto
+        : d.id ? "<strong>" + esc(d.name) + "</strong>, picked automatically: " + esc(WHY[d.auto_why] || "it's your team's event") + "."
+        : "None yet. FRC and TBA don't list your team at an event" +
+          (d.synced_at ? " (checked " + esc(when(d.synced_at, true)) + ")" : " yet") + ", so pages open on the site's default event.";
+      $("defEventAuto").hidden = !d.manual;
+      if (defEvents.length) $("defEventPick").value = d.id || defEvents[0].id;
+    }
+    async function refreshTeam() { RS.teamChanged(); team = (await RS.team()) || team; showDefEvent(); }
+    async function loadDefEvents() {
+      var r = await sb.from("events").select("id,name,event_date").order("event_date", { ascending: false, nullsFirst: false });
+      defEvents = r.data || [];
+      $("defEventPick").innerHTML = defEvents.map(function (ev) {
+        return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
+      }).join("");
+      var canSet = RSTeam.can(team, "default_event");
+      $("defEventForm").hidden = !canSet || !defEvents.length;
+      if (!canSet) say("defEventMsg", "Only your team's managers can change it.");
+      showDefEvent();
+    }
+    async function setDefEvent(id) {
+      var r = await sb.rpc("team_set_default_event", { p_event: id });
+      if (r.error) { say("defEventMsg", errText(r.error)); return; }
+      await refreshTeam();
+      say("defEventMsg", id ? "Saved. Your team's pages open on it from now on." : "Back to automatic.", true);
+    }
+    $("defEventForm").addEventListener("submit", function (e) { e.preventDefault(); setDefEvent($("defEventPick").value); });
+    $("defEventAuto").addEventListener("click", function () { setDefEvent(null); });
+    // Asks team-events to read the team's registrations again, then waits for the answer to land
+    $("defEventCheck").addEventListener("click", async function () {
+      var btn = this, before = (team.default_event || {}).synced_at;
+      btn.disabled = true;
+      say("defEventMsg", "Checking FRC and TBA…");
+      var r = await sb.rpc("refresh_my_team_events");
+      if (r.error) { say("defEventMsg", errText(r.error)); btn.disabled = false; return; }
+      if (r.data && r.data.reused) {
+        await refreshTeam();
+        say("defEventMsg", "Your team was checked in the last 10 minutes, so that answer is shown. Try again later.");
+        btn.disabled = false;
+        return;
+      }
+      for (var i = 0; i < 12; i++) {
+        await new Promise(function (res) { setTimeout(res, 5000); });
+        await refreshTeam();
+        if ((team.default_event || {}).synced_at !== before) break;
+      }
+      var done = (team.default_event || {}).synced_at !== before;
+      say("defEventMsg", done ? "Checked FRC and TBA." : "Still checking. Refresh the page in a minute.", done);
+      btn.disabled = false;
+    });
+    // Hidden until rebuild_all.sql has added the team default event
+    $("defEventBox").hidden = !("default_event" in team);
+    if ("default_event" in team) loadDefEvents();
 
     // ── Members ──────────────────────────────────────────────────────
     var HOW = { added: "Joined or added", staff: "Site staff", grant: "Staff Portal grant", domain: "School login" };

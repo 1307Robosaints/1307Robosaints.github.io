@@ -45,8 +45,7 @@
 --
 -- This adds the events only. Match results arrive when official-sync
 -- runs (Resync All in the Staff Portal, one event at a time, so 200+
--- events takes a while). Note that prune_non_ne_teams.sql removes every
--- event outside New England, so re-running it would undo this import.
+-- events takes a while).
 --
 -- HOW TO RUN: paste the whole file into the SQL Editor and run it. It
 -- runs as one transaction, so any error leaves the database unchanged.

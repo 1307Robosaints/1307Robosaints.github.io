@@ -626,7 +626,7 @@
     $("eventPick").innerHTML = events.map(function (ev) {
       return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
     }).join("");
-    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    eventId = ((await RS.defaultEvent(events)) || events[0]).id;
     $("eventPick").value = eventId;
     RSResync.mount(document.querySelector(".m-controls"), function (done) {
       var ev = events.find(function (e) { return e.id === done.eventId; });

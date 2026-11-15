@@ -9,7 +9,8 @@ window.RSTeam = (function () {
     { key: "pit_crew",     label: "Pit Crew",       what: "log checklists, batteries and repairs", def: "members" },
     { key: "pick_list",    label: "Pick List",      what: "build and reorder the pick list",     def: "managers" },
     { key: "scout_shifts", label: "Scout Shifts",   what: "hand out scouting seats",             def: "managers" },
-    { key: "share_codes",  label: "Share Codes",    what: "make share codes for people not on a team", def: "members" }
+    { key: "share_codes",  label: "Share Codes",    what: "make share codes for people not on a team", def: "members" },
+    { key: "default_event", label: "Default Event", what: "choose the event the team's pages open on", def: "members" }
   ];
 
   // The pre-match checklist a team starts with. Saved checklists keep the items they had.

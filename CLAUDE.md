@@ -65,7 +65,7 @@ pick board); the pick board's script is serialized into the file, so it can't us
 `ratings.js` also has `pagedRows()` (one page first, then 4 at a time) and `lists()`, which reads the
 per-team lists through one `team_lists()` call; use those rather than paging the rating RPCs directly.
 `resync.js` is the "Resync data" button on every page that shows official results; it refreshes only the
-default event, through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
+default event (the team's, else the site's), through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
 `history.js` is static data, not code: 1307's events and matches from The Blue Alliance (2004 on) for
 `results.html`, which prefers `public_team_results()` for any event also in the database.
 `opr.js` is component OPR per event, for every numeric field in the official breakdown (Team Database,
@@ -165,10 +165,11 @@ list), written to be safe to re-run end-to-end in the Supabase SQL editor agains
 project or an existing one (tables are `create if not exists`, functions `create or replace`,
 policies dropped and recreated). When changing the data model, edit this file directly rather
 than writing a new migration file — the other files in `SQL/` (`import_*.sql`,
-`link_battle_of_the_bay.sql`, `prune_non_ne_teams.sql`, `prune_2027_events.sql`) are one-off
-**data** imports and cleanups (new events, FRC/TBA event-code links, removing non-New England
-events/teams, removing 2027 events), kept
-only as a record; `rebuild_all.sql` doesn't depend on them and re-running it does
+`link_battle_of_the_bay.sql`, `fix_ne_offseason_tba_keys.sql`) are one-off **data** imports and
+fixes (new events, FRC/TBA event-code links), kept only as a record. 1307scout serves every FRC team
+worldwide, so nothing limits events or teams to a region; `team-events` adds each team's events
+itself. An event's `event_date` is the day before its last day (the imports' rule); `start_date`/
+`end_date` are its real days; `rebuild_all.sql` doesn't depend on them and re-running it does
 not re-run them.
 
 Key tables/functions to know when touching 1307scout:
@@ -263,10 +264,19 @@ Key tables/functions to know when touching 1307scout:
 - `official-sync` is a separate Supabase Edge Function (not in this repo) that needs its own
   deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
-  Competition-day auto-sync is `events.auto_sync` (one event at a time, set through
-  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It turns
-  itself off 12 hours after it was turned on (`events.auto_sync_since`) or 4 days after the event. It and the
+  Competition-day auto-sync is a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It syncs
+  the clock-button event (`events.auto_sync`, one at a time, set through `set_auto_sync_event()`, off
+  12 hours after it was turned on or 4 days after the event), and smart auto-sync (section 5b): every
+  linked event going on right now, from `live_sync_events()` (its days in `events.timezone`, 7 AM-9 PM,
+  until the finals are decided), flagged `events.auto_sync_live`, every 2 minutes while matches run and
+  10 otherwise, at most 6 per run. `app_settings.smart_auto_sync` is the staff switch. It and the
   Resync data button both send their request through `official_sync_request()`.
+  Team default events (section 5b): `team-events` (in this repo, `supabase/functions/`, daily via pg_cron
+  and Team Management's check button) reads each team's registrations from TBA/FRC into `event_teams`,
+  adds missing events (`auto_added`) and fills `end_date`/`timezone`; `refresh_team_default_events()`
+  (hourly) sets `teams.auto_event`, and a member's `teams.default_event` (`team_set_default_event()`,
+  `team_can('default_event')`) lasts until that moves. `my_team_info().default_event` carries it, and
+  pages open on `RS.defaultEvent(events)` (team default, else the staff-starred `is_default_event`).
   `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
   and the Staff Portal shows that next to the auto-sync status.
   `official-alliances` (in this repo, `supabase/functions/`) is sent alongside every sync request:

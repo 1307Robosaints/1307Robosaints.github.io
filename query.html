@@ -1818,32 +1818,6 @@
       .toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts));
     }
 
-    /* ─────────────────────────────────────────────────────────────────
-       BLUE ALLIANCE IMPORT: NOT ACTIVE YET (kept here for later)
-
-       Plan:
-       - A Supabase Edge Function ("tba-sync") holds the TBA API key on the
-         server and fetches /api/v3/team/frc{number}/matches/{year}/simple.
-       - Only teams whose state_prov is in NE_STATES get imported.
-       - Imported matches are tagged source = 'tba' so the match table and the
-         rating can show which numbers came from scouting and which from TBA.
-       - Before enabling, add a `source` column to scouting_entries and make
-         team_points_summary() count TBA rows the same way as scouted rows.
-
-       To enable: uncomment this block, deploy the function, and call
-       loadTbaMatches() from openTeam().
-    ───────────────────────────────────────────────────────────────── */
-    // var CFG = window.AUTH_CONFIG;
-    // var NE_STATES = ["NH", "ME", "VT", "MA", "RI", "CT"];
-    //
-    // async function loadTbaMatches(team) {
-    //   var r = await fetch(CFG.url + "/functions/v1/tba-sync?team=" + team, {
-    //     headers: { Authorization: "Bearer " + CFG.anonKey }
-    //   });
-    //   if (!r.ok) return [];
-    //   // Expected shape: [{ event_id, match_number, data, source: "tba" }]
-    //   return r.json();
-    // }
   })();
   </script>
 </body>

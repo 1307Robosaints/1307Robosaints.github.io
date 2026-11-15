@@ -1209,7 +1209,7 @@
       return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
     }).join("");
     var lastEvent = events.find(function (ev) { return ev.id === last.event; });
-    eventId = (lastEvent || events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    eventId = (lastEvent || (await RS.defaultEvent(events)) || events[0]).id;
     $("eventPick").value = eventId;
     await loadMatches(lastEvent ? last.match : null);
   })();

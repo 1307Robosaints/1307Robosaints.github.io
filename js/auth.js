@@ -132,6 +132,16 @@
   // Forget the cached answer, after joining or leaving a team
   function teamChanged() { teamReq = null; }
 
+  // The event a page opens on, from a list of events rows: the team's default (chosen by a
+  // member, or picked from its FRC/TBA registrations; SQL section 5b), else the one staff
+  // starred (is_default_event). Undefined if neither is in the list.
+  async function defaultEvent(events) {
+    var t = await team();
+    var id = t && t.default_event && t.default_event.id;
+    return (id && events.find(function (ev) { return ev.id === id; })) ||
+      events.find(function (ev) { return ev.is_default_event; });
+  }
+
   // The access level, or null after showing a banner if the server can't be reached. Pages must
   // stop on null: treating it as "guest" would send a scout on a bad connection to the wrong page.
   // One my_access_level request per page load, shared by the nav and the page. A failed one isn't
@@ -167,7 +177,8 @@
   }
 
   window.RS = { sb: sb, recovery: recovery, signOut: signOut, accessLevel: accessLevel, session: session,
-                team: team, teamChanged: teamChanged, claimTeam: sendClaim, claimResultText: claimResultText };
+                team: team, teamChanged: teamChanged, defaultEvent: defaultEvent,
+                claimTeam: sendClaim, claimResultText: claimResultText };
 
   // Highlight the current page's link. Dropdown toggles use href="#", so skip anything that isn't a real page.
   function markActive() {

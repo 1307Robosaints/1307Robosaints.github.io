@@ -438,7 +438,7 @@
       return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
     }).join("");
     var asked = new URLSearchParams(location.search).get("event");
-    eventId = (events.find(function (ev) { return ev.id === asked; }) || events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    eventId = (events.find(function (ev) { return ev.id === asked; }) || (await RS.defaultEvent(events)) || events[0]).id;
     $("eventPick").value = eventId;
     await load(true);
     // A row being typed in isn't redrawn under the person's cursor

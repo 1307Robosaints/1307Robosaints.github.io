@@ -1045,8 +1045,23 @@
             <input type="text" id="mEvLocation" class="form-control" maxlength="80">
           </div>
           <div class="form-group">
-            <label for="mEvDate">Date</label>
+            <label for="mEvDate">Date <small class="text-muted">(the day before the last day)</small></label>
             <input type="date" id="mEvDate" class="form-control">
+          </div>
+          <div class="form-row" id="mEvDaysGroup">
+            <div class="form-group col-6">
+              <label for="mEvStart">First day <small class="text-muted">(blank: Date)</small></label>
+              <input type="date" id="mEvStart" class="form-control">
+            </div>
+            <div class="form-group col-6">
+              <label for="mEvEnd">Last day <small class="text-muted">(blank: the day after Date)</small></label>
+              <input type="date" id="mEvEnd" class="form-control">
+            </div>
+            <div class="form-group col-12">
+              <label for="mEvTz">Time zone <small class="text-muted">(blank: Eastern)</small></label>
+              <input type="text" id="mEvTz" class="form-control" maxlength="64" placeholder="e.g. America/Chicago" spellcheck="false">
+            </div>
+            <small class="form-text text-muted col-12" style="margin-top:-.5rem;">Smart auto-sync runs on these days, 7 AM to 9 PM in this time zone. FRC/TBA fill them in for linked events once a day.</small>
           </div>
           <div class="form-group">
             <label for="mEvFrc">FRC event code <small class="text-muted">(optional)</small></label>
@@ -1232,20 +1247,22 @@
         return '<div class="event-row">' +
           '<span><strong>' + esc(ev.name) + '</strong>' +
             (ev.is_default_event ? '<span class="badge-default">Default</span>' : '') +
-            (ev.auto_sync ? '<span class="badge-default">Auto-sync</span>' : '') + '</span>' +
+            (ev.auto_sync ? '<span class="badge-default">Auto-sync</span>' : '') +
+            (ev.auto_sync_live && !ev.auto_sync ? '<span class="badge-default" title="Smart auto-sync is covering this event now">Live sync</span>' : '') +
+            (ev.auto_added ? '<span class="badge-tier-off" title="Added because a team on 1307scout is registered there (FRC/TBA)">Added from FRC/TBA</span>' : '') + '</span>' +
           '<span>' + tierBadge(ev.event_tier) + '</span>' +
           '<span>' + esc(ev.location || "—") + '</span>' +
           '<span>' + fmt(ev.event_date) + '</span>' +
           '<span>' + syncCell(ev) + '</span>' +
           '<span class="row-actions">' +
             '<button class="btn-icon' + (ev.is_default_event ? ' star-on' : '') + '" ' +
-              'title="' + (ev.is_default_event ? "Default event for the Scout page — click to clear" : "Make this the default event on the Scout page") + '" ' +
+              'title="' + (ev.is_default_event ? "Site default event — click to clear" : "Make this the site default event: for anyone whose team has no default of its own") + '" ' +
               'onclick="setDefaultEvent(\'' + ev.id + '\', ' + !!ev.is_default_event + ')">' +
               '<i class="fa ' + (ev.is_default_event ? "fa-star" : "fa-star-o") + '"></i></button>' +
             ((ev.frc_event_code || ev.tba_event_key)
               ? '<button class="btn-icon" title="Sync official matches now" aria-label="Sync official matches now" onclick="syncEvent(\'' + ev.id + '\', this)"><i class="fa fa-refresh"></i></button>' +
                 '<button class="btn-icon' + (ev.auto_sync ? ' auto-on' : '') + '" ' +
-                  'title="' + (ev.auto_sync ? "Auto-syncing every 2 minutes — click to stop" : "Auto-sync this event every 2 minutes for 12 hours") + '" ' +
+                  'title="' + (ev.auto_sync ? "Auto-syncing every 2 minutes — click to stop" : "Auto-sync this event every 2 minutes for 12 hours, even outside smart auto-sync's hours") + '" ' +
                   'onclick="setAutoSync(\'' + ev.id + '\', ' + !!ev.auto_sync + ')"><i class="fa fa-clock-o"></i></button>'
               : '') +
             '<button class="btn-icon" title="Event info" aria-label="Event info" onclick="editEvent(\'' + ev.id + '\')"><i class="fa fa-info-circle"></i></button>' +
@@ -1393,14 +1410,14 @@
       loadEvents();
     };
 
-    // Default event: what the Scout page auto-selects instead of scouts having to find the
-    // current event in a long dropdown. set_default_event() clears the old default and sets the
-    // new one in one request, so the one-default-at-a-time rule (a unique index in the DB) can't
-    // be tripped by two separate update calls racing each other.
+    // Site default event: what pages open on for anyone whose team has no default of its own
+    // (teams get one from their FRC/TBA registrations, or choose one on Team Management).
+    // set_default_event() clears the old default and sets the new one in one request, so the
+    // one-default-at-a-time rule (a unique index in the DB) can't be tripped by racing updates.
     window.setDefaultEvent = async function (id, wasDefault) {
       var r = await sb.rpc("set_default_event", { p_event_id: wasDefault ? null : id });
       if (r.error) { toast("Couldn't update the default event: " + r.error.message, true); return; }
-      toast(wasDefault ? "Cleared the default event." : "Set as the default event for the Scout page.");
+      toast(wasDefault ? "Cleared the site default event." : "Set as the site default event. Teams with their own default keep theirs.");
       loadEvents();
     };
 
@@ -1427,35 +1444,61 @@
       if (h.http_status != null && h.http_status !== 200) return "official-sync answered with HTTP " + h.http_status + ".";
       return "";
     }
+    // The clock button's event (one at a time, 12 hours), then smart auto-sync: every event going
+    // on right now (live_sync_events() in rebuild_all.sql section 5b), with the switch for it.
     async function renderAutoSyncStatus() {
       var el = document.getElementById("autoSyncStatus");
       var ev = events.filter(function (e) { return e.auto_sync; })[0];
-      el.classList.toggle("d-none", !ev);
-      if (!ev) return;
-      var p = ev.official_sync_note ? parseSyncNote(ev.official_sync_note) : null;
-      var last = new Date(p ? p.when : ev.official_synced_at);
-      el.innerHTML = '<i class="fa fa-clock-o"></i> Auto-syncing <strong>' + esc(ev.name) + '</strong> ' +
-        'every 2 minutes on the clock (9:30, 9:32, 9:34…). Last sync: ' +
-        (ev.official_synced_at || p
-          ? esc(last.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))
-          : "none yet") + '.' +
-        // run_auto_sync() turns it off 12 hours after it was turned on
-        (ev.auto_sync_since
-          ? ' Turns off at ' + esc(new Date(new Date(ev.auto_sync_since).getTime() + 12 * 3600000)
-              .toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) +
-            '; click the clock again after that to keep going.'
-          : '');
-      var r = await sb.rpc("auto_sync_health");
-      if (r.error) { console.warn("Auto-sync health unavailable:", r.error.message); return; }
-      var problem = autoSyncProblem(r.data || {});
-      if (problem) {
-        el.innerHTML = '<i class="fa fa-exclamation-triangle" style="color:var(--red);"></i> ' +
-          '<strong>Auto-sync for ' + esc(ev.name) + ' isn\'t working.</strong> ' + esc(problem);
+      var live = events.filter(function (e) { return e.auto_sync_live && !e.auto_sync; });
+      var hasSmart = events.length && "auto_sync_live" in events[0];   // false until rebuild_all.sql adds it
+      el.classList.toggle("d-none", !ev && !hasSmart);
+      if (!ev && !hasSmart) return;
+      var short = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
+      var html = "";
+      if (ev) {
+        var p = ev.official_sync_note ? parseSyncNote(ev.official_sync_note) : null;
+        var last = new Date(p ? p.when : ev.official_synced_at);
+        html += '<div><i class="fa fa-clock-o"></i> Auto-syncing <strong>' + esc(ev.name) + '</strong> ' +
+          'every 2 minutes on the clock (9:30, 9:32, 9:34…). Last sync: ' +
+          (ev.official_synced_at || p ? esc(last.toLocaleString("en-US", short)) : "none yet") + '.' +
+          // run_auto_sync() turns it off 12 hours after it was turned on
+          (ev.auto_sync_since
+            ? ' Turns off at ' + esc(new Date(new Date(ev.auto_sync_since).getTime() + 12 * 3600000).toLocaleString("en-US", short)) +
+              '; click the clock again after that to keep going.'
+            : '') + '</div>';
       }
+      var r = await sb.rpc("auto_sync_health");
+      if (r.error) console.warn("Auto-sync health unavailable:", r.error.message);
+      var h = (r && r.data) || {};
+      if (hasSmart) {
+        var on = h.smart_auto_sync !== false;
+        html += '<div class="mt-1"><i class="fa fa-magic"></i> <strong>Smart auto-sync is ' + (on ? "on" : "off") + '.</strong> ' +
+          (!on ? "Only the clock button syncs events on a schedule."
+            : live.length ? "Syncing " + live.map(function (e) { return "<strong>" + esc(e.name) + "</strong>"; }).join(", ") +
+                " now: every 2 minutes while matches are running, every 10 otherwise."
+            : "No linked event is going on right now. Events sync by themselves on their days, 7 AM to 9 PM local time.") +
+          ' <button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="smartToggle">' + (on ? "Turn off" : "Turn on") + '</button></div>';
+      }
+      var problem = (ev || live.length) ? autoSyncProblem(h) : "";
+      if (problem) {
+        html += '<div class="mt-1"><i class="fa fa-exclamation-triangle" style="color:var(--red);"></i> ' +
+          '<strong>Auto-sync isn\'t working.</strong> ' + esc(problem) + '</div>';
+      }
+      el.innerHTML = html;
+      var t = document.getElementById("smartToggle");
+      if (t) t.addEventListener("click", async function () {
+        var turnOn = h.smart_auto_sync === false;
+        if (!turnOn && !(await RSDialog.confirm("Turn off smart auto-sync? Events then only sync when someone presses Resync data, " +
+            "or with the clock button.", { title: "Smart auto-sync", ok: "Turn off", danger: true }))) return;
+        var x = await sb.rpc("staff_set_smart_auto_sync", { p_on: turnOn });
+        if (x.error) { toast("Couldn't change smart auto-sync: " + x.error.message, true); return; }
+        toast(turnOn ? "Smart auto-sync on." : "Smart auto-sync off.");
+        loadEvents();
+      });
     }
     // Runs happen on the server, so keep the status current while this page is open
     setInterval(function () {
-      if (document.visibilityState === "visible" && events.some(function (e) { return e.auto_sync; })) loadEvents();
+      if (document.visibilityState === "visible" && events.some(function (e) { return e.auto_sync || e.auto_sync_live; })) loadEvents();
     }, 60000);
 
     // Resyncs every event that has an FRC/TBA code, one at a time (not in parallel — the
@@ -1529,6 +1572,11 @@
       document.getElementById("mEvTier").value = ev.event_tier || "qualifier";
       // Hidden until rebuild_all.sql has added events.webcast_url
       document.getElementById("mEvWebcastGroup").hidden = !("webcast_url" in ev);
+      // Hidden until rebuild_all.sql has added events.end_date and timezone
+      document.getElementById("mEvDaysGroup").hidden = !("end_date" in ev);
+      document.getElementById("mEvStart").value = ev.start_date || "";
+      document.getElementById("mEvEnd").value = ev.end_date || "";
+      document.getElementById("mEvTz").value = ev.timezone || "";
       document.getElementById("mEvWebcast").value = ev.webcast_url || "";
       document.getElementById("mEvSyncInfo").innerHTML = syncInfoHTML(ev);
       $("#evModal").modal("show");
@@ -1546,6 +1594,21 @@
         name: name, location: loc || null, event_date: date,
         frc_event_code: codes.frc, tba_event_key: codes.tba, event_tier: tier
       };
+      if (!document.getElementById("mEvDaysGroup").hidden) {
+        var start = document.getElementById("mEvStart").value || null;
+        var end = document.getElementById("mEvEnd").value || null;
+        var tz = document.getElementById("mEvTz").value.trim();
+        // The table's checks: first day <= Date <= last day
+        if (start && date && start > date) { toast("The first day can't be after Date.", true); return; }
+        if (end && date && end < date) { toast("The last day can't be before Date.", true); return; }
+        if (tz) {
+          try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); }
+          catch (e) { toast("That isn't a time zone name. Use one like America/New_York.", true); return; }
+        }
+        changes.start_date = start;
+        changes.end_date = end;
+        changes.timezone = tz || null;
+      }
       if (!document.getElementById("mEvWebcastGroup").hidden) {
         var cast = document.getElementById("mEvWebcast").value.trim();
         if (cast && !/^https:\/\/\S+$/.test(cast)) { toast("The livestream link should start with https://", true); return; }

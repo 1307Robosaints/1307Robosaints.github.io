@@ -171,10 +171,11 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   Keep screen on stops the screen sleeping, in browsers that allow it.
 - `team.html` — Team Management: for someone on no team, where their claim stands, invitations to
   accept, which team they're on, a join code (`team.html?join=CODE` is an invite link), and asking
-  site staff to manage a team. For a member, the team's roster and managers. For a manager: verify or
+  site staff to manage a team. For a member, the team's roster and managers, and the team's default
+  event (automatic from FRC/TBA, or chosen; see Team default events below). For a manager: verify or
   turn down people waiting, invite by email, make members managers or take them off the team, make and
   revoke join codes and invite links, list the email domains that verify members at once, choose whether members or only managers can
-  change Match Strategy, Pit Crew, Pick List and Scout Shifts, and make share codes (`teams.settings.permissions`), and
+  change Match Strategy, Pit Crew, Pick List, Scout Shifts and the default event, and make share codes (`teams.settings.permissions`), and
   set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). Site staff search for a team
   by number or name to act as it. A team keeps at least
   one manager.
@@ -187,7 +188,9 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   until Save changes applies them all at once, or Discard drops them; roles are set on Team Management), and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
-  The clock button on an event row turns on competition-day auto-sync for that event.
+  The clock button on an event row turns on competition-day auto-sync for that event; smart auto-sync
+  (on by default, switch above the event list) covers every event going on without it. The star sets the
+  site default event, for anyone whose team has none of its own.
 
 **Tables** — on the Staff Portal (Teams, Members), Team Management, Pit Crew, Match Flags and the Team
 Database's team card, clicking a column header sorts the table by it (again to reverse; the lit arrow shows
@@ -237,27 +240,45 @@ Robot photos uploaded from the Scout page land in a public Supabase Storage buck
 (`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo
 queues the file, and the Scout page and Staff Portal remove it through the Storage API.
 
-**Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA every 2 minutes
-(9:30, 9:32, 9:34...). It runs on the server through `pg_cron`, so nobody has to keep
-a page open, and turns itself off 12 hours after staff turn it on (click the clock again each
-competition morning) or 4 days after the event date, whichever comes first. `SQL/rebuild_all.sql` enables pg_cron
+**Competition-day auto-sync** runs on the server through `pg_cron` every 2 minutes (9:30, 9:32,
+9:34...), so nobody has to keep a page open. **Smart auto-sync** refreshes every linked event that is
+going on right now, anywhere, with no button: on the event's days (`start_date` to `end_date`, or
+`event_date` and the day after when FRC/TBA haven't given them) from
+7 AM to 9 PM in its own time zone, until its finals are decided. An event syncs every 2 minutes while
+matches are running and every 10 otherwise, and at most 6 syncs go out per run, longest-waiting first,
+to spare the small database. Staff can turn it off in the Staff Portal. The **clock button** still
+refreshes one staff-chosen event every run, at any hour, and turns itself off 12 hours after staff turn
+it on or 4 days after the event date, whichever comes first. `SQL/rebuild_all.sql` enables pg_cron
 and pg_net and schedules the job. The one manual step is storing `sync_secret` in the Vault (section 15).
 The check query at the end of that file shows if either is missing, and the Staff Portal warns if a
 run is failing, the job has stopped, or it's still on an old schedule.
 
 **Resync data** is a button on every page that shows official results (Our Matches, Match Flags,
 Playoff Selection, Bracket, Team Database, Alliance View). Any team member can press it. It
-refreshes only the default event (the starred one in the Staff Portal), through
+refreshes only the default event (the team's, else the one starred in the Staff Portal), through
 `resync_default_event()`, which sends the same server-side request auto-sync does, so it works
 for students who can't call `official-sync` directly. Presses within 60 seconds of each other share
 one request. The button is `js/resync.js`.
+
+**Team default events**: each team's pages (Scout, Our Matches, Strategy, Pit Crew, Pick List, Shifts,
+Playoffs, Bracket, Match Flags, Competition Day, the home page) open on the team's own default event.
+The `team-events` Edge Function (`supabase/functions/team-events/`, deploy with `--no-verify-jwt`; it
+uses official-sync's secrets) reads from TBA and FRC Events which events each team on 1307scout is
+registered for this season, once a day, into `event_teams`. It adds any of those events that isn't in
+the database yet (marked "Added from FRC/TBA" in the Staff Portal) and fills in each linked event's last
+day and time zone, which smart auto-sync uses. Every hour the database picks each team's event: the one
+it's at, else its next within 6 days, else its last within 60 days, else its next one, so the pick moves
+each weekend. On Team Management, members (or only managers, by the team's setting) can choose a
+different event; that choice holds until the automatic pick moves to the next event. A team with no
+registrations uses the event staff starred.
 
 **Match alerts**: team members can turn on a push notification per device on My Account
 (`js/alerts.js`), for shortly before a team needs to queue. At events that run queuing on
 [FRC Nexus](https://frc.nexus), the function reads Nexus's live status (needs the `NEXUS_API_KEY`
 secret, and the event's TBA key, which Nexus also uses) and alerts when the match is queuing or 10
 minutes before its estimated queue time. Elsewhere it falls back to the synced schedule: 3 or fewer
-matches after the last one with a score, which runs a few minutes behind the field. While auto-sync is on,
+matches after the last one with a score, which runs a few minutes behind the field. For every event
+being auto-synced that a subscribed team is registered at,
 the `match-alerts` pg_cron job calls `run_match_alerts()`, which asks the `match-alerts` Edge Function
 (`supabase/functions/match-alerts/`) to send them through Web Push. Setup: generate VAPID keys, set
 them as that function's secrets (plus `NEXUS_API_KEY` for Nexus), deploy it with `--no-verify-jwt`, and put the public key in

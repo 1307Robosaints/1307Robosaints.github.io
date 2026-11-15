@@ -1122,7 +1122,8 @@
       if (r.error) { toast("Couldn't load events.", true); return; }
       events = r.data;
       if (!events.length) get("eventSearch").placeholder = "No events yet. Staff can add one in the Staff Portal.";
-      var def = events.find(function (ev) { return ev.is_default_event; });
+      var def = await RS.defaultEvent(events);
+      defaultEventId = def ? def.id : null;
       if (def || events.length) selectEvent(def || events[0]);
     }
 
@@ -1133,6 +1134,7 @@
       return ev.name + (ev.event_date ? " (" + fmtEventDate(ev.event_date, { month: "short", day: "numeric", year: "numeric" }) + ")" : "");
     }
     var eventActiveIdx = -1;
+    var defaultEventId = null;   // the team's default event (RS.defaultEvent), marked in the list
     function matchingEvents(q) {
       q = q.trim().toLowerCase();
       if (!q) return events;
@@ -1149,7 +1151,7 @@
         box.innerHTML = '<div class="event-search-empty">No events match.</div>';
       } else {
         box.innerHTML = list.map(function (ev, i) {
-          return '<div class="event-option' + (ev.is_default_event ? " eo-default" : "") + (i === eventActiveIdx ? " active" : "") + '" data-idx="' + i + '">' +
+          return '<div class="event-option' + (ev.id === defaultEventId ? " eo-default" : "") + (i === eventActiveIdx ? " active" : "") + '" data-idx="' + i + '">' +
             '<div class="eo-name">' + esc(ev.name) + (ev.event_date ? " <small>(" + esc(fmtEventDate(ev.event_date, { month: "short", day: "numeric", year: "numeric" })) + ")</small>" : "") + '</div>' +
             (ev.location ? '<div class="eo-loc">' + esc(ev.location) + '</div>' : "") +
           '</div>';

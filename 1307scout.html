@@ -779,7 +779,10 @@
 
     // The team's next match at the default event: how many matches away, and links to plan it
     if (MY_TEAM && navigator.onLine !== false) {
-      var evr = await sb.from("events").select("id,name").eq("is_default_event", true).maybeSingle();
+      // The team's default event (SQL section 5b), else the one staff starred
+      var tinfo = await RS.team(), defId = tinfo && tinfo.default_event && tinfo.default_event.id;
+      var evr = defId ? await sb.from("events").select("id,name").eq("id", defId).maybeSingle()
+                      : await sb.from("events").select("id,name").eq("is_default_event", true).maybeSingle();
       if (evr.data) {
         var sched = await RSSchedule.load(sb, evr.data.id);
         var list = sched.matches, now = list.findIndex(function (m) { return !m.played; });

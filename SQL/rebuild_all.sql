@@ -18,6 +18,7 @@
 --  3b  Teams: members, managers, join codes, manager requests, team settings
 --   4  Form fields (incl. picture fields)     9  Team rating (A-F grade)
 --   5  Events, entries, share codes          9b Storage: scouting photos
+--  5b  Smart auto-sync, team default events
 --   6  Pit entries + validation             10  Guest access via share codes
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
@@ -250,6 +251,18 @@ create table if not exists public.teams (
 alter table public.teams enable row level security;
 insert into public.teams (team_number, email_domain) values (public.home_team(), 'stalux.org')
   on conflict (team_number) do nothing;
+-- The event the team's pages open on (section 5b). auto_event is picked from the events FRC/TBA
+-- list the team at, by refresh_team_default_events(); default_event is a member's choice, which
+-- lasts until auto_event moves to another event. Null default_event means automatic.
+alter table public.teams add column if not exists default_event uuid references public.events(id) on delete set null;
+alter table public.teams add column if not exists default_event_by uuid references auth.users(id) on delete set null;
+alter table public.teams add column if not exists default_event_at timestamptz;
+alter table public.teams add column if not exists auto_event uuid references public.events(id) on delete set null;
+alter table public.teams add column if not exists auto_event_why text check (auto_event_why in ('now','next','last','later','past'));
+-- The last team-events request for just this team, and when team-events last read its events
+alter table public.teams add column if not exists events_request bigint;
+alter table public.teams add column if not exists events_requested_at timestamptz;
+alter table public.teams add column if not exists events_synced_at timestamptz;
 
 create table if not exists public.team_members (
   user_id     uuid primary key references auth.users(id) on delete cascade,
@@ -452,8 +465,8 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 -- Team features a manager can open to every member or keep to managers. Strategy and the pit
--- crew log start open, and so do share codes; the pick list and scout shifts start with managers,
--- as they were staff-only.
+-- crew log start open, and so do share codes and the default event; the pick list and scout
+-- shifts start with managers, as they were staff-only.
 create or replace function public.team_feature_default(p_feature text) returns text
 language sql immutable set search_path = '' as $$
   select case when p_feature in ('pick_list', 'scout_shifts') then 'managers' else 'members' end;
@@ -546,7 +559,18 @@ begin
       'settings', t.settings,
       'can', (select jsonb_object_agg(f, r.role = 'manager'
                  or coalesce(t.settings -> 'permissions' ->> f, public.team_feature_default(f)) = 'members')
-              from unnest(array['strategy','pit_crew','pick_list','scout_shifts','share_codes']) f))
+              from unnest(array['strategy','pit_crew','pick_list','scout_shifts','share_codes','default_event']) f),
+      -- The event the team's pages open on (section 5b); id null: the site default
+      'default_event', jsonb_build_object(
+        'id', coalesce(t.default_event, t.auto_event),
+        'name', (select e.name from public.events e where e.id = coalesce(t.default_event, t.auto_event)),
+        'manual', t.default_event is not null,
+        'set_by', (select public.account_name(u.raw_user_meta_data) from auth.users u where u.id = t.default_event_by),
+        'set_at', t.default_event_at,
+        'auto_id', t.auto_event,
+        'auto_name', (select e.name from public.events e where e.id = t.auto_event),
+        'auto_why', t.auto_event_why,
+        'synced_at', t.events_synced_at))
     into v_team
     from public.my_team_role() r
     join public.teams t on t.team_number = r.team_number
@@ -695,7 +719,7 @@ begin
 end $$;
 
 -- A manager saves the team's settings: who can change each feature, and the pit crew setup.
--- Shape: { permissions: { strategy|pit_crew|pick_list|scout_shifts|share_codes: 'members'|'managers' },
+-- Shape: { permissions: { strategy|pit_crew|pick_list|scout_shifts|share_codes|default_event: 'members'|'managers' },
 --          pit: { checklist: [up to 30 items of up to 120 characters], low_volts: 10-14 } }
 create or replace function public.team_update_settings(p_settings jsonb)
 returns void language plpgsql security definer set search_path = '' as $$
@@ -709,7 +733,7 @@ begin
     raise exception 'Settings must be an object.';
   end if;
   if exists (select 1 from jsonb_each(v_perm) e
-             where e.key not in ('strategy','pit_crew','pick_list','scout_shifts','share_codes')
+             where e.key not in ('strategy','pit_crew','pick_list','scout_shifts','share_codes','default_event')
                 or e.value not in ('"members"'::jsonb, '"managers"'::jsonb)) then
     raise exception 'Unknown permission setting.';
   end if;
@@ -1269,6 +1293,38 @@ alter table public.events add column if not exists resync_requested_at timestamp
 create unique index if not exists events_one_auto_sync_idx
   on public.events ((auto_sync)) where auto_sync;
 
+-- Smart auto-sync (section 5b) needs each event's days in its own time zone. event_date follows
+-- this project's rule (the day before the last day, i.e. the first day of matches at a district
+-- event); start_date and end_date are the event's real first and last days (null: event_date and
+-- the day after); timezone is the IANA zone (null: America/New_York). team-events fills them from
+-- TBA and FRC Events.
+alter table public.events add column if not exists start_date date check (start_date <= event_date);
+alter table public.events add column if not exists end_date date check (end_date >= event_date);
+alter table public.events add column if not exists timezone text check (timezone ~ '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$' and char_length(timezone) <= 64);
+-- Added by team-events because a team on 1307scout is registered there, not by staff
+alter table public.events add column if not exists auto_added boolean not null default false;
+-- Smart auto-sync is covering the event right now, and when it last sent the event a sync
+alter table public.events add column if not exists auto_sync_live boolean not null default false;
+alter table public.events add column if not exists auto_sync_sent_at timestamptz;
+-- Staff switch for smart auto-sync (Staff Portal, Events tab). The one-event clock button still
+-- works when it's off.
+alter table public.app_settings add column if not exists smart_auto_sync boolean not null default true;
+
+-- The teams FRC Events and TBA say are registered at each event, written only by team-events
+-- (service role). Team default events are picked from it, and match alerts read it.
+create table if not exists public.event_teams (
+  event_id    uuid not null references public.events(id) on delete cascade,
+  team_number int  not null check (team_number between 1 and 99999),
+  source      text not null check (source in ('tba','frc')),
+  updated_at  timestamptz not null default now(),
+  primary key (event_id, team_number)
+);
+create index if not exists event_teams_team_idx on public.event_teams (team_number);
+alter table public.event_teams enable row level security;
+drop policy if exists "team reads event teams" on public.event_teams;
+create policy "team reads event teams" on public.event_teams for select to authenticated
+  using ((select public.is_staff()) or (select public.is_student()));
+
 -- Moves the auto-sync flag to p_event_id in one request. Pass null to turn auto-sync off.
 create or replace function public.set_auto_sync_event(p_event_id uuid) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -1285,7 +1341,8 @@ begin
   -- run_auto_sync() would clear the flag on its next run without ever syncing
   if exists (
     select 1 from public.events
-    where id = p_event_id and event_date < (now() at time zone 'America/New_York')::date - 4
+    where id = p_event_id   -- in the event's own time zone (section 5b)
+      and public.event_last_day(event_date, end_date) < (now() at time zone public.event_tz(timezone))::date - 4
   ) then
     raise exception 'This event ended more than 4 days ago, so auto-sync won''t run for it. Use the sync button instead.';
   end if;
@@ -1326,30 +1383,61 @@ begin
 end $$;
 revoke all on function public.official_sync_request(uuid) from public, anon, authenticated;
 
--- Called by pg_cron only, every 2 minutes. Turns itself off 12 hours after staff turned it on
--- (one competition day; staff turn it back on each morning), or 4 days after the event, so a
--- forgotten flag can't keep syncing.
+-- Called by pg_cron only, every 2 minutes. Two parts:
+--   The clock button: the one event staff picked, every run. Turns itself off 12 hours after staff
+--   turned it on, or 4 days after the event, so a forgotten flag can't keep syncing.
+--   Smart auto-sync (section 5b): every event going on right now, anywhere, with no button. Each
+--   gets a sync every 2 minutes while matches are running and every 10 minutes otherwise (before
+--   the schedule is out, after the last match of the day), at most SMART_PER_RUN a run, longest
+--   waiting first, so a busy weekend can't send dozens of syncs at once on the small database.
 create or replace function public.run_auto_sync() returns void
 language plpgsql set search_path = '' as $$
 declare
+  SMART_PER_RUN constant int := 6;
   v_event uuid;
+  v_live  uuid[] := '{}';
+  v_busy  uuid[] := '{}';
+  v_id    uuid;
 begin
   -- Turned on from the SQL Editor instead of the portal: start its 12 hours now
   update public.events set auto_sync_since = now() where auto_sync and auto_sync_since is null;
   update public.events set auto_sync = false, auto_sync_since = null
-    where auto_sync and (event_date < (now() at time zone 'America/New_York')::date - 4
+    where auto_sync and (public.event_last_day(event_date, end_date)
+                           < (now() at time zone public.event_tz(timezone))::date - 4
                          or auto_sync_since < now() - interval '12 hours');
 
   select id into v_event from public.events
     where auto_sync and (frc_event_code is not null or tba_event_key is not null);
-  if v_event is null then return; end if;
+  if v_event is not null then
+    update public.events set auto_sync_request = public.official_sync_request(v_event), auto_sync_sent_at = now()
+     where id = v_event;
+  end if;
 
-  update public.events set auto_sync_request = public.official_sync_request(v_event) where id = v_event;
+  if coalesce((select a.smart_auto_sync from public.app_settings a where a.id), true) then
+    select coalesce(array_agg(l.event_id), '{}'), coalesce(array_agg(l.event_id) filter (where l.busy), '{}')
+      into v_live, v_busy from public.live_sync_events() l;
+  end if;
+  -- Only rows whose flag changes are written
+  update public.events e set auto_sync_live = (e.id = any (v_live))
+   where e.auto_sync_live <> (e.id = any (v_live));
+
+  for v_id in
+    select e.id from public.events e
+    where e.id = any (v_live) and e.id is distinct from v_event
+      and (e.auto_sync_sent_at is null or e.auto_sync_sent_at < now() -
+           case when e.id = any (v_busy) then interval '100 seconds' else interval '580 seconds' end)
+    order by e.auto_sync_sent_at nulls first
+    limit SMART_PER_RUN
+  loop
+    update public.events set auto_sync_request = public.official_sync_request(v_id), auto_sync_sent_at = now()
+     where id = v_id;
+  end loop;
 end $$;
 revoke all on function public.run_auto_sync() from public, anon, authenticated;
 
 -- The "Resync data" button on the team's pages (js/resync.js): refreshes the default event from
--- FRC/TBA right now. Students can't call official-sync themselves (it takes a staff login or the
+-- FRC/TBA right now: the caller's team's default (team_default_event(), section 5b), else the
+-- one staff starred. Students can't call official-sync themselves (it takes a staff login or the
 -- sync secret), so this sends the same request auto-sync does. A press within 60 seconds of the
 -- last one gets that request back instead of a new one, so a room full of buttons can't flood
 -- the FRC/TBA APIs.
@@ -1366,9 +1454,12 @@ begin
     raise exception 'Only team members can resync data.';
   end if;
   select id, name, frc_event_code, tba_event_key, resync_request, resync_requested_at into v_ev
-    from public.events where is_default_event for no key update;
+    from public.events
+   where id = coalesce(public.team_default_event(public.my_team()),
+                       (select d.id from public.events d where d.is_default_event))
+   for no key update;
   if not found then
-    raise exception 'No default event is set. Staff can pick one with the star in the Staff Portal.';
+    raise exception 'No default event is set. Your team can pick one on Team Management, or staff can star one in the Staff Portal.';
   end if;
   if v_ev.frc_event_code is null and v_ev.tba_event_key is null then
     raise exception '% isn''t linked to an FRC or TBA code, so there''s nothing to sync. Staff can link it in the Staff Portal.', v_ev.name;
@@ -1445,8 +1536,11 @@ begin
     when others then r := r || jsonb_build_object('vault_secret', null);
   end;
 
-  -- pg_net only keeps responses for a few hours, so no row here isn't a failure
-  select auto_sync_request into v_req from public.events where auto_sync;
+  -- The newest auto-sync request (clock button or smart). pg_net only keeps responses for a few
+  -- hours, so no row here isn't a failure.
+  select auto_sync_request into v_req from public.events
+   where (auto_sync or auto_sync_live) and auto_sync_request is not null
+   order by auto_sync_sent_at desc nulls last limit 1;
   if v_req is not null then
     begin
       select status_code, error_msg into v_row from net._http_response where id = v_req;
@@ -1454,10 +1548,254 @@ begin
     exception when others then null;
     end;
   end if;
+  r := r || jsonb_build_object('smart_auto_sync',
+    coalesce((select a.smart_auto_sync from public.app_settings a where a.id), true));
   return r;
 end $$;
 revoke all on function public.auto_sync_health() from public, anon;
 grant execute on function public.auto_sync_health() to authenticated;
+
+-- Staff turn smart auto-sync on or off for the whole site (Staff Portal, Events tab)
+create or replace function public.staff_set_smart_auto_sync(p_on boolean) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_staff() then raise exception 'Staff only.'; end if;
+  update public.app_settings set smart_auto_sync = coalesce(p_on, true), updated_at = now() where id;
+  if not coalesce(p_on, true) then
+    update public.events set auto_sync_live = false where auto_sync_live;
+  end if;
+end $$;
+revoke all on function public.staff_set_smart_auto_sync(boolean) from public, anon;
+grant execute on function public.staff_set_smart_auto_sync(boolean) to authenticated;
+
+
+-- =====================================================================
+-- 5b. Smart auto-sync and team default events
+--
+--    Smart auto-sync: run_auto_sync() (above) syncs every linked event that is going on now,
+--    anywhere in the world, as decided by live_sync_events(): today is one of the event's days
+--    in its own time zone, it's between 7 AM and 9 PM there (or official data changed in the last
+--    30 minutes, for a day running late), and the finals aren't decided yet.
+--
+--    Team default events: the event a team's pages open on. team-events (Edge Function, this
+--    repo) reads from TBA and FRC Events which events each team on 1307scout is registered for,
+--    once a day, into event_teams, adding any event that isn't here yet. Then
+--    refresh_team_default_events() (hourly) picks one per team with team_auto_event(): the event
+--    it's at now, else the one it goes to in the next 6 days, else the one it was at in the last
+--    60 days, else its next one. Members can choose another (team_set_default_event(), allowed
+--    by team_can('default_event')); their choice lasts until the automatic pick moves on to a
+--    different event, so each weekend starts on that weekend's event.
+-- =====================================================================
+-- An event's time zone, or the default when it has none or an unknown one. Internal.
+create or replace function public.event_tz(p_tz text) returns text
+language plpgsql stable set search_path = '' as $$
+begin
+  if p_tz is null then return 'America/New_York'; end if;
+  perform now() at time zone p_tz;
+  return p_tz;
+exception when others then
+  return 'America/New_York';
+end $$;
+
+-- An event's first and last days: start_date/end_date, else from event_date (the day before the
+-- last day, by this project's rule). Internal.
+create or replace function public.event_first_day(p_date date, p_start date) returns date
+language sql immutable set search_path = '' as $$
+  select coalesce(p_start, p_date);
+$$;
+create or replace function public.event_last_day(p_date date, p_end date) returns date
+language sql immutable set search_path = '' as $$
+  select coalesce(p_end, p_date + 1);
+$$;
+
+-- Whether the event's finals are decided: one alliance won two finals matches. Internal.
+create or replace function public.event_finals_done(p_event uuid) returns boolean
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  return coalesce((
+    select greatest(count(*) filter (where m.red_score > m.blue_score),
+                    count(*) filter (where m.blue_score > m.red_score)) >= 2
+    from public.official_matches_combined m
+    where m.event_id = p_event and m.comp_level = 'f'
+      and m.red_score is not null and m.blue_score is not null and m.red_score >= 0 and m.blue_score >= 0), false);
+end $$;
+
+-- The events smart auto-sync covers right now (see the section comment). busy: matches are being
+-- played (data changed in the last 30 minutes, or it's 8 AM-6 PM there with matches still to
+-- play), so it syncs every 2 minutes rather than every 10. Internal.
+create or replace function public.live_sync_events() returns table (event_id uuid, busy boolean)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  return query
+  with c as (
+    select e.id, public.event_first_day(e.event_date, e.start_date) as first_day,
+           public.event_last_day(e.event_date, e.end_date) as last_day,
+           now() at time zone public.event_tz(e.timezone) as local_now
+    from public.events e
+    where (e.frc_event_code is not null or e.tba_event_key is not null)
+      and e.event_date between current_date - 10 and current_date + 5   -- cheap first cut
+  ), s as (
+    select c.id, c.first_day, c.last_day, c.local_now,
+           (select max(m.updated_at) from public.official_matches m where m.event_id = c.id) as changed_at,
+           -- Same "played" rule as the pages: unplayed can be null, 0-0 or TBA's -1
+           exists (select 1 from public.official_matches m where m.event_id = c.id
+                    and not coalesce(m.red_score >= 0 and m.blue_score >= 0
+                                     and (m.red_score > 0 or m.blue_score > 0), false)) as unplayed
+    from c
+    where c.local_now::date between c.first_day and c.last_day
+  )
+  select s.id, coalesce(s.changed_at > now() - interval '30 minutes', false)
+               or (s.unplayed and extract(hour from s.local_now) between 8 and 17)
+  from s
+  where (extract(hour from s.local_now) between 7 and 20 or s.changed_at > now() - interval '30 minutes')
+    and not (public.event_finals_done(s.id) and coalesce(s.changed_at < now() - interval '30 minutes', true));
+end $$;
+
+-- A team's automatic default event and why it was picked (see the section comment). Internal.
+create or replace function public.team_auto_event(p_team int, out event_id uuid, out why text)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  select x.id, x.why into event_id, why
+  from (
+    select c.id,
+           case when c.today between c.first_day - 1 and c.last_day then 'now'
+                when c.first_day > c.today and c.first_day <= c.today + 6 then 'next'
+                when c.last_day < c.today and c.last_day >= c.today - 60 then 'last'
+                when c.first_day > c.today then 'later'
+                else 'past' end as why,
+           c.first_day, c.last_day, c.on_schedule
+    from (
+      select e.id, public.event_first_day(e.event_date, e.start_date) as first_day,
+             public.event_last_day(e.event_date, e.end_date) as last_day,
+             (now() at time zone public.event_tz(e.timezone))::date as today,
+             exists (select 1 from public.official_matches m where m.event_id = e.id
+                      and (m.red_teams @> array[p_team] or m.blue_teams @> array[p_team])) as on_schedule
+      from public.event_teams t join public.events e on e.id = t.event_id
+      where t.team_number = p_team and e.event_date is not null
+    ) c
+  ) x
+  order by array_position(array['now','next','last','later','past'], x.why),
+           -- At two events at once (a championship and its division): the one the team plays in
+           case when x.why = 'now' then (not x.on_schedule)::int else 0 end,
+           case when x.why in ('next','later') then x.first_day - date '2000-01-01'
+                else date '2000-01-01' - x.first_day end
+  limit 1;
+end $$;
+
+-- A team's default event: a member's choice, else the automatic one. Null for no team. Internal.
+create or replace function public.team_default_event(p_team int) returns uuid
+language sql stable security definer set search_path = '' as $$
+  select coalesce(t.default_event, t.auto_event) from public.teams t where t.team_number = p_team;
+$$;
+
+-- Re-picks every team's automatic default event (pg_cron hourly, and team-events after a read).
+-- A member's choice is dropped when the automatic pick moves to a different event. Only teams
+-- whose pick changed are written.
+create or replace function public.refresh_team_default_events() returns int
+language plpgsql security definer set search_path = '' as $$
+declare
+  r    record;
+  v_drop boolean;
+  n    int := 0;
+begin
+  for r in
+    select t.team_number, t.auto_event as old_event, a.event_id, a.why
+    from public.teams t cross join lateral public.team_auto_event(t.team_number) a
+    where t.auto_event is distinct from a.event_id or t.auto_event_why is distinct from a.why
+  loop
+    -- A new weekend's event, not the first pick or the same event with a new reason
+    v_drop := r.old_event is not null and r.event_id is not null and r.old_event <> r.event_id;
+    update public.teams t set auto_event = r.event_id, auto_event_why = r.why,
+      default_event    = case when v_drop then null else t.default_event end,
+      default_event_by = case when v_drop then null else t.default_event_by end,
+      default_event_at = case when v_drop then null else t.default_event_at end
+    where t.team_number = r.team_number;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke all on function public.event_tz(text) from public, anon, authenticated;
+revoke all on function public.event_first_day(date, date) from public, anon;
+revoke all on function public.event_last_day(date, date) from public, anon;
+revoke all on function public.event_finals_done(uuid) from public, anon, authenticated;
+revoke all on function public.live_sync_events() from public, anon, authenticated;
+revoke all on function public.team_auto_event(int) from public, anon, authenticated;
+revoke all on function public.team_default_event(int) from public, anon, authenticated;
+revoke all on function public.refresh_team_default_events() from public, anon, authenticated;
+
+-- A member picks the event the team's pages open on; null goes back to automatic
+create or replace function public.team_set_default_event(p_event uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_team int := public.my_team();
+  v_auto uuid;
+begin
+  if v_team is null then raise exception 'You are not on a team.'; end if;
+  if not public.team_can('default_event') then
+    raise exception 'Only your team''s managers can change its default event.';
+  end if;
+  if p_event is not null and not exists (select 1 from public.events where id = p_event) then
+    raise exception 'That event doesn''t exist any more. Refresh the page.';
+  end if;
+  select auto_event into v_auto from public.teams where team_number = v_team;
+  -- Choosing the automatic pick is the same as going back to automatic
+  if p_event = v_auto then p_event := null; end if;
+  update public.teams
+     set default_event = p_event,
+         default_event_by = case when p_event is null then null else auth.uid() end,
+         default_event_at = case when p_event is null then null else now() end
+   where team_number = v_team;
+end $$;
+revoke all on function public.team_set_default_event(uuid) from public, anon;
+grant execute on function public.team_set_default_event(uuid) to authenticated;
+
+-- Sends team-events a request through pg_net: one team, or every team on 1307scout (null).
+-- Internal.
+create or replace function public.team_events_request(p_team int) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_secret text;
+begin
+  select btrim(decrypted_secret, E' \t\r\n') into v_secret from vault.decrypted_secrets where name = 'sync_secret';
+  if v_secret is null or v_secret = '' then
+    raise exception 'Vault secret sync_secret is missing (see section 15).';
+  end if;
+  return net.http_post(
+    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/team-events',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+    body    := case when p_team is null then '{}'::jsonb else jsonb_build_object('team_number', p_team) end,
+    timeout_milliseconds := 120000);
+end $$;
+revoke all on function public.team_events_request(int) from public, anon, authenticated;
+
+-- pg_cron, once a day: every team's registrations, then the default events
+create or replace function public.run_team_events_sync() returns void
+language plpgsql set search_path = '' as $$
+begin
+  perform public.team_events_request(null);
+end $$;
+revoke all on function public.run_team_events_sync() from public, anon, authenticated;
+
+-- Team Management's "Check FRC and TBA now": re-reads the caller's team's events. Once per
+-- 10 minutes per team; a press sooner gets the last request back.
+create or replace function public.refresh_my_team_events() returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_team int := public.my_team();
+  v_t    record;
+  v_req  bigint;
+begin
+  if v_team is null then raise exception 'You are not on a team.'; end if;
+  select events_request, events_requested_at into v_t from public.teams where team_number = v_team for no key update;
+  if v_t.events_requested_at > now() - interval '10 minutes' then
+    return jsonb_build_object('request_id', v_t.events_request, 'reused', true);
+  end if;
+  v_req := public.team_events_request(v_team);
+  update public.teams set events_request = v_req, events_requested_at = now() where team_number = v_team;
+  return jsonb_build_object('request_id', v_req, 'reused', false);
+end $$;
+revoke all on function public.refresh_my_team_events() from public, anon;
+grant execute on function public.refresh_my_team_events() to authenticated;
 
 -- Backfill the tier of events already in the table from earlier imports (safe to re-run;
 -- only touches rows that already exist, and only sets non-default tiers).
@@ -2825,22 +3163,31 @@ language sql security definer set search_path = '' as $$
   delete from public.push_subscriptions where endpoint = p_endpoint and user_id = auth.uid();
 $$;
 
--- Called by pg_cron only (section 15). Cheap when nobody is subscribed or auto-sync is off.
+-- Called by pg_cron only (section 15). One request per auto-synced event (clock button or smart
+-- auto-sync) that a subscribed team is registered at, or that has no registrations on record.
+-- Cheap when nobody is subscribed or nothing is syncing.
 create or replace function public.run_match_alerts() returns void
 language plpgsql set search_path = '' as $$
 declare
   v_event  uuid;
   v_secret text;
 begin
-  select id into v_event from public.events where auto_sync;
-  if v_event is null or not exists (select 1 from public.push_subscriptions) then return; end if;
+  if not exists (select 1 from public.push_subscriptions) then return; end if;
   select btrim(decrypted_secret, E' \t\r\n') into v_secret from vault.decrypted_secrets where name = 'sync_secret';
   if v_secret is null or v_secret = '' then return; end if;
-  perform net.http_post(
-    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/match-alerts',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
-    body    := jsonb_build_object('event_id', v_event),
-    timeout_milliseconds := 30000);
+  for v_event in
+    select e.id from public.events e
+    where (e.auto_sync or e.auto_sync_live)
+      and (exists (select 1 from public.event_teams t join public.push_subscriptions s on s.team_number = t.team_number
+                   where t.event_id = e.id)
+           or not exists (select 1 from public.event_teams t where t.event_id = e.id))
+  loop
+    perform net.http_post(
+      url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/match-alerts',
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+      body    := jsonb_build_object('event_id', v_event),
+      timeout_milliseconds := 30000);
+  end loop;
 end $$;
 revoke all on function public.run_match_alerts() from public, anon, authenticated;
 
@@ -4177,6 +4524,7 @@ grant select, insert, update, delete on public.scout_shifts     to authenticated
 grant select, insert, update, delete on public.pick_list        to authenticated;
 grant select, insert, update, delete on public.robot_log        to authenticated;
 grant select on public.teams                     to authenticated;
+grant select on public.event_teams               to authenticated;
 grant select on public.team_claims               to authenticated;
 grant select on public.team_domains              to authenticated;
 grant select, delete on public.team_invites      to authenticated;
@@ -4469,10 +4817,12 @@ where user_id = (select id from auth.users where lower(email) = 'dmartinl878@gma
 --
 --     To stop it:  select cron.unschedule('official-sync');
 --
---     Competition-day auto-sync: refreshes the one event staff picked with the
---     clock button in the Staff Portal, at every even minute of the clock
---     (9:30, 9:32, 9:34...). It does nothing while no event is picked, so it
---     can stay scheduled all season. The block below turns on pg_cron and pg_net
+--     Competition-day auto-sync: every even minute of the clock (9:30, 9:32...)
+--     run_auto_sync() refreshes the one event staff picked with the clock button
+--     in the Staff Portal, plus every event going on right now (smart auto-sync,
+--     section 5b). It does nothing on days with no event, so it can stay
+--     scheduled all season. team-events (supabase/functions, deploy it with
+--     --no-verify-jwt; same secrets) reads each team's registrations daily. The block below turns on pg_cron and pg_net
 --     and schedules it every time this file runs. Only step 2's vault secret is
 --     left to do by hand, because a secret can't live in this file. The check
 --     query in section 17 shows whether both are in place.
@@ -4494,6 +4844,10 @@ begin
   if to_regnamespace('cron') is not null then
     -- Same job name replaces the old schedule, so this is safe to re-run
     perform cron.schedule('auto-sync-event', '*/2 * * * *', 'select public.run_auto_sync()');
+    -- Team default events (section 5b): registrations from FRC/TBA once a day (team-events),
+    -- and the hourly re-pick, so a team's pages move to the next event as its weekend starts
+    perform cron.schedule('team-events', '20 9 * * *', 'select public.run_team_events_sync()');
+    perform cron.schedule('team-default-events', '7 * * * *', 'select public.refresh_team_default_events()');
     -- Rebuilds the official rating cache (section 9) within 3 minutes of any change. Not every
     -- minute: the database is on the smallest compute, and logins share its disk IO budget.
     perform cron.schedule('refresh-official-cache', '*/3 * * * *', 'select public.refresh_official_cache()');
@@ -4605,8 +4959,11 @@ declare
   v_verb    text;
   v_sync_cols constant text[] := array['official_synced_at', 'tba_etag', 'frc_last_modified',
                                        'official_sync_status', 'official_sync_note', 'auto_sync_request',
-                                       'resync_request', 'resync_requested_at'];
+                                       'resync_request', 'resync_requested_at', 'auto_sync_live', 'auto_sync_sent_at'];
   v_tba_cols constant text[] := array['tba_name', 'tba_logo_url', 'tba_checked_at', 'display_name', 'display_logo'];
+  -- A team's automatic default event and its FRC/TBA reads (section 5b); a member's choice is logged
+  v_team_cols constant text[] := array['auto_event', 'auto_event_why', 'events_request', 'events_requested_at',
+                                       'events_synced_at'];
 begin
   -- A share-code redemption only bumps its counters. Logging that would add a row per use.
   if TG_TABLE_NAME in ('share_codes', 'team_join_codes') and TG_OP = 'UPDATE'
@@ -4617,6 +4974,12 @@ begin
   -- Same for a sync's bookkeeping columns, or auto-sync would add a row every 2 minutes.
   if TG_TABLE_NAME = 'events' and TG_OP = 'UPDATE'
      and to_jsonb(NEW) - v_sync_cols = to_jsonb(OLD) - v_sync_cols then
+    return NEW;
+  end if;
+  -- An automatic default-event pick dropping a member's choice is still a change of the
+  -- team's default, so only rows where default_event stays the same are skipped
+  if TG_TABLE_NAME = 'teams' and TG_OP = 'UPDATE'
+     and to_jsonb(NEW) - v_team_cols = to_jsonb(OLD) - v_team_cols then
     return NEW;
   end if;
 
@@ -4921,6 +5284,9 @@ with expected(kind, name) as (values
   ('function','share_codes_guard'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
   ('function','official_sync_request'), ('function','resync_default_event'), ('function','resync_status'),
+  ('table','event_teams'), ('function','live_sync_events'), ('function','staff_set_smart_auto_sync'),
+  ('function','team_auto_event'), ('function','team_default_event'), ('function','refresh_team_default_events'),
+  ('function','team_set_default_event'), ('function','team_events_request'), ('function','refresh_my_team_events'),
   ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),
   ('function','photo_cleanup_paths'), ('function','photo_is_orphaned'), ('function','photo_in_use'),
   ('function','log_action'), ('function','purge_old_audit_log'), ('function','staff_search_audit_log'),

@@ -368,14 +368,14 @@
     var view = "field";                  // "field", "ours", or a match_key picked from a list
     var gen = 0, running = null, lastFull = 0, seenSync, lastOk = null;
     var knownPlayed = null;              // played match keys, so new results can flash once
-    var hasWebcastCol = true;            // false until rebuild_all.sql adds events.webcast_url
+    var hasWebcastCol = true;            // false until rebuild_all.sql adds events.webcast_url and auto_sync_live
     if (!team) team = Number(store(TEAM_KEY)) || null;
     var params = new URLSearchParams(location.search);
     if (Number(params.get("team")) > 0) team = Number(params.get("team"));
 
     var EVENT_COLS = "id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,auto_sync,auto_sync_since";
-    function eventCols() { return EVENT_COLS + (hasWebcastCol ? ",webcast_url" : ""); }
-    function missingColumn(err) { return err && (err.code === "42703" || /webcast_url/.test(err.message || "")); }
+    function eventCols() { return EVENT_COLS + (hasWebcastCol ? ",webcast_url,auto_sync_live" : ""); }
+    function missingColumn(err) { return err && (err.code === "42703" || /webcast_url|auto_sync_live/.test(err.message || "")); }
 
     // ── Working out where the event is ───────────────────────────────
     function hasTeam(m, t) { return (m.red_teams || []).indexOf(t) !== -1 || (m.blue_teams || []).indexOf(t) !== -1; }
@@ -539,9 +539,11 @@
       if (!linked) {
         out.push('<div class="alert alert-info" role="status">This event isn\'t linked to FRC or TBA, so there are no official results to follow. ' +
           'Staff can link it in the Staff Portal, and matches added on <a href="/matches.html">Our Matches</a> still show here.</div>');
-      } else if (!ev.auto_sync && upcoming().length && played().length) {
-        out.push('<div class="alert alert-warning" role="status">Auto-sync is off for this event, so new results only arrive when someone presses ' +
-          "<strong>Resync data</strong>. Staff turn it on with the clock button on the event in the Staff Portal.</div>");
+      } else if (!ev.auto_sync && !ev.auto_sync_live && upcoming().length && played().length) {
+        // Smart auto-sync (SQL section 5b) covers an event on its days between 7 AM and 9 PM there
+        out.push('<div class="alert alert-warning" role="status">Auto-sync isn\'t running for this event right now, so new results only arrive when someone presses ' +
+          "<strong>Resync data</strong>. It runs by itself on the event's days from 7 AM to 9 PM local time, once the event's dates are known; " +
+          "staff can also turn it on with the clock button on the event in the Staff Portal.</div>");
       }
       return out.join("");
     }
@@ -913,7 +915,7 @@
       return '<option value="' + esc(e.id) + '">' + esc(e.name) + (e.event_date ? " (" + esc(e.event_date) + ")" : "") + "</option>";
     }).join("");
     var first = events.find(function (e) { return e.id === params.get("event"); }) ||
-      events.find(function (e) { return e.is_default_event; }) || events[0];
+      (await RS.defaultEvent(events)) || events[0];
     $("eventPick").value = first.id;
     RSResync.mount($("controls"), function () { return tick(true); });
     switchEvent(first.id);
