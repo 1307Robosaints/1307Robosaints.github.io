@@ -8,3 +8,5 @@ vision/models/*.pt
 *.pt
 weights/
 __pycache__/
+# Supabase CLI link state (local to each machine)
+supabase/.temp/
