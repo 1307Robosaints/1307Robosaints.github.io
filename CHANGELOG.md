@@ -3,6 +3,45 @@
 1307scout stable releases (scout.robosaints1307.com) and the informational site
 (robosaints1307.com). Versioning and cadence: see `RELEASING.md`. Newest first.
 
+## 0.1.0 (2026-11-16)
+
+### Informational site (robosaints1307.com)
+
+- About the Mentors: Mr. Meyers' photo and bio.
+- Business Plan: updated event history, with a link to the full Season Results.
+
+### 1307scout (scout.robosaints1307.com)
+
+- **Teams**: 1307scout is open to every FRC team. Each account says which team it's on and is
+  verified by the team's managers (or site staff, or a team email domain). The new **Team
+  Management** page lets managers add and remove members, hand out join codes and invite links,
+  make other managers, and choose who on the team can change its data. A team's first manager is
+  approved by site staff.
+- Strategy plans, the pick list, the robot log and scout shifts now belong to each team, and no
+  other team sees them. For a match your team plays in, the strategy plan is shared with your
+  alliance partners for that match.
+- **Share Data**: any team member can now make share codes for the scouting data (they expire
+  within 90 days); team managers see and can revoke their team's codes.
+- **Event Viewer**: the event's livestream, schedule, rankings and read-only playoff bracket on one
+  screen, updating itself during matches. Staff set the stream in the Staff Portal.
+- Each team opens on its own current event, found from its registrations on The Blue Alliance and
+  FRC Events. Missing events are added on their own.
+- Smart auto-sync: every event going on right now syncs by itself during its days, 7 AM to 9 PM
+  local time, until the finals are decided.
+- The playoff bracket follows the official alliances, read from FRC Events.
+- Match times show in the event's own time zone.
+- 1307scout home: a "Right now" section with your next match and quick buttons, and a new page for
+  people who aren't signed in.
+- Tables can be sorted by clicking a column header, and searched.
+- Confirmations and prompts use 1307scout's own dialogs instead of the browser's.
+- Sign-in shows Google first, marked Recommended.
+- The privacy policy and terms of service cover teams, team managers, alliance-shared plans and
+  the Event Viewer's livestream player.
+
+### Behind the scenes
+
+- The Edge Functions are now kept in this repo, under `supabase/functions/`.
+
 ## 0.0.5 (2026-11-13)
 
 ### 1307scout (scout.robosaints1307.com)
