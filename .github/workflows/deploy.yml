@@ -3,6 +3,8 @@
 #   push to `master` -> beta.robosaints1307.com (1307scout experimental)
 # The scout and beta sites are GitHub Pages sites of their own repos; this pushes the built files there
 # with a deploy key (secrets SCOUT_DEPLOY_KEY / BETA_DEPLOY_KEY).
+# Actions are pinned to exact commits (version in the comment), since these jobs hold deploy keys:
+# a moved tag can't change what runs. Dependabot (.github/dependabot.yml) proposes the updates.
 name: Deploy sites
 
 on:
@@ -29,21 +31,21 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: bash deploy/build.sh info _site
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with: { path: _site }
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
 
   scout:
     if: github.ref == 'refs/heads/stable'
     runs-on: ubuntu-latest
     concurrency: { group: deploy-scout, cancel-in-progress: false }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: bash deploy/build.sh scout _site
-      - uses: peaceiris/actions-gh-pages@v4
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         with:
           deploy_key: ${{ secrets.SCOUT_DEPLOY_KEY }}
           external_repository: ${{ env.SCOUT_REPO }}
@@ -58,9 +60,9 @@ jobs:
     runs-on: ubuntu-latest
     concurrency: { group: deploy-beta, cancel-in-progress: true }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: bash deploy/build.sh beta _site
-      - uses: peaceiris/actions-gh-pages@v4
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         with:
           deploy_key: ${{ secrets.BETA_DEPLOY_KEY }}
           external_repository: ${{ env.BETA_REPO }}

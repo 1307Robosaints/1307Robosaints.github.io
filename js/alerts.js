@@ -33,7 +33,7 @@
     var sub = await reg.pushManager.getSubscription() ||
       await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key()) });
     var j = sub.toJSON();
-    var r = await sb.rpc("push_subscribe", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_team: team || 1307 });
+    var r = await sb.rpc("push_subscribe", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_team: team || null });   // null: the server uses the account's own team
     if (r.error) throw new Error(r.error.message);
   }
   async function disable(sb) {

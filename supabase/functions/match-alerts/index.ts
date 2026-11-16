@@ -166,21 +166,24 @@ Deno.serve(async (req) => {
   } else {
     const [official, edits] = await Promise.all([
       db.from("official_matches_combined").select("match_key,red_teams,blue_teams,red_score,blue_score").eq("event_id", eventId),
-      db.from("match_schedule").select("match_key,red_teams,blue_teams").eq("event_id", eventId),
+      db.from("match_schedule").select("owner_team,match_key,red_teams,blue_teams").eq("event_id", eventId),
     ]);
     if (official.error || edits.error) return reply({ error: (official.error ?? edits.error)!.message }, 500);
-    // The schedule in play order, with the Our Matches edits laid over the official line-ups
-    const byKey = new Map<string, Match>();
-    for (const m of official.data as Match[]) byKey.set(m.match_key, { ...m });
-    for (const e of edits.data!) {
-      const m = byKey.get(e.match_key) ?? { match_key: e.match_key, red_score: null, blue_score: null, red_teams: [], blue_teams: [] };
-      byKey.set(e.match_key, { ...m, red_teams: e.red_teams, blue_teams: e.blue_teams });
-    }
-    const order = [...byKey.values()].filter((m) => parseKey(m.match_key)).sort((a, b) => {
-      const x = parseKey(a.match_key)!, y = parseKey(b.match_key)!;
-      return LEVEL[x.level] - LEVEL[y.level] || x.n - y.n || x.game - y.game;
-    });
-    alerts = scheduleAlerts(order, teams, eventId);
+    // Each team's schedule in play order: the official line-ups with that team's own Our Matches
+    // edits laid over them (edits belong to a team, SQL section 8i)
+    const scheduleFor = (team: number) => {
+      const byKey = new Map<string, Match>();
+      for (const m of official.data as Match[]) byKey.set(m.match_key, { ...m });
+      for (const e of edits.data!.filter((x) => x.owner_team === team)) {
+        const m = byKey.get(e.match_key) ?? { match_key: e.match_key, red_score: null, blue_score: null, red_teams: [], blue_teams: [] };
+        byKey.set(e.match_key, { ...m, red_teams: e.red_teams, blue_teams: e.blue_teams });
+      }
+      return [...byKey.values()].filter((m) => parseKey(m.match_key)).sort((a, b) => {
+        const x = parseKey(a.match_key)!, y = parseKey(b.match_key)!;
+        return LEVEL[x.level] - LEVEL[y.level] || x.n - y.n || x.game - y.game;
+      });
+    };
+    alerts = teams.flatMap((team) => scheduleAlerts(scheduleFor(team), [team], eventId));
     source = "schedule";
   }
 

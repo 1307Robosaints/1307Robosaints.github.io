@@ -25,8 +25,8 @@ and win over the copy for any event in both. It's in the About Us menu.
 **1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
 and the 1307scout menu and home page are split the same way:
 - **Data**, shared by every team: Event Viewer, Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
-  Playoff Bracket and Share Data. Scouting entries, pit data, official results, flag reviews and playoff
-  alliances belong to nobody in particular.
+  Playoff Bracket and Share Data. Scouting entries, pit data, official results and playoff
+  alliances belong to nobody in particular. Each team's flag reviews and schedule edits are its own.
 - **My Team**, your own team's: Our Matches, Match Strategy, Pit Crew, Pick List, Scout Shifts and
   Team Management. Strategy plans, the robot log, the pick list and scout shifts carry an
   `owner_team`, and only that team's members can see them.
@@ -53,7 +53,9 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   for "left starting zone" (marked for the scout to check, and recorded in the entry's `prefilled`)
   and shows vision's FUEL estimate as a hint (`js/visioncheck.js`). Offline, **Hand off by QR** shows
   each new draft as a QR code, and a scout who is online saves it with **Scan a scout's QR**, through
-  `relay_scouting_entry()`: it stays the first scout's entry, with its own id, so it can't be saved twice.
+  `relay_scouting_entry()`: it stays the first scout's entry, with its own id, so it can't be saved twice,
+  and the scout must be on the scanner's team (`on_my_team()`). Pit entries are shared by every team, so
+  one can be deleted only by site staff or someone on the team of whoever last saved it.
 - `share.html` — Share Data: any team member (or staff) makes share codes (`share_codes`) for people not
   on a team here: alliance partners, parents, a team still waiting for verification. A code covers the
   teams and/or events picked, expires within 90 days (staff codes can be open-ended), and works only
@@ -75,7 +77,8 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   Picking an event narrows the list to its teams and shows that event's qualification rankings,
   worked out from the synced official matches (`?event=<id>` links straight to them).
   The card also has trend charts (scouted points and official score per match, OPR per event), a
-  searchable list of every scouted note and other text answer, and **Export CSV** for the team's
+  searchable list of every scouted note and other text answer, and an **Actions** menu (Add to Red/Blue
+  Alliance, View alliances, Export CSV, Download for offline, Share). **Export CSV** covers the team's
   scouted matches, pit entries and official results; an event's rankings can export all its scouting.
   Exports leave out who scouted each entry.
   `query.html?team=1307` opens a team directly. **Download for offline** saves the open team as one
@@ -85,7 +88,7 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   may be wrong or missing. Entries are checked against the schedule, the official per-robot TOWER
   results, the alliance's official FUEL points, other scouts, the team's usual numbers and the
   vision data. Robots nobody scouted are flagged too, at a lower level when vision covered them. Any
-  team member can mark a flag as fine, fixed or needing a rescout (`match_flag_reviews`). The page
+  team member can mark a flag as fine, fixed or needing a rescout (`match_flag_reviews`, per team). The page
   also lists who to scout next, by lowest coverage, and a coverage grid. Vision vs scouts shows how
   often vision agrees with this event's scouts, field by field, which decides what the Scout page
   pre-fills. Staff also see Scout accuracy: each scout's TOWER answers against official results,
@@ -95,6 +98,7 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   the synced FRC/TBA schedule. Upcoming matches show partners and opponents with grades, scouted
   points and win chance; played ones collapse to a one-line result. Any team member can add a match
   the sync doesn't have or fix a line-up (`match_schedule`), and go back to the official version.
+  Edits belong to the team that made them: other teams never see them, and match alerts follow them.
   Each match links to its Match Strategy plan (played matches only when one was saved). The win
   chance shown for an upcoming match is saved (`log_prediction()`) until it's played, and
   `ratings.html#win-chance-check` shows how those predictions held up (`prediction_calibration()`).
@@ -163,7 +167,10 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   them is a small Alliance View of the chosen match: each team's grades, scouted points, AUTO and
   teleop FUEL, climb rate and OPR, plus alliance grades and win chance, with links to the full
   Alliance View and the Match Strategy plan. Coming up and Results list the next and latest matches;
-  clicking one shows it. After qualifications, the bracket appears, scaled to the page, and playoff
+  clicking one shows it. A played match also plays its match video in the player, when The Blue
+  Alliance lists one (`official_matches.videos`, saved by `official-sync`; Back to the livestream swaps
+  back), and with no livestream set the player shows the latest match video rather than staying blank.
+  Watch buttons elsewhere (Match Flags) open the match here. After qualifications, the bracket appears, scaled to the page, and playoff
   matches the sync doesn't list yet come from it. The page keeps itself current: every 15 seconds
   it checks the event's last sync, and only reloads the schedule when that moved (or every minute,
   for hand edits). During selection and the playoffs it rechecks the alliances every 15 seconds too, and grades refresh a few

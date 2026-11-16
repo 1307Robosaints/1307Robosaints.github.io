@@ -556,11 +556,18 @@
       if (!all.every(function (t) { return Number.isInteger(t) && t >= 1 && t <= 99999; })) { say("Team numbers must be 1 to 99999."); return; }
       if (new Set(all).size !== all.length) { say("A team can only appear once in a match."); return; }
       var time = $("fTime").value ? new Date($("fTime").value).toISOString() : null;
+      // Each team keeps its own schedule edits (SQL section 8i), so they need a team to belong to
+      if (!MY_TEAM) { say("Schedule edits belong to a team. Join one on Team Management (staff: act as a team there) to save them."); return; }
       var r = await sb.from("match_schedule").upsert({
-        event_id: eventId, match_key: key, red_teams: red, blue_teams: blue, scheduled_at: time,
+        owner_team: MY_TEAM, event_id: eventId, match_key: key, red_teams: red, blue_teams: blue, scheduled_at: time,
         updated_by: s.user.id, updated_at: new Date().toISOString()
-      });
-      if (r.error) { say("Couldn't save: " + r.error.message); return; }
+      }, { onConflict: "owner_team,event_id,match_key" });
+      if (r.error) {
+        // Until the per-team key replaces the old one (SQL section 16c), only one team can edit a match
+        say(r.error.code === "23505" ? "Another team already edited this match, so it can't be edited here yet. The official schedule still shows it."
+                                     : "Couldn't save: " + r.error.message);
+        return;
+      }
       edits[key] = { match_key: key, red_teams: red, blue_teams: blue, scheduled_at: time };
       if (all.indexOf(team) === -1) say("Saved. Team " + team + " isn't in that match, so it won't show in this list.");
       if (andNext && level === "qm") {

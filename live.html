@@ -229,7 +229,7 @@
     <div class="c-intro">
       <div>
         <h1>Event Viewer</h1>
-        <p class="text-muted">One event as it happens: the livestream, the match on the field and your next match, kept up to date as results come in. No need to refresh. Pick any match to look at it, and the address bar becomes a link to it. <a href="/ratings.html#win-chance">How win chance works</a></p>
+        <p class="text-muted">One event as it happens: the livestream, the match on the field and your next match, kept up to date as results come in. No need to refresh. Pick any match to look at it (a played one brings up its video from The Blue Alliance, once posted), and the address bar becomes a link to it. <a href="/ratings.html#win-chance">How win chance works</a></p>
       </div>
       <div class="c-controls" id="controls">
         <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
@@ -246,6 +246,7 @@
           <div class="c-player" id="player"></div>
           <div class="c-stream-bar">
             <span class="c-src" id="streamSrc"></span>
+            <button type="button" id="streamSwap" hidden></button>
             <button type="button" id="streamChange">Change stream</button>
             <a id="streamOpen" href="#" target="_blank" rel="noopener" hidden>Open in a new tab</a>
             <button type="button" id="streamHide">Hide stream</button>
@@ -369,6 +370,9 @@
     var gen = 0, running = null, lastFull = 0, seenSync, lastOk = null;
     var knownPlayed = null;              // played match keys, so new results can flash once
     var hasWebcastCol = true;            // false until rebuild_all.sql adds events.webcast_url and auto_sync_live
+    var videos = {};                     // match_key -> TBA's YouTube video { id, start }
+    var hasVideoCol = true;              // false until rebuild_all.sql adds official_matches.videos
+    var liveFor = null;                  // a picked match whose video was swapped back to the livestream
     if (!team) team = Number(store(TEAM_KEY)) || null;
     // Links: ?event=<id> opens that event, &match=<key> (qm12, sf8m1, f1m2) that match, &team=<n> that team
     var params = new URLSearchParams(location.search);
@@ -442,11 +446,38 @@
 
     // ── Loading ──────────────────────────────────────────────────────
     async function loadSchedule(g) {
-      var res = await S.load(sb, eventId);
+      var res = await Promise.all([S.load(sb, eventId), loadVideos()]);
       if (g !== gen) return;
-      if (res.error) throw res.error;
-      matches = res.matches;
+      if (res[0].error) throw res[0].error;
+      matches = res[0].matches;
+      if (res[1]) videos = res[1];
       lastFull = Date.now();
+    }
+    // The match videos TBA lists, saved by official-sync. Loaded with the schedule, so only after a sync.
+    async function loadVideos() {
+      if (!hasVideoCol) return null;
+      var r = await sb.from("official_matches").select("match_key,videos")
+        .eq("event_id", eventId).eq("source", "tba").not("videos", "is", null);
+      if (r.error) {
+        if (r.error.code === "42703" || /column .*videos/.test(r.error.message || "")) hasVideoCol = false;
+        else console.warn("Event Viewer:", r.error.message);
+        return null;
+      }
+      var out = {};
+      (r.data || []).forEach(function (row) {
+        var v = youtubeOf(row.videos);
+        if (v) out[row.match_key] = v;
+      });
+      return out;
+    }
+    // TBA's first YouTube video, as { id, start } (its key can carry a ?t= start time)
+    function youtubeOf(list) {
+      var v = (Array.isArray(list) ? list : []).find(function (x) { return x && x.type === "youtube" && x.key; });
+      if (!v) return null;
+      var id = String(v.key).split(/[?#&]/)[0];
+      if (!/^[\w-]{6,20}$/.test(id)) return null;
+      var t = /[?&#]t=(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?/.exec(v.key);
+      return { id: id, start: t ? (+t[1] || 0) * 3600 + (+t[2] || 0) * 60 + (+t[3] || 0) : 0 };
     }
     async function loadBracket(g) {
       var d = await RSBracket.load(sb, eventId);
@@ -515,7 +546,6 @@
         openLinkedMatch();
         lastOk = new Date();
         setLive(true);
-        renderStream();
         render();
         await loadRatings(g);
       } catch (e) {
@@ -592,23 +622,55 @@
       if (ev.webcast_url) return { url: ev.webcast_url, mine: false };
       return null;
     }
-    // Only redrawn when the link changes, so a refresh never restarts the video
-    var shownStream = null;
+    // What the player shows: a played match picked from a list plays its TBA video (until Back to
+    // the livestream); otherwise the livestream; with no stream, the latest match video, so the
+    // screen isn't left blank. Null: a message instead.
+    function pickedMatch() {
+      if (view === "field" || view === "ours") return null;
+      var m = find(view);
+      return m && m.played ? m : null;
+    }
+    function playerSource(choice) {
+      var m = pickedMatch(), live = choice ? embedFor(choice.url) : null;
+      if (m && videos[m.match_key] && !(live && liveFor === m.match_key)) return { kind: "match", m: m, v: videos[m.match_key] };
+      if (live) return { kind: "stream", src: live };
+      var latest = played().slice().reverse().find(function (x) { return videos[x.match_key]; });
+      return latest ? { kind: "latest", m: latest, v: videos[latest.match_key] } : null;
+    }
+    function youtubeLink(v) { return "https://www.youtube.com/watch?v=" + v.id + (v.start ? "&t=" + v.start + "s" : ""); }
+    // The bar is redrawn every time; the player only when what it plays changes, so a refresh never restarts the video
+    var shownPlayer = null;
     function renderStream() {
       var hidden = !!store(HIDE_KEY), choice = streamChoice();
-      var key = (hidden ? "hide|" : "") + eventId + "|" + (choice ? choice.url : "");
-      if (key === shownStream) return;
-      shownStream = key;
+      var src = playerSource(choice), picked = pickedMatch();
+      var live = choice && embedFor(choice.url);
       $("streamBox").classList.toggle("hidden", hidden);
       $("streamHide").textContent = hidden ? "Show stream" : "Hide stream";
-      $("streamOpen").hidden = !choice;
-      if (choice) $("streamOpen").href = choice.url;
-      $("streamSrc").textContent = choice ? (choice.mine ? "Your stream for this event (only in this browser)" : "The event's stream, set by staff") : "No stream set";
       $("streamReset").hidden = !(choice && choice.mine);
+      var open = src && src.v ? youtubeLink(src.v) : choice ? choice.url : null;
+      $("streamOpen").hidden = !open;
+      if (open) $("streamOpen").href = open;
+      var swap = src && src.kind === "match" && live ? "Back to the livestream"
+        : src && src.kind === "stream" && picked && videos[picked.match_key] ? "Watch " + labelOf(picked) : "";
+      $("streamSwap").hidden = hidden || !swap;
+      $("streamSwap").textContent = swap;
+      var streamText = choice ? (choice.mine ? "Your stream for this event (only in this browser)" : "The event's stream, set by staff") : "No stream set";
+      var noVideo = picked && !videos[picked.match_key] ? " · No video for " + labelOf(picked) + " on The Blue Alliance yet" : "";
+      $("streamSrc").textContent = !src ? streamText + noVideo
+        : src.kind === "match" ? labelOf(src.m) + " · match video from The Blue Alliance"
+        : src.kind === "latest" ? (choice ? "The stream link can't play here" : "No stream set") + " · latest match video, " + labelOf(src.m) + noVideo
+        : streamText + noVideo;
+
+      var key = hidden ? "hidden" : !src ? "msg|" + eventId + "|" + (choice ? choice.url : "")
+        : src.kind === "stream" ? "stream|" + src.src : "video|" + src.v.id + "|" + src.v.start;
+      if (key === shownPlayer) return;
+      shownPlayer = key;
       if (hidden) { $("player").innerHTML = ""; return; }
-      var src = choice ? embedFor(choice.url) : null;
       if (src) {
-        $("player").innerHTML = '<iframe src="' + esc(src) + '" title="Event livestream" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" ' +
+        var url = src.kind === "stream" ? src.src
+          : "https://www.youtube.com/embed/" + src.v.id + "?playsinline=1&rel=0" + (src.v.start ? "&start=" + src.v.start : "");
+        var title = src.kind === "stream" ? "Event livestream" : "Match video: " + labelOf(src.m);
+        $("player").innerHTML = '<iframe src="' + esc(url) + '" title="' + esc(title) + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" ' +
           'allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
         return;
       }
@@ -639,6 +701,12 @@
     $("streamReset").addEventListener("click", function () {
       var own = ownStreams(); delete own[eventId]; store(STREAM_KEY, own);
       $("streamForm").hidden = true;
+      renderStream();
+    });
+    // Swaps between a picked match's video and the livestream
+    $("streamSwap").addEventListener("click", function () {
+      var m = pickedMatch();
+      liveFor = m && liveFor !== m.match_key ? m.match_key : null;
       renderStream();
     });
     $("streamHide").addEventListener("click", function () {
@@ -836,6 +904,7 @@
         $("bracket").innerHTML = bracket.html(bResults, { compact: true, ourTeam: team, teamInfo: teamInfo });
         fitBracket();
       }
+      renderStream();   // a picked match may have a video
       syncUrl();
     }
     window.addEventListener("resize", fitBracket);
@@ -889,9 +958,9 @@
       ev = events.find(function (e) { return e.id === id; }) || {};
       gen++;
       matches = []; bracket = bResults = null; knownPlayed = null; seenSync = undefined; lastFull = 0;
+      videos = {}; liveFor = null;
       view = "field";
       missedMatch = null;
-      renderStream();
       render();
       tick(true);
     }

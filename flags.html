@@ -301,6 +301,7 @@
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var MY_TEAM = ((await RS.team()) || {}).team_number || null;   // reviews belong to the team (SQL section 8j)
 
     var events = [], eventId = null, isStaff = lvl === "staff";
     var official = {}, edits = {}, entries = [], visionMatches = {}, visionRobots = {}, reviews = {}, testTeams = new Set();
@@ -539,9 +540,10 @@
     }
     function playedQuals() { return quals().filter(function (k) { return isPlayed(official[k]); }); }
     function teamUrl(t) { return "/query.html?team=" + t; }
+    // The match on the Event Viewer, which plays its TBA video
     function videoUrl(key) {
       var ev = events.find(function (e) { return e.id === eventId; }) || {};
-      return ev.tba_event_key ? "https://www.thebluealliance.com/match/" + ev.tba_event_key + "_" + key : null;
+      return ev.tba_event_key ? "/live.html?event=" + encodeURIComponent(eventId) + "&match=" + encodeURIComponent(key) : null;
     }
 
     function tilesHtml(flags) {
@@ -632,7 +634,7 @@
         var list = byMatch[key].sort(function (a, b) { return SEV_RANK[b.sev] - SEV_RANK[a.sev] || a.team - b.team; });
         return '<section class="f-match"><div class="f-match-head"><h3>' + esc(matchLabel(key)) + "</h3>" +
           (isPlayed(m) ? '<span class="f-score">Red ' + m.red_score + " – Blue " + m.blue_score + "</span>" : "") +
-          '<span class="f-links">' + (url ? '<a class="btn btn-outline-primary" href="' + esc(url) + '" target="_blank" rel="noopener"><i class="fa fa-play"></i> Watch on TBA</a>' : "") +
+          '<span class="f-links">' + (url ? '<a class="btn btn-outline-primary" href="' + esc(url) + '" target="_blank" rel="noopener"><i class="fa fa-play"></i> Watch</a>' : "") +
           "</span></div>" + list.map(flagHtml).join("") + "</section>";
       }).join("");
     }
@@ -753,15 +755,23 @@
       if (!btn) return;
       var match = btn.dataset.match, team = Number(btn.dataset.team), type = btn.dataset.type, status = btn.dataset.status;
       var id = match + "|" + team + "|" + type, r;
+      if (!MY_TEAM) {
+        RSDialog.alert("Flag reviews belong to a team. Join one on Team Management (staff: act as a team there) to review flags.", { title: "Not saved" });
+        return;
+      }
       if (status === "clear") {
         r = await sb.from("match_flag_reviews").delete()
           .eq("event_id", eventId).eq("match_key", match).eq("team_number", team).eq("flag_type", type);
         if (!r.error) delete reviews[id];
       } else {
-        var note = status === "rescout" ? (window.prompt("Note for whoever rescouts it (optional):", "") || "").slice(0, 300) : "";
-        var row = { event_id: eventId, match_key: match, team_number: team, flag_type: type, status: status,
+        var note = "";
+        if (status === "rescout") {
+          note = await RSDialog.prompt("Note for whoever rescouts it (optional):", { title: "Needs a rescout", value: "", maxLength: 300 });
+          if (note === null) return;   // cancelled
+        }
+        var row = { owner_team: MY_TEAM, event_id: eventId, match_key: match, team_number: team, flag_type: type, status: status,
           note: note || null, reviewed_by: s.user.id, reviewed_at: new Date().toISOString() };
-        r = await sb.from("match_flag_reviews").upsert(row, { onConflict: "event_id,match_key,team_number,flag_type" });
+        r = await sb.from("match_flag_reviews").upsert(row, { onConflict: "owner_team,event_id,match_key,team_number,flag_type" });
         if (!r.error) reviews[id] = row;
       }
       if (r.error) { RSDialog.alert("Couldn't save that: " + r.error.message, { title: "Not saved" }); return; }

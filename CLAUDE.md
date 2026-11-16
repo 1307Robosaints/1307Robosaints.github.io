@@ -175,7 +175,8 @@ not re-run them.
 
 Key tables/functions to know when touching 1307scout:
 - `events`, `scouting_entries` (match scouting), `pit_entries` (one per team per event, owned by
-  the team, not per-scout) — pit data is validated against `scout_fields` via
+  the team, not per-scout; any team edits, but only staff or the last editor's team deletes, via
+  `on_my_team()`) — pit data is validated against `scout_fields` via
   `validate_data()`/`validate_pit_entry()` triggers.
 - `scout_fields` — staff-defined form fields (scope `match` or `pit`); `field_type` includes
   `'image'`, which drives a file/camera picker on the Scout page that uploads to the
@@ -191,7 +192,11 @@ Key tables/functions to know when touching 1307scout:
   Portal's event editor. That page keeps itself current by polling the event's `official_synced_at`
   (one small request every 15 seconds) and reloading the schedule only when it moves; keep new
   live-updating pages to that pattern rather than reloading everything on a timer (Nano compute).
+  A picked played match plays its TBA video from `official_matches.videos` (TBA rows, saved by
+  `official-sync`); other pages' Watch links go to `live.html?event=<id>&match=<key>`, not to TBA.
 - `match_schedule` — hand edits for `matches.html`, laid over the official schedule by `match_key`.
+  Team-owned (`owner_team`, read and written by that team only), as are `match_flag_reviews`. Their
+  per-team keys replace the old ones in section 16c, not run until stable saves with `owner_team`.
 - `scout_shifts` (8m) — a team's seats, assigned by its managers (`red1`..`blue3`) for a range of quals; a trigger stops
   overlaps. `team_member_names()` gives the team display names for the account ids a page shows.
 - `pick_list` (8n) — each team's ranked pick list per event; Playoff Selection reads it.
@@ -210,8 +215,8 @@ Key tables/functions to know when touching 1307scout:
   function granted to `anon`. Keep it limited to public competition results.
 - `alliance_strategies` / `match_strategies` (section 8k) — `strategy.html` plans (`plan` jsonb:
   line-up override, robot spots, drawn strokes), last save wins. For a match the team plays in, one
-  plan per alliance, shared by the alliance's teams (`my_alliance()`: the official line-up, or a
-  `match_schedule` edit only when the official schedule lacks the match, so a schedule edit can't
+  plan per alliance, shared by the alliance's teams (`my_alliance()`: the official line-up, or the
+  team's own `match_schedule` edit only when the official schedule lacks the match, so a schedule edit can't
   open another alliance's plan). Otherwise one team-private plan per match (`owner_team`). Writes
   need `team_can('strategy')`. Kept after the match for review; the page locks a played match's plan
   until someone clicks Edit.

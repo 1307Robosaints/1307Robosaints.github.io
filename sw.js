@@ -144,7 +144,8 @@ self.addEventListener("push", function (e) {
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
   e.waitUntil(self.registration.showNotification(d.title || "1307scout", {
     body: d.body || "", tag: d.tag || "match-alert", icon: "/img/app/icon-192.png",
-    data: { url: typeof d.url === "string" && d.url.charAt(0) === "/" ? d.url : "/matches.html" }
+    // A path on this site only: "//host/..." would open another site
+    data: { url: typeof d.url === "string" && /^\/(?![\/\\])/.test(d.url) ? d.url : "/matches.html" }
   }));
 });
 // Tapping it opens the page it names, in an open 1307scout window if there is one

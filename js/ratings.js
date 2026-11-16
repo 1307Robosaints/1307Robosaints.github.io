@@ -37,29 +37,56 @@
   function ratedRows(rows, testTeams) {
     return rows.filter(function (r) { return !testTeams.has(r.team_number) && isRated(r); });
   }
+  // A full season of official results rates thousands of teams, so each list gets a lookup by
+  // team and its rated scores sorted once, kept until the page loads a new list. Pages replace
+  // these arrays and Sets rather than changing them, which is what makes caching by identity safe.
+  var indexes = new WeakMap();
+  function indexFor(rows, testTeams) {
+    var byTests = indexes.get(rows);
+    if (!byTests) { byTests = new WeakMap(); indexes.set(rows, byTests); }
+    var ix = byTests.get(testTeams);
+    if (!ix) {
+      var byTeam = new Map();
+      rows.forEach(function (r) { if (!byTeam.has(r.team_number)) byTeam.set(r.team_number, r); });
+      ix = {
+        byTeam: byTeam,
+        scores: ratedRows(rows, testTeams).map(function (r) { return Number(r.score); })
+          .sort(function (x, y) { return x - y; }),
+        shares: new Map()   // alliance total -> share of alliances at or below it
+      };
+      byTests.set(testTeams, ix);
+    }
+    return ix;
+  }
+  // How many of the sorted values are at or below v
+  function countAtOrBelow(sorted, v) {
+    var lo = 0, hi = sorted.length;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (sorted[mid] <= v) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+  }
+
   // Same tiers and rules as query.html: where a team's score ranks among rated teams
   function gradeFor(rows, team, testTeams) {
     if (testTeams.has(team)) return "TEST";
-    var me = rows.find(function (r) { return r.team_number === team; });
+    var ix = indexFor(rows, testTeams), me = ix.byTeam.get(team);
     if (!isRated(me)) return "NR";
-    var rated = ratedRows(rows, testTeams), score = Number(me.score);
-    return tierFor(rated.filter(function (r) { return Number(r.score) <= score; }).length / rated.length);
+    return tierFor(countAtOrBelow(ix.scores, Number(me.score)) / ix.scores.length);
   }
 
-  // Share of all possible 3-team alliances whose combined score is at or below total. Counted
-  // exactly: for each pair, a binary search finds how many higher-placed teams complete it.
-  function shareOfAlliances(scores, total) {
-    var a = scores.slice().sort(function (x, y) { return x - y; });
+  // Share of all possible 3-team alliances whose combined score is at or below total, from
+  // scores sorted low to high. Counted exactly: for each lowest team i, two pointers walk the
+  // other two, so it's one pass per i instead of a search per pair.
+  function shareOfAlliances(a, total) {
     var n = a.length, count = 0;
     for (var i = 0; i < n - 2; i++) {
-      for (var j = i + 1; j < n - 1; j++) {
-        var limit = total - a[i] - a[j] + 1e-9;   // tolerance for decimal scores
-        var lo = j + 1, hi = n;
-        while (lo < hi) {
-          var mid = (lo + hi) >> 1;
-          if (a[mid] <= limit) lo = mid + 1; else hi = mid;
-        }
-        count += lo - (j + 1);
+      var limit = total - a[i] + 1e-9;   // tolerance for decimal scores
+      var j = i + 1, k = n - 1;
+      while (j < k) {
+        if (a[j] + a[k] <= limit) { count += k - j; j++; }
+        else k--;
       }
     }
     return count / (n * (n - 1) * (n - 2) / 6);
@@ -72,11 +99,10 @@
       return g !== "NR" && g !== "TEST";
     });
     if (!rated) return "NR";
-    var pool = ratedRows(rows, testTeams).map(function (r) { return Number(r.score); });
-    var total = teams.reduce(function (sum, t) {
-      return sum + Number(rows.find(function (r) { return r.team_number === t; }).score);
-    }, 0);
-    return tierFor(shareOfAlliances(pool, total));
+    var ix = indexFor(rows, testTeams);
+    var total = teams.reduce(function (sum, t) { return sum + Number(ix.byTeam.get(t).score); }, 0);
+    if (!ix.shares.has(total)) ix.shares.set(total, shareOfAlliances(ix.scores, total));
+    return tierFor(ix.shares.get(total));
   }
 
   // Points a robot scored in each match, using the Table 6-4 values in rebuilt_points().
@@ -257,8 +283,8 @@
       return {
         team: team,
         info: d.teamInfo[team] || {},
-        scout: d.ratings.find(function (r) { return r.team_number === team; }) || null,
-        official: d.officialRatings.find(function (r) { return r.team_number === team; }) || null,
+        scout: indexFor(d.ratings, d.testTeams).byTeam.get(team) || null,
+        official: indexFor(d.officialRatings, d.testTeams).byTeam.get(team) || null,
         gradeScout: gradeFor(d.ratings, team, d.testTeams),
         gradeOfficial: gradeFor(d.officialRatings, team, d.testTeams),
         rows: d.entries[team] || [],

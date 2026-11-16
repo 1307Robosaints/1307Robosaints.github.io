@@ -29,6 +29,7 @@
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 -- 16b  Teams step 2: per-team keys (run 2026-11-16, after 0.1.0)
+-- 16c  Teams step 2 for schedule edits and flag reviews (not run yet: after the next release)
 --  17  Check query
 --
 -- After running, the Edge Function (official-sync) still needs its own
@@ -718,12 +719,14 @@ begin
     return jsonb_build_object('error', 'rate_limited');
   end if;
 
+  -- Locked, so two people redeeming the last use at the same moment can't both get in
   select * into v_code from public.team_join_codes c
   where c.code = regexp_replace(regexp_replace(upper(coalesce(p_code, '')), '[^0-9A-F]', '', 'g'),
                                 '^(....)(....)(....)$', '\1-\2-\3')
     and not c.revoked
     and (c.expires_at is null or c.expires_at > now())
-    and (c.max_uses is null or c.use_count < c.max_uses);
+    and (c.max_uses is null or c.use_count < c.max_uses)
+  for update;
   if v_code.code is null then
     insert into public.share_code_attempts (user_id) values (v_uid);
     return jsonb_build_object('error', 'invalid');
@@ -2032,6 +2035,16 @@ create table if not exists public.pit_entries (
 );
 alter table public.pit_entries enable row level security;
 
+-- The caller, or someone on the caller's team. For shared rows that only the writer's own team
+-- should be able to remove (the pit delete policy below).
+create or replace function public.on_my_team(p_user uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_user = auth.uid()
+      or exists (select 1 from public.member_team(p_user) m where m.team_number = public.my_team());
+$$;
+revoke all on function public.on_my_team(uuid) from public, anon;
+grant execute on function public.on_my_team(uuid) to authenticated;
+
 drop policy if exists "team reads pit"   on public.pit_entries;
 drop policy if exists "team adds pit"    on public.pit_entries;
 drop policy if exists "team edits pit"   on public.pit_entries;
@@ -2043,8 +2056,10 @@ create policy "team adds pit" on public.pit_entries for insert to authenticated
 create policy "team edits pit" on public.pit_entries for update to authenticated
   using ((select public.is_staff()) or (select public.is_student()))
   with check ((select public.is_staff()) or (select public.is_student()));
+-- Pit entries are shared by every team, so a team may remove only one its own members last saved
+-- (scouted_by is the last editor); otherwise anyone on any team could wipe everyone's pit data.
 create policy "team deletes pit" on public.pit_entries for delete to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using ((select public.is_staff()) or ((select public.is_student()) and public.on_my_team(scouted_by)));
 
 -- The server decides who last edited a pit entry and when, so neither can be forged through the
 -- API. auth.uid() is null for service-role work, which keeps the existing editor.
@@ -2273,6 +2288,8 @@ create index if not exists official_matches_blue_teams_idx on public.official_ma
 -- small index instead of the much larger table rows that hold the breakdown JSON.
 create index if not exists official_matches_slim_idx on public.official_matches (event_id, match_key, source)
   include (comp_level, set_number, match_number, played_at, red_teams, blue_teams, red_score, blue_score);
+-- TBA's match video list as it sent it ([{type, key}], TBA rows only), played on the Event Viewer
+alter table public.official_matches add column if not exists videos jsonb;
 alter table public.official_matches enable row level security;
 
 drop policy if exists "team reads official matches" on public.official_matches;
@@ -2652,7 +2669,12 @@ create policy "staff manages playoff lineups" on public.playoff_lineups for all 
 --    The Our Matches page reads each event's schedule from the official
 --    sync. A row here adds a match the sync doesn't have yet, or replaces
 --    the line-up of one it does (same match_key, e.g. qm12). Deleting the
---    row goes back to the official version. Any team member can edit.
+--    row goes back to the official version.
+--
+--    Each team has its own edits (owner_team), and only its members see or change them. Shared
+--    edits let any member of any team rewrite an official match's line-up on every team's page.
+--    The (owner_team, event_id, match_key) key replaces the old primary key in step 2 (section
+--    16c), once the stable release sends owner_team; until then two teams can't both edit one match.
 -- =====================================================================
 create table if not exists public.match_schedule (
   event_id     uuid not null references public.events(id) on delete cascade,
@@ -2668,19 +2690,33 @@ create table if not exists public.match_schedule (
 );
 alter table public.match_schedule enable row level security;
 
+-- Rows from before teams had their own edits are the home team's. A page that doesn't send
+-- owner_team (the stable release) gets the saver's team.
+alter table public.match_schedule add column if not exists owner_team int;
+update public.match_schedule set owner_team = public.home_team() where owner_team is null;
+alter table public.match_schedule alter column owner_team set default public.my_team();
+alter table public.match_schedule alter column owner_team set not null;
+do $$
+begin
+  if not exists (select 1 from pg_index i where i.indrelid = 'public.match_schedule'::regclass and i.indisunique
+                 and pg_get_indexdef(i.indexrelid) like '%(owner_team, event_id, match_key)%') then
+    create unique index match_schedule_team_key on public.match_schedule (owner_team, event_id, match_key);
+  end if;
+end $$;
+
 drop policy if exists "team reads match schedule"   on public.match_schedule;
 drop policy if exists "team adds match schedule"    on public.match_schedule;
 drop policy if exists "team edits match schedule"   on public.match_schedule;
 drop policy if exists "team deletes match schedule" on public.match_schedule;
 create policy "team reads match schedule" on public.match_schedule for select to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()));
 create policy "team adds match schedule" on public.match_schedule for insert to authenticated
-  with check (((select public.is_staff()) or (select public.is_student())) and updated_by = auth.uid());
+  with check (owner_team = (select public.my_team()) and updated_by = auth.uid());
 create policy "team edits match schedule" on public.match_schedule for update to authenticated
-  using ((select public.is_staff()) or (select public.is_student()))
-  with check (updated_by = auth.uid());
+  using (owner_team = (select public.my_team()))
+  with check (owner_team = (select public.my_team()) and updated_by = auth.uid());
 create policy "team deletes match schedule" on public.match_schedule for delete to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()));
 
 
 -- =====================================================================
@@ -2696,6 +2732,7 @@ create policy "team deletes match schedule" on public.match_schedule for delete 
 --    Match Flags page (flags.html): it looks fine, it was fixed, or it needs a
 --    rescout. The flags themselves are worked out on that page from the data
 --    already here. team_number 0 means a flag about the whole match or alliance.
+--    Each team reviews its own flags (owner_team); others neither see nor change its reviews.
 -- =====================================================================
 create table if not exists public.vision_matches (
   event_id         uuid not null references public.events(id) on delete cascade,
@@ -2747,19 +2784,34 @@ create table if not exists public.match_flag_reviews (
 );
 alter table public.match_flag_reviews enable row level security;
 
+-- Same per-team change as match_schedule (8i): the new key replaces the old unique one in step 2
+-- (section 16c), once the stable release saves with it
+alter table public.match_flag_reviews add column if not exists owner_team int;
+update public.match_flag_reviews set owner_team = public.home_team() where owner_team is null;
+alter table public.match_flag_reviews alter column owner_team set default public.my_team();
+alter table public.match_flag_reviews alter column owner_team set not null;
+do $$
+begin
+  if not exists (select 1 from pg_index i where i.indrelid = 'public.match_flag_reviews'::regclass and i.indisunique
+                 and pg_get_indexdef(i.indexrelid) like '%(owner_team, event_id, match_key, team_number, flag_type)%') then
+    create unique index match_flag_reviews_team_key
+      on public.match_flag_reviews (owner_team, event_id, match_key, team_number, flag_type);
+  end if;
+end $$;
+
 drop policy if exists "team reads flag reviews"   on public.match_flag_reviews;
 drop policy if exists "team adds flag reviews"    on public.match_flag_reviews;
 drop policy if exists "team edits flag reviews"   on public.match_flag_reviews;
 drop policy if exists "team deletes flag reviews" on public.match_flag_reviews;
 create policy "team reads flag reviews" on public.match_flag_reviews for select to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()));
 create policy "team adds flag reviews" on public.match_flag_reviews for insert to authenticated
-  with check (((select public.is_staff()) or (select public.is_student())) and reviewed_by = auth.uid());
+  with check (owner_team = (select public.my_team()) and reviewed_by = auth.uid());
 create policy "team edits flag reviews" on public.match_flag_reviews for update to authenticated
-  using ((select public.is_staff()) or (select public.is_student()))
-  with check (reviewed_by = auth.uid());
+  using (owner_team = (select public.my_team()))
+  with check (owner_team = (select public.my_team()) and reviewed_by = auth.uid());
 create policy "team deletes flag reviews" on public.match_flag_reviews for delete to authenticated
-  using ((select public.is_staff()) or (select public.is_student()));
+  using (owner_team = (select public.my_team()));
 
 
 -- =====================================================================
@@ -2816,9 +2868,9 @@ create policy "team deletes match strategies" on public.match_strategies for del
 -- change plans, per team_can('strategy')). The other alliance never sees it. match_strategies
 -- above keeps a team's private plans for matches it isn't in.
 --
--- Who is on an alliance comes from the official line-up. A match_schedule edit (which any team
--- member can make) only counts for a match the official schedule doesn't have yet, so nobody can
--- edit the schedule to put their team on someone else's alliance and read its plan.
+-- Who is on an alliance comes from the official line-up. A team's own match_schedule edit only
+-- counts for a match the official schedule doesn't have yet, so nobody can edit the schedule to
+-- put their team on someone else's alliance and read its plan.
 create table if not exists public.alliance_strategies (
   event_id   uuid not null references public.events(id) on delete cascade,
   match_key  text not null check (match_key ~ '^(qm[0-9]{1,3}|sf[0-9]{1,2}m[0-9]{1,2}|f1m[0-9]{1,2})$'),
@@ -2840,7 +2892,7 @@ language sql stable security definer set search_path = '' as $$
     from (select 1) x
     left join public.official_matches_combined o
       on o.event_id = p_event and o.match_key = p_match and cardinality(o.red_teams) > 0
-    left join public.match_schedule e on e.event_id = p_event and e.match_key = p_match
+    left join public.match_schedule e on e.event_id = p_event and e.match_key = p_match and e.owner_team = p_team
   ) l;
 $$;
 revoke all on function public.match_alliance(uuid, text, int) from public, anon, authenticated;
@@ -3177,7 +3229,7 @@ returns void language plpgsql security definer set search_path = '' as $$
 begin
   if not (public.is_staff() or public.is_student()) then raise exception 'Team members only.'; end if;
   insert into public.push_subscriptions (endpoint, user_id, p256dh, auth_key, team_number)
-  values (p_endpoint, auth.uid(), p_p256dh, p_auth, coalesce(p_team, 1307))
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, coalesce(p_team, public.my_team(), public.home_team()))
   on conflict (endpoint) do update set user_id = auth.uid(), p256dh = excluded.p256dh,
     auth_key = excluded.auth_key, team_number = excluded.team_number, created_at = now();
 end $$;
@@ -3244,6 +3296,11 @@ begin
   v_by := (p_entry ->> 'scouted_by')::uuid;
   if v_id is null or v_by is null then raise exception 'The entry is missing its id or its scout.'; end if;
   if not public.is_team_member(v_by) then raise exception 'The scout on this entry is not a team member.'; end if;
+  -- Scanning happens between teammates. Without this, anyone on any team could save entries in
+  -- another team's scout's name.
+  if not public.is_staff() and not public.on_my_team(v_by) then
+    raise exception 'The scout on this entry is not on your team.';
+  end if;
   if exists (select 1 from public.scouting_entries where id = v_id) then return 'already saved'; end if;
   insert into public.scouting_entries (id, event_id, team_number, match_number, data, scouted_by, prefilled, relayed_by)
   values (v_id, (p_entry ->> 'event_id')::uuid, (p_entry ->> 'team_number')::int,
@@ -5038,7 +5095,8 @@ begin
     when 'playoff_lineups' then
       format('%s line-up: team %s sits out %s for alliance %s', v_verb, v_row ->> 'sits_out', v_row ->> 'match_key', v_row ->> 'alliance_number')
     when 'match_schedule' then
-      format('%s schedule: %s, red %s, blue %s', v_verb, v_row ->> 'match_key', v_row ->> 'red_teams', v_row ->> 'blue_teams')
+      format('%s schedule (team %s): %s, red %s, blue %s', v_verb, v_row ->> 'owner_team', v_row ->> 'match_key',
+        v_row ->> 'red_teams', v_row ->> 'blue_teams')
     when 'match_strategies' then
       format('%s strategy plan: %s', v_verb, v_row ->> 'match_key')
     when 'alliance_strategies' then
@@ -5050,8 +5108,8 @@ begin
     when 'robot_log' then
       format('%s robot log: %s', v_verb, v_row ->> 'kind')
     when 'match_flag_reviews' then
-      format('%s flag review: %s, team %s, %s marked %s', v_verb, v_row ->> 'match_key', v_row ->> 'team_number',
-        v_row ->> 'flag_type', v_row ->> 'status')
+      format('%s flag review (by team %s): %s, team %s, %s marked %s', v_verb, v_row ->> 'owner_team',
+        v_row ->> 'match_key', v_row ->> 'team_number', v_row ->> 'flag_type', v_row ->> 'status')
     when 'staff_members' then
       format('%s staff member %s', v_verb,
         coalesce((select email from auth.users where id = (v_row ->> 'user_id')::uuid), v_row ->> 'user_id'))
@@ -5263,6 +5321,29 @@ end $$;
 
 
 -- =====================================================================
+-- 16c. Teams, step 2 for schedule edits and flag reviews. NOT RUN YET.
+--
+--     Moves match_schedule and match_flag_reviews onto their per-team keys (sections 8i and 8j),
+--     so two teams can each edit the same match or review the same flag. Run it once the stable
+--     release saves both with owner_team (Our Matches and Match Flags from master, the release
+--     after 0.1.0). Before that, stable's saves still target the old keys and would fail.
+--     Uncomment, run on its own, then put this back as a guarded block like 16b.
+-- =====================================================================
+-- do $$
+-- begin
+--   if exists (select 1 from pg_constraint where conname = 'match_schedule_pkey'
+--              and conrelid = 'public.match_schedule'::regclass
+--              and pg_get_constraintdef(oid) not like '%owner_team%') then
+--     alter table public.match_schedule drop constraint match_schedule_pkey;
+--     alter table public.match_schedule add constraint match_schedule_pkey
+--       primary key using index match_schedule_team_key;
+--   end if;
+--   alter table public.match_flag_reviews
+--     drop constraint if exists match_flag_reviews_event_id_match_key_team_number_flag_type_key;
+-- end $$;
+
+
+-- =====================================================================
 -- 17. Check query. Run this last (or any time). The result lists every
 --     expected table, view, function, and the photo storage bucket;
 --     "present" should be true on every row. Rows that are false sort
@@ -5287,7 +5368,7 @@ with expected(kind, name) as (values
   ('function','join_team'), ('function','team_update_settings'), ('function','request_team_manager'),
   ('function','staff_list_team_requests'), ('function','staff_review_team_request'), ('function','staff_list_teams'),
   ('function','staff_set_team_role'), ('function','staff_set_team_domain'),
-  ('function','is_team_member'), ('function','team_member_names'), ('function','log_prediction'),
+  ('function','is_team_member'), ('function','on_my_team'), ('function','team_member_names'), ('function','log_prediction'),
   ('function','prediction_calibration'), ('function','push_subscribe'), ('function','push_unsubscribe'),
   ('function','run_match_alerts'), ('function','relay_scouting_entry'), ('function','public_team_results'),
   ('view','official_matches_combined'), ('view','official_team_matches'),

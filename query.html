@@ -154,14 +154,15 @@
       white-space: nowrap;
     }
 
-    /* Add to Red / Blue Alliance buttons, under the team name (padded clear of the rating boxes) */
-    .alliance-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1rem; padding-right: 210px; }
-    .alliance-actions .btn { color: #fff; }
-    .alliance-actions .offline-btn { color: inherit; margin-left: auto; }
-    .alliance-actions .btn-red { background: #c0392b; }
-    .alliance-actions .btn-blue { background: #1B4DB1; }
-    .alliance-actions .btn:hover { filter: brightness(.88); }
-    .alliance-actions a.view-link { font-size: .85rem; }
+    /* The Actions menu (Alliance View, export, offline, share), under the team name */
+    .alliance-actions { margin-top: 1rem; }
+    .q-menu { min-width: 15rem; font-size: .9rem; }
+    .q-menu .dropdown-item { display: flex; align-items: center; gap: .55rem; }
+    .q-menu .dropdown-item .fa { width: 1rem; text-align: center; color: var(--muted); }
+    .q-menu .dropdown-item:disabled { opacity: .55; }
+    .q-swatch { display: inline-block; width: 1rem; height: .75rem; border-radius: 2px; }
+    .q-swatch.red { background: #c0392b; }
+    .q-swatch.blue { background: #1B4DB1; }
 
     .section-title { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
 
@@ -535,9 +536,10 @@
 
     // ── Data ─────────────────────────────────────────────────────────
     async function loadMeta() {
+      // Events are paged: team-events adds every event any team on 1307scout goes to
       var res = await Promise.all([
         sb.from("scout_fields").select("*").eq("active", true).order("sort_order", { ascending: true }),
-        sb.from("events").select("id,name,event_date,event_tier")
+        RSRatings.pagedRows(function () { return sb.from("events").select("id,name,event_date,event_tier").order("id"); })
       ]);
       fields = res[0].data || [];
       eventsById = {};
@@ -693,7 +695,12 @@
         : '<div class="text-muted text-center py-3">No teams match.</div>';
       $("teamCount").textContent = rows.length + (rows.length === 1 ? " team" : " teams");
     }
-    $("teamSearch").addEventListener("input", renderList);
+    // Redrawn after a short pause in typing, since a full season lists thousands of teams
+    var searchTimer = null;
+    $("teamSearch").addEventListener("input", function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(renderList, 120);
+    });
     $("showTestTeams").addEventListener("change", renderList);
     $("teamFilter").addEventListener("change", renderList);
     $("teamSort").addEventListener("change", function () {
@@ -728,47 +735,69 @@
     // comment on team_ratings() in rebuild_all.sql for why blending them was a problem.
     // Test teams (tagged in the Staff Portal) are dropped from the comparison pool for both, so
     // a dummy number used to try out the Scout form never shifts a real team's percentile.
+    // The list grades every team on each keystroke, and a full season rates thousands, so each
+    // loaded list is indexed once: rows by team, and the rated pool's scores sorted.
+    var gradeIx = {};
+    function gradeIndex() {
+      if (gradeIx.s !== summary || gradeIx.o !== officialRatings || gradeIx.t !== testTeamSet) {
+        var build = function (rows, isRated) {
+          var byTeam = new Map(), n = 0, scores = [];
+          rows.forEach(function (r) {
+            if (!byTeam.has(r.team_number)) byTeam.set(r.team_number, r);
+            if (testTeamSet.has(r.team_number) || !isRated(r)) return;
+            n++;
+            var v = Number(r.score);
+            if (!isNaN(v)) scores.push(v);   // NaN is never "at or below", but still counts in n
+          });
+          scores.sort(function (a, b) { return a - b; });
+          return { byTeam: byTeam, n: n, scores: scores };
+        };
+        gradeIx = {
+          s: summary, o: officialRatings, t: testTeamSet,
+          scout: build(summary, function (r) { return r.matches >= MIN_RATED_MATCHES; }),
+          // The official score is OPR, which needs 3 qualification matches; without it a team isn't rated
+          official: build(officialRatings, function (r) { return r.matches >= MIN_RATED_MATCHES && r.score != null; })
+        };
+      }
+      return gradeIx;
+    }
+    function countAtOrBelow(sorted, v) {
+      var lo = 0, hi = sorted.length;
+      while (lo < hi) {
+        var mid = (lo + hi) >> 1;
+        if (sorted[mid] <= v) lo = mid + 1; else hi = mid;
+      }
+      return lo;
+    }
+    function tierOf(pct) {
+      for (var i = 0; i < CUTS.length; i++) {
+        if (pct >= CUTS[i][0]) return CUTS[i][1];
+      }
+      return "F";
+    }
+
     function scoutGradeFor(team) {
-      var pool = summary.filter(function (r) { return !testTeamSet.has(r.team_number); });
-      var rated = pool.filter(function (r) { return r.matches >= MIN_RATED_MATCHES; });
-      var me = summary.find(function (r) { return r.team_number === team; });
+      var ix = gradeIndex().scout, me = ix.byTeam.get(team);
       if (testTeamSet.has(team)) {
-        return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: rated.length, pct: null };
+        return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: ix.n, pct: null };
       }
       if (!me || me.matches < MIN_RATED_MATCHES) {
-        return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: rated.length, pct: null };
+        return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_points) : null, n: ix.n, pct: null };
       }
-      var avg = Number(me.avg_points);
-      var score = Number(me.score);
-      var atOrBelow = rated.filter(function (r) { return Number(r.score) <= score; }).length;
-      var pct = atOrBelow / rated.length;
-      var tier = "F";
-      for (var i = 0; i < CUTS.length; i++) {
-        if (pct >= CUTS[i][0]) { tier = CUTS[i][1]; break; }
-      }
-      return { tier: tier, matches: me.matches, avg: avg, n: rated.length, pct: pct };
+      var pct = countAtOrBelow(ix.scores, Number(me.score)) / ix.n;
+      return { tier: tierOf(pct), matches: me.matches, avg: Number(me.avg_points), n: ix.n, pct: pct };
     }
 
     function officialGradeFor(team) {
-      var pool = officialRatings.filter(function (r) { return !testTeamSet.has(r.team_number); });
-      // The official score is OPR, which needs 3 qualification matches; without it a team isn't rated
-      var rated = pool.filter(function (r) { return r.matches >= MIN_RATED_MATCHES && r.score != null; });
-      var me = officialRatings.find(function (r) { return r.team_number === team; });
+      var ix = gradeIndex().official, me = ix.byTeam.get(team);
       if (testTeamSet.has(team)) {
-        return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
+        return { tier: "TEST", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: ix.n, pct: null };
       }
       if (!me || me.matches < MIN_RATED_MATCHES || me.score == null) {
-        return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: rated.length, pct: null };
+        return { tier: "NR", matches: me ? me.matches : 0, avg: me ? Number(me.avg_alliance_score) : null, n: ix.n, pct: null };
       }
-      var avg = Number(me.avg_alliance_score);
-      var score = Number(me.score);
-      var atOrBelow = rated.filter(function (r) { return Number(r.score) <= score; }).length;
-      var pct = atOrBelow / rated.length;
-      var tier = "F";
-      for (var i = 0; i < CUTS.length; i++) {
-        if (pct >= CUTS[i][0]) { tier = CUTS[i][1]; break; }
-      }
-      return { tier: tier, matches: me.matches, avg: avg, opr: score, n: rated.length, pct: pct };
+      var score = Number(me.score), pct = countAtOrBelow(ix.scores, score) / ix.n;
+      return { tier: tierOf(pct), matches: me.matches, avg: Number(me.avg_alliance_score), opr: score, n: ix.n, pct: pct };
     }
 
     function ratingBox(label, g) {
@@ -847,26 +876,34 @@
 
     // Component OPR (js/opr.js) needs every qualification match at each of the team's events,
     // not just the team's own. Returns [{ event_id, result }], oldest event first.
+    // Each event's result is kept for a few minutes: opening its other teams reuses it instead of
+    // downloading every match with its score breakdown again. A resync clears it.
+    var oprCache = new Map();   // event_id -> { at, result }
+    var OPR_CACHE_MS = 3 * 60000;
     async function loadOpr(officialRows) {
       var ids = Array.from(new Set(playedMatches(officialRows).map(function (r) { return r.event_id; })));
       if (!ids.length) return [];
-      var rows = [], size = 1000;
-      for (var from = 0; ; from += size) {
-        var r = await sb.from("official_matches_combined")
-          .select("event_id,match_key,comp_level,red_teams,blue_teams,red_score,blue_score,red_breakdown,blue_breakdown")
-          .in("event_id", ids).eq("comp_level", "qm").order("event_id").order("match_key").range(from, from + size - 1);
+      var now = Date.now();
+      var need = ids.filter(function (id) { var c = oprCache.get(id); return !c || now - c.at > OPR_CACHE_MS; });
+      if (need.length) {
+        var r = await allRows(function () {
+          return sb.from("official_matches_combined")
+            .select("event_id,match_key,comp_level,red_teams,blue_teams,red_score,blue_score,red_breakdown,blue_breakdown")
+            .in("event_id", need).eq("comp_level", "qm").order("event_id").order("match_key");
+        });
         if (r.error) { console.warn("OPR data unavailable:", r.error.message); return []; }
-        rows = rows.concat(r.data || []);
-        if ((r.data || []).length < size) break;
+        var byEvent = {};
+        r.data.forEach(function (m) { (byEvent[m.event_id] = byEvent[m.event_id] || []).push(m); });
+        need.forEach(function (id) { oprCache.set(id, { at: now, result: RSOpr.compute(byEvent[id] || []) }); });
       }
-      return ids.map(function (id) {
-        return { event_id: id, result: RSOpr.compute(rows.filter(function (m) { return m.event_id === id; })) };
-      }).sort(function (a, b) { return evTime(a.event_id) - evTime(b.event_id); });
+      return ids.map(function (id) { return { event_id: id, result: oprCache.get(id).result }; })
+        .sort(function (a, b) { return evTime(a.event_id) - evTime(b.event_id); });
     }
 
+    // Playoff matches are numbered by set (sf5m1 is Playoff 5), from the key
     function matchLabel(r) {
       if (r.comp_level === "qm") return "Qual " + r.match_number;
-      if (r.comp_level === "sf") return "Playoff " + r.set_number_label;
+      if (r.comp_level === "sf") return "Playoff " + ((/^sf(\d+)/.exec(r.match_key || "") || [])[1] || r.set_number || r.match_number);
       return "Final " + r.match_number;
     }
     // A match (or a whole event, without a key) in the Event Viewer, following the team on screen
@@ -1145,7 +1182,7 @@
           }).join("") + "</tr>";
       }).join("");
       return statBlock("Scouted averages by event", '<span class="src-badge scout">Scouted</span>',
-        '<div class="table-responsive"><table data-sortable="q-pit" class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
+        '<div class="table-responsive"><table data-sortable="q-by-event" class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
           cols.map(function (f) { return "<th>" + esc(f.label) + "</th>"; }).join("") +
         "</tr></thead><tbody>" + body + "</tbody></table></div>");
     }
@@ -1261,9 +1298,6 @@
       if (!rows.length) {
         return head + '<p class="text-muted">No official match data yet. Link this event to its FRC / TBA codes in the Staff Portal.</p>';
       }
-      rows.forEach(function (r) {
-        r.set_number_label = (r.match_key.match(/^sf(\d+)/) || [])[1] || r.match_number;
-      });
       var played = playedMatches(rows);
       var n = played.length;
       var avgScore = mean(played.map(function (r) { return r.alliance_score; }));
@@ -1306,28 +1340,38 @@
         '" title="Open this match in the Alliance View"><i class="fa fa-columns"></i><span class="sr-only">Alliance View</span></a>';
     }
 
-    // Red and Blue buttons for the Alliance View. Clicking the team's own alliance removes it;
-    // clicking the other one moves it. A full alliance disables its button.
+    // Red and Blue items for the Alliance View. Clicking the team's own alliance removes it;
+    // clicking the other one moves it. A full alliance disables its item.
     function allianceButton(team, color, label) {
       var current = Alliance.colorOf(team);
       var full = current !== color && Alliance.get()[color].length >= Alliance.MAX;
       var text = current === color ? "Remove from " + label
         : full ? label + " full"
         : (current ? "Move to " : "Add to ") + label;
-      return '<button type="button" class="btn btn-sm btn-' + color + '" data-alliance="' + color + '"' +
-        (full ? " disabled" : "") + ">" + text + "</button>";
+      return '<button type="button" class="dropdown-item" data-alliance="' + color + '"' +
+        (full ? " disabled" : "") + '><span class="q-swatch ' + color + '" aria-hidden="true"></span>' + text + "</button>";
     }
+    // Every action on the open team, in one menu
     function allianceActionsHtml(team) {
       var picks = Alliance.get();
-      return allianceButton(team, "red", "Red Alliance") + allianceButton(team, "blue", "Blue Alliance") +
-        '<a class="view-link" href="/alliance.html">View alliances (' + (picks.red.length + picks.blue.length) + " of 6)</a>" +
-        exportButtonsHtml() +
-        '<button type="button" class="btn btn-outline-secondary btn-sm offline-btn" data-offline-team="' + team + '" ' +
-          'title="Save this team\'s page as a file that opens without a connection">' +
-          '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>' +
-        '<a class="btn btn-outline-secondary btn-sm" href="/share.html?team=' + team + '" ' +
-          'title="Make a share code for someone not on a team here">' +
-          '<i class="fa fa-share-alt" aria-hidden="true"></i> Share</a>';
+      return '<div class="dropdown"><button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle q-menu-btn" ' +
+          'data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' +
+          '<i class="fa fa-bars" aria-hidden="true"></i> Actions</button>' +
+        '<div class="dropdown-menu q-menu">' +
+          '<h6 class="dropdown-header">Alliance View</h6>' +
+          allianceButton(team, "red", "Red Alliance") + allianceButton(team, "blue", "Blue Alliance") +
+          '<a class="dropdown-item" href="/alliance.html"><i class="fa fa-columns" aria-hidden="true"></i>View alliances (' +
+            (picks.red.length + picks.blue.length) + " of 6)</a>" +
+          '<div class="dropdown-divider"></div><h6 class="dropdown-header">Export CSV</h6>' +
+          exportItemsHtml() +
+          '<div class="dropdown-divider"></div>' +
+          '<button type="button" class="dropdown-item" data-offline-team="' + team + '" ' +
+            'title="Save this team\'s page as a file that opens without a connection">' +
+            '<i class="fa fa-download" aria-hidden="true"></i>Download for offline</button>' +
+          '<a class="dropdown-item" href="/share.html?team=' + team + '" ' +
+            'title="Make a share code for someone not on a team here">' +
+            '<i class="fa fa-share-alt" aria-hidden="true"></i>Share</a>' +
+        "</div></div>";
     }
     // Offline copy of the open team (js/offline.js). Leaves out the controls and the back link.
     $("detail").addEventListener("click", function (e) {
@@ -1459,7 +1503,8 @@
     function csvCell(v) {
       if (v == null) return "";
       var s = typeof v === "object" ? JSON.stringify(v) : String(v);
-      if (/^[=+\-@]/.test(s)) s = "'" + s;   // keep a spreadsheet from running it as a formula
+      // Keep a spreadsheet from running text as a formula, but leave numbers like -12 as numbers
+      if (typeof v !== "number" && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s;
       return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }
     function downloadCsv(name, header, rows) {
@@ -1515,12 +1560,10 @@
           }));
       }
     });
-    function exportButtonsHtml() {
-      return '<div class="dropdown d-inline-block"><button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' +
-        '<i class="fa fa-table" aria-hidden="true"></i> Export CSV</button><div class="dropdown-menu">' +
-        '<button type="button" class="dropdown-item" data-export="matches">Scouted matches</button>' +
-        '<button type="button" class="dropdown-item" data-export="pit">Pit entries</button>' +
-        '<button type="button" class="dropdown-item" data-export="official">Official results</button></div></div>';
+    function exportItemsHtml() {
+      return '<button type="button" class="dropdown-item" data-export="matches"><i class="fa fa-table" aria-hidden="true"></i>Scouted matches</button>' +
+        '<button type="button" class="dropdown-item" data-export="pit"><i class="fa fa-table" aria-hidden="true"></i>Pit entries</button>' +
+        '<button type="button" class="dropdown-item" data-export="official"><i class="fa fa-table" aria-hidden="true"></i>Official results</button>';
     }
 
     function renderDetail(team, gScout, gOff, matches, pits, officialRows, officialErr, lineups, failed, extra) {
@@ -1807,6 +1850,7 @@
     if (await RSTeams.fillMissing(sb, teamList().map(function (r) { return r.team; }), teamInfoByNumber)) renderList();
     // After a resync, refetch the official lists and the open team
     RSResync.mount($("resyncSlot"), async function () {
+      oprCache.clear();
       await loadLists();
       renderList();
       if (eventRank) await loadEventRanking(eventRank.eventId);

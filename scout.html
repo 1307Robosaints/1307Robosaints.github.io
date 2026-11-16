@@ -1114,8 +1114,14 @@
     // Load events (newest first), then auto-select the one staff marked as default in the
     // Staff Portal — or, if none is set, the most recent event.
     // pending: a request already sent (the boot sends this and the fields request together)
+    // Only the columns this page uses: the rest (sync bookkeeping) would be downloaded on
+    // competition Wi-Fi and kept in the offline copy for nothing
+    function eventsQuery() {
+      return sb.from("events").select("id,name,event_date,location,timezone,is_default_event")
+        .order("event_date", { ascending: false, nullsFirst: false });
+    }
     async function loadEvents(pending) {
-      var r = await quick(pending || sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false }));
+      var r = await quick(pending || eventsQuery());
       var saved = offlineCopy().events;
       if (r.error && isNetworkError(r) && saved) { r = { data: saved }; usingOfflineCopy = true; }
       else if (!r.error) keepOffline("events", r.data);
@@ -2002,7 +2008,9 @@
     window.deletePit = async function(id) {
       if (!(await RSDialog.confirm("Delete this pit entry?", { title: "Delete pit entry", ok: "Delete", danger: true }))) return;
       var r = await sb.from("pit_entries").delete().eq("id", id).select("id");
-      if (r.error || !r.data.length) { toast("Couldn't delete pit entry.", true); return; }
+      if (r.error) { toast("Couldn't delete pit entry.", true); return; }
+      // Row security hides a refused delete as "0 rows": pit entries are shared by every team
+      if (!r.data.length) { toast("Only someone on the team that last saved this pit entry, or site staff, can delete it.", true); return; }
       toast("Pit entry deleted.");
       loadEntries();
       cleanUpPhotos();
@@ -2280,8 +2288,7 @@
     // Both requests go out together. Fields are applied first (the form needs them), then events
     // (which triggers loading entries), then any waiting drafts.
     // .then() is what sends a supabase-js request, so call it now rather than when awaited
-    var eventsReq = sb.from("events").select("*").order("event_date", { ascending: false, nullsFirst: false })
-      .then(function (r) { return r; });
+    var eventsReq = eventsQuery().then(function (r) { return r; });
     var usingOfflineCopy = false;   // set by loadFields/loadEvents when they used the copy on this device
     await loadFields();
     await loadEvents(eventsReq);

@@ -84,6 +84,7 @@ interface MatchRow {
   blue_score: number | null;
   red_breakdown: unknown | null;
   blue_breakdown: unknown | null;
+  videos?: unknown | null;         // TBA only: the match's video list
   updated_at: string;
 }
 interface SourceResult {
@@ -333,6 +334,7 @@ async function fetchTba(ev: EventRow, full: boolean, nowIso: string): Promise<So
       blue_score: score(m.alliances?.blue?.score),
       red_breakdown: m.score_breakdown?.red ?? null,
       blue_breakdown: m.score_breakdown?.blue ?? null,
+      videos: Array.isArray(m.videos) && m.videos.length ? m.videos : null,   // for the Event Viewer
       updated_at: nowIso,
     });
   }
