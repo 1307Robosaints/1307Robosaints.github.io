@@ -142,14 +142,22 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -198,7 +206,7 @@
           <label>Blue alliance</label>
           <div class="m-trio blue"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 1" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 2" min="1" max="99999" inputmode="numeric"><input type="number" class="form-control form-control-sm" data-side="blue" aria-label="Blue team 3" min="1" max="99999" inputmode="numeric"></div>
         </div>
-        <div><label for="fTime">Time (optional)</label><input type="datetime-local" id="fTime" class="form-control form-control-sm m-time"></div>
+        <div><label for="fTime">Time (optional, in your time zone)</label><input type="datetime-local" id="fTime" class="form-control form-control-sm m-time"></div>
         <div class="m-form-actions">
           <button type="submit" class="btn btn-primary btn-sm" id="saveNext">Save and add the next one</button>
           <button type="button" class="btn btn-outline-primary btn-sm" id="saveClose">Save</button>
@@ -247,6 +255,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
@@ -268,17 +277,18 @@
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var MY_TEAM = ((await RS.team()) || {}).team_number || null;   // the signed-in person's team (js/auth.js)
 
-    var OUR_TEAM = 1307;
     var TEAM_KEY = "rs_matches_team";   // the team last viewed, in this browser
     var POLL_MS = 60000;                // auto-sync runs every 2 minutes at most
 
-    var events = [], eventId = null, team = OUR_TEAM;
+    // Opens on the person's own team; with no team (e.g. staff), the team last viewed in this browser
+    var events = [], eventId = null, team = MY_TEAM;
     var official = {}, edits = {};      // by match_key
     var planned = new Set();            // matches with a saved plan on Match Strategy
     var data = null, dataTeams = "";    // ratings data, and which teams it covers
     var editingKey = null, scrolledFor = null;
-    try { team = Number(localStorage.getItem(TEAM_KEY)) || OUR_TEAM; } catch (e) {}
+    if (!team) try { team = Number(localStorage.getItem(TEAM_KEY)) || null; } catch (e) {}
 
     // ── Match keys: qm12, sf5m1, f1m2 (the same keys the official sync uses) ──
     var LEVEL_ORDER = { qm: 0, sf: 1, f: 2 };
@@ -337,11 +347,14 @@
             .eq("event_id", id).order("match_key");
         }),
         sb.from("match_schedule").select("match_key,red_teams,blue_teams,scheduled_at").eq("event_id", id),
-        sb.from("match_strategies").select("match_key").eq("event_id", id)
+        sb.from("match_strategies").select("match_key").eq("event_id", id),
+        sb.from("alliance_strategies").select("match_key").eq("event_id", id)   // plans shared with our alliance partners
       ]);
       if (thisLoad !== loadCount) return;   // a different event was chosen meanwhile
-      if (results[2].error) console.warn("Our Matches: plans:", results[2].error.message);   // plan links are optional
-      results = results.slice(0, 2).concat([{ data: results[2].error ? [] : results[2].data }]);
+      // Plan links are optional, so a failed plan lookup just leaves them out
+      [2, 3].forEach(function (i) { if (results[i].error) console.warn("Our Matches: plans:", results[i].error.message); });
+      var planRows = (results[2].error ? [] : results[2].data || []).concat(results[3].error ? [] : results[3].data || []);
+      results = results.slice(0, 2).concat([{ data: planRows }]);
       if (results.some(function (r) { return r.error; })) {
         results.forEach(function (r) { if (r.error) console.warn("Our Matches:", r.error.message); });
         $("loadError").innerHTML = '<div class="alert alert-warning" role="alert" style="font-size:.9rem;">Couldn\'t load the schedule. It may be out of date, and it will keep trying.</div>';
@@ -390,9 +403,7 @@
         "</h4>" + teams.map(teamRow).join("") + "</div>";
     }
     function whenText(m) {
-      if (!m.time) return "";
-      var d = new Date(m.time);
-      return d.toLocaleDateString([], { weekday: "short" }) + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      return RS.timeText(m.time, events.find(function (e) { return e.id === eventId; }), { day: true });
     }
     function sourceText(m) {
       return m.source === "official" ? "From FRC/TBA" : m.source === "edited" ? "Edited by hand" : "Entered by hand";
@@ -464,6 +475,11 @@
     }
     function render() {
       if (!data) return;
+      if (!team) {
+        $("upcoming").innerHTML = '<div class="m-empty">Type a team number above to see its matches.</div>';
+        $("played").innerHTML = "";
+        return;
+      }
       var list = schedule();
       var upcoming = list.filter(function (m) { return !isPlayed(m); });
       logPredictions(upcoming);
@@ -567,7 +583,7 @@
     $("saveClose").addEventListener("click", function () { saveMatch(false); });
     $("revertBtn").addEventListener("click", async function () {
       var key = editingKey;
-      if (!official[key] && !confirm("Delete " + matchLabel(key) + "?")) return;
+      if (!official[key] && !(await RSDialog.confirm("Delete " + matchLabel(key) + " from the schedule?", { title: "Delete match", ok: "Delete", danger: true }))) return;
       var r = await sb.from("match_schedule").delete().eq("event_id", eventId).eq("match_key", key);
       if (r.error) { say("Couldn't change it: " + r.error.message); return; }
       delete edits[key];
@@ -585,15 +601,15 @@
     });
     $("teamPick").addEventListener("change", function () {
       var t = Number(this.value);
-      if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team; return; }
+      if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team || ""; return; }
       team = t;
       try { localStorage.setItem(TEAM_KEY, String(t)); } catch (e) {}
       loadRatings(loadCount);
     });
 
     // ── Start ────────────────────────────────────────────────────────
-    $("teamPick").value = team;
-    var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key")
+    $("teamPick").value = team || "";
+    var r = await sb.from("events").select("id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,timezone")
       .order("event_date", { ascending: false, nullsFirst: false });
     if (r.error) {
       $("upcoming").innerHTML = '<div class="m-empty">Couldn\'t load the events. Try refreshing the page.</div>';
@@ -608,7 +624,7 @@
     $("eventPick").innerHTML = events.map(function (ev) {
       return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
     }).join("");
-    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    eventId = ((await RS.defaultEvent(events)) || events[0]).id;
     $("eventPick").value = eventId;
     RSResync.mount(document.querySelector(".m-controls"), function (done) {
       var ev = events.find(function (e) { return e.id === done.eventId; });

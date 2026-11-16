@@ -22,11 +22,27 @@ Past seasons come from `js/history.js`, a one-time copy of The Blue Alliance's r
 live seasons come from `public_team_results()`, the one function anyone can call without signing in,
 and win over the copy for any event in both. It's in the About Us menu.
 
-**1307scout** — the team's scouting app, gated by sign-in (`signin.html`, `account.html`). The 1307scout
-menu is kept short, ordered by use: Team Database, Our Matches, Alliance View, Scout, then the two
-playoff pages and (staff) the Staff Portal. Every page is on the 1307scout home page; Match Flags, Pick
-List, Scout Shifts, Pit Crew and How Ratings Work are linked only from there (and from the pages that
-reference them). For team members the home page also shows our next match at the default event:
+**1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
+and the 1307scout menu and home page are split the same way:
+- **Data**, shared by every team: Event Viewer, Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
+  Playoff Bracket and Share Data. Scouting entries, pit data, official results, flag reviews and playoff
+  alliances belong to nobody in particular.
+- **My Team**, your own team's: Our Matches, Match Strategy, Pit Crew, Pick List, Scout Shifts and
+  Team Management. Strategy plans, the robot log, the pick list and scout shifts carry an
+  `owner_team`, and only that team's members can see them.
+
+Each account is on at most one FRC team, as a **manager** or a **member** (SQL section 3b). Every
+account says which team it's on, or that it isn't on one: the sign-up form requires it, and every
+1307scout page asks an account that hasn't answered (`js/auth.js`; the site owner's account is never
+asked). A claim is verified at once by an email domain the team listed (1307: `stalux.org`), an email
+invitation from its managers, a join code or invite link, or access staff had already given that
+account. Otherwise the account is in quarantine: a guest, with its status shown on the home page, My
+Account and Team Management, until one of the team's managers or site staff verifies it. A team's first
+manager is approved by site staff (Teams tab). Site staff can act as any team, as its manager, to see
+every page and change any setting. Quarantine is on (`app_settings.require_team_claims`, a switch in
+the Teams tab): quarantined accounts have exactly a guest's access. The one exception is for the stable
+release, which has no team prompt: an `@stalux.org` account that hasn't answered the prompt yet is
+still on team 1307 as a member, since that domain verifies it anyway. How Ratings Work is linked from the home page. For team members the home page also shows their team's next match at the default event:
 - `1307scout.html` — landing/command-center page, links out based on your access level.
 - `app.html` — Get the app: how to install 1307scout as an app on each kind of device, and what
   works offline. Linked as "Get the app" in the 1307scout menu, and from the home page and My Account.
@@ -38,7 +54,13 @@ reference them). For team members the home page also shows our next match at the
   and shows vision's FUEL estimate as a hint (`js/visioncheck.js`). Offline, **Hand off by QR** shows
   each new draft as a QR code, and a scout who is online saves it with **Scan a scout's QR**, through
   `relay_scouting_entry()`: it stays the first scout's entry, with its own id, so it can't be saved twice.
-- `shifts.html` — Scout Shifts: staff give team members a driver-station seat for a range of
+- `share.html` — Share Data: any team member (or staff) makes share codes (`share_codes`) for people not
+  on a team here: alliance partners, parents, a team still waiting for verification. A code covers the
+  teams and/or events picked, expires within 90 days (staff codes can be open-ended), and works only
+  while its maker is on a team. Up to 20 live codes each. Managers see and revoke all their team's codes
+  and can keep making them to managers (`share_codes` permission). The Team Database's **Share** button
+  opens it for that team. Guests redeem codes on the Scout page (`get_shared_scouting()`).
+- `shifts.html` — Scout Shifts: a team's managers give its members a driver-station seat for a range of
   qualification matches (`scout_shifts`), one at a time or as a rotation over the people ticked.
   Everyone sees the seat grid, with seats nobody has, and played seats nobody entered.
 - `query.html` — Team Database: every team's scouted and official match history, pit/robot
@@ -89,7 +111,10 @@ reference them). For team members the home page also shows our next match at the
   starting spots and turn them, then draw on the field with a pen or arrows in six colors. The
   eraser removes the lines it touches; Clear removes all drawing, one color, just arrows or
   freehand lines, or puts the robots back. Flip turns the map to read from either end. Each plan
-  is saved with its match (`match_strategies`) for the whole team as it's drawn; other screens
+  is saved as it's drawn. For a match your team plays in, there's one plan per alliance
+  (`alliance_strategies`), shared by the three teams on it and hidden from the other alliance; who
+  is on an alliance comes from the official line-up. A match your team isn't in gets a plan only your
+  team sees (`match_strategies`). Other screens
   showing it pick up changes within 15 seconds, and the last save wins. Once the match is played,
   the plan locks and shows the result beside it, for reviewing what worked (Edit unlocks it), and
   the match list can be narrowed to matches with a plan. Plans for a custom line-up aren't a real
@@ -111,28 +136,72 @@ reference them). For team members the home page also shows our next match at the
   AUTO and endgame climb rates from FRC's per-robot TOWER data, so a team nobody scouted still has
   numbers. To change the table's stats, edit `COLUMNS` in the page. The first column is the team's
   place on our Pick List, and the board names the best team on it still available.
-- `picklist.html` — Pick List: staff's ranked list for alliance selection (`pick_list`), built before
-  it starts. Drag or use the arrows to reorder, give each team a tier (first pick, second pick, maybe,
-  do not pick) and a note. Teams already picked are greyed as Playoff Selection fills. Each row shows
-  the team's grades, OPR, scouted points and its scouted notes from the event.
-- `pitcrew.html` — Pit Crew: our own robot at an event (`robot_log`). A pre-match checklist per match
-  (the items are `CHECKLIST` in the page), batteries with voltage and which match they went into,
-  repairs and notes. The top line says whether the next match has its checklist and battery.
   **Download for offline** saves a simplified pick board for the event as one .html file: the
   alliances as they stand, and every team's stats for both All season and This event, worked out at
   download time. Offline, anyone can fill spots in draft order (Pick, or type a number), remove
   teams, sort and switch scope. Those picks stay in that browser and never reach the team's data.
+- `picklist.html` — Pick List: your team's ranked list for alliance selection (`pick_list`), built before
+  it starts. Drag or use the arrows to reorder, give each team a tier (first pick, second pick, maybe,
+  do not pick) and a note. Teams already picked are greyed as Playoff Selection fills. Each row shows
+  the team's grades, OPR, scouted points and its scouted notes from the event.
+- `pitcrew.html` — Pit Crew: your team's robot at an event (`robot_log`). A pre-match checklist per
+  match (the items and the low-battery voltage are the team's settings, set on Team Management; the
+  defaults are in `js/team.js`), batteries with voltage and which match they went into, repairs and
+  notes. The top line says whether the next match has its checklist and battery.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
   it only advances once an event syncs. With fewer than 8 alliances, an empty alliance is a bye: the
   alliance it would have played moves on without playing. When official scores are tied, staff click who won the
   tiebreaker. On a 4-team alliance staff click who sits out each match (the 3rd pick by default).
-  The match layout is `MATCHES` in the page.
-- `portal.html` — staff-only admin: events, scouting form fields, share codes, test-team tags,
-  team names/logos, member access levels, and an audit log of who changed what and when (staff,
+  The bracket's format, results and drawing are `js/bracket.js` (`MATCHES` there is the match layout),
+  shared with the Event Viewer.
+- `live.html` — Event Viewer: the event's livestream beside the match on the field, for a laptop or
+  TV in the pit. The livestream is the event's `webcast_url` (a YouTube or Twitch link staff set when
+  editing the event in the Staff Portal), or a link anyone pastes for themselves, kept in that browser.
+  Tiles show the match on the field (the first one without a result yet), your team's next match
+  (how many matches away, side, win chance), your last result and your record at the event. Below
+  them is a small Alliance View of the chosen match: each team's grades, scouted points, AUTO and
+  teleop FUEL, climb rate and OPR, plus alliance grades and win chance, with links to the full
+  Alliance View and the Match Strategy plan. Coming up and Results list the next and latest matches;
+  clicking one shows it. After qualifications, the bracket appears, scaled to the page, and playoff
+  matches the sync doesn't list yet come from it. The page keeps itself current: every 15 seconds
+  it checks the event's last sync, and only reloads the schedule when that moved (or every minute,
+  for hand edits). During selection and the playoffs it rechecks the alliances every 15 seconds too, and grades refresh a few
+  minutes after a sync, once the server's rating cache has caught up. The stream never reloads.
+  Keep screen on stops the screen sleeping, in browsers that allow it. Links: `live.html?event=<id>`
+  opens an event, `&match=<key>` (`qm12`, `sf8m1`, `f1m2`) opens that match once the schedule loads
+  (a match the event doesn't have shows a note and the field), and `&team=<n>` follows that team. The
+  address bar keeps that link up to date as you pick an event or match, and each match has a Copy
+  link button. The Team Database links each match it lists (official results, scouted match
+  history, vision estimates) and an event's rankings here.
+- `team.html` — Team Management: for someone on no team, where their claim stands, invitations to
+  accept, which team they're on, a join code (`team.html?join=CODE` is an invite link), and asking
+  site staff to manage a team. For a member, the team's roster and managers, and the team's default
+  event (automatic from FRC/TBA, or chosen; see Team default events below). For a manager: verify or
+  turn down people waiting, invite by email, make members managers or take them off the team, make and
+  revoke join codes and invite links, list the email domains that verify members at once, choose whether members or only managers can
+  change Match Strategy, Pit Crew, Pick List, Scout Shifts and the default event, and make share codes (`teams.settings.permissions`), and
+  set the Pit Crew checklist and low-battery voltage (`teams.settings.pit`). Site staff search for a team
+  by number or name to act as it. A team keeps at least
+  one manager.
+- `portal.html` — staff-only admin: events, scouting form fields, every share code (including members'), teams (everyone
+  waiting to be verified on any team, requests to manage a team, the quarantine switch, act as a team,
+  take a disputed manager off a team, team names/logos, and test-team tags, all on one Teams tab), members
+  (each account's name, team status (verified, quarantined, turned down, no team, pending), access level
+  and last sign-in; double-click a name to change it, type a team number in the Team box to put the account
+  on that team, verified (or clear it to take them off), and change access levels. These edits are highlighted
+  until Save changes applies them all at once, or Discard drops them; roles are set on Team Management), and an audit log of who changed what and when (staff,
   mentor/student, guest, or system actions are tagged separately, with a searchable/filterable list;
   entries are deleted automatically after 6 months). Routine official-sync updates aren't logged.
-  The clock button on an event row turns on competition-day auto-sync for that event.
+  The clock button on an event row turns on competition-day auto-sync for that event; smart auto-sync
+  (on by default, switch above the event list) covers every event going on without it. The star sets the
+  site default event, for anyone whose team has none of its own.
+
+**Tables** — on the Staff Portal (Teams, Members), Team Management, Pit Crew, Match Flags and the Team
+Database's team card, clicking a column header sorts the table by it (again to reverse; the lit arrow shows
+which), and a search box filters rows by any text in them, such as a name, email or team number
+(`js/tables.js`). The Staff Portal's Teams tab can also narrow to the teams at one event, and Members to one
+access level.
 
 **Dark mode** — chosen on My Account (Light, Dark, or Match device). `js/theme.js` loads in every
 page's `<head>`, before the stylesheets, and sets `<html data-theme>`; `css/modern.css` redefines its
@@ -144,8 +213,9 @@ the account's `user_metadata.theme`, which `js/auth.js` applies on other devices
 dark-theme copy name it in `data-dark-src` (`img/robosaintslogo-dark.png`,
 `img/Sponsorphotos/staluxlogo-dark.png`).
 
-Access levels (`staff`, `mentor`, `student`, `guest`) are enforced server-side with Postgres
-row-level security, not just by hiding nav links — see `SQL/rebuild_all.sql`.
+Access levels (`staff`, `mentor`, `student`, `guest`) and team roles (`manager`, `member`) are
+enforced server-side with Postgres row-level security, not just by hiding nav links — see
+`SQL/rebuild_all.sql`. Site staff run the site; they get no special access to another team's own data.
 GitHub Pages can't send security headers, so `js/auth.js` also refuses to run any page inside
 another site's frame (on robosaints1307.com only, so local previews still work).
 
@@ -159,14 +229,21 @@ the database's row-level security policies, not the key).
 policy, and function, written to be safe to re-run end-to-end in the Supabase SQL editor. Run it
 whole after cloning a fresh Supabase project, and again any time this file changes.
 
-The other files in `SQL/` are one-off **data** imports (new events, linking an event to its
+The files in `SQL/data/` are one-off **data** imports (new events, linking an event to its
 FRC/TBA code, etc.) — row-only changes that don't touch the schema. They're kept for a record of
 what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
+
+**Edge Functions** all live in `supabase/functions/`: `official-sync`, `official-alliances`,
+`team-events`, `team-names`, `match-alerts`, `delete-account` and `manage-member` (deployed under the
+slug `bright-responder`, which `portal.html` calls). `supabase/config.toml` records each one's
+settings, so deploy one at a time with `supabase functions deploy <name> --use-api` from a clone
+linked with `supabase link --project-ref nyanwljgsazwuzmnlrcz`. Never deploy them all at once:
+beta and stable share the project, so a deploy reaches the live site immediately.
 
 **Team names and logos** fill in on their own: when a page shows a team that hasn't been looked up
 in 30 days, `js/teams.js` asks the `team-names` Edge Function (`supabase/functions/team-names/`) to
 look it up on The Blue Alliance. It saves the nickname and the team's FIRST avatar (stored in the
-`team-logos` bucket under `tba/`). A name or logo staff set on the Staff Portal's Team Info tab wins over it;
+`team-logos` bucket under `tba/`). A name or logo staff set in the Staff Portal (Teams tab, Team names and logos) wins over it;
 that tab lists the test teams and teams TBA has no name for, which are the ones that need it. Deploy it once with
 `supabase functions deploy team-names --no-verify-jwt`; it uses the `TBA_API_KEY` secret that
 official-sync already has.
@@ -175,27 +252,48 @@ Robot photos uploaded from the Scout page land in a public Supabase Storage buck
 (`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo
 queues the file, and the Scout page and Staff Portal remove it through the Storage API.
 
-**Competition-day auto-sync** refreshes one staff-chosen event from FRC/TBA every 2 minutes
-(9:30, 9:32, 9:34...). It runs on the server through `pg_cron`, so nobody has to keep
-a page open, and turns itself off 12 hours after staff turn it on (click the clock again each
-competition morning) or 4 days after the event date, whichever comes first. `SQL/rebuild_all.sql` enables pg_cron
+**Competition-day auto-sync** runs on the server through `pg_cron` every 2 minutes (9:30, 9:32,
+9:34...), so nobody has to keep a page open. **Smart auto-sync** refreshes every linked event that is
+going on right now, anywhere, with no button: on the event's days (`start_date` to `end_date`, or
+`event_date` and the day after when FRC/TBA haven't given them) from
+7 AM to 9 PM in its own time zone, until its finals are decided. An event syncs every 2 minutes while
+matches are running and every 10 otherwise, and at most 6 syncs go out per run, longest-waiting first,
+to spare the small database. Staff can turn it off in the Staff Portal. The **clock button** still
+refreshes one staff-chosen event every run, at any hour, and turns itself off 12 hours after staff turn
+it on or 4 days after the event date, whichever comes first. `SQL/rebuild_all.sql` enables pg_cron
 and pg_net and schedules the job. The one manual step is storing `sync_secret` in the Vault (section 15).
 The check query at the end of that file shows if either is missing, and the Staff Portal warns if a
 run is failing, the job has stopped, or it's still on an old schedule.
 
 **Resync data** is a button on every page that shows official results (Our Matches, Match Flags,
 Playoff Selection, Bracket, Team Database, Alliance View). Any team member can press it. It
-refreshes only the default event (the starred one in the Staff Portal), through
+refreshes only the default event (the team's, else the one starred in the Staff Portal), through
 `resync_default_event()`, which sends the same server-side request auto-sync does, so it works
 for students who can't call `official-sync` directly. Presses within 60 seconds of each other share
 one request. The button is `js/resync.js`.
+
+**Team default events**: each team's pages (Scout, Our Matches, Strategy, Pit Crew, Pick List, Shifts,
+Playoffs, Bracket, Match Flags, Event Viewer, the home page) open on the team's own default event.
+The `team-events` Edge Function (`supabase/functions/team-events/`, deploy with `--no-verify-jwt`; it
+uses official-sync's secrets) reads from TBA and FRC Events which events each team on 1307scout is
+registered for this season, once a day, into `event_teams`. It adds any of those events that isn't in
+the database yet (marked "Added from FRC/TBA" in the Staff Portal) and fills in each linked event's last
+day and time zone, which smart auto-sync uses. Match times on Our Matches and the Event Viewer show
+in the event's time zone (with its name, like "CDT", when it isn't the viewer's); an event with no
+zone yet uses the device's. official-sync also reads FRC's event-local times in that zone, asking TBA
+for it when the event has none. Every hour the database picks each team's event: the one
+it's at, else its next within 6 days, else its last within 60 days, else its next one, so the pick moves
+each weekend. On Team Management, members (or only managers, by the team's setting) can choose a
+different event; that choice holds until the automatic pick moves to the next event. A team with no
+registrations uses the event staff starred.
 
 **Match alerts**: team members can turn on a push notification per device on My Account
 (`js/alerts.js`), for shortly before a team needs to queue. At events that run queuing on
 [FRC Nexus](https://frc.nexus), the function reads Nexus's live status (needs the `NEXUS_API_KEY`
 secret, and the event's TBA key, which Nexus also uses) and alerts when the match is queuing or 10
 minutes before its estimated queue time. Elsewhere it falls back to the synced schedule: 3 or fewer
-matches after the last one with a score, which runs a few minutes behind the field. While auto-sync is on,
+matches after the last one with a score, which runs a few minutes behind the field. For every event
+being auto-synced that a subscribed team is registered at,
 the `match-alerts` pg_cron job calls `run_match_alerts()`, which asks the `match-alerts` Edge Function
 (`supabase/functions/match-alerts/`) to send them through Web Push. Setup: generate VAPID keys, set
 them as that function's secrets (plus `NEXUS_API_KEY` for Nexus), deploy it with `--no-verify-jwt`, and put the public key in

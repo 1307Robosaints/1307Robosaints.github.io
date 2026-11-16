@@ -2,8 +2,9 @@
 <!-- =========================================================================================================
      1307scout.html  –  landing page for the scouting tool.
      Shows one of two views, chosen by the script at the bottom:
-       #loggedOutView  marketing page (hero, features, access tiers, call to action)
-       #loggedInView   greeting bar plus tiles linking to the tools the person's access level allows
+       #loggedOutView  marketing page (hero, features in four groups, who sees what, the app, call to action)
+       #loggedInView   header, "Right now" (next match + quick buttons), then tile grids for the
+                       tools the person's access level allows
      Both start hidden (see "Shared" in the CSS); the script reveals the right one once it knows who's signed in.
      ========================================================================================================= -->
 <html lang="en">
@@ -36,8 +37,7 @@
   <style>
     /* ── Page-level overrides ─────────────────────────────────── */
     body { background: var(--paper); }
-    /* Suppress the global body::before grid on this page —
-       we replicate it inside the hero only */
+    /* Suppress the global body::before grid on this page; the hero has its own */
     body::before { display: none; }
 
     /* ══════════════════════════════════════════════════════════
@@ -73,7 +73,6 @@
       width: 4px;
       background: var(--blue);
     }
-
     .hero-inner { position: relative; z-index: 1; }   /* sits above the grid and stripe */
 
     .hero-wordmark {
@@ -86,18 +85,22 @@
       margin-bottom: .6rem;
     }
     /* The "1307" is slightly dimmed so "scout" reads as the product name */
-    .hero-wordmark .team-num {
-      color: rgba(255,255,255,.55);
-      font-size: .72em;
-    }
+    .hero-wordmark .team-num { color: rgba(255,255,255,.55); font-size: .72em; }
     .hero-tagline {
-      color: rgba(255,255,255,.78);
+      color: rgba(255,255,255,.8);
       font-size: clamp(1rem, 2.5vw, 1.2rem);
       font-family: var(--body);
-      max-width: 46ch;
-      margin-bottom: 2.25rem;
+      max-width: 52ch;
+      margin-bottom: 1.5rem;
       line-height: 1.55;
     }
+    /* Small facts under the tagline */
+    .hero-facts { list-style: none; padding: 0; margin: 0 0 2rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+    .hero-facts li {
+      font-family: var(--display); font-size: .8rem; font-weight: 600; color: #fff;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); padding: .25rem .65rem;
+    }
+    .hero-facts .fa { color: rgba(255,255,255,.7); margin-right: .3rem; }
     /* Call-to-action button (used in the hero and at the bottom of the page) */
     .hero-cta {
       display: inline-block;
@@ -114,24 +117,34 @@
     }
     .hero-cta:hover { background: #2560d4; color: #fff; text-decoration: none; }
 
-    /* Features: three cards under the hero */
-    .features-section { padding: 4rem 0 3rem; }
-    .features-section h2 {
-      font-size: 1.55rem;
-      margin-bottom: .35rem;
-    }
+    /* Features: four numbered groups of cards under the hero */
+    .features-section { padding: 4rem 0 2rem; }
+    .features-section h2 { font-size: 1.55rem; margin-bottom: .35rem; }
     .features-section h2::after { display: none; }
     .features-lead {
       color: var(--muted);
-      max-width: 55ch;
+      max-width: 60ch;
       margin-bottom: 2.5rem;
       font-size: .97rem;
+    }
+    .feature-group { margin-bottom: 2.25rem; }
+    .feature-group-head {
+      display: flex; align-items: baseline; gap: .75rem;
+      border-bottom: 1px solid var(--line); padding-bottom: .4rem; margin-bottom: 1.1rem;
+    }
+    .feature-group-head .num { font-family: var(--display); font-weight: 700; color: var(--blue); font-size: .85rem; }
+    .feature-group-head h3 { font-size: 1.15rem; margin: 0; }
+    .feature-group-head h3::after { display: none; }
+    .feature-group-head p { color: var(--muted); font-size: .88rem; margin: 0 0 0 auto; max-width: none; text-align: right; }
+    @media (max-width: 767px) {
+      .feature-group-head { flex-wrap: wrap; }
+      .feature-group-head p { margin: 0; text-align: left; flex-basis: 100%; }
     }
 
     .feature-card {
       background: var(--white);
       border: 1px solid var(--line);
-      padding: 1.5rem;
+      padding: 1.35rem;
       height: 100%;
       position: relative;
     }
@@ -152,22 +165,19 @@
       color: var(--blue);
       display: flex; align-items: center; justify-content: center;
       font-size: 1.1rem;
-      margin-bottom: 1rem;
+      margin-bottom: .9rem;
     }
-    .feature-card h3 {
-      font-size: 1rem;
-      margin-bottom: .4rem;
-    }
-    .feature-card h3::after { display: none; }
+    .feature-card h4 { font-size: 1rem; margin-bottom: .4rem; color: var(--heading); }
+    .feature-card h4::after { display: none; }
     .feature-card p {
       color: var(--muted);
-      font-size: .9rem;
+      font-size: .88rem;
       max-width: none;
       margin: 0;
       line-height: 1.55;
     }
 
-    /* Who it's for: navy band describing the three access levels */
+    /* Who sees what: navy band with shared-vs-private data and the access levels */
     .tiers-section {
       background: var(--navy);
       padding: 3.5rem 0;
@@ -176,6 +186,11 @@
     }
     .tiers-section h2 { color: #fff; }
     .tiers-section h2::after { background: rgba(255,255,255,.3); }
+    .tiers-lead { color: rgba(255,255,255,.72); font-size: .95rem; max-width: 42ch; margin-top: .5rem; }
+    .tiers-split { list-style: none; padding: 0; margin: 1.25rem 0 0; }
+    .tiers-split li { color: rgba(255,255,255,.72); font-size: .88rem; margin-bottom: .9rem; max-width: 44ch; }
+    .tiers-split strong { color: #fff; font-family: var(--display); display: block; }
+    .tiers-split .fa { color: rgba(255,255,255,.7); width: 1.1rem; }
     .tier-item {
       border-left: 3px solid var(--blue);
       padding: .75rem 1rem;
@@ -190,129 +205,13 @@
       display: block;
       margin-bottom: .2rem;
     }
-    .tier-item p {
-      color: rgba(255,255,255,.68);
-      font-size: .88rem;
-      margin: 0;
-      max-width: none;
-    }
+    .tier-item p { color: rgba(255,255,255,.7); font-size: .88rem; margin: 0; max-width: none; }
 
     /* Bottom CTA */
-    .bottom-cta {
-      padding: 4rem 0;
-      text-align: center;
-    }
+    .bottom-cta { padding: 4rem 0; text-align: center; }
     .bottom-cta h2 { font-size: 1.6rem; margin-bottom: .5rem; }
     .bottom-cta h2::after { margin: .5rem auto .9rem; }
-    .bottom-cta p { color: var(--muted); max-width: 44ch; margin: 0 auto 1.75rem; }
-
-    /* ══════════════════════════════════════════════════════════
-       LOGGED-IN HOME VIEW
-    ══════════════════════════════════════════════════════════ */
-    .home-wrap { max-width: 640px; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
-
-    /* Greeting bar: "Welcome back, Name" plus a role badge */
-    .greeting-bar {
-      background: var(--navy);
-      padding: 1.5rem 1.75rem;
-      margin-bottom: 2rem;
-      position: relative;
-      overflow: hidden;
-      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
-    }
-    .greeting-bar::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
-      background-size: 24px 24px;
-      pointer-events: none;
-    }
-    .greeting-bar h2 {
-      color: #fff;
-      font-size: 1.4rem;
-      margin: 0 0 .15rem;
-      position: relative;
-    }
-    .greeting-bar h2::after { display: none; }
-    .greeting-bar p {
-      color: rgba(255,255,255,.65);
-      margin: 0;
-      font-size: .88rem;
-      position: relative;
-      max-width: none;
-    }
-    /* Role badge: the script adds one of .staff / .student / .guest */
-    .greeting-badge {
-      display: inline-block;
-      font-family: var(--display);
-      font-size: .7rem;
-      font-weight: 700;
-      padding: .1rem .5rem;
-      margin-left: .5rem;
-      vertical-align: middle;
-      clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
-    }
-    .greeting-badge.staff   { background: var(--blue); color: #fff; }
-    .greeting-badge.student { background: rgba(255,255,255,.2); color: #fff; }
-    .greeting-badge.guest   { background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); }
-
-    /* Small uppercase label above a group of tiles */
-    .home-section-label {
-      font-family: var(--display);
-      font-size: .78rem;
-      font-weight: 700;
-      color: var(--muted);
-      letter-spacing: .07em;
-      text-transform: uppercase;
-      margin-bottom: .75rem;
-      padding-bottom: .3rem;
-      border-bottom: 1px solid var(--line);
-    }
-
-    /* Link tile: [icon] Title / description  > */
-    .nav-tile {
-      display: flex; align-items: center; gap: 1rem;
-      padding: 1.1rem 1.25rem;
-      border: 1px solid var(--line);
-      background: var(--white);
-      text-decoration: none;
-      color: var(--ink);
-      margin-bottom: .6rem;
-      transition: background .15s, border-color .15s;
-      position: relative;
-    }
-    .nav-tile::after {
-      content: "";
-      position: absolute;
-      top: -1px; right: -1px;
-      width: 14px; height: 14px;
-      background: linear-gradient(to bottom left,
-        var(--paper) 0 calc(50% - .5px),
-        var(--line) calc(50% - .5px) calc(50% + .5px),
-        transparent calc(50% + .5px));
-    }
-    .nav-tile:hover { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--heading); }
-    .tile-icon {
-      width: 44px; height: 44px; flex-shrink: 0;
-      background: var(--tint); color: var(--blue);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.15rem;
-    }
-    .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }   /* Staff Portal tile stands out */
-    .tile-text strong { display: block; font-family: var(--display); font-size: 1rem; }
-    .tile-text small  { color: var(--muted); font-size: .83rem; }
-    .tile-chevron { margin-left: auto; color: var(--line); font-size: .75rem; flex-shrink: 0; }
-
-    .quick-signout {
-      background: none; border: 0; padding: 0;
-      color: var(--muted); font-size: .82rem; cursor: pointer;
-      font-family: var(--body); text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    .quick-signout:hover { color: var(--heading); }
+    .bottom-cta p { color: var(--muted); max-width: 54ch; margin: 0 auto 1.75rem; }
 
     /* Get the app: install section (logged-out view) */
     .app-section { padding: 4rem 0 3.5rem; scroll-margin-top: 40px; }   /* #get-the-app clears the fixed nav */
@@ -332,6 +231,130 @@
       display: inline-block; margin-left: .75rem; font-family: var(--display); font-weight: 600;
       font-size: .95rem; color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
     }
+
+    /* ══════════════════════════════════════════════════════════
+       LOGGED-IN HOME VIEW
+       Header (who you are) → Right now (next match + quick buttons) → tile grids by section
+    ══════════════════════════════════════════════════════════ */
+    .home-wrap { max-width: 1040px; margin: 0 auto; padding: 2.5rem 0 4rem; }
+
+    /* Header: name, role and email on the left; My Account and Sign out on the right */
+    .home-head {
+      background: var(--navy);
+      padding: 1.25rem 1.5rem;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+    }
+    .home-head h1 { color: #fff; font-size: 1.45rem; margin: 0 0 .3rem; }
+    .home-head h1::after { display: none; }
+    .home-meta { color: rgba(255,255,255,.65); font-size: .85rem; margin: 0; max-width: none; word-break: break-word; }
+    .home-head-actions { margin-left: auto; display: flex; gap: .5rem; flex-wrap: wrap; }
+    .head-btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      font-family: var(--display); font-weight: 600; font-size: .85rem;
+      color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25);
+      padding: .4rem .8rem; cursor: pointer; text-decoration: none;
+    }
+    .head-btn:hover { background: rgba(255,255,255,.2); color: #fff; text-decoration: none; }
+    /* Role badge: the script adds one of .staff / .student / .guest */
+    .greeting-badge {
+      display: inline-block;
+      font-family: var(--display);
+      font-size: .7rem;
+      font-weight: 700;
+      padding: .1rem .5rem;
+      margin-right: .5rem;
+      clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
+    }
+    .greeting-badge.staff   { background: var(--blue); color: #fff; }
+    .greeting-badge.student { background: rgba(255,255,255,.2); color: #fff; }
+    .greeting-badge.guest   { background: rgba(255,255,255,.1); color: rgba(255,255,255,.75); }
+    /* Quarantine and other no-team states */
+    .claim-status { font-size: .9rem; margin: 1rem 0 0; padding: .6rem .8rem; border-left: 4px solid var(--amber); background: var(--amber-bg); color: var(--ink); max-width: none; }
+
+    /* Section label above a group of tiles */
+    .home-group { margin-top: 2rem; }
+    .home-section-label {
+      font-family: var(--display);
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      margin: 0 0 .75rem;
+      padding-bottom: .3rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .home-section-label::after { display: none; }
+    .home-section-label span { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--heading); margin-left: .35rem; }
+
+    /* Right now: the next-match card beside the quick buttons */
+    .now-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: .75rem; }
+    .now-row.no-match { grid-template-columns: minmax(0, 1fr); }
+    .now-row.no-match #nextMatch { display: none; }
+    @media (max-width: 767px) { .now-row { grid-template-columns: minmax(0, 1fr); } }
+    .next-card { background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--blue); padding: 1rem 1.15rem; height: 100%; }
+    .next-card.red  { border-left-color: var(--red); }
+    .next-card.done { border-left-color: var(--line); }
+    .next-kicker { font-family: var(--display); font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .next-title { font-family: var(--display); font-size: 1.3rem; font-weight: 700; color: var(--heading); margin: .1rem 0 .35rem; }
+    .next-title .away { font-size: .9rem; font-weight: 600; color: var(--muted); margin-left: .4rem; }
+    .next-teams { font-size: .9rem; color: var(--ink); margin: 0 0 .25rem; max-width: none; }
+    .side-chip { display: inline-block; font-family: var(--display); font-size: .72rem; font-weight: 700; color: #fff; padding: .05rem .45rem; margin-right: .4rem; }
+    .side-chip.red  { background: #c0392b; }
+    .side-chip.blue { background: #1B4DB1; }
+    .next-event { font-size: .8rem; color: var(--muted); margin: 0 0 .6rem; max-width: none; }
+    .next-links { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .85rem; font-family: var(--display); font-weight: 600; }
+    .next-links a { color: var(--link); }
+
+    .quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+    .now-row.no-match .quick-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .quick-btn {
+      display: flex; flex-direction: column; justify-content: center; gap: .3rem;
+      min-height: 76px; padding: .8rem 1rem;
+      background: var(--white); border: 1px solid var(--line); color: var(--heading);
+      font-family: var(--display); font-weight: 700; font-size: .95rem; text-decoration: none;
+      transition: background .15s, border-color .15s;
+    }
+    .quick-btn .fa { font-size: 1.2rem; color: var(--blue); }
+    .quick-btn:hover { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--heading); }
+    .quick-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .quick-btn.primary .fa { color: #fff; }
+    .quick-btn.primary:hover { background: #2560d4; color: #fff; }
+
+    /* Tile grid: [icon] Title / one-line description */
+    .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: .6rem; }
+    .nav-tile {
+      display: flex; align-items: flex-start; gap: .8rem;
+      padding: .85rem 1rem;
+      border: 1px solid var(--line);
+      background: var(--white);
+      text-decoration: none;
+      color: var(--ink);
+      transition: background .15s, border-color .15s;
+      position: relative;
+    }
+    .nav-tile::after {
+      content: "";
+      position: absolute;
+      top: -1px; right: -1px;
+      width: 12px; height: 12px;
+      background: linear-gradient(to bottom left,
+        var(--paper) 0 calc(50% - .5px),
+        var(--line) calc(50% - .5px) calc(50% + .5px),
+        transparent calc(50% + .5px));
+    }
+    .nav-tile:hover, .nav-tile:focus { background: var(--tint); border-color: var(--blue); text-decoration: none; color: var(--heading); }
+    .tile-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: var(--tint); color: var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+    .nav-tile.staff-tile .tile-icon { background: var(--navy); color: #fff; }   /* Staff Portal tile stands out */
+    .tile-text { min-width: 0; }
+    .tile-text strong { display: block; font-family: var(--display); font-size: .95rem; color: var(--heading); }
+    .tile-text small  { display: block; color: var(--muted); font-size: .8rem; line-height: 1.4; }
 
     /* ── Shared ───────────────────────────────────────────────── */
     /* Both views start hidden so the wrong one never flashes; the script reveals one */
@@ -391,14 +414,22 @@
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
                 <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+                <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
                 <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
                 <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
                 <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-                <div class="dropdown-divider" data-role="team" hidden></div>
+                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
                 <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
                 <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+                <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+                <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+                <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+                <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+                <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
                 <div class="dropdown-divider" data-role="staff" hidden></div>
                 <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
               </div>
@@ -424,78 +455,201 @@
           <span class="team-num">1307</span>scout
         </div>
         <p class="hero-tagline">
-          The scouting platform for competitive robotics. Collect robot data in the pits,
-          collect real-time match data, and share exactly what other teams need to see.
+          Free scouting for every FRC team. Scout matches and pits, look up any team's history and
+          official results, plan each match with your alliance, and run your pit, from one app that
+          keeps working when the venue Wi-Fi doesn't.
         </p>
-        <a href="/signin.html" class="hero-cta">Sign in to get started</a>
+        <ul class="hero-facts">
+          <li><i class="fa fa-globe" aria-hidden="true"></i>Every FRC team, worldwide</li>
+          <li><i class="fa fa-usd" aria-hidden="true"></i>Free</li>
+          <li><i class="fa fa-refresh" aria-hidden="true"></i>Official results synced</li>
+          <li><i class="fa fa-plane" aria-hidden="true"></i>Scouts offline</li>
+        </ul>
+        <a href="/signin.html" class="hero-cta">Sign in or create an account</a>
         <a href="#get-the-app" class="app-ghost" style="color:#fff;">Get the app</a>
       </div>
     </section>
 
-    <!-- Features -->
+    <!-- Features, in the order a competition runs: scout, look teams up, play matches, pick alliances -->
     <section class="features-section">
       <div class="container">
         <h2>Built for competition day</h2>
         <p class="features-lead">
-          1307scout is designed around how scouting actually happens — fast data entry
-          between matches, instant team lookup at the strategy table, and controlled
-          sharing with alliance partners.
+          1307scout is built around how scouting really happens: fast entry in the stands, quick
+          lookups at the strategy table, a pit that knows when the next match is, and an alliance
+          selection list that's ready before the call.
         </p>
-        <div class="row">
-          <div class="col-lg-3 col-md-6 mb-4">
-            <div class="feature-card">
-              <div class="feature-icon"><i class="fa fa-clipboard"></i></div>
-              <h3>Configurable match forms</h3>
-              <p>Staff define the fields — auto points, climb level, notes, whatever the season needs. The form updates immediately for every scout on the team.</p>
+
+        <!-- 1. Scout -->
+        <div class="feature-group">
+          <div class="feature-group-head"><span class="num">01</span><h3>Scout</h3><p>Collect good data, even with no signal</p></div>
+          <div class="row">
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-clipboard"></i></div>
+                <h4>Match and pit scouting</h4>
+                <p>One form for every match and one pit entry per team per event, with fields set for each season's game: counts, choices, notes, and robot photos straight from the camera.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-wifi"></i></div>
+                <h4>Works offline</h4>
+                <p>Match entries made with no connection are kept on the device and sent when it reconnects, or handed to a scout who is online by QR code. Install the <a href="#get-the-app">app</a> and it opens with no connection at all.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-users"></i></div>
+                <h4>Scout shifts</h4>
+                <p>Give each scout a driver-station seat for a range of matches, one at a time or as a rotation. The Scout page shows each scout their next match and team, ready to fill in.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-flag"></i></div>
+                <h4>Match flags</h4>
+                <p>Every played match is checked against the schedule, official per-robot results, alliance scores, other scouts and the team's usual numbers. Anything that looks wrong or missing is flagged, with the robots to scout next.</p>
+              </div>
             </div>
           </div>
-          <div class="col-lg-3 col-md-6 mb-4">
-            <div class="feature-card">
-              <div class="feature-icon"><i class="fa fa-wifi"></i></div>
-              <h3>Works offline</h3>
-              <p>Match entries are saved when the venue Wi-Fi drops. Drafts are stored on the device and submitted automatically when the connection returns, or handed to a scout who is online by QR code. Install the <a href="#get-the-app">1307scout app</a> and it opens with no connection at all.</p>
+        </div>
+
+        <!-- 2. Know every team -->
+        <div class="feature-group">
+          <div class="feature-group-head"><span class="num">02</span><h3>Know every team</h3><p>Scouting data shared by every team, beside the official record</p></div>
+          <div class="row">
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-database"></i></div>
+                <h4>Team Database</h4>
+                <p>Any team's scouted and official match history, pit data and photos, score breakdown, OPR for every scoring category, trend charts and every scouted note. Event rankings, CSV export, and a copy you can download for offline.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-refresh"></i></div>
+                <h4>Official results, synced</h4>
+                <p>Scores come from FRC Events and The Blue Alliance on their own: every event that's under way refreshes about every 2 minutes while matches run, and Resync data pulls the latest right away. Your team's pages open on the event you're registered for.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-line-chart"></i></div>
+                <h4>Ratings you can check</h4>
+                <p>Two separate letter-grade ratings, one from scouting and one from official results, plus alliance grades and win chance. Every formula is explained on <a href="/ratings.html">How Ratings Work</a>, along with how past predictions held up.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-columns"></i></div>
+                <h4>Alliance View</h4>
+                <p>Six robots side by side on one screen, red against blue, with each alliance's grade and estimated win chance. Every match listing opens here in one click.</p>
+              </div>
             </div>
           </div>
-          <div class="col-lg-3 col-md-6 mb-4">
-            <div class="feature-card">
-              <div class="feature-icon"><i class="fa fa-refresh"></i></div>
-              <h3>Official results, synced</h3>
-              <p>Link an event to its FRC or TBA code and 1307scout pulls official match scores automatically — no re-typing results by hand. On competition day, staff can set the current event to refresh every 2 minutes for the day, and anyone on the team can press Resync data to pull the latest results right away. Scouting entries are checked against those results, and any match that needs a second look is flagged. Turn on match alerts and your phone tells you when the team is about to play.</p>
+        </div>
+
+        <!-- 3. Compete -->
+        <div class="feature-group">
+          <div class="feature-group-head"><span class="num">03</span><h3>Compete</h3><p>From the pit to the field</p></div>
+          <div class="row">
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-television"></i></div>
+                <h4>Event Viewer</h4>
+                <p>For a laptop or TV in the pit: an event's livestream beside the match on the field, your next match, your record, and a quick alliance comparison for any match, with a link to share it. The bracket appears in the playoffs, and it all keeps itself up to date.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-bell"></i></div>
+                <h4>Our Matches and alerts</h4>
+                <p>Every match your team has at the event, with partners, opponents and win chance. Turn on match alerts and your phone tells you shortly before you need to queue, live from FRC Nexus at events that use it.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-map-o"></i></div>
+                <h4>Match Strategy</h4>
+                <p>A to-scale field map with each match's robots in their stations. Drag robots to their starting spots and draw the plan. Alliance partners on 1307scout share one plan the other alliance can't see, saved for review after the match.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-wrench"></i></div>
+                <h4>Pit Crew</h4>
+                <p>Your robot's pre-match checklist, batteries and their voltages, repairs and notes, with one line that says whether the next match is ready to go.</p>
+              </div>
             </div>
           </div>
-          <div class="col-lg-3 col-md-6 mb-4">
-            <div class="feature-card">
-              <div class="feature-icon"><i class="fa fa-qrcode"></i></div>
-              <h3>Scoped share codes</h3>
-              <p>Generate a QR code scoped to one team, one event, or both. Set an expiry, hand it to an alliance partner, and revoke it when the match is over.</p>
+        </div>
+
+        <!-- 4. Playoffs and sharing -->
+        <div class="feature-group">
+          <div class="feature-group-head"><span class="num">04</span><h3>Playoffs and sharing</h3><p>Alliance selection, the bracket, and controlled sharing</p></div>
+          <div class="row">
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-list-ol"></i></div>
+                <h4>Pick List</h4>
+                <p>Your team's ranked list for alliance selection. Drag to reorder, tier each team (first pick, second pick, maybe, do not pick) and add notes. Teams grey out as they're picked.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-trophy"></i></div>
+                <h4>Playoff Selection</h4>
+                <p>Alliances update on every screen as they form, then switch to the official ones once they're published. Every team still available is ranked beside them, with your pick list's next choice named.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-sitemap"></i></div>
+                <h4>Playoff Bracket</h4>
+                <p>The double-elimination bracket, filled from the alliances and moved along by official results as the event syncs.</p>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="feature-card">
+                <div class="feature-icon"><i class="fa fa-qrcode"></i></div>
+                <h4>Share codes</h4>
+                <p>Give an alliance partner, a parent or a team waiting to be verified a link or QR code for chosen teams or events. Codes expire within 90 days and can be revoked any time. Your team's own plans are never shared.</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Who it's for: the three access levels -->
+    <!-- Who sees what: shared data vs. a team's own, and the access levels -->
     <section class="tiers-section">
       <div class="container">
         <div class="row">
           <div class="col-12 col-lg-5 mb-4 mb-lg-0">
-            <h2>Three levels of access</h2>
-            <p style="color:rgba(255,255,255,.65); font-size:.95rem; max-width:38ch; margin-top:.5rem;">
-              Everyone sees exactly what they need — nothing more.
-            </p>
+            <h2>Who sees what</h2>
+            <p class="tiers-lead">Everyone sees exactly what they need, and the database enforces it, not just the page.</p>
+            <ul class="tiers-split">
+              <li><strong><i class="fa fa-database" aria-hidden="true"></i> Shared by every team</strong>Scouting entries, pit data, official results, match flags and playoff alliances. Every verified team scouts into the same pool.</li>
+              <li><strong><i class="fa fa-lock" aria-hidden="true"></i> Your team's own</strong>Strategy plans, the pick list, the pit crew log and scout shifts. Only your team's members see them.</li>
+            </ul>
           </div>
           <div class="col-12 col-lg-7">
             <div class="tier-item">
-              <strong>Staff</strong>
-              <p>Set up events and form fields, manage share codes, enter playoff alliances, see all scouting data across the team, and review an audit log of who changed what. Access is granted by allowlist.</p>
+              <strong>Team members</strong>
+              <p>Tell us your team when you sign up. You're verified right away by your school email if your team listed its domain, or by an invitation, join code or invite link; otherwise you're a guest until one of its managers verifies you. Members scout, look up any team, use the team's tools, and make share codes.</p>
             </div>
             <div class="tier-item">
-              <strong>Team members</strong>
-              <p>Sign in with an account attached to your school's domain to enter match data and look up any team's history, robot parameters, official results, and letter-grade rating.</p>
+              <strong>Team managers</strong>
+              <p>Run their team on Team Management: verify people waiting, invite by email or link, list the email domain that verifies members at once, make other members managers, hand out scout shifts, choose whether members or only managers can change strategy plans, the pick list, the pit crew log, scout shifts and the default event, or make share codes, and set the pit crew checklist. Site staff confirm a team's first manager with the team.</p>
+            </div>
+            <div class="tier-item">
+              <strong>Site staff</strong>
+              <p>Run the site: events and each season's scouting form, playoff alliances and bracket tiebreakers, approving each team's first manager, and an audit log of who changed what.</p>
             </div>
             <div class="tier-item">
               <strong>Guests</strong>
-              <p>Alliance partners and other teams use a share code to view specific data — a single team's record, or a whole event — without seeing anything else.</p>
+              <p>Anyone not on a verified team (yet) can use a share code from a team member to see what it covers, such as one team's record or a whole event, and nothing else.</p>
             </div>
           </div>
         </div>
@@ -516,6 +670,7 @@
             <ul class="app-points">
               <li><i class="fa fa-th-large"></i><span>Opens from your home screen, dock, or Start menu in its own window.</span></li>
               <li><i class="fa fa-plane"></i><span>Opens with no connection. Match entries made offline are kept on the device and sent when you reconnect.</span></li>
+              <li><i class="fa fa-bell"></i><span>Match alerts arrive like any app's notifications.</span></li>
               <li><i class="fa fa-refresh"></i><span>Always up to date. Every update to the website is in the app the next time it opens online.</span></li>
             </ul>
             <button type="button" class="hero-cta" data-app-install hidden>Install the app</button>
@@ -538,7 +693,7 @@
     <section class="bottom-cta">
       <div class="container">
         <h2>Ready to scout?</h2>
-        <p>Team members sign in with their school Google account. Everyone else creates a free account or uses a share code.</p>
+        <p>Continue with Google (a school or team Google account can verify you on your team right away), or create a free account with your email. Tell us your team when you sign up.</p>
         <a href="/signin.html" class="hero-cta">Sign in</a>
       </div>
     </section>
@@ -548,57 +703,53 @@
 
   <!-- ══════════════════════════════════════════════════════════
        LOGGED-IN HOME VIEW  (shown when someone is signed in)
-       The script fills in the greeting, badge, and tiles.
+       The script fills in the header, the "Right now" row and the tile grids.
   ══════════════════════════════════════════════════════════ -->
   <div id="loggedInView">
     <div class="container">
       <div class="home-wrap">
 
-        <!-- Greeting: the text node before the span is replaced by the script; the span holds the role badge -->
-        <div class="greeting-bar mt-4">
-          <h2 id="greetingName">Welcome back <span id="greetingBadge"></span></h2>
-          <p id="greetingEmail"></p>
-        </div>
+        <!-- Who's signed in, with account buttons -->
+        <header class="home-head">
+          <div>
+            <h1 id="greetingName">Welcome back.</h1>
+            <p class="home-meta"><span id="greetingBadge" class="greeting-badge"></span><span id="greetingEmail"></span></p>
+          </div>
+          <div class="home-head-actions">
+            <a href="/account.html" class="head-btn"><i class="fa fa-user" aria-hidden="true"></i> My Account</a>
+            <button type="button" class="head-btn" id="quickSignOut"><i class="fa fa-sign-out" aria-hidden="true"></i> Sign out</button>
+          </div>
+        </header>
+        <div id="claimStatus"></div>
 
-        <!-- Our next match at the default event (team members), from js/schedule.js -->
-        <div id="nextMatch"></div>
+        <!-- Right now: our next match at the default event (js/schedule.js) beside the most-used pages.
+             .no-match hides the card until there's a match to show. -->
+        <section class="home-group" id="nowGroup" hidden>
+          <h2 class="home-section-label">Right now</h2>
+          <div class="now-row no-match" id="nowRow">
+            <div id="nextMatch"></div>
+            <div class="quick-grid" id="quickActions"></div>
+          </div>
+        </section>
 
-        <!-- Primary actions (label + tiles are built by the script, depending on access level) -->
+        <!-- Data and My Team tiles (built by the script, depending on access level) -->
         <div id="primaryTiles"></div>
 
-        <!-- The app (PWA): an install tile in a browser tab, a status line inside the installed app -->
-        <div class="home-section-label mt-4">App</div>
-        <a href="/app.html" class="nav-tile" data-app-when="browser" hidden>
-          <div class="tile-icon"><i class="fa fa-download"></i></div>
-          <div class="tile-text">
-            <strong>Get the app</strong>
-            <small>Install 1307scout on this device. It opens offline, and keeps match entries until you reconnect.</small>
+        <!-- More: the script adds How Ratings Work and the Staff Portal before the app tiles -->
+        <section class="home-group">
+          <h2 class="home-section-label">More</h2>
+          <div class="tile-grid" id="moreTiles">
+            <!-- The app (PWA): an install tile in a browser tab, a status tile inside the installed app -->
+            <a href="/app.html" class="nav-tile" data-app-when="browser" hidden>
+              <div class="tile-icon"><i class="fa fa-download"></i></div>
+              <div class="tile-text"><strong>Get the app</strong><small>Install 1307scout on this device. It opens offline</small></div>
+            </a>
+            <a href="/app.html" class="nav-tile" data-app-when="installed" hidden>
+              <div class="tile-icon"><i class="fa fa-check"></i></div>
+              <div class="tile-text"><strong>You're using the app</strong><small>Offline use, updates, and how to remove it</small></div>
+            </a>
           </div>
-          <i class="fa fa-chevron-right tile-chevron"></i>
-        </a>
-        <a href="/app.html" class="nav-tile" data-app-when="installed" hidden>
-          <div class="tile-icon"><i class="fa fa-check"></i></div>
-          <div class="tile-text">
-            <strong>You're using the app</strong>
-            <small>Offline use, updates, and how to remove it</small>
-          </div>
-          <i class="fa fa-chevron-right tile-chevron"></i>
-        </a>
-
-        <!-- Secondary: account -->
-        <div class="home-section-label mt-4">Account</div>
-        <a href="/account.html" class="nav-tile">
-          <div class="tile-icon"><i class="fa fa-user"></i></div>
-          <div class="tile-text">
-            <strong>My account</strong>
-            <small>Change your password, update contact info</small>
-          </div>
-          <i class="fa fa-chevron-right tile-chevron"></i>
-        </a>
-
-        <div class="mt-3">
-          <button class="quick-signout" id="quickSignOut">Sign out</button>
-        </div>
+        </section>
 
       </div>
     </div>
@@ -656,70 +807,116 @@
     var lvl  = await RS.accessLevel({ offline: true });   // offline: the level last seen on this device
     if (lvl === null) return;
     var isStaff = lvl === "staff", isStudent = lvl === "student", isTeam = isStaff || isStudent;
+    // The person's team and role on it (my_team_info(), saved on the device for offline use)
+    var team = (await RS.team()) || { team_number: null };
+    var MY_TEAM = team.team_number, isManager = team.role === "manager";
+    var esc = function (t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"); };
 
-    // Greeting: first name if we have one, otherwise a plain welcome.
+    // Where an account with no team stands: waiting to be verified, turned down, or not said (team.html)
+    function claimLine(t) {
+      var c = t && t.claim;
+      if (!t || t.team_number) return "";
+      if (!c) return "You haven't said which FRC team you're on. Tell us on Team Management to join your team.";
+      if (c.status === "pending") return "Waiting to be verified on team " + c.team_number + ". Until one of its managers or site staff verifies you, you use 1307scout as a guest.";
+      if (c.status === "denied") return "Team " + c.team_number + " didn't verify you" + (c.note ? ': "' + c.note + '"' : "") + ". See Team Management.";
+      return "";
+    }
+
+    // ── Header: first name, role badge, email ──
     var meta = user.user_metadata || {};
     var name = meta.display_name || meta.full_name || meta.name || "";
-    var greeting = name ? "Welcome back, " + name.split(" ")[0] + "." : "Welcome back.";
-    // childNodes[0] is the text node before the badge <span>, so the badge itself is left alone
-    document.getElementById("greetingName").childNodes[0].textContent = greeting + " ";
-
-    // Role badge (styles come from .greeting-badge.staff / .student / .guest)
+    document.getElementById("greetingName").textContent = name ? "Welcome back, " + name.split(" ")[0] + "." : "Welcome back.";
     var badge = document.getElementById("greetingBadge");
-    badge.textContent = isStaff ? "Staff" : isStudent ? "Team member" : "Guest";
+    badge.textContent = (isStaff ? "Staff" : isManager ? "Team manager" : isStudent ? "Team member" : "Guest") +
+      (MY_TEAM ? " · Team " + MY_TEAM : "");
     badge.className = "greeting-badge " + (isStaff ? "staff" : isStudent ? "student" : "guest");
+    document.getElementById("greetingEmail").textContent = user.email || "";
 
-    document.getElementById("greetingEmail").textContent = user.email;
+    // Quarantine and other no-team states, under the header
+    var line = claimLine(team);
+    if (line) {
+      var note = document.createElement("p");
+      note.className = "claim-status";
+      note.textContent = line + " ";
+      var link = document.createElement("a"); link.href = "/team.html"; link.textContent = "Open Team Management";
+      note.appendChild(link);
+      document.getElementById("claimStatus").appendChild(note);
+    }
 
-    // ── Tiles: the menu's pages in the same order, then the tools that are only linked from here ──
+    // ── Tiles: the menu's two sections, Data (shared by every team) and My Team (your team's own) ──
     function tile(href, icon, title, desc, cls) {
       return { href: href, icon: icon, title: title, desc: desc, cls: cls || "" };
     }
+    function tileEl(t) {
+      var a = document.createElement("a");
+      a.href = t.href;
+      a.className = "nav-tile " + t.cls;
+      a.innerHTML = '<div class="tile-icon"><i class="fa ' + t.icon + '" aria-hidden="true"></i></div>' +
+        '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>';
+      return a;
+    }
     var groups = [];
     if (isTeam) {
-      groups.push({ label: "Most used", tiles: [
-        tile("/query.html", "fa-database", "Team Database", "Match history, robot parameters, official results, event rankings, and ratings"),
-        tile("/matches.html", "fa-calendar", "Our Matches", "Every match today, with partners, opponents, and win chance"),
-        tile("/alliance.html", "fa-columns", "Alliance View", "Compare red and blue alliances, six robots side by side"),
-        tile("/strategy.html", "fa-map-o", "Match Strategy", "Plan each match on the field map, and look back at the plans that worked"),
-        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data for the current event")
-      ] });
-      groups.push({ label: "Playoffs", tiles: [
-        tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Track alliances as they form and rank the teams still available"),
-        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "The double-elimination bracket, filled from the alliances and official results"),
-        tile("/picklist.html", "fa-list-ol", "Pick List", "Our ranked list for alliance selection, with notes and do-not-picks")
-      ] });
-    } else {
-      groups.push({ label: "Data access", tiles: [
-        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from Team 1307")
+      groups.push({ label: "Data", sub: "shared by every team", tiles: [
+        tile("/live.html", "fa-television", "Event Viewer", "Livestream, the match on the field, and your next one"),
+        tile("/query.html", "fa-database", "Team Database", "Any team's history, pit data, official results and ratings"),
+        tile("/alliance.html", "fa-columns", "Alliance View", "Six robots side by side, with grades and win chance"),
+        tile("/scout.html", "fa-clipboard", "Scout", "Enter match and pit data"),
+        tile("/flags.html", "fa-flag", "Match Flags", "Entries that may be wrong or missing, and who to scout next"),
+        tile("/playoffs.html", "fa-trophy", "Playoff Selection", "Alliances as they form, and the best teams still available"),
+        tile("/bracket.html", "fa-sitemap", "Playoff Bracket", "Double elimination, moved along by official results"),
+        tile("/share.html", "fa-share-alt", "Share Data", "Share codes for people who aren't on a team here")
       ] });
     }
-    // Not in the menu, to keep it short
-    groups.push({ label: "More tools", tiles: (isTeam ? [
-      tile("/flags.html", "fa-flag", "Match Flags", "Scouting data that may be wrong or missing (checked against official and vision data), and who to scout next"),
-      tile("/shifts.html", "fa-users", "Scout Shifts", "Who scouts which seat for which matches. The Scout page fills in your next team"),
-      tile("/pitcrew.html", "fa-wrench", "Pit Crew", "Our robot's pre-match checklist, batteries, repairs and notes")
-    ] : []).concat([
-      tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance, and the other numbers are worked out")
-    ]).concat(isStaff ? [tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, share codes, members, and the audit log", "staff-tile")] : []) });
+    if (isTeam && MY_TEAM) {
+      groups.push({ label: "My Team", sub: "Team " + MY_TEAM + (team.name ? " " + team.name : "") + ", only your team sees these", tiles: [
+        tile("/matches.html", "fa-calendar", "Our Matches", "Every match at the event, with partners, opponents and win chance"),
+        tile("/strategy.html", "fa-map-o", "Match Strategy", "Plan each match on the field map with your alliance"),
+        tile("/pitcrew.html", "fa-wrench", "Pit Crew", "Pre-match checklist, batteries, repairs and notes"),
+        tile("/picklist.html", "fa-list-ol", "Pick List", "Your ranked list for alliance selection"),
+        tile("/shifts.html", "fa-users", "Scout Shifts", "Who scouts which seat, for which matches"),
+        tile("/team.html", "fa-id-badge", "Team Management", isManager
+          ? "Members, join codes, permissions and the pit checklist"
+          : "Your team's roster, managers and default event")
+      ] });
+    }
+    if (!isTeam) {
+      groups.push({ label: "Get started", tiles: [
+        tile("/scout.html", "fa-search", "View shared data", "Enter a share code from a team member"),
+        tile("/team.html", "fa-id-badge", "Join or manage a team", "Join with a code from your team's managers, or ask to manage your team")
+      ] });
+    }
 
     var area = document.getElementById("primaryTiles");
-    groups.forEach(function (g, i) {
-      var label = document.createElement("div");
-      label.className = "home-section-label" + (i ? " mt-4" : "");
-      label.textContent = g.label;
-      area.appendChild(label);
-      g.tiles.forEach(function (t) {
-        var a = document.createElement("a");
-        a.href = t.href;
-        a.className = "nav-tile " + t.cls;
-        a.innerHTML =
-          '<div class="tile-icon"><i class="fa ' + t.icon + '"></i></div>' +
-          '<div class="tile-text"><strong>' + t.title + '</strong><small>' + t.desc + '</small></div>' +
-          '<i class="fa fa-chevron-right tile-chevron"></i>';
-        area.appendChild(a);
-      });
+    groups.forEach(function (g) {
+      var sec = document.createElement("section");
+      sec.className = "home-group";
+      var h = document.createElement("h2");
+      h.className = "home-section-label";
+      h.textContent = g.label;
+      if (g.sub) { var s = document.createElement("span"); s.textContent = "· " + g.sub; h.appendChild(s); }
+      var grid = document.createElement("div");
+      grid.className = "tile-grid";
+      g.tiles.forEach(function (t) { grid.appendChild(tileEl(t)); });
+      sec.appendChild(h); sec.appendChild(grid);
+      area.appendChild(sec);
     });
+
+    // More: How Ratings Work and (staff) the Staff Portal, ahead of the app tiles already in the page
+    var more = document.getElementById("moreTiles"), first = more.firstElementChild;
+    more.insertBefore(tileEl(tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance and the other numbers are worked out")), first);
+    if (isStaff) more.insertBefore(tileEl(tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, teams, members and the audit log", "staff-tile")), first);
+
+    // ── Right now: the pages used most at an event, one tap away ──
+    if (isTeam) {
+      var quick = [["/scout.html", "fa-clipboard", "Scout", "primary"], ["/live.html", "fa-television", "Event Viewer"]];
+      if (MY_TEAM) quick.push(["/matches.html", "fa-calendar", "Our Matches"]);
+      quick.push(["/query.html", "fa-database", "Team Database"]);
+      document.getElementById("quickActions").innerHTML = quick.map(function (q) {
+        return '<a class="quick-btn ' + (q[3] || "") + '" href="' + q[0] + '"><i class="fa ' + q[1] + '" aria-hidden="true"></i>' + q[2] + "</a>";
+      }).join("");
+      document.getElementById("nowGroup").hidden = false;
+    }
 
     // Sign out, then reload so the logged-out view appears. RS.signOut clears this
     // device even if the server can't be reached or staff already ended the session.
@@ -728,26 +925,45 @@
       location.reload();
     });
 
-    // Last step: reveal the logged-in view (it starts hidden in the CSS)
+    // Reveal the logged-in view (it starts hidden in the CSS)
     document.getElementById("loggedInView").style.display = "block";
 
-    // Our next match at the default event: how many matches away, and links to plan it
-    if (isTeam && navigator.onLine !== false) {
-      var evr = await sb.from("events").select("id,name").eq("is_default_event", true).maybeSingle();
-      if (evr.data) {
-        var sched = await RSSchedule.load(sb, evr.data.id);
-        var list = sched.matches, now = list.findIndex(function (m) { return !m.played; });
-        var i = now < 0 ? -1 : list.findIndex(function (m, k) { return k >= now && m.red_teams.concat(m.blue_teams).indexOf(1307) !== -1; });
-        if (i >= 0) {
-          var m = list[i], away = i - now, red = m.red_teams.indexOf(1307) !== -1;
-          var esc = function (t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
-          document.getElementById("nextMatch").innerHTML =
-            '<a class="nav-tile mt-3" href="/strategy.html?event=' + encodeURIComponent(evr.data.id) + "&match=" + encodeURIComponent(m.match_key) + '">' +
-            '<div class="tile-icon"><i class="fa fa-flag-checkered"></i></div><div class="tile-text"><strong>Next: ' + esc(RSSchedule.label(m.match_key)) +
-            (away === 0 ? " is up next" : ", " + away + " match" + (away === 1 ? "" : "es") + " away") + "</strong><small>" + (red ? "Red" : "Blue") + " with " +
-            (red ? m.red_teams : m.blue_teams).filter(function (t) { return t !== 1307; }).join(", ") + " vs " + (red ? m.blue_teams : m.red_teams).join(", ") +
-            " · " + esc(evr.data.name) + " · open the strategy plan</small></div><i class=\"fa fa-chevron-right tile-chevron\"></i></a>";
-        }
+    // ── Our next match at the default event: how far away, the line-up, and links to plan it ──
+    if (isTeam && MY_TEAM && navigator.onLine !== false) {
+      // The team's default event (SQL section 5b), else the one staff starred
+      var defId = team.default_event && team.default_event.id;
+      var evr = defId ? await sb.from("events").select("id,name").eq("id", defId).maybeSingle()
+                      : await sb.from("events").select("id,name").eq("is_default_event", true).maybeSingle();
+      if (!evr.data) return;
+      var ev = evr.data, sched = await RSSchedule.load(sb, ev.id);
+      var list = sched.matches, now = list.findIndex(function (m) { return !m.played; });
+      var i = now < 0 ? -1 : list.findIndex(function (m, k) { return k >= now && m.red_teams.concat(m.blue_teams).indexOf(MY_TEAM) !== -1; });
+      var card;
+      if (i >= 0) {
+        var m = list[i], away = i - now, red = m.red_teams.indexOf(MY_TEAM) !== -1;
+        var ours = red ? m.red_teams : m.blue_teams, theirs = red ? m.blue_teams : m.red_teams;
+        var partners = ours.filter(function (t) { return t !== MY_TEAM; });
+        var q = "?event=" + encodeURIComponent(ev.id) + "&match=" + encodeURIComponent(m.match_key);
+        card = '<div class="next-card ' + (red ? "red" : "") + '">' +
+          '<div class="next-kicker">Our next match</div>' +
+          '<div class="next-title">' + esc(RSSchedule.label(m.match_key)) +
+            '<span class="away">' + (away === 0 ? "up next" : away + " match" + (away === 1 ? "" : "es") + " away") + "</span></div>" +
+          '<p class="next-teams"><span class="side-chip ' + (red ? "red" : "blue") + '">' + (red ? "RED" : "BLUE") + "</span>" +
+            (partners.length ? "With " + esc(partners.join(", ")) + " · " : "") + "vs " + esc(theirs.join(", ")) + "</p>" +
+          '<p class="next-event">' + esc(ev.name) + "</p>" +
+          '<div class="next-links"><a href="/live.html' + q + '">Event Viewer</a>' +
+            '<a href="/strategy.html' + q + '">Strategy plan</a>' +
+            '<a href="/alliance.html?red=' + m.red_teams.join(",") + "&blue=" + m.blue_teams.join(",") + '">Alliance View</a>' +
+            '<a href="/matches.html">All our matches</a></div></div>';
+      } else if (list.length) {
+        // Schedule is out but we have nothing left: say so, quietly
+        card = '<div class="next-card done"><div class="next-kicker">Our next match</div>' +
+          '<p class="next-teams mt-1">No more matches for team ' + MY_TEAM + " at " + esc(ev.name) + ".</p>" +
+          '<div class="next-links"><a href="/matches.html">See our results</a></div></div>';
+      }
+      if (card) {
+        document.getElementById("nextMatch").innerHTML = card;
+        document.getElementById("nowRow").classList.remove("no-match");
       }
     }
   })();

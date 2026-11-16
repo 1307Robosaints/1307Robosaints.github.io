@@ -177,7 +177,8 @@
       await work();
     } catch (e) {
       console.error("Offline copy failed:", e);
-      alert("Couldn't make the offline copy: " + (e && e.message ? e.message : e));
+      var text = "Couldn't make the offline copy: " + (e && e.message ? e.message : e);
+      if (window.RSDialog) RSDialog.alert(text, { title: "Download failed" }); else alert(text);
     } finally {
       btn.disabled = false;
       btn.innerHTML = label;

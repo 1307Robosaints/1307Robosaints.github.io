@@ -318,14 +318,22 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -427,6 +435,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
@@ -435,6 +444,7 @@
   <script src="/js/alliance.js"></script>
   <script src="/js/opr.js"></script>
   <script src="/js/vision.js"></script>
+  <script src="/js/tables.js"></script>
   <script>
   (async function () {
     var sb = RS.sb;
@@ -455,6 +465,7 @@
     var lvl = await RS.accessLevel();
     if (lvl === null) return;
     if (lvl !== "staff" && lvl !== "student") { location.replace("account.html"); return; }
+    var MY_TEAM = ((await RS.team()) || {}).team_number || null;   // the signed-in person's team (js/auth.js)
 
     // ── Rating config ────────────────────────────────────────────────
     // Tiers come from a team's percentile among rated teams, ranked by the weighted score from
@@ -858,6 +869,14 @@
       if (r.comp_level === "sf") return "Playoff " + r.set_number_label;
       return "Final " + r.match_number;
     }
+    // A match (or a whole event, without a key) in the Event Viewer, following the team on screen
+    function viewerUrl(eventId, matchKey, team) {
+      return "/live.html?event=" + encodeURIComponent(eventId) + (matchKey ? "&match=" + encodeURIComponent(matchKey) : "") +
+        (team ? "&team=" + team : "");
+    }
+    function viewerLink(eventId, matchKey, team, text) {
+      return '<a href="' + esc(viewerUrl(eventId, matchKey, team)) + '" title="Open this match in the Event Viewer">' + esc(text) + "</a>";
+    }
     // Turns a Supabase error into a visible, plain-language notice.
     function accessNotice(err, what) {
       var denied = err && (err.code === "42501" ||
@@ -959,7 +978,7 @@
           "<td>" + mean(rows.map(function (r) { return r.alliance_score; })).toFixed(1) + "</td>" +
           "<td>" + signed(mean(rows.map(marginOf))) + "</td></tr>";
       }).join("");
-      return '<div class="table-responsive mt-3"><table class="table match-table"><thead><tr>' +
+      return '<div class="table-responsive mt-3"><table data-sortable="q-events" class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Level</th><th>Record</th><th>Win %</th><th>Avg score</th><th>Avg margin</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
     }
@@ -1126,7 +1145,7 @@
           }).join("") + "</tr>";
       }).join("");
       return statBlock("Scouted averages by event", '<span class="src-badge scout">Scouted</span>',
-        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
+        '<div class="table-responsive"><table data-sortable="q-pit" class="table match-table"><thead><tr><th>Event</th><th>Level</th><th>Entries</th>' +
           cols.map(function (f) { return "<th>" + esc(f.label) + "</th>"; }).join("") +
         "</tr></thead><tbody>" + body + "</tbody></table></div>");
     }
@@ -1210,7 +1229,7 @@
     }
 
     // Vision worker estimates (vision_robots). Shown on their own, never mixed into a rating.
-    function visionHtml(rows) {
+    function visionHtml(rows, team) {
       if (!rows.length) return "";
       rows = rows.slice().sort(function (a, b) {
         return (evTime(a.event_id) - evTime(b.event_id)) || a.match_key.localeCompare(b.match_key, undefined, { numeric: true });
@@ -1223,13 +1242,13 @@
       var cols = RSVision.FIELDS.slice(0, 6);
       var perMatch = rows.map(function (r) {
         var low = Number(r.confidence) < RSVision.LOW_CONFIDENCE;
-        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + esc(r.match_key) + "</td>" +
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + viewerLink(r.event_id, r.match_key, team, r.match_key) + "</td>" +
           "<td>" + Math.round(Number(r.confidence) * 100) + "%" + (low ? ' <span class="reg-flag">Low</span>' : "") + "</td>" +
           cols.map(function (f) { return "<td>" + RSVision.fmt(f[2], r.data ? r.data[f[0]] : null) + "</td>"; }).join("") + "</tr>";
       }).join("");
       return '<h3 class="section-title">Vision estimates<span class="src-badge vision">Vision</span></h3>' +
         statTableHtml("Matches", body) +
-        '<div class="table-responsive"><table class="table match-table"><thead><tr><th>Event</th><th>Match</th><th>Confidence</th>' +
+        '<div class="table-responsive"><table data-sortable="q-vision" class="table match-table"><thead><tr><th>Event</th><th>Match</th><th>Confidence</th>' +
           cols.map(function (f) { return "<th>" + esc(f[1]) + "</th>"; }).join("") +
         "</tr></thead><tbody>" + perMatch + "</tbody></table></div>" +
         '<p class="insight-note mb-3">Read by computer from match video, so treat these as estimates. ' +
@@ -1256,7 +1275,7 @@
         var theirs = lineup ? (r.alliance === "red" ? lineup.blue_teams : lineup.red_teams) : null;
         var partners = mine ? mine.filter(function (t) { return t !== team; }).join(", ") : "—";
         var source = !lineup ? "—" : esc(lineup.sources.toUpperCase()) + (lineup.scores_agree === false ? " (scores differ)" : "");
-        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + tierTag(r.event_id) + "</td><td>" + esc(matchLabel(r)) + "</td>" +
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + tierTag(r.event_id) + "</td><td>" + viewerLink(r.event_id, r.match_key, team, matchLabel(r)) + "</td>" +
           "<td>" + esc(r.alliance) + (r.station ? " " + r.station : "") + "</td>" +
           "<td>" + (played ? r.alliance_score + " – " + r.opponent_score : "—") + "</td>" +
           "<td>" + result + "</td>" +
@@ -1274,7 +1293,7 @@
             '<p class="insight-note mb-3">Official results are for the whole alliance, so they reflect a team\'s partners too.</p>' +
             scoreBreakdownHtml(played) + oprHtml(team, opr)
           : "") +
-        '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+        '<div class="table-responsive"><table data-sortable="q-official" class="table match-table"><thead><tr>' +
         "<th>Event</th><th>Level</th><th>Match</th><th>Alliance</th><th>Score (us – them)</th><th>Result</th>" +
         "<th>Partners</th><th>Opponents</th><th>Source</th><th></th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>";
@@ -1305,7 +1324,10 @@
         exportButtonsHtml() +
         '<button type="button" class="btn btn-outline-secondary btn-sm offline-btn" data-offline-team="' + team + '" ' +
           'title="Save this team\'s page as a file that opens without a connection">' +
-          '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>';
+          '<i class="fa fa-download" aria-hidden="true"></i> Download for offline</button>' +
+        '<a class="btn btn-outline-secondary btn-sm" href="/share.html?team=' + team + '" ' +
+          'title="Make a share code for someone not on a team here">' +
+          '<i class="fa fa-share-alt" aria-hidden="true"></i> Share</a>';
     }
     // Offline copy of the open team (js/offline.js). Leaves out the controls and the back link.
     $("detail").addEventListener("click", function (e) {
@@ -1473,7 +1495,7 @@
         var id = btn.dataset.event;
         var r = await RSRatings.pagedRows(function () { return sb.from("scouting_entries").select("*").eq("event_id", id).order("id"); });
         btn.disabled = false;
-        if (r.error) { alert("Couldn't load the entries: " + r.error.message); return; }
+        if (r.error) { RSDialog.alert("Couldn't load the entries: " + r.error.message, { title: "Export failed" }); return; }
         exportMatches(evName(id) + " scouting", r.data);
         return;
       }
@@ -1554,7 +1576,8 @@
       var matchCols = ["Event", "Level", "Match", ""].concat(mFields.map(function (f) { return f.label; }));
       var matchRows = matches.map(function (m) {
         var lineup = m.match_number ? lineups[m.event_id + "|qm" + m.match_number] : null;
-        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + tierTag(m.event_id) + "</td><td>" + (m.match_number || "—") + "</td><td>" + allianceViewLink(lineup) + "</td>" +
+        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + tierTag(m.event_id) + "</td><td>" +
+          (m.match_number ? viewerLink(m.event_id, "qm" + m.match_number, team, String(m.match_number)) : "—") + "</td><td>" + allianceViewLink(lineup) + "</td>" +
           mFields.map(function (f) { return "<td>" + cell(m.data ? m.data[f.key] : null, f, m.data) + "</td>"; }).join("") +
           "</tr>";
       }).join("");
@@ -1593,10 +1616,10 @@
         pitHistoryHtml(pits, pFields) +
 
         officialHtml(officialRows || [], officialErr, team, lineups, extra.opr) +
-        visionHtml(extra.vision) +
+        visionHtml(extra.vision, team) +
         '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
         (matches.length
-          ? '<div class="table-responsive"><table class="table match-table"><thead><tr>' +
+          ? '<div class="table-responsive"><table data-sortable="q-scouted" class="table match-table"><thead><tr>' +
               matchCols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
             "</tr></thead><tbody>" + matchRows + "</tbody></table></div>"
           : '<p class="text-muted">No match data yet.</p>') +
@@ -1608,7 +1631,7 @@
     // Events doesn't send its ranking table through the sync). Ranked by average ranking points
     // when every played match reports them, else by record; then by average alliance score.
     // Explained on ratings.html#event-rankings, which must change with this code.
-    var OUR_TEAM = 1307;
+    var OUR_TEAM = MY_TEAM;
     var eventTeams = null;     // Set of teams on the picked event's schedule, or null for all events
     var eventRank = null;      // { eventId, rows, hasRp, played, scheduled, err } for the picked event
     var rankLoadId = 0;        // ignores a slow load once a different event is picked
@@ -1700,7 +1723,9 @@
       if (!st) return;
       var head = '<h2 class="mb-1">' + esc(evName(st.eventId)) + " " + tierTag(st.eventId) + "</h2>" +
         '<button type="button" class="btn btn-outline-secondary btn-sm" data-export="event" data-event="' + esc(st.eventId) + '">' +
-          '<i class="fa fa-table" aria-hidden="true"></i> Export this event\'s scouting (CSV)</button>' +
+          '<i class="fa fa-table" aria-hidden="true"></i> Export this event\'s scouting (CSV)</button> ' +
+        '<a class="btn btn-outline-primary btn-sm" href="' + esc(viewerUrl(st.eventId)) + '">' +
+          '<i class="fa fa-television" aria-hidden="true"></i> Open in the Event Viewer</a>' +
         '<h3 class="section-title mt-2">Event rankings<span class="src-badge api">API</span></h3>';
       if (st.err) { $("detail").innerHTML = head + accessNotice(st.err, "official match data"); return; }
       if (!st.rows.length) {
@@ -1728,7 +1753,7 @@
         '<p class="text-muted mb-2" style="font-size:.9rem;">' + st.played + " of " + st.scheduled + " qualification matches played · " +
           st.rows.length + " teams · " + (st.hasRp ? "ranked by average ranking points" : "ranked by record (ranking points aren't in the synced data)") +
           ", then average alliance score</p>" +
-        '<div class="table-responsive"><table class="table match-table rank-table"><thead><tr>' +
+        '<div class="table-responsive"><table data-sortable="q-rank" class="table match-table rank-table"><thead><tr>' +
           "<th>Rank</th><th>Team</th>" + (st.hasRp ? "<th>Avg RP</th><th>Total RP</th>" : "") +
           "<th>W-L-T</th><th>Played</th><th>Avg score</th><th>Avg margin</th><th>OPR (rank)</th><th>Scouted</th>" +
         "</tr></thead><tbody>" + body + "</tbody></table></div>" +
@@ -1804,32 +1829,6 @@
       .toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts));
     }
 
-    /* ─────────────────────────────────────────────────────────────────
-       BLUE ALLIANCE IMPORT: NOT ACTIVE YET (kept here for later)
-
-       Plan:
-       - A Supabase Edge Function ("tba-sync") holds the TBA API key on the
-         server and fetches /api/v3/team/frc{number}/matches/{year}/simple.
-       - Only teams whose state_prov is in NE_STATES get imported.
-       - Imported matches are tagged source = 'tba' so the match table and the
-         rating can show which numbers came from scouting and which from TBA.
-       - Before enabling, add a `source` column to scouting_entries and make
-         team_points_summary() count TBA rows the same way as scouted rows.
-
-       To enable: uncomment this block, deploy the function, and call
-       loadTbaMatches() from openTeam().
-    ───────────────────────────────────────────────────────────────── */
-    // var CFG = window.AUTH_CONFIG;
-    // var NE_STATES = ["NH", "ME", "VT", "MA", "RI", "CT"];
-    //
-    // async function loadTbaMatches(team) {
-    //   var r = await fetch(CFG.url + "/functions/v1/tba-sync?team=" + team, {
-    //     headers: { Authorization: "Bearer " + CFG.anonKey }
-    //   });
-    //   if (!r.ok) return [];
-    //   // Expected shape: [{ event_id, match_number, data, source: "tba" }]
-    //   return r.json();
-    // }
   })();
   </script>
 </body>

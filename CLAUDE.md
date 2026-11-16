@@ -42,8 +42,20 @@ backward compatible with it (add, don't rename or drop; remove the old thing in 
 ### No bundler, inline-script pages
 
 Shared JS lives only in `js/` (`alliance.js`, `auth-config.js`, `auth.js`, `theme.js`, `contact-config.js`,
-`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `visioncheck.js`, `schedule.js`, `alerts.js`,
-`resync.js`, `offline.js`, `history.js`, plus the vendored `jqBootstrapValidation.js`).
+`contact_me.js`, `teams.js`, `ratings.js`, `opr.js`, `vision.js`, `visioncheck.js`, `schedule.js`, `bracket.js`, `alerts.js`,
+`resync.js`, `offline.js`, `history.js`, `team.js`, `tables.js`, `dialog.js`, plus the vendored `jqBootstrapValidation.js`).
+`dialog.js` (`RSDialog.confirm/prompt/alert`, each returning a promise) is the site's own dialog: use it
+instead of the browser's `confirm()`/`prompt()`/`alert()`, with `danger: true` for anything destructive
+(the only exception is the offline pick board in `offline.js`, which can't load other files).
+`tables.js` (`RSTables`) makes any `<table data-sortable="key">` sortable by clicking its headers (arrows show the
+column and direction; `data-sort` on a cell overrides its text) and filterable by an
+`<input data-table-search="key">` box or `RSTables.setFilter(key, fn)`. It re-applies itself when a page redraws the
+table, so pages only add the attributes. Don't use `data-role` on rows or controls: `auth.js` hides every
+`[data-role]` element that isn't a nav marker. `team.js` (`RSTeam`) is the team-settings defaults and helpers: the features a manager can open to
+members (must match `team_feature_default()` in SQL), the default Pit Crew checklist and low-battery voltage.
+`bracket.js` (`RSBracket`) is the playoff bracket: the format (`MATCHES`), working out results from
+`playoff_picks` and the official matches, and drawing it; `bracket.html` adds the staff controls and
+`live.html` (Event Viewer) shows it read-only, scaled to fit.
 `schedule.js` is an event's merged schedule (official matches with the `match_schedule` edits laid over
 them, in play order) and the match-key helpers; `visioncheck.js` is the vision-vs-scouts comparison
 that Match Flags shows and the Scout page uses to decide what to pre-fill (documented on
@@ -53,7 +65,7 @@ pick board); the pick board's script is serialized into the file, so it can't us
 `ratings.js` also has `pagedRows()` (one page first, then 4 at a time) and `lists()`, which reads the
 per-team lists through one `team_lists()` call; use those rather than paging the rating RPCs directly.
 `resync.js` is the "Resync data" button on every page that shows official results; it refreshes only the
-default event, through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
+default event (the team's, else the site's), through `resync_default_event()`/`resync_status()` (team members, throttled to one request a minute).
 `history.js` is static data, not code: 1307's events and matches from The Blue Alliance (2004 on) for
 `results.html`, which prefers `public_team_results()` for any event also in the database.
 `opr.js` is component OPR per event, for every numeric field in the official breakdown (Team Database,
@@ -62,8 +74,8 @@ Playoff Selection). `vision.js` holds the labels for the vision worker's per-rob
 grade, alliance-grade and win-chance math, and the loader for it, used by `alliance.html`,
 `playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
 to a page (`scout.html`, `query.html`, `flags.html`, `alliance.html`, `matches.html`, `playoffs.html`,
-`bracket.html`, `strategy.html`, `shifts.html`, `picklist.html`, `pitcrew.html`, `results.html`, `portal.html`,
-`account.html`, `1307scout.html`) is written as a
+`bracket.html`, `live.html`, `strategy.html`, `shifts.html`, `share.html`, `picklist.html`, `pitcrew.html`, `results.html`, `portal.html`,
+`account.html`, `team.html`, `1307scout.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -81,7 +93,13 @@ Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 `RS.sb` (aliased locally as `sb`), e.g. `sb.from("scouting_entries").select(...)`,
 `sb.rpc("my_access_level")`, `sb.storage.from("scouting-photos").upload(...)`. Gated pages get the
 level from `RS.accessLevel()`, which returns null after showing a banner if the server can't be
-reached, so a bad connection isn't mistaken for guest access. CDN `<script>`
+reached, so a bad connection isn't mistaken for guest access. Team pages get the person's team from
+`RS.team()` (`my_team_info()`: `team_number`, `role`, `settings`, `can`), cached per page load and on the
+device for offline use; `RS.teamChanged()` forgets it after a join or leave.
+Event times go through `RS.timeText(iso, event)`: the event's own `timezone` (from TBA), else the
+device's, else US Eastern, with the zone's name shown when it isn't the device's. Server-side, an
+event's zone is `event_tz(timezone)`; never hardcode `America/New_York`. "Our team" on a page is
+always that `team_number`, never a hardcoded 1307. CDN `<script>`
 tags and the Font Awesome stylesheet carry `integrity` hashes, so bumping a library version means updating its hash on every page. `auth.js` also
 drives the shared nav: it hides/shows `[data-role="staff"]` / `[data-role="team"]` elements and
 highlights the active nav link — this is cosmetic only, not the real access control. It also
@@ -111,9 +129,37 @@ button in HTML/JS is UX polish; it is never sufficient on its own to gate a feat
 gated feature needs an RLS policy or a function check in the SQL, mirroring the pattern already
 in `SQL/rebuild_all.sql`.
 
+An account's name is `account_name(raw_user_meta_data)`: `display_name`, else the `full_name`/`name` a
+Google sign-in brings. Use it in any function that shows people. `js/auth.js` copies a Google name into
+`display_name` and asks anyone with no name (together with the team prompt when both are missing).
+
 Access levels: `staff`, `mentor`/`student` (team), `guest`. `staff_members` is an allowlist
 editable from the SQL Editor or by existing staff through `staff_set_level()`; `member_grants` covers mentors/students on personal emails and
-explicit guest grants; students otherwise qualify via a `@stalux.org` login.
+explicit guest grants. `my_access_level()` still answers only those three words, because stable
+pages send any other value to My Account: the team role is separate.
+
+Teams (section 3b): an account is on at most one FRC team, as `manager` or `member`, decided by
+`member_team()`: a `team_members` row (`removed` means no team). Quarantine
+(`app_settings.require_team_claims`) is on, so otherwise only a login at `teams.email_domain`
+(stalux.org) counts, and only until the account answers the team prompt, because the stable release
+can't ask. With quarantine off, `legacy_team()` counts too (staff are home-team managers,
+mentor/student grants are home-team members). `home_team()` is 1307. Every account
+answers once which team it's on (`team_claims`, via `claim_team()`: the sign-up form's
+`user_metadata.team_claim`, or the prompt `js/auth.js` shows when `my_team_info().needs_prompt`;
+`staff_members.no_team_prompt` skips it). A claim is verified by `team_domains`, `team_invites`, a join
+code or `legacy_team()`; otherwise it's pending (a guest) until `verify_team_claim()` by the team's
+manager or staff. Pages and policies get the caller's team through `my_team_role()`, which for staff
+acting as a team (`staff_act_as_team()`, `staff_members.acting_team`) is that team, as manager.
+`is_student()` is "on a team", so every existing policy accepts other teams' members. Team-owned
+tables (`match_strategies`, `robot_log`, `pick_list`, `scout_shifts`) have `owner_team` (default
+`my_team()`) and policies on `owner_team = my_team()` plus `team_can('<feature>')` for writes; site
+staff get no special access to them. A new team-owned feature needs the same: the column, policies,
+a key in `team_feature_default()`/`team_update_settings()`/`my_team_info()` and `js/team.js` if it's
+configurable. Verification: `request_team_manager()`, reviewed by site staff with
+`staff_review_team_request()` (Staff Portal, Teams tab); after that managers vouch with
+`team_join_codes` and `team_set_role()`. Section 16b (commented out) swaps `match_strategies` and
+`pick_list` onto per-team primary keys: run it only once a release with teams is on stable, and
+don't verify a second team before then.
 
 ### `SQL/rebuild_all.sql` is the single source of truth for the schema
 
@@ -121,11 +167,11 @@ One file, organized in numbered sections (0 through 16, see the header comment f
 list), written to be safe to re-run end-to-end in the Supabase SQL editor against either a fresh
 project or an existing one (tables are `create if not exists`, functions `create or replace`,
 policies dropped and recreated). When changing the data model, edit this file directly rather
-than writing a new migration file — the other files in `SQL/` (`import_*.sql`,
-`link_battle_of_the_bay.sql`, `prune_non_ne_teams.sql`, `prune_2027_events.sql`) are one-off
-**data** imports and cleanups (new events, FRC/TBA event-code links, removing non-New England
-events/teams, removing 2027 events), kept
-only as a record; `rebuild_all.sql` doesn't depend on them and re-running it does
+than writing a new migration file — the files in `SQL/data/` are one-off **data** imports and
+fixes (new events, FRC/TBA event-code links), kept only as a record. 1307scout serves every FRC team
+worldwide, so nothing limits events or teams to a region; `team-events` adds each team's events
+itself. An event's `event_date` is the day before its last day (the imports' rule); `start_date`/
+`end_date` are its real days; `rebuild_all.sql` doesn't depend on them and re-running it does
 not re-run them.
 
 Key tables/functions to know when touching 1307scout:
@@ -142,13 +188,17 @@ Key tables/functions to know when touching 1307scout:
   (`sf1`-`sf13` and `f1`), matching alliances on team numbers. All it stores is what the sync
   can't know: `playoff_tiebreaks` (who won a tied match) and `playoff_lineups` (who sits out on a
   4-team alliance). `events.alliance_size` overrides the 3-or-4 rule for an event.
+- `events.webcast_url` — the livestream the Event Viewer (`live.html`) plays, set by staff in the Staff
+  Portal's event editor. That page keeps itself current by polling the event's `official_synced_at`
+  (one small request every 15 seconds) and reloading the schedule only when it moves; keep new
+  live-updating pages to that pattern rather than reloading everything on a timer (Nano compute).
 - `match_schedule` — hand edits for `matches.html`, laid over the official schedule by `match_key`.
-- `scout_shifts` (8m) — staff-assigned seats (`red1`..`blue3`) for a range of quals; a trigger stops
+- `scout_shifts` (8m) — a team's seats, assigned by its managers (`red1`..`blue3`) for a range of quals; a trigger stops
   overlaps. `team_member_names()` gives the team display names for the account ids a page shows.
-- `pick_list` (8n) — staff's ranked pick list per event; Playoff Selection reads it.
+- `pick_list` (8n) — each team's ranked pick list per event; Playoff Selection reads it.
 - `match_predictions` (8o) — the last win chance Our Matches showed before each match, written only
   through `log_prediction()` (refuses played matches); `prediction_calibration()` scores them.
-- `robot_log` (8p) — Pit Crew's checklists, batteries, repairs and notes for our robot.
+- `robot_log` (8p) — Pit Crew's checklists, batteries, repairs and notes for the team's own robot.
 - `push_subscriptions` / `match_alerts_sent` (8q) — match alerts. `push_subscribe()`/`push_unsubscribe()`
   from the page; `run_match_alerts()` (pg_cron) calls the `match-alerts` Edge Function in this repo,
   which needs VAPID secrets, and `js/auth-config.js` needs the public key as `pushKey`. It uses FRC
@@ -159,9 +209,13 @@ Key tables/functions to know when touching 1307scout:
   `scouted_by`, who must pass `is_team_member()`).
 - `public_team_results()` (8s) — 1307's played official matches for the public `results.html`; the only
   function granted to `anon`. Keep it limited to public competition results.
-- `match_strategies` (section 8k) — one `strategy.html` plan per match (`plan` jsonb: line-up
-  override, robot spots, drawn strokes), any team member reads/writes, last save wins. Kept after
-  the match for review; the page locks a played match's plan until someone clicks Edit.
+- `alliance_strategies` / `match_strategies` (section 8k) — `strategy.html` plans (`plan` jsonb:
+  line-up override, robot spots, drawn strokes), last save wins. For a match the team plays in, one
+  plan per alliance, shared by the alliance's teams (`my_alliance()`: the official line-up, or a
+  `match_schedule` edit only when the official schedule lacks the match, so a schedule edit can't
+  open another alliance's plan). Otherwise one team-private plan per match (`owner_team`). Writes
+  need `team_can('strategy')`. Kept after the match for review; the page locks a played match's plan
+  until someone clicks Edit.
 - `vision_matches` / `vision_robots` (section 8j) — written only by the vision worker in `vision/`
   (Python, runs on a team laptop with the service role key; see `vision/README.md`). Team reads,
   nobody writes through the API. Estimates only: no rating reads them. The per-robot keys in
@@ -179,8 +233,12 @@ Key tables/functions to know when touching 1307scout:
   only, called by `manage-member` and `delete-account`, which then remove the photo files it
   returns through the Storage API.
 - `share_codes` — revocable, optionally-expiring codes that give a signed-in guest a slice of
-  data (read via the `get_shared_scouting()` RPC). Wrong guesses are throttled per account
-  through `share_code_attempts`.
+  data (read via the `get_shared_scouting()` RPC). Any team member makes them on `share.html`
+  (`team_can('share_codes')`), since every team already sees the shared scouting data; staff see all
+  of them in the portal. `share_codes_guard()` limits members' codes (90-day expiry, 20 live, scope
+  fixed once made), `owner_team` lets the creator's managers revoke them, and a code only works while
+  `share_code_creator_ok()` (its maker is staff or on a team). Wrong guesses are throttled per
+  account through `share_code_attempts`. Team-owned data is never in a share code.
 - `official_matches` / the per-team views in section 8 — official FRC Events + The Blue Alliance
   results, written only by the `official-sync` Edge Function (service role); staff/students can
   read, nobody writes through the normal API. The table holds a full season, so look up a
@@ -205,23 +263,35 @@ Key tables/functions to know when touching 1307scout:
   `score` column is that OPR in points per match, null under 3 qual matches). See the
   comment on `team_ratings()`/section 9 in `rebuild_all.sql` for the reasoning before changing
   either rating.
-- `official-sync` is a separate Supabase Edge Function (not in this repo) that needs its own
-  deploy and secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
+- Every Edge Function is in `supabase/functions/`, and `supabase/config.toml` holds their settings
+  (all `verify_jwt = false`). The repo is linked to the project with the Supabase CLI: deploy one at
+  a time (`supabase functions deploy <name> --use-api`), never all at once, and check before
+  running SQL against the shared project (`supabase db query --remote`; `--read-only` to look).
+- `official-sync` (`supabase/functions/official-sync/`) needs its own secrets (`FRC_API_USER`, `FRC_API_TOKEN`, `TBA_API_KEY`, `SYNC_SECRET`) — see
   section 15 of `rebuild_all.sql` for the deploy command and optional `pg_cron` polling setup.
-  Competition-day auto-sync is `events.auto_sync` (one event at a time, set through
-  `set_auto_sync_event()`) plus a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It turns
-  itself off 12 hours after it was turned on (`events.auto_sync_since`) or 4 days after the event. It and the
+  Competition-day auto-sync is a `pg_cron` job calling `run_auto_sync()` every 2 minutes. It syncs
+  the clock-button event (`events.auto_sync`, one at a time, set through `set_auto_sync_event()`, off
+  12 hours after it was turned on or 4 days after the event), and smart auto-sync (section 5b): every
+  linked event going on right now, from `live_sync_events()` (its days in `events.timezone`, 7 AM-9 PM,
+  until the finals are decided), flagged `events.auto_sync_live`, every 2 minutes while matches run and
+  10 otherwise, at most 6 per run. `app_settings.smart_auto_sync` is the staff switch. It and the
   Resync data button both send their request through `official_sync_request()`.
+  Team default events (section 5b): `team-events` (daily via pg_cron
+  and Team Management's check button) reads each team's registrations from TBA/FRC into `event_teams`,
+  adds missing events (`auto_added`) and fills `end_date`/`timezone`; `refresh_team_default_events()`
+  (hourly) sets `teams.auto_event`, and a member's `teams.default_event` (`team_set_default_event()`,
+  `team_can('default_event')`) lasts until that moves. `my_team_info().default_event` carries it, and
+  pages open on `RS.defaultEvent(events)` (team default, else the staff-starred `is_default_event`).
   `rebuild_all.sql` schedules that job; `auto_sync_health()` reports whether it's really working,
   and the Staff Portal shows that next to the auto-sync status.
-  `official-alliances` (in this repo, `supabase/functions/`) is sent alongside every sync request:
+  `official-alliances` is sent alongside every sync request:
   it reads the event's alliances from FRC Events (TBA as fallback) and writes them into
   `playoff_picks` (`source = 'official'`) through `official_set_alliances()`, so the bracket follows them.
-  `manage-member` is a separate Edge Function used by the Staff Portal for member management.
-  Its deployed slug is `bright-responder`, so that is the name `portal.html` invokes.
-  `delete-account` is a separate Edge Function behind the My Account delete button. Both must
-  have "Verify JWT with legacy secret" off: user tokens are signed with the project's ES256
-  key, so each function checks the login itself.
+  `manage-member` (Staff Portal member management) is deployed under the slug `bright-responder`,
+  which is the name `portal.html` invokes; `config.toml` maps that slug to its folder.
+  `delete-account` is behind the My Account delete button. Every function must have "Verify JWT
+  with legacy secret" off: user tokens are signed with the project's ES256 key, so each function
+  checks the login itself.
 
 ## Documentation and comments
 

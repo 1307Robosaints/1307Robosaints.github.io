@@ -1,5 +1,5 @@
 // "Resync data" button for the pages that show official FRC/TBA results. It always refreshes the
-// default event (the one starred in the Staff Portal), whatever event the page is showing. The
+// default event (the team's, else the one starred in the Staff Portal), whatever event the page is showing. The
 // server sends the request (resync_default_event() in SQL/rebuild_all.sql), so students can use it
 // too; this waits for official-sync to answer, then calls the page's onDone to reload.
 (function () {
@@ -42,7 +42,7 @@
       var wrap = document.createElement("div");
       wrap.className = "rs-resync";
       wrap.innerHTML = '<button type="button" class="btn btn-outline-secondary btn-sm" ' +
-        'title="Pull the latest official results from FRC/TBA for the default event">' +
+        'title="Pull the latest official results from FRC/TBA for your team\'s default event">' +
         '<i class="fa fa-refresh" aria-hidden="true"></i> Resync data</button>' +
         '<span class="rs-resync-msg" role="status"></span>';
       container.appendChild(wrap);

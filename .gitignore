@@ -8,3 +8,7 @@ vision/models/*.pt
 *.pt
 weights/
 __pycache__/
+# Supabase CLI link state (local to each machine)
+supabase/.temp/
+# YOLO validation/training output (charts and sample images), written wherever it runs
+runs/

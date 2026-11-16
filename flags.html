@@ -145,14 +145,22 @@
               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+              <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
-              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
-              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
-              <div class="dropdown-divider" data-role="team" hidden></div>
+              <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
               <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
               <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+              <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+              <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+              <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+              <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+              <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+              <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+              <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+              <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
               <div class="dropdown-divider" data-role="staff" hidden></div>
               <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
             </div>
@@ -254,7 +262,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
   <script src="/js/auth-config.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dialog.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/tables.js"></script>
   <script src="/js/resync.js"></script>
   <script src="/js/teams.js"></script>
   <script src="/js/ratings.js"></script>
@@ -661,7 +671,7 @@
       if (!rows.some(function (c) { return c.pairs; })) {
         return '<div class="f-empty">No robot-match here has both a scout\'s entry and confident vision data yet.</div>';
       }
-      return '<table class="table f-cov"><thead><tr><th>Field</th><th>Robot-matches compared</th><th>Agree</th><th>Average gap</th><th>On the Scout page</th></tr></thead><tbody>' +
+      return '<table class="table f-cov" data-sortable="visioncheck"><thead><tr><th>Field</th><th>Robot-matches compared</th><th>Agree</th><th>Average gap</th><th>On the Scout page</th></tr></thead><tbody>' +
         rows.map(function (c) {
           var status = c.ready ? (c.prefill ? "Pre-filled for scouts to check" : "Shown as a hint")
             : c.pairs < RSVisionCheck.MIN_PAIRS ? "Needs " + (RSVisionCheck.MIN_PAIRS - c.pairs) + " more to judge"
@@ -725,7 +735,7 @@
       if (!ids.length) return '<p class="text-muted">No entries at this event yet.</p>';
       var avg = function (list) { return list.length ? mean(list).toFixed(1) + " (" + list.length + ")" : "—"; };
       ids.sort(function (a, b) { return by[b].entries - by[a].entries; });
-      return '<table class="table f-cov"><thead><tr><th>Scout</th><th>Entries</th><th title="Share of TOWER answers that match the official per-robot result">TOWER right</th>' +
+      return '<table class="table f-cov" data-sortable="scouts"><thead><tr><th>Scout</th><th>Entries</th><th title="Share of TOWER answers that match the official per-robot result">TOWER right</th>' +
         '<th title="Average FUEL difference from the other scouts on the same robot (how many robot-matches)">FUEL gap to other scouts</th>' +
         '<th title="Average FUEL difference from confident vision estimates (how many robot-matches)">FUEL gap to vision</th>' +
         '<th title="Entries for a team that wasn\'t in that match">Wrong match</th><th title="Shift seats in played matches with no entry from this scout">Missed seats</th></tr></thead><tbody>' +
@@ -754,7 +764,7 @@
         r = await sb.from("match_flag_reviews").upsert(row, { onConflict: "event_id,match_key,team_number,flag_type" });
         if (!r.error) reviews[id] = row;
       }
-      if (r.error) { alert("Couldn't save that: " + r.error.message); return; }
+      if (r.error) { RSDialog.alert("Couldn't save that: " + r.error.message, { title: "Not saved" }); return; }
       render();
     });
     ["sevPick", "kindPick", "showReviewed"].forEach(function (id) {
@@ -771,7 +781,7 @@
     $("eventPick").innerHTML = events.map(function (ev) {
       return '<option value="' + esc(ev.id) + '">' + esc(ev.name) + (ev.event_date ? " (" + esc(ev.event_date) + ")" : "") + "</option>";
     }).join("");
-    eventId = (events.find(function (ev) { return ev.is_default_event; }) || events[0]).id;
+    eventId = ((await RS.defaultEvent(events)) || events[0]).id;
     $("eventPick").value = eventId;
     RSResync.mount(document.querySelector(".f-controls"), function (done) {
       var ev = events.find(function (e) { return e.id === done.eventId; });
