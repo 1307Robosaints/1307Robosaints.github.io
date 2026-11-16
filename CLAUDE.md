@@ -157,9 +157,8 @@ staff get no special access to them. A new team-owned feature needs the same: th
 a key in `team_feature_default()`/`team_update_settings()`/`my_team_info()` and `js/team.js` if it's
 configurable. Verification: `request_team_manager()`, reviewed by site staff with
 `staff_review_team_request()` (Staff Portal, Teams tab); after that managers vouch with
-`team_join_codes` and `team_set_role()`. Section 16b (commented out) swaps `match_strategies` and
-`pick_list` onto per-team primary keys: run it only once a release with teams is on stable, and
-don't verify a second team before then.
+`team_join_codes` and `team_set_role()`. Section 16b moved `match_strategies` and `pick_list` onto
+per-team primary keys (`owner_team` first), run once 0.1.0 put teams on stable.
 
 ### `SQL/rebuild_all.sql` is the single source of truth for the schema
 

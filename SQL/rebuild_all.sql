@@ -18,6 +18,7 @@
 --  3b  Teams: members, managers, join codes, manager requests, team settings
 --   4  Form fields (incl. picture fields)     9  Team rating (A-F grade)
 --   5  Events, entries, share codes          9b Storage: scouting photos
+--  5b  Smart auto-sync, team default events
 --   6  Pit entries + validation             10  Guest access via share codes
 --  8e  Test teams                           11  Member management (Staff Portal)
 --  8f  Team info (names/logos)               8g  Storage: team logos
@@ -27,7 +28,7 @@
 --  8p  Robot log   8q Match alerts   8r Vision pre-fill + relayed entries   8s Public results
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
--- 16b  Teams step 2 (commented out until the Teams release is on stable)
+-- 16b  Teams step 2: per-team keys (run 2026-11-16, after 0.1.0)
 --  17  Check query
 --
 -- After running, the Edge Function (official-sync) still needs its own
@@ -1316,9 +1317,12 @@ alter table public.events add column if not exists resync_requested_at timestamp
 create unique index if not exists events_one_auto_sync_idx
   on public.events ((auto_sync)) where auto_sync;
 
--- Smart auto-sync (section 5b) needs each event's days in its own time zone. event_date is the
--- first day and end_date the last (null: 2 days later, 3 for a championship); timezone is the
--- IANA zone (null: America/New_York). The team-events Edge Function fills both from TBA.
+-- Smart auto-sync (section 5b) needs each event's days in its own time zone. event_date follows
+-- this project's rule (the day before the last day, i.e. the first day of matches at a district
+-- event); start_date and end_date are the event's real first and last days (null: event_date and
+-- the day after); timezone is the IANA zone (null: America/New_York). team-events fills them from
+-- TBA and FRC Events.
+alter table public.events add column if not exists start_date date check (start_date <= event_date);
 alter table public.events add column if not exists end_date date check (end_date >= event_date);
 alter table public.events add column if not exists timezone text check (timezone ~ '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$' and char_length(timezone) <= 64);
 -- Added by team-events because a team on 1307scout is registered there, not by staff
@@ -1361,7 +1365,8 @@ begin
   -- run_auto_sync() would clear the flag on its next run without ever syncing
   if exists (
     select 1 from public.events
-    where id = p_event_id and event_date < (now() at time zone public.event_tz(timezone))::date - 4
+    where id = p_event_id   -- in the event's own time zone (section 5b)
+      and public.event_last_day(event_date, end_date) < (now() at time zone public.event_tz(timezone))::date - 4
   ) then
     raise exception 'This event ended more than 4 days ago, so auto-sync won''t run for it. Use the sync button instead.';
   end if;
@@ -1421,7 +1426,8 @@ begin
   -- Turned on from the SQL Editor instead of the portal: start its 12 hours now
   update public.events set auto_sync_since = now() where auto_sync and auto_sync_since is null;
   update public.events set auto_sync = false, auto_sync_since = null
-    where auto_sync and (event_date < (now() at time zone public.event_tz(timezone))::date - 4
+    where auto_sync and (public.event_last_day(event_date, end_date)
+                           < (now() at time zone public.event_tz(timezone))::date - 4
                          or auto_sync_since < now() - interval '12 hours');
 
   select id into v_event from public.events
@@ -1615,10 +1621,15 @@ exception when others then
   return 'America/New_York';
 end $$;
 
--- An event's last day: end_date, or a guess from its first day and tier. Internal.
-create or replace function public.event_last_day(p_first date, p_last date, p_tier text) returns date
+-- An event's first and last days: start_date/end_date, else from event_date (the day before the
+-- last day, by this project's rule). Internal.
+create or replace function public.event_first_day(p_date date, p_start date) returns date
 language sql immutable set search_path = '' as $$
-  select coalesce(p_last, p_first + case when p_tier = 'championship' then 3 else 2 end);
+  select coalesce(p_start, p_date);
+$$;
+create or replace function public.event_last_day(p_date date, p_end date) returns date
+language sql immutable set search_path = '' as $$
+  select coalesce(p_end, p_date + 1);
 $$;
 
 -- Whether the event's finals are decided: one alliance won two finals matches. Internal.
@@ -1641,21 +1652,21 @@ language plpgsql stable security definer set search_path = '' as $$
 begin
   return query
   with c as (
-    select e.id, e.event_date,
-           public.event_last_day(e.event_date, e.end_date, e.event_tier) as last_day,
+    select e.id, public.event_first_day(e.event_date, e.start_date) as first_day,
+           public.event_last_day(e.event_date, e.end_date) as last_day,
            now() at time zone public.event_tz(e.timezone) as local_now
     from public.events e
     where (e.frc_event_code is not null or e.tba_event_key is not null)
-      and e.event_date between current_date - 10 and current_date + 1   -- cheap first cut
+      and e.event_date between current_date - 10 and current_date + 5   -- cheap first cut
   ), s as (
-    select c.id, c.event_date, c.last_day, c.local_now,
+    select c.id, c.first_day, c.last_day, c.local_now,
            (select max(m.updated_at) from public.official_matches m where m.event_id = c.id) as changed_at,
            -- Same "played" rule as the pages: unplayed can be null, 0-0 or TBA's -1
            exists (select 1 from public.official_matches m where m.event_id = c.id
                     and not coalesce(m.red_score >= 0 and m.blue_score >= 0
                                      and (m.red_score > 0 or m.blue_score > 0), false)) as unplayed
     from c
-    where c.local_now::date between c.event_date and c.last_day
+    where c.local_now::date between c.first_day and c.last_day
   )
   select s.id, coalesce(s.changed_at > now() - interval '30 minutes', false)
                or (s.unplayed and extract(hour from s.local_now) between 8 and 17)
@@ -1678,8 +1689,8 @@ begin
                 else 'past' end as why,
            c.first_day, c.last_day, c.on_schedule
     from (
-      select e.id, e.event_date as first_day,
-             public.event_last_day(e.event_date, e.end_date, e.event_tier) as last_day,
+      select e.id, public.event_first_day(e.event_date, e.start_date) as first_day,
+             public.event_last_day(e.event_date, e.end_date) as last_day,
              (now() at time zone public.event_tz(e.timezone))::date as today,
              exists (select 1 from public.official_matches m where m.event_id = e.id
                       and (m.red_teams @> array[p_team] or m.blue_teams @> array[p_team])) as on_schedule
@@ -1728,7 +1739,8 @@ begin
   return n;
 end $$;
 revoke all on function public.event_tz(text) from public, anon, authenticated;
-revoke all on function public.event_last_day(date, date, text) from public, anon;
+revoke all on function public.event_first_day(date, date) from public, anon;
+revoke all on function public.event_last_day(date, date) from public, anon;
 revoke all on function public.event_finals_done(uuid) from public, anon, authenticated;
 revoke all on function public.live_sync_events() from public, anon, authenticated;
 revoke all on function public.team_auto_event(int) from public, anon, authenticated;
@@ -4829,10 +4841,12 @@ where user_id = (select id from auth.users where lower(email) = 'dmartinl878@gma
 --
 --     To stop it:  select cron.unschedule('official-sync');
 --
---     Competition-day auto-sync: refreshes the one event staff picked with the
---     clock button in the Staff Portal, at every even minute of the clock
---     (9:30, 9:32, 9:34...). It does nothing while no event is picked, so it
---     can stay scheduled all season. The block below turns on pg_cron and pg_net
+--     Competition-day auto-sync: every even minute of the clock (9:30, 9:32...)
+--     run_auto_sync() refreshes the one event staff picked with the clock button
+--     in the Staff Portal, plus every event going on right now (smart auto-sync,
+--     section 5b). It does nothing on days with no event, so it can stay
+--     scheduled all season. team-events (supabase/functions, deploy it with
+--     --no-verify-jwt; same secrets) reads each team's registrations daily. The block below turns on pg_cron and pg_net
 --     and schedules it every time this file runs. Only step 2's vault secret is
 --     left to do by hand, because a secret can't live in this file. The check
 --     query in section 17 shows whether both are in place.
@@ -5224,30 +5238,28 @@ grant execute on function public.purge_member_data(uuid, text) to service_role;
 -- =====================================================================
 -- 16b. Teams, step 2: per-team keys for strategy plans and the pick list
 --
---     Until this runs, match_strategies and pick_list keep their old primary keys
---     (event_id, match_key) and (event_id, team_number), so two teams can't both have a plan
---     for the same match, or the same team on their pick lists. The old keys stay because the
---     stable release's pages save against them. Once a release with the Teams change is on
---     stable (see RELEASING.md), uncomment this block, run it, and commit it uncommented.
---     Don't verify a second team before then.
+--     Moves match_strategies and pick_list from their old primary keys (event_id, match_key)
+--     and (event_id, team_number) to (owner_team, ...), so two teams can each have a plan for
+--     the same match and the same team on their pick lists. Run on 2026-11-16, once 0.1.0 put
+--     pages that save with owner_team on stable. Does nothing once the keys have moved.
 -- =====================================================================
--- do $$
--- begin
---   if exists (select 1 from pg_constraint where conname = 'match_strategies_pkey'
---              and conrelid = 'public.match_strategies'::regclass
---              and pg_get_constraintdef(oid) not like '%owner_team%') then
---     alter table public.match_strategies drop constraint match_strategies_pkey;
---     alter table public.match_strategies add constraint match_strategies_pkey
---       primary key using index match_strategies_team_key;
---   end if;
---   if exists (select 1 from pg_constraint where conname = 'pick_list_pkey'
---              and conrelid = 'public.pick_list'::regclass
---              and pg_get_constraintdef(oid) not like '%owner_team%') then
---     alter table public.pick_list drop constraint pick_list_pkey;
---     alter table public.pick_list add constraint pick_list_pkey
---       primary key using index pick_list_team_key;
---   end if;
--- end $$;
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'match_strategies_pkey'
+             and conrelid = 'public.match_strategies'::regclass
+             and pg_get_constraintdef(oid) not like '%owner_team%') then
+    alter table public.match_strategies drop constraint match_strategies_pkey;
+    alter table public.match_strategies add constraint match_strategies_pkey
+      primary key using index match_strategies_team_key;
+  end if;
+  if exists (select 1 from pg_constraint where conname = 'pick_list_pkey'
+             and conrelid = 'public.pick_list'::regclass
+             and pg_get_constraintdef(oid) not like '%owner_team%') then
+    alter table public.pick_list drop constraint pick_list_pkey;
+    alter table public.pick_list add constraint pick_list_pkey
+      primary key using index pick_list_team_key;
+  end if;
+end $$;
 
 
 -- =====================================================================
@@ -5294,6 +5306,9 @@ with expected(kind, name) as (values
   ('function','share_codes_guard'), ('function','set_default_event'),
   ('function','set_auto_sync_event'), ('function','run_auto_sync'), ('function','auto_sync_health'),
   ('function','official_sync_request'), ('function','resync_default_event'), ('function','resync_status'),
+  ('table','event_teams'), ('function','live_sync_events'), ('function','staff_set_smart_auto_sync'),
+  ('function','team_auto_event'), ('function','team_default_event'), ('function','refresh_team_default_events'),
+  ('function','team_set_default_event'), ('function','team_events_request'), ('function','refresh_my_team_events'),
   ('auto-sync setup','cron_job'), ('auto-sync setup','vault_secret'),
   ('function','photo_cleanup_paths'), ('function','photo_is_orphaned'), ('function','photo_in_use'),
   ('function','log_action'), ('function','purge_old_audit_log'), ('function','staff_search_audit_log'),
