@@ -1268,7 +1268,7 @@ alter table public.events add column if not exists official_sync_note   text;
 alter table public.events add column if not exists event_tier text not null default 'qualifier'
   check (event_tier in ('offseason','qualifier','district_championship','championship'));
 
--- The event's livestream (a YouTube or Twitch link), shown on Competition Day (live.html).
+-- The event's livestream (a YouTube or Twitch link), shown on the Event Viewer (live.html).
 -- Set by staff in the Staff Portal; anyone can also use their own link there, kept in their browser.
 alter table public.events add column if not exists webcast_url text
   check (webcast_url ~ '^https://' and char_length(webcast_url) <= 300);

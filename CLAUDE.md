@@ -55,7 +55,7 @@ table, so pages only add the attributes. Don't use `data-role` on rows or contro
 members (must match `team_feature_default()` in SQL), the default Pit Crew checklist and low-battery voltage.
 `bracket.js` (`RSBracket`) is the playoff bracket: the format (`MATCHES`), working out results from
 `playoff_picks` and the official matches, and drawing it; `bracket.html` adds the staff controls and
-`live.html` (Competition Day) shows it read-only, scaled to fit.
+`live.html` (Event Viewer) shows it read-only, scaled to fit.
 `schedule.js` is an event's merged schedule (official matches with the `match_schedule` edits laid over
 them, in play order) and the match-key helpers; `visioncheck.js` is the vision-vs-scouts comparison
 that Match Flags shows and the Scout page uses to decide what to pre-fill (documented on
@@ -188,7 +188,7 @@ Key tables/functions to know when touching 1307scout:
   (`sf1`-`sf13` and `f1`), matching alliances on team numbers. All it stores is what the sync
   can't know: `playoff_tiebreaks` (who won a tied match) and `playoff_lineups` (who sits out on a
   4-team alliance). `events.alliance_size` overrides the 3-or-4 rule for an event.
-- `events.webcast_url` — the livestream Competition Day (`live.html`) plays, set by staff in the Staff
+- `events.webcast_url` — the livestream the Event Viewer (`live.html`) plays, set by staff in the Staff
   Portal's event editor. That page keeps itself current by polling the event's `official_synced_at`
   (one small request every 15 seconds) and reloading the schedule only when it moves; keep new
   live-updating pages to that pattern rather than reloading everything on a timer (Nano compute).

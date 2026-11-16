@@ -319,7 +319,7 @@
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
               <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
-              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Competition Day</a>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
@@ -869,6 +869,14 @@
       if (r.comp_level === "sf") return "Playoff " + r.set_number_label;
       return "Final " + r.match_number;
     }
+    // A match (or a whole event, without a key) in the Event Viewer, following the team on screen
+    function viewerUrl(eventId, matchKey, team) {
+      return "/live.html?event=" + encodeURIComponent(eventId) + (matchKey ? "&match=" + encodeURIComponent(matchKey) : "") +
+        (team ? "&team=" + team : "");
+    }
+    function viewerLink(eventId, matchKey, team, text) {
+      return '<a href="' + esc(viewerUrl(eventId, matchKey, team)) + '" title="Open this match in the Event Viewer">' + esc(text) + "</a>";
+    }
     // Turns a Supabase error into a visible, plain-language notice.
     function accessNotice(err, what) {
       var denied = err && (err.code === "42501" ||
@@ -1221,7 +1229,7 @@
     }
 
     // Vision worker estimates (vision_robots). Shown on their own, never mixed into a rating.
-    function visionHtml(rows) {
+    function visionHtml(rows, team) {
       if (!rows.length) return "";
       rows = rows.slice().sort(function (a, b) {
         return (evTime(a.event_id) - evTime(b.event_id)) || a.match_key.localeCompare(b.match_key, undefined, { numeric: true });
@@ -1234,7 +1242,7 @@
       var cols = RSVision.FIELDS.slice(0, 6);
       var perMatch = rows.map(function (r) {
         var low = Number(r.confidence) < RSVision.LOW_CONFIDENCE;
-        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + esc(r.match_key) + "</td>" +
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + viewerLink(r.event_id, r.match_key, team, r.match_key) + "</td>" +
           "<td>" + Math.round(Number(r.confidence) * 100) + "%" + (low ? ' <span class="reg-flag">Low</span>' : "") + "</td>" +
           cols.map(function (f) { return "<td>" + RSVision.fmt(f[2], r.data ? r.data[f[0]] : null) + "</td>"; }).join("") + "</tr>";
       }).join("");
@@ -1267,7 +1275,7 @@
         var theirs = lineup ? (r.alliance === "red" ? lineup.blue_teams : lineup.red_teams) : null;
         var partners = mine ? mine.filter(function (t) { return t !== team; }).join(", ") : "—";
         var source = !lineup ? "—" : esc(lineup.sources.toUpperCase()) + (lineup.scores_agree === false ? " (scores differ)" : "");
-        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + tierTag(r.event_id) + "</td><td>" + esc(matchLabel(r)) + "</td>" +
+        return "<tr><td>" + esc(evName(r.event_id)) + "</td><td>" + tierTag(r.event_id) + "</td><td>" + viewerLink(r.event_id, r.match_key, team, matchLabel(r)) + "</td>" +
           "<td>" + esc(r.alliance) + (r.station ? " " + r.station : "") + "</td>" +
           "<td>" + (played ? r.alliance_score + " – " + r.opponent_score : "—") + "</td>" +
           "<td>" + result + "</td>" +
@@ -1568,7 +1576,8 @@
       var matchCols = ["Event", "Level", "Match", ""].concat(mFields.map(function (f) { return f.label; }));
       var matchRows = matches.map(function (m) {
         var lineup = m.match_number ? lineups[m.event_id + "|qm" + m.match_number] : null;
-        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + tierTag(m.event_id) + "</td><td>" + (m.match_number || "—") + "</td><td>" + allianceViewLink(lineup) + "</td>" +
+        return "<tr><td>" + esc(evName(m.event_id)) + "</td><td>" + tierTag(m.event_id) + "</td><td>" +
+          (m.match_number ? viewerLink(m.event_id, "qm" + m.match_number, team, String(m.match_number)) : "—") + "</td><td>" + allianceViewLink(lineup) + "</td>" +
           mFields.map(function (f) { return "<td>" + cell(m.data ? m.data[f.key] : null, f, m.data) + "</td>"; }).join("") +
           "</tr>";
       }).join("");
@@ -1607,7 +1616,7 @@
         pitHistoryHtml(pits, pFields) +
 
         officialHtml(officialRows || [], officialErr, team, lineups, extra.opr) +
-        visionHtml(extra.vision) +
+        visionHtml(extra.vision, team) +
         '<h3 class="section-title">Match history<span class="src-badge scout">Scouted</span></h3>' +
         (matches.length
           ? '<div class="table-responsive"><table data-sortable="q-scouted" class="table match-table"><thead><tr>' +
@@ -1714,7 +1723,9 @@
       if (!st) return;
       var head = '<h2 class="mb-1">' + esc(evName(st.eventId)) + " " + tierTag(st.eventId) + "</h2>" +
         '<button type="button" class="btn btn-outline-secondary btn-sm" data-export="event" data-event="' + esc(st.eventId) + '">' +
-          '<i class="fa fa-table" aria-hidden="true"></i> Export this event\'s scouting (CSV)</button>' +
+          '<i class="fa fa-table" aria-hidden="true"></i> Export this event\'s scouting (CSV)</button> ' +
+        '<a class="btn btn-outline-primary btn-sm" href="' + esc(viewerUrl(st.eventId)) + '">' +
+          '<i class="fa fa-television" aria-hidden="true"></i> Open in the Event Viewer</a>' +
         '<h3 class="section-title mt-2">Event rankings<span class="src-badge api">API</span></h3>';
       if (st.err) { $("detail").innerHTML = head + accessNotice(st.err, "official match data"); return; }
       if (!st.rows.length) {

@@ -1,5 +1,5 @@
 // The 2026 FRC 8-alliance double-elimination playoff bracket, shared by bracket.html (the full
-// page, where staff also settle ties and line-ups) and live.html (Competition Day, read-only).
+// page, where staff also settle ties and line-ups) and live.html (Event Viewer, read-only).
 //   load(sb, eventId)  an event's alliances, playoff results, tiebreaks and line-ups
 //   make(data)         a bracket over that data: resolve() works out who plays and who won,
 //                      html(results, opts) draws it, upcoming(results) lists matches still to play

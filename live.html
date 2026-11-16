@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="1307scout">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>Competition Day – 1307scout</title>
+  <title>Event Viewer – 1307scout</title>
   <!-- Open connections early to the hosts this page needs before it can draw or load data -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -197,7 +197,7 @@
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
               <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
               <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
-              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Competition Day</a>
+              <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
               <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
               <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
               <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
@@ -228,8 +228,8 @@
   <div class="c-page">
     <div class="c-intro">
       <div>
-        <h1>Competition Day</h1>
-        <p class="text-muted">The livestream, the match on the field and your next match, kept up to date as results come in. No need to refresh. <a href="/ratings.html#win-chance">How win chance works</a></p>
+        <h1>Event Viewer</h1>
+        <p class="text-muted">One event as it happens: the livestream, the match on the field and your next match, kept up to date as results come in. No need to refresh. Pick any match to look at it, and the address bar becomes a link to it. <a href="/ratings.html#win-chance">How win chance works</a></p>
       </div>
       <div class="c-controls" id="controls">
         <div><label for="eventPick">Event</label><select id="eventPick" class="custom-select custom-select-sm"></select></div>
@@ -370,8 +370,11 @@
     var knownPlayed = null;              // played match keys, so new results can flash once
     var hasWebcastCol = true;            // false until rebuild_all.sql adds events.webcast_url and auto_sync_live
     if (!team) team = Number(store(TEAM_KEY)) || null;
+    // Links: ?event=<id> opens that event, &match=<key> (qm12, sf8m1, f1m2) that match, &team=<n> that team
     var params = new URLSearchParams(location.search);
     if (Number(params.get("team")) > 0) team = Number(params.get("team"));
+    var wantMatch = params.get("match") || null;   // opened once the schedule has loaded
+    var missedMatch = null;                         // a linked match this event doesn't have
 
     var EVENT_COLS = "id,name,event_date,is_default_event,official_synced_at,frc_event_code,tba_event_key,auto_sync,auto_sync_since,timezone";
     function eventCols() { return EVENT_COLS + (hasWebcastCol ? ",webcast_url,auto_sync_live" : ""); }
@@ -474,7 +477,7 @@
       if (data && !missing && !due) return;
       var d = await R.load(sb, want);
       if (g !== gen) return;
-      d.failed.forEach(function (e) { console.warn("Competition Day:", e.message); });
+      d.failed.forEach(function (e) { console.warn("Event Viewer:", e.message); });
       data = d;
       Object.assign(teamInfo, d.teamInfo);
       dataTeams = new Set(want);
@@ -509,6 +512,7 @@
         if (needBracket()) await loadBracket(g);
         else bracket = bResults = null;
         if (g !== gen) return;
+        openLinkedMatch();
         lastOk = new Date();
         setLive(true);
         renderStream();
@@ -516,7 +520,7 @@
         await loadRatings(g);
       } catch (e) {
         if (g !== gen) return;
-        console.warn("Competition Day:", e.message || e);
+        console.warn("Event Viewer:", e.message || e);
         setLive(false);
       } finally {
         if (running === g) running = null;
@@ -535,6 +539,10 @@
     }
     function notesHtml() {
       var out = [];
+      if (missedMatch) {
+        out.push('<div class="alert alert-info" role="status">The link was to ' + esc(S.label(missedMatch)) +
+          ", which isn't on this event's schedule (yet), so this shows the match on the field instead.</div>");
+      }
       var linked = ev.frc_event_code || ev.tba_event_key;
       if (!linked) {
         out.push('<div class="alert alert-info" role="status">This event isn\'t linked to FRC or TBA, so there are no official results to follow. ' +
@@ -717,6 +725,8 @@
             '"><i class="fa fa-columns" aria-hidden="true"></i> Full Alliance View</a>' +
           '<a class="btn btn-outline-primary btn-sm" href="/strategy.html?event=' + encodeURIComponent(eventId) + "&match=" + encodeURIComponent(m.match_key) +
             '"><i class="fa fa-map-o" aria-hidden="true"></i> Strategy plan</a>' +
+          '<button type="button" class="btn btn-outline-secondary btn-sm" data-copy-link="' + esc(m.match_key) + '">' +
+            '<i class="fa fa-link" aria-hidden="true"></i> Copy link to this match</button>' +
         "</div>" +
         (data.failed.length ? '<div class="c-foot">Some team data couldn\'t be loaded, so blank stats may be wrong. It will try again.</div>' : "");
     }
@@ -826,16 +836,49 @@
         $("bracket").innerHTML = bracket.html(bResults, { compact: true, ourTeam: team, teamInfo: teamInfo });
         fitBracket();
       }
+      syncUrl();
     }
     window.addEventListener("resize", fitBracket);
+
+    // ── Links ────────────────────────────────────────────────────────
+    // A link for this event, a match on it, and the team when it isn't the viewer's own
+    function linkFor(matchKey) {
+      var p = new URLSearchParams();
+      if (eventId) p.set("event", eventId);
+      if (matchKey) p.set("match", matchKey);
+      if (team && team !== MY_TEAM) p.set("team", team);
+      var qs = p.toString();
+      return location.pathname + (qs ? "?" + qs : "");
+    }
+    // The address bar always holds a link to what's on screen ("field" and "ours" move, so they aren't in it)
+    var shownUrl = null;
+    function syncUrl() {
+      var key = wantMatch || (view !== "field" && view !== "ours" ? view : null);
+      var url = linkFor(key);
+      if (url === shownUrl) return;
+      shownUrl = url;
+      try { history.replaceState(history.state, "", url + location.hash); } catch (e) { /* file:// or a sandbox */ }
+    }
+    // A match from the link, once the schedule is in. One that isn't on this event leaves the page on the field.
+    function openLinkedMatch() {
+      if (!wantMatch || !lastFull) return;
+      var key = wantMatch;
+      wantMatch = null;
+      if (!find(key)) { missedMatch = key; return; }
+      view = key;
+      if (window.innerWidth < 1100) setTimeout(function () { $("matchView").scrollIntoView({ block: "start" }); }, 0);
+    }
 
     // ── Controls ─────────────────────────────────────────────────────
     function pick(v) {
       view = v;
+      missedMatch = null;
       render();
       loadRatings(gen);   // a match picked from a list may need its teams' stats
     }
     document.querySelector(".c-page").addEventListener("click", function (e) {
+      var copy = e.target.closest("[data-copy-link]");
+      if (copy) { copyLink(copy); return; }
       var row = e.target.closest("[data-key]");
       if (row) { pick(row.closest("#queue") && row === $("queue").firstElementChild ? "field" : row.dataset.key); return; }
       var v = e.target.closest("[data-view]");
@@ -847,11 +890,25 @@
       gen++;
       matches = []; bracket = bResults = null; knownPlayed = null; seenSync = undefined; lastFull = 0;
       view = "field";
+      missedMatch = null;
       renderStream();
       render();
       tick(true);
     }
-    $("eventPick").addEventListener("change", function () { switchEvent(this.value); });
+    $("eventPick").addEventListener("change", function () { wantMatch = null; switchEvent(this.value); });
+    // Copy link to this match: the full address, for a chat or a team message
+    async function copyLink(btn) {
+      var url = location.origin + linkFor(btn.dataset.copyLink);
+      var label = btn.lastChild;
+      try {
+        await navigator.clipboard.writeText(url);
+        label.textContent = " Link copied";
+      } catch (e) {
+        await RSDialog.prompt("Copy this link:", { title: "Link to this match", value: url });
+        return;
+      }
+      setTimeout(function () { if (label.isConnected) label.textContent = " Copy link to this match"; }, 2000);
+    }
     $("teamPick").addEventListener("change", function () {
       var t = Number(this.value);
       if (!Number.isInteger(t) || t < 1 || t > 99999) { this.value = team || ""; return; }
@@ -914,8 +971,9 @@
     $("eventPick").innerHTML = events.map(function (e) {
       return '<option value="' + esc(e.id) + '">' + esc(e.name) + (e.event_date ? " (" + esc(e.event_date) + ")" : "") + "</option>";
     }).join("");
-    var first = events.find(function (e) { return e.id === params.get("event"); }) ||
-      (await RS.defaultEvent(events)) || events[0];
+    var linkedEvent = events.find(function (e) { return e.id === params.get("event"); });
+    if (!linkedEvent) wantMatch = null;   // a match number means nothing without its event
+    var first = linkedEvent || (await RS.defaultEvent(events)) || events[0];
     $("eventPick").value = first.id;
     RSResync.mount($("controls"), function () { return tick(true); });
     switchEvent(first.id);

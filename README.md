@@ -24,7 +24,7 @@ and win over the copy for any event in both. It's in the About Us menu.
 
 **1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
 and the 1307scout menu and home page are split the same way:
-- **Data**, shared by every team: Competition Day, Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
+- **Data**, shared by every team: Event Viewer, Team Database, Alliance View, Scout, Match Flags, Playoff Selection,
   Playoff Bracket and Share Data. Scouting entries, pit data, official results, flag reviews and playoff
   alliances belong to nobody in particular.
 - **My Team**, your own team's: Our Matches, Match Strategy, Pit Crew, Pick List, Scout Shifts and
@@ -136,6 +136,10 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   AUTO and endgame climb rates from FRC's per-robot TOWER data, so a team nobody scouted still has
   numbers. To change the table's stats, edit `COLUMNS` in the page. The first column is the team's
   place on our Pick List, and the board names the best team on it still available.
+  **Download for offline** saves a simplified pick board for the event as one .html file: the
+  alliances as they stand, and every team's stats for both All season and This event, worked out at
+  download time. Offline, anyone can fill spots in draft order (Pick, or type a number), remove
+  teams, sort and switch scope. Those picks stay in that browser and never reach the team's data.
 - `picklist.html` — Pick List: your team's ranked list for alliance selection (`pick_list`), built before
   it starts. Drag or use the arrows to reorder, give each team a tier (first pick, second pick, maybe,
   do not pick) and a note. Teams already picked are greyed as Playoff Selection fills. Each row shows
@@ -144,18 +148,14 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   match (the items and the low-battery voltage are the team's settings, set on Team Management; the
   defaults are in `js/team.js`), batteries with voltage and which match they went into, repairs and
   notes. The top line says whether the next match has its checklist and battery.
-  **Download for offline** saves a simplified pick board for the event as one .html file: the
-  alliances as they stand, and every team's stats for both All season and This event, worked out at
-  download time. Offline, anyone can fill spots in draft order (Pick, or type a number), remove
-  teams, sort and switch scope. Those picks stay in that browser and never reach the team's data.
 - `bracket.html` — Playoff Bracket: the 2026 FRC 8-alliance double-elimination bracket for an event.
   Round 1 fills from the Playoff Selection alliances, and official results move alliances along, so
   it only advances once an event syncs. With fewer than 8 alliances, an empty alliance is a bye: the
   alliance it would have played moves on without playing. When official scores are tied, staff click who won the
   tiebreaker. On a 4-team alliance staff click who sits out each match (the 3rd pick by default).
   The bracket's format, results and drawing are `js/bracket.js` (`MATCHES` there is the match layout),
-  shared with Competition Day.
-- `live.html` — Competition Day: the event's livestream beside the match on the field, for a laptop or
+  shared with the Event Viewer.
+- `live.html` — Event Viewer: the event's livestream beside the match on the field, for a laptop or
   TV in the pit. The livestream is the event's `webcast_url` (a YouTube or Twitch link staff set when
   editing the event in the Staff Portal), or a link anyone pastes for themselves, kept in that browser.
   Tiles show the match on the field (the first one without a result yet), your team's next match
@@ -168,7 +168,12 @@ still on team 1307 as a member, since that domain verifies it anyway. How Rating
   it checks the event's last sync, and only reloads the schedule when that moved (or every minute,
   for hand edits). During selection and the playoffs it rechecks the alliances every 15 seconds too, and grades refresh a few
   minutes after a sync, once the server's rating cache has caught up. The stream never reloads.
-  Keep screen on stops the screen sleeping, in browsers that allow it.
+  Keep screen on stops the screen sleeping, in browsers that allow it. Links: `live.html?event=<id>`
+  opens an event, `&match=<key>` (`qm12`, `sf8m1`, `f1m2`) opens that match once the schedule loads
+  (a match the event doesn't have shows a note and the field), and `&team=<n>` follows that team. The
+  address bar keeps that link up to date as you pick an event or match, and each match has a Copy
+  link button. The Team Database links each match it lists (official results, scouted match
+  history, vision estimates) and an event's rankings here.
 - `team.html` — Team Management: for someone on no team, where their claim stands, invitations to
   accept, which team they're on, a join code (`team.html?join=CODE` is an invite link), and asking
   site staff to manage a team. For a member, the team's roster and managers, and the team's default
@@ -268,12 +273,12 @@ for students who can't call `official-sync` directly. Presses within 60 seconds 
 one request. The button is `js/resync.js`.
 
 **Team default events**: each team's pages (Scout, Our Matches, Strategy, Pit Crew, Pick List, Shifts,
-Playoffs, Bracket, Match Flags, Competition Day, the home page) open on the team's own default event.
+Playoffs, Bracket, Match Flags, Event Viewer, the home page) open on the team's own default event.
 The `team-events` Edge Function (`supabase/functions/team-events/`, deploy with `--no-verify-jwt`; it
 uses official-sync's secrets) reads from TBA and FRC Events which events each team on 1307scout is
 registered for this season, once a day, into `event_teams`. It adds any of those events that isn't in
 the database yet (marked "Added from FRC/TBA" in the Staff Portal) and fills in each linked event's last
-day and time zone, which smart auto-sync uses. Match times on Our Matches and Competition Day show
+day and time zone, which smart auto-sync uses. Match times on Our Matches and the Event Viewer show
 in the event's time zone (with its name, like "CDT", when it isn't the viewer's); an event with no
 zone yet uses the device's. official-sync also reads FRC's event-local times in that zone, asking TBA
 for it when the event has none. Every hour the database picks each team's event: the one
