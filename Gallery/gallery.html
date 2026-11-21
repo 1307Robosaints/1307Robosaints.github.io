@@ -194,7 +194,17 @@
 
     <script>
       // Add new photos here: { thumb: "small preview shown in the grid", full: "original/full-size image" }.
+      // img/social/: photos and video stills from the team's YouTube and TikTok.
+      const SOCIAL_PHOTOS = [
+        "pit-crew", "robot-on-field", "mentor-build-table", "pit-wiring", "robot-drivetrain",
+        "robot-intake", "student-circular-saw", "shop-measuring", "robosaints-hoodie",
+        "circular-saw", "snow-practice", "makerspace",
+      ];
       const GALLERY_PHOTOS = [
+        ...SOCIAL_PHOTOS.map((name) => ({
+          thumb: `../img/thumbs/social/${name}.jpg`,
+          full: `../img/social/${name}.jpg`,
+        })),
         { thumb: "../img/thumbs/arenaimage.jpg", full: "../img/arenaimage.jpg" },
         { thumb: "../img/thumbs/competitionimage.jpg", full: "../img/competitionimage.jpg" },
         { thumb: "../img/thumbs/teamimage2.jpg", full: "../img/teamimage2.png" },

@@ -11,7 +11,7 @@
      6. Buttons
      7. Cards
      8. Images
-     9. Homepage carousel
+     9. Homepage carousel, Recent Posts and FRC News
     10. Footer
     11. Contact page (map, social list)
     12. Forms, alerts, badges, tables (sign-in, account, scouting pages)
@@ -456,6 +456,33 @@ header .carousel {
   width: 44px; height: 44px;
   background-color: rgba(10,35,82,.65);
   background-size: 50% 50%;
+}
+
+/* ----- Homepage feeds: Recent Posts (cards) and FRC News (headline list), filled by index.html ----- */
+.feed-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; margin-bottom: 1rem; }
+.feed-head h2 { margin: 0; }
+.feed-head .feed-follow { font-size: .9rem; color: var(--muted); }
+.feed-head .feed-follow a { margin-left: .6rem; }
+.post-card { height: 100%; }
+.post-card .post-img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: var(--tint); }
+.post-card .card-body { display: flex; flex-direction: column; padding: 1rem 1.1rem; }
+.post-meta { display: flex; align-items: center; gap: .45rem; font-size: .78rem; color: var(--muted); margin-bottom: .4rem; }
+.post-meta .fa { font-size: 1rem; color: var(--blue); }
+.post-text { flex: 1; margin-bottom: .6rem; font-size: .93rem;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.post-card .post-link { font-size: .88rem; font-weight: 600; }
+.news-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.news-item { display: flex; gap: 1rem; padding: .9rem 0; border-bottom: 1px solid var(--line); }
+.news-thumb { flex: 0 0 132px; width: 132px; aspect-ratio: 16 / 9; object-fit: cover; background: var(--tint); }
+.news-item h3 { margin: 0 0 .2rem; font-size: 1.05rem; line-height: 1.3; }
+.news-item h3 a { color: var(--heading); }
+.news-item p { margin: 0; font-size: .9rem; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-src { display: inline-block; margin-bottom: .2rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); }
+.feed-empty { color: var(--muted); }
+.feed-loading { min-height: 6rem; background: var(--tint); opacity: .6; }
+@media (max-width: 575px) {
+  .news-thumb { flex-basis: 96px; width: 96px; }
 }
 
 

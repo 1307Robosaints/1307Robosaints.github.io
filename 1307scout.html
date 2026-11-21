@@ -9,7 +9,7 @@
      ========================================================================================================= -->
 <html lang="en">
 <head>
-  <link rel="icon" href="/img/robosaintslogo.png">
+  <link rel="icon" href="/img/brand/1307scout-mark.svg" type="image/svg+xml">
   <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#0A2352">
@@ -30,6 +30,8 @@
   <link rel="preconnect" href="https://nyanwljgsazwuzmnlrcz.supabase.co" crossorigin>
   <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
   <script src="/js/theme.js"></script>
+  <!-- Display mode (?display): only the feature tour shows, full screen. Set before the page draws -->
+  <script>if (/[?&]display(=|&|$)/.test(location.search)) document.documentElement.classList.add("sc-display");</script>
   <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -84,8 +86,8 @@
       letter-spacing: -.02em;
       margin-bottom: .6rem;
     }
-    /* The "1307" is slightly dimmed so "scout" reads as the product name */
-    .hero-wordmark .team-num { color: rgba(255,255,255,.55); font-size: .72em; }
+    /* The "1307" is smaller and ice blue so "scout" reads as the product name (as in the logo files) */
+    .hero-wordmark .team-num { color: #7FA6F7; font-size: .72em; }
     .hero-tagline {
       color: rgba(255,255,255,.8);
       font-size: clamp(1rem, 2.5vw, 1.2rem);
@@ -356,6 +358,399 @@
     .tile-text strong { display: block; font-family: var(--display); font-size: .95rem; color: var(--heading); }
     .tile-text small  { display: block; color: var(--muted); font-size: .8rem; line-height: 1.4; }
 
+    /* Hero mark: the 1307scout logo beside the wordmark; its radar sweep turns slowly */
+    .hero-brand { display: flex; align-items: center; gap: clamp(.75rem, 2vw, 1.4rem); margin-bottom: .6rem; }
+    .hero-brand .hero-wordmark { margin-bottom: 0; }
+    .hero-mark { width: clamp(3.2rem, 8vw, 5.4rem); height: auto; flex-shrink: 0; }
+    .mark-sweep { transform-box: view-box; transform-origin: 100px 100px; animation: mark-sweep 7s linear infinite; }
+    @keyframes mark-sweep { to { transform: rotate(360deg); } }
+
+    /* ══════════════════════════════════════════════════════════
+       FEATURE TOUR
+       A 16:9 animated overview of every main feature, for the logged-out page and, with ?display,
+       full screen for a TV at events. The stage is laid out at 1920 x 1080 and scaled to fit, so
+       every size inside it is in stage pixels. Its colors are fixed (the brand's navy plate in both
+       themes), like the hero. Animations run while a scene has .on; each element's base style is
+       its final state, so with reduced motion everything simply shows.
+    ══════════════════════════════════════════════════════════ */
+    .tour-section { padding: 3.5rem 0 .5rem; }
+    .tour-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem 2rem; margin-bottom: 1.25rem; }
+    .tour-head h2 { font-size: 1.55rem; margin-bottom: .35rem; }
+    .tour-head h2::after { display: none; }
+    .tour-head .features-lead { margin-bottom: 0; }
+    .tour-head .hero-cta { margin-left: auto; white-space: nowrap; }
+    .tour-small { display: none; color: var(--muted); font-size: .9rem; }
+    @media (max-width: 575px) {
+      .tour-section .showcase { display: none; }   /* too small to read on a phone held upright */
+      .tour-small { display: block; }
+      .tour-head .hero-cta { margin-left: 0; }
+    }
+
+    .showcase {
+      --sc-navy: #0A2352; --sc-deep: #06173A; --sc-blue: #1B4DB1; --sc-signal: #4479E3; --sc-ice: #7FA6F7;
+      --sc-red: #C0392B; --sc-green: #1a7f4b; --sc-amber: #C26A00; --sc-paper: #F4F7FC; --sc-line: #D3DEF0;
+      --sc-tint: #E6EEFB; --sc-ink: #0C1A33; --sc-muted: #5B6B85;
+      --sc-ease: cubic-bezier(.2, .8, .2, 1);
+    }
+    .sc-frame {
+      position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: var(--sc-navy);
+      clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 0 100%);
+    }
+    .sc-stage {
+      position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0;
+      background: var(--sc-navy); color: #fff; font-family: var(--body); overflow: hidden;
+    }
+    /* Engineering grid and the accent stripe, as on the hero */
+    .sc-stage::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background-image: linear-gradient(rgba(255,255,255,.05) 2px, transparent 2px),
+                        linear-gradient(90deg, rgba(255,255,255,.05) 2px, transparent 2px);
+      background-size: 64px 64px;
+      -webkit-mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 75%);
+              mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 75%);
+    }
+    .sc-stage::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: var(--sc-signal); }
+
+    /* Top bar: logo on the left, QR code to the site on the right */
+    .sc-top { position: absolute; left: 80px; right: 80px; top: 44px; height: 112px; display: flex; align-items: center; gap: 28px; }
+    .sc-top svg { width: 96px; height: 96px; }
+    .sc-word { font-family: var(--display); font-weight: 700; font-size: 84px; line-height: 1; letter-spacing: -.02em; }
+    .sc-word .team-num { color: var(--sc-ice); font-size: .72em; }
+    .sc-scan { margin-left: auto; display: flex; align-items: center; gap: 24px; text-align: right; }
+    .sc-scan strong { display: block; font-family: var(--display); font-size: 34px; line-height: 1.1; }
+    .sc-scan span { font-size: 25px; color: var(--sc-ice); }
+    .sc-scan img { width: 112px; height: 112px; display: block; }
+
+    /* The spotlight: one feature at a time, text above its animated mock-up */
+    .sc-scenes { position: absolute; left: 80px; top: 196px; width: 1140px; height: 784px; }
+    .sc-scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .5s, visibility 0s .5s; }
+    .sc-scene.on { opacity: 1; visibility: visible; transition: opacity .5s .15s, visibility 0s; }
+    .sc-kicker { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .14em; text-transform: uppercase; color: var(--sc-ice); }
+    .sc-scene h3 { font-family: var(--display); font-weight: 700; font-size: 70px; line-height: 1.05; color: #fff; margin: 6px 0 14px; letter-spacing: -.01em; }
+    .sc-scene h3::after { display: none; }
+    .sc-scene > p { font-size: 29px; line-height: 1.4; color: rgba(255,255,255,.82); max-width: 1100px; margin: 0; height: 82px; }
+    .sc-scene.on .sc-kicker, .sc-scene.on h3, .sc-scene.on > p { animation: sc-up .6s var(--sc-ease) both; }
+    .sc-scene.on h3 { animation-delay: .08s; }
+    .sc-scene.on > p { animation-delay: .16s; }
+
+    /* Mock-up window: a light app page, like the real thing */
+    .sc-win {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 510px; display: flex; flex-direction: column;
+      background: var(--sc-paper); color: var(--sc-ink); box-shadow: 0 30px 70px rgba(0,0,0,.4);
+      clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 0 100%);
+    }
+    .sc-scene.on .sc-win { animation: sc-up .7s .2s var(--sc-ease) both; }
+    .sc-win-bar {
+      height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 26px;
+      background: #fff; border-bottom: 2px solid var(--sc-line);
+      font-family: var(--display); font-weight: 700; font-size: 24px; color: var(--sc-navy);
+    }
+    .sc-win-bar::before { content: ""; width: 22px; height: 22px; background: var(--sc-navy); clip-path: polygon(0 0, 70% 0, 100% 30%, 100% 100%, 0 100%); }
+    .sc-win-bar small { margin-left: auto; font-size: 20px; font-weight: 600; color: var(--sc-muted); }
+    .sc-win-body { flex: 1; min-height: 0; padding: 26px 30px; position: relative; font-size: 23px; }
+
+    /* Feature index on the right: every feature, grouped as on this page; the current one lit */
+    .sc-index { position: absolute; left: 1300px; top: 196px; width: 540px; }
+    .sc-group { margin-bottom: 12px; }
+    .sc-group-head { font-family: var(--display); font-weight: 700; font-size: 24px; color: #fff; display: flex; gap: 12px; align-items: center; height: 36px; }
+    .sc-group-head b { color: var(--sc-ice); font-size: 21px; }
+    .sc-item {
+      display: flex; align-items: center; gap: 14px; height: 34px; padding: 0 14px; width: 100%;
+      font-family: var(--display); font-weight: 600; font-size: 21px; color: rgba(255,255,255,.5);
+      background: none; border: 0; border-left: 4px solid rgba(255,255,255,.12); text-align: left; cursor: pointer;
+      transition: color .3s, background .3s, border-color .3s;
+    }
+    .sc-item .fa { width: 24px; text-align: center; color: rgba(255,255,255,.4); transition: color .3s; }
+    .sc-item.on { color: #fff; background: rgba(255,255,255,.09); border-left-color: var(--sc-signal); }
+    .sc-item.on .fa { color: var(--sc-ice); }
+    .sc-item.done { color: rgba(255,255,255,.72); }
+    .sc-item:focus-visible { outline: 3px solid var(--sc-ice); outline-offset: -3px; }
+
+    /* Bottom: the facts, and a segment per feature that fills while it's shown */
+    .sc-bottom { position: absolute; left: 80px; right: 80px; bottom: 40px; display: flex; align-items: center; gap: 40px; }
+    .sc-facts { display: flex; gap: 14px; }
+    .sc-facts span {
+      font-family: var(--display); font-weight: 600; font-size: 22px; padding: 6px 16px;
+      background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.16);
+    }
+    .sc-facts .fa { color: var(--sc-ice); margin-right: 8px; }
+    .sc-progress { flex: 1; display: flex; gap: 6px; }
+    .sc-progress i { flex: 1; height: 8px; background: rgba(255,255,255,.14); position: relative; overflow: hidden; }
+    .sc-progress i.done { background: var(--sc-ice); }
+    .sc-progress i.on::after { content: ""; position: absolute; inset: 0; background: var(--sc-ice); transform-origin: left; animation: sc-fill var(--sc-dur, 7s) linear both; }
+    .showcase.paused .sc-progress i.on::after,
+    .showcase.paused .sc-scene.on * { animation-play-state: paused !important; }
+
+    /* Controls under the tour (and floating in display mode) */
+    .sc-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .75rem; }
+    .sc-btn {
+      display: inline-flex; align-items: center; gap: .45rem; font-family: var(--display); font-weight: 600; font-size: .9rem;
+      color: var(--heading); background: var(--white); border: 1px solid var(--line); padding: .4rem .8rem; cursor: pointer;
+    }
+    .sc-btn:hover { border-color: var(--blue); background: var(--tint); }
+    .sc-controls .sc-where { margin-left: auto; color: var(--muted); font-size: .85rem; }
+
+    /* Display mode (?display): the tour alone, full screen, on a loop. The early script in <head>
+       adds .sc-display so nothing else shows; the tour's script moves it into .sc-display-host. */
+    .sc-display body { overflow: hidden; padding-top: 0; }
+    .sc-display body > * { visibility: hidden; }
+    .sc-display .sc-display-host {
+      visibility: visible; position: fixed; inset: 0; z-index: 2000; background: #000;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sc-display-host .showcase { width: min(100vw, 177.78vh); }
+    .sc-display-host .sc-frame { clip-path: none; }
+    .sc-display-host .sc-controls {
+      position: fixed; right: 16px; top: 16px; margin: 0; padding: .4rem; background: rgba(6,23,58,.85);
+      opacity: 0; transition: opacity .3s; pointer-events: none;
+    }
+    .sc-display-host .sc-controls .sc-btn { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+    .sc-display-host .sc-controls .sc-where { display: none; }
+    .sc-display-host.awake .sc-controls { opacity: 1; pointer-events: auto; }
+    .sc-display-host:not(.awake) { cursor: none; }
+
+    /* ── Shared animations (each element's final state is its own style) ── */
+    @keyframes sc-up    { from { opacity: 0; transform: translateY(26px); } }
+    @keyframes sc-left  { from { opacity: 0; transform: translateX(-34px); } }
+    @keyframes sc-right { from { opacity: 0; transform: translateX(60px); } }
+    @keyframes sc-down  { from { opacity: 0; transform: translateY(-80px); } }
+    @keyframes sc-pop   { from { opacity: 0; transform: scale(.6); } 70% { transform: scale(1.08); } }
+    @keyframes sc-fade  { from { opacity: 0; } }
+    @keyframes sc-out   { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes sc-growx { from { transform: scaleX(0); } }
+    @keyframes sc-growy { from { transform: scaleY(0); } }
+    @keyframes sc-draw  { from { stroke-dashoffset: 1; } }
+    @keyframes sc-fill  { from { transform: scaleX(0); } }
+    @keyframes sc-pulse { 50% { transform: scale(1.12); } }
+    @keyframes sc-blink { 50% { opacity: .25; } }
+    @keyframes sc-spin  { to { transform: rotate(360deg); } }
+    @keyframes sc-flow  { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+    .sc-scene.on .a-up    { animation: sc-up .6s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-left  { animation: sc-left .6s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-right { animation: sc-right .7s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-down  { animation: sc-down .7s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-pop   { animation: sc-pop .5s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-in    { animation: sc-fade .4s var(--d, 0s) both; }
+    .sc-scene.on .a-out   { animation: sc-out .3s var(--d, 0s) both; }
+    .sc-scene.on .a-growx { transform-origin: left; animation: sc-growx 1s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-growy { transform-origin: bottom; animation: sc-growy .9s var(--d, 0s) var(--sc-ease) both; }
+    .sc-scene.on .a-draw  { stroke-dasharray: 1; animation: sc-draw 1.6s var(--d, 0s) ease-in-out both; }
+    .a-out { opacity: 0; }   /* things that leave: their final state is gone */
+    @media (prefers-reduced-motion: reduce) {
+      /* Display mode was asked for, so it keeps moving */
+      :root:not(.sc-display) .showcase *, :root:not(.sc-display) .showcase *::after, .mark-sweep { animation: none !important; transition: none !important; }
+    }
+
+    /* ── Mock-up parts shared by several scenes ── */
+    .m-chip { display: inline-block; font-family: var(--display); font-weight: 700; font-size: 18px; color: #fff; padding: 2px 10px; }
+    .m-chip.red { background: var(--sc-red); } .m-chip.blue { background: var(--sc-blue); }
+    .m-chip.green { background: var(--sc-green); } .m-chip.amber { background: var(--sc-amber); } .m-chip.grey { background: #8a93a3; }
+    .m-card { background: #fff; border: 2px solid var(--sc-line); padding: 16px 20px; }
+    .m-mut { color: var(--sc-muted); }
+    .m-h { font-family: var(--display); font-weight: 700; color: var(--sc-navy); }
+    .m-row { display: flex; align-items: center; gap: 14px; }
+    .m-grade { display: inline-flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 700; color: #fff; }
+    .m-ok { color: var(--sc-green); }
+
+    /* 1 Scouting form */
+    .m-scout { display: grid; grid-template-columns: 1.3fr 1fr; gap: 30px; }
+    .m-count { display: flex; align-items: center; gap: 14px; background: #fff; border: 2px solid var(--sc-line); padding: 10px 16px; margin-top: 12px; }
+    .m-count span { flex: 1; font-weight: 600; }
+    .m-count b { width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; font-size: 30px; background: var(--sc-tint); color: var(--sc-blue); }
+    .m-count b.plus { background: var(--sc-blue); color: #fff; }
+    .sc-scene.on .m-count b.plus { animation: sc-pulse .7s 3 var(--d, 0s); }
+    .m-count output { width: 56px; text-align: center; font-family: var(--display); font-weight: 700; font-size: 34px; color: var(--sc-navy); }
+    .m-choice { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .m-choice span { flex: 1; font-weight: 600; }
+    .m-choice i { font-style: normal; font-family: var(--display); font-weight: 600; padding: 8px 16px; border: 2px solid var(--sc-line); background: #fff; }
+    .m-choice i.pick { background: var(--sc-blue); border-color: var(--sc-blue); color: #fff; }
+    .sc-scene.on .m-choice i.pick { animation: sc-pick .3s var(--d) both; }
+    @keyframes sc-pick { from { background: #fff; color: var(--sc-ink); border-color: var(--sc-line); } }
+    .m-photo { height: 150px; display: flex; align-items: flex-end; padding: 12px 16px; color: #fff; font-weight: 600; position: relative; overflow: hidden;
+               background: linear-gradient(135deg, #2b3d5f, #556a8f); }
+    .m-photo .fa { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 64px; opacity: .55; }
+    .m-note { margin-top: 14px; min-height: 84px; font-size: 21px; }
+    .m-note::after { content: "|"; color: var(--sc-blue); animation: sc-blink 1s infinite; }
+    .m-submit { position: relative; height: 58px; margin-top: 12px; font-family: var(--display); font-weight: 700; font-size: 24px; color: #fff; }
+    .m-submit span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--sc-blue); }
+    .m-submit span.done { background: var(--sc-green); }
+
+    /* 2 Offline */
+    .m-off { display: flex; gap: 34px; align-items: stretch; height: 100%; }
+    .m-off .m-phone { flex: 1.3; background: #fff; border: 2px solid var(--sc-line); padding: 16px 20px; }
+    .m-status { position: relative; height: 42px; font-family: var(--display); font-weight: 700; }
+    .m-status span { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 4px 14px; }
+    .m-status .s-off { background: #fde8e8; color: var(--sc-red); }
+    .m-status .s-on { background: #e7f7ee; color: var(--sc-green); }
+    .m-q { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 2px solid var(--sc-paper); position: relative; }
+    .m-q b { font-family: var(--display); }
+    .m-q em { margin-left: auto; font-style: normal; font-weight: 600; font-size: 20px; position: relative; width: 210px; height: 30px; }
+    .m-q em span { position: absolute; right: 0; top: 0; white-space: nowrap; }
+    .m-q .wait { color: var(--sc-amber); } .m-q .sent { color: var(--sc-green); }
+    .m-off .m-or { align-self: center; font-family: var(--display); font-weight: 700; color: var(--sc-muted); }
+    .m-relay { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; font-weight: 600; }
+    .m-relay img { width: 190px; height: 190px; border: 2px solid var(--sc-line); }
+
+    /* 3 Scout shifts */
+    .m-shifts { display: grid; grid-template-columns: 150px repeat(6, 1fr); gap: 8px; }
+    .m-shifts > div { height: 50px; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+    .m-shifts .hd { font-family: var(--display); font-weight: 700; color: #fff; }
+    .m-shifts .hd.r { background: var(--sc-red); } .m-shifts .hd.b { background: var(--sc-blue); }
+    .m-shifts .rg { justify-content: flex-start; font-family: var(--display); font-weight: 700; color: var(--sc-navy); }
+    .m-shifts .nm { background: #fff; border: 2px solid var(--sc-line); }
+    .m-shifts .nm.me { background: var(--sc-tint); border-color: var(--sc-blue); color: var(--sc-blue); }
+    .m-next { position: absolute; left: 30px; right: 30px; bottom: 24px; display: flex; align-items: center; gap: 16px; background: var(--sc-navy); color: #fff; padding: 14px 22px; font-size: 24px; }
+    .m-next .fa { color: var(--sc-ice); font-size: 28px; }
+
+    /* 4 Match flags */
+    .m-flag { display: flex; align-items: center; gap: 16px; background: #fff; border: 2px solid var(--sc-line); border-left-width: 8px; padding: 10px 18px; margin-bottom: 10px; }
+    .m-flag.red { border-left-color: var(--sc-red); } .m-flag.amber { border-left-color: var(--sc-amber); } .m-flag.green { border-left-color: var(--sc-green); }
+    .m-flag .fa { font-size: 26px; width: 28px; }
+    .m-flag.red .fa { color: var(--sc-red); } .m-flag.amber .fa { color: var(--sc-amber); } .m-flag.green .fa { color: var(--sc-green); }
+    .m-flag b { font-family: var(--display); width: 120px; flex-shrink: 0; }
+    .m-flag small { margin-left: auto; font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--sc-muted); border: 2px solid var(--sc-line); padding: 2px 10px; }
+
+    /* 5 Team Database */
+    .m-team { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 26px; height: 100%; }
+    .m-big { font-family: var(--display); font-weight: 700; font-size: 64px; color: var(--sc-navy); line-height: 1; }
+    .m-grades { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+    .m-grades .m-grade { width: 58px; height: 46px; font-size: 26px; }
+    .m-chart { background: #fff; border: 2px solid var(--sc-line); padding: 10px; }
+    .m-chart svg { width: 100%; height: 100%; display: block; }
+    .m-bars .m-bar { margin-bottom: 14px; }
+    .m-bar label { display: flex; justify-content: space-between; font-weight: 600; font-size: 21px; margin: 0 0 4px; }
+    .m-bar div { height: 22px; background: var(--sc-tint); }
+    .m-bar div i { display: block; height: 100%; background: var(--sc-blue); }
+
+    /* 6 Official sync */
+    .m-sync { display: grid; grid-template-columns: 1.15fr 1fr; gap: 30px; height: 100%; }
+    .m-sync svg { width: 100%; height: 100%; display: block; }
+    .m-flow { stroke-dasharray: 10 10; animation: sc-flow .8s linear infinite; }
+    .m-res { display: flex; align-items: center; gap: 12px; background: #fff; border: 2px solid var(--sc-line); padding: 9px 16px; margin-bottom: 9px; font-family: var(--display); font-weight: 700; }
+    .m-res .sr { color: var(--sc-red); } .m-res .sb { color: var(--sc-blue); }
+    .m-res b { width: 110px; color: var(--sc-navy); }
+    .m-synced { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--sc-green); margin-bottom: 12px; }
+    .sc-scene.on .m-synced .fa { animation: sc-spin 1.4s linear infinite; }
+
+    /* 7 Ratings */
+    .m-rate { display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 24px; height: 100%; }
+    .m-rate .m-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; }
+    .m-rate .m-grade { width: 150px; height: 130px; font-size: 80px; }
+    .m-rate small { font-size: 19px; color: var(--sc-muted); }
+    .m-cal svg { width: 100%; height: 230px; display: block; }
+
+    /* 8 Alliance View */
+    .m-all { display: grid; grid-template-columns: 1fr 260px 1fr; gap: 24px; height: 100%; align-items: center; }
+    .m-side { display: flex; flex-direction: column; gap: 10px; }
+    .m-side .m-h { display: flex; align-items: center; gap: 12px; font-size: 26px; margin-bottom: 4px; }
+    .m-side .m-h .m-grade { width: 50px; height: 40px; font-size: 24px; margin-left: auto; }
+    .m-tr { display: flex; align-items: center; gap: 12px; }
+    .m-tr b { font-family: var(--display); width: 74px; }
+    .m-tr div { flex: 1; height: 26px; background: #fff; border: 2px solid var(--sc-line); }
+    .m-tr div i { display: block; height: 100%; }
+    .m-side.red .m-tr i { background: var(--sc-red); } .m-side.blue .m-tr i { background: var(--sc-blue); }
+    .m-tr em { font-style: normal; font-family: var(--display); font-weight: 700; width: 56px; text-align: right; }
+    .m-win { text-align: center; }
+    .m-win .m-pct { font-family: var(--display); font-weight: 700; font-size: 76px; color: var(--sc-red); line-height: 1; }
+    .m-win .m-split { display: flex; height: 22px; margin: 14px 0 8px; background: var(--sc-blue); }
+    .m-win .m-split i { background: var(--sc-red); width: 64%; transition: width 2.4s var(--sc-ease); }
+
+    /* 9 Event Viewer */
+    .m-ev { display: grid; grid-template-columns: 1.7fr 1fr; gap: 24px; height: 100%; }
+    .m-tv { position: relative; background: #0c1426; overflow: hidden; }
+    .m-tv svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .m-live { position: absolute; left: 16px; top: 14px; background: var(--sc-red); color: #fff; font-family: var(--display); font-weight: 700; font-size: 18px; padding: 2px 12px; }
+    .m-live::before { content: "●"; margin-right: 6px; animation: sc-blink 1.2s infinite; }
+    .m-score { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; font-family: var(--display); font-weight: 700; font-size: 30px; color: #fff; }
+    .m-score span { padding: 4px 18px; } .m-score .r { background: var(--sc-red); } .m-score .b { background: var(--sc-blue); } .m-score .t { background: rgba(0,0,0,.7); font-size: 22px; display: flex; align-items: center; }
+    .m-robot { transition: none; }
+    .sc-scene.on .m-robot { animation: sc-drive 6s ease-in-out infinite alternate; }
+    .sc-scene.on .m-robot.two { animation-name: sc-drive2; animation-duration: 4.6s; }
+    @keyframes sc-drive  { 0% { transform: translate(0, 0); } 50% { transform: translate(120px, 40px); } 100% { transform: translate(200px, -30px); } }
+    @keyframes sc-drive2 { 0% { transform: translate(0, 0); } 50% { transform: translate(-140px, -60px); } 100% { transform: translate(-60px, -120px); } }
+    .m-evside { display: flex; flex-direction: column; gap: 10px; }
+    .m-evside .m-card { padding: 10px 18px; line-height: 1.3; }
+    .m-evside .m-card b { display: block; font-family: var(--display); font-size: 28px; color: var(--sc-navy); }
+
+    /* 10 Our Matches and alerts */
+    .m-alerts { display: grid; grid-template-columns: 1.35fr 1fr; gap: 30px; height: 100%; }
+    .m-match { display: flex; align-items: center; gap: 14px; background: #fff; border: 2px solid var(--sc-line); padding: 10px 16px; margin-bottom: 10px; }
+    .m-match b { font-family: var(--display); width: 90px; }
+    .m-match .wc { margin-left: auto; font-family: var(--display); font-weight: 700; }
+    .m-match.next { border-color: var(--sc-blue); background: var(--sc-tint); }
+    .m-lock { background: linear-gradient(160deg, #1f3a70, #0A2352); padding: 26px 22px; position: relative; }
+    .m-clock { text-align: center; color: #fff; font-family: var(--display); font-weight: 600; font-size: 64px; line-height: 1; margin-bottom: 24px; }
+    .m-note-card { background: rgba(255,255,255,.95); padding: 14px 16px; font-size: 20px; line-height: 1.35; }
+    .m-note-card .m-row { font-size: 17px; color: var(--sc-muted); margin-bottom: 4px; gap: 8px; }
+    .m-note-card .m-row .fa { color: var(--sc-blue); }
+    .sc-scene.on .m-bell { display: inline-block; animation: sc-ring .8s 2.2s 2; transform-origin: top center; }
+    @keyframes sc-ring { 25% { transform: rotate(18deg); } 75% { transform: rotate(-18deg); } }
+
+    /* 11 Match Strategy */
+    .m-strat { display: grid; grid-template-columns: 1.75fr 1fr; gap: 26px; height: 100%; }
+    .m-strat svg { width: 100%; height: 100%; display: block; background: #fff; border: 2px solid var(--sc-line); }
+    .sc-scene.on .m-mover { animation: sc-move 3.2s 1s ease-in-out both; }
+    @keyframes sc-move { from { transform: translate(0, 0); } to { transform: translate(-250px, -70px); } }
+    .m-who { display: flex; flex-direction: column; gap: 12px; }
+    .m-who .m-row .fa { color: var(--sc-blue); width: 26px; }
+
+    /* 12 Pit Crew */
+    .m-pit { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    .m-ready { grid-column: 1 / -1; position: relative; height: 54px; font-family: var(--display); font-weight: 700; font-size: 25px; }
+    .m-ready span { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; padding: 0 18px; }
+    .m-ready .not { background: #fff3e0; color: var(--sc-amber); border-left: 8px solid var(--sc-amber); }
+    .m-ready .yes { background: #e7f7ee; color: var(--sc-green); border-left: 8px solid var(--sc-green); }
+    .m-check { display: flex; align-items: center; gap: 14px; padding: 7px 0; font-weight: 600; }
+    .m-check i { width: 32px; height: 32px; border: 3px solid var(--sc-line); position: relative; flex-shrink: 0; background: #fff; }
+    .m-check i::after { content: "\f00c"; font: normal 20px FontAwesome; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--sc-green); }
+    .sc-scene.on .m-check i::after { animation: sc-pop .35s var(--d) both; }
+    .m-batt { display: flex; align-items: center; gap: 14px; padding: 6px 0; }
+    .m-batt b { font-family: var(--display); width: 110px; }
+    .m-batt div { flex: 1; height: 24px; background: #fff; border: 2px solid var(--sc-line); }
+    .m-batt div i { display: block; height: 100%; background: var(--sc-green); }
+    .m-batt.low div i { background: var(--sc-amber); }
+    .m-batt em { font-style: normal; font-family: var(--display); font-weight: 700; width: 120px; text-align: right; }
+    .m-batt.low em { color: var(--sc-amber); }
+
+    /* 13 Pick List */
+    .m-pick { display: grid; grid-template-columns: 1.6fr 1fr; gap: 26px; }
+    .m-pr { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 16px; background: #fff; border: 2px solid var(--sc-line); margin-bottom: 8px; position: relative; }
+    .m-pr .rk { font-family: var(--display); font-weight: 700; color: var(--sc-muted); width: 30px; }
+    .m-pr b { font-family: var(--display); font-size: 25px; width: 80px; }
+    .m-pr .nt { color: var(--sc-muted); font-size: 20px; flex: 1; }
+    .m-pr.moved { border-color: var(--sc-blue); box-shadow: 0 8px 20px rgba(10,35,82,.18); z-index: 1; }
+    .m-pr.taken { opacity: .45; }
+    .m-pr.taken b { text-decoration: line-through; }
+    .sc-scene.on .m-pr.moved { animation: sc-moveup 1s 1.4s var(--sc-ease) both; }
+    .sc-scene.on .m-pr.shift { animation: sc-shift 1s 1.4s var(--sc-ease) both; }
+    .sc-scene.on .m-pr.taken { animation: sc-taken .5s 4s both; }
+    @keyframes sc-moveup { from { transform: translateY(128px); } }
+    @keyframes sc-shift  { from { transform: translateY(-64px); } }
+    @keyframes sc-taken  { from { opacity: 1; } }
+    .m-tiers { display: flex; flex-direction: column; gap: 12px; }
+
+    /* 14 Playoff Selection */
+    .m-sel { display: grid; grid-template-columns: 2.2fr 1fr; gap: 26px; }
+    .m-als { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .m-al { background: #fff; border: 2px solid var(--sc-line); padding: 8px 10px; }
+    .m-al .m-h { font-size: 19px; margin-bottom: 4px; }
+    .m-al span { display: block; height: 36px; margin-top: 5px; font-family: var(--display); font-weight: 700; font-size: 21px; padding: 4px 8px; background: var(--sc-tint); color: var(--sc-navy); }
+    .m-al span.cap { background: var(--sc-navy); color: #fff; }
+    .m-avail .m-row { justify-content: space-between; padding: 8px 14px; background: #fff; border: 2px solid var(--sc-line); margin-bottom: 8px; font-family: var(--display); font-weight: 700; }
+    .m-avail .m-row.top { border-color: var(--sc-blue); background: var(--sc-tint); }
+
+    /* 15 Bracket */
+    .m-brk svg { width: 100%; height: 100%; display: block; }
+    .m-brk { height: 100%; }
+
+    /* 16 Share codes */
+    .m-share { display: grid; grid-template-columns: 1.4fr 1fr; gap: 30px; align-items: center; height: 100%; }
+    .m-code { font-family: var(--display); font-weight: 700; font-size: 64px; letter-spacing: .08em; color: var(--sc-navy); background: #fff; border: 2px dashed var(--sc-blue); padding: 6px 22px; min-height: 92px; }
+    .m-scope { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+    .m-scope span { background: #fff; border: 2px solid var(--sc-line); padding: 6px 14px; font-weight: 600; font-size: 21px; }
+    .m-scope .fa { color: var(--sc-blue); margin-right: 8px; }
+    .m-share img { width: 260px; height: 260px; border: 2px solid var(--sc-line); justify-self: center; }
+
     /* ── Shared ───────────────────────────────────────────────── */
     /* Both views start hidden so the wrong one never flashes; the script reveals one */
     #loggedOutView, #loggedInView { display: none; }
@@ -451,8 +846,19 @@
     <!-- Hero -->
     <section class="scout-hero">
       <div class="container hero-inner">
-        <div class="hero-wordmark">
-          <span class="team-num">1307</span>scout
+        <div class="hero-brand">
+          <!-- The 1307scout mark (img/brand/): a gear crossed with a scope reticle -->
+          <svg class="hero-mark" viewBox="0 0 200 200" aria-hidden="true">
+            <path d="M0 0H160L200 40V200H0Z" fill="#fff"/>
+            <g transform="translate(100 100) scale(.75) translate(-100 -100)">
+              <path d="M81.02 23.6L84.98 5.18A96 96 0 0 1 115.02 5.18L118.98 23.6A78.72 78.72 0 0 1 140.6 32.56L156.43 22.33A96 96 0 0 1 177.67 43.57L167.44 59.4A78.72 78.72 0 0 1 176.4 81.02L194.82 84.98A96 96 0 0 1 194.82 115.02L176.4 118.98A78.72 78.72 0 0 1 167.44 140.6L177.67 156.43A96 96 0 0 1 156.43 177.67L140.6 167.44A78.72 78.72 0 0 1 118.98 176.4L115.02 194.82A96 96 0 0 1 84.98 194.82L81.02 176.4A78.72 78.72 0 0 1 59.4 167.44L43.57 177.67A96 96 0 0 1 22.33 156.43L32.56 140.6A78.72 78.72 0 0 1 23.6 118.98L5.18 115.02A96 96 0 0 1 5.18 84.98L23.6 81.02A78.72 78.72 0 0 1 32.56 59.4L22.33 43.57A96 96 0 0 1 43.57 22.33L59.4 32.56A78.72 78.72 0 0 1 81.02 23.6ZM100 42.4A57.6 57.6 0 1 0 100 157.6A57.6 57.6 0 1 0 100 42.4Z" fill="#0A2352" fill-rule="evenodd"/>
+              <path class="mark-sweep" d="M100 100L100 52A48 48 0 0 1 148 100Z" fill="#7FA6F7"/>
+              <path d="M94.72 54.88H105.28V79.84H94.72ZM120.16 94.72H145.12V105.28H120.16ZM94.72 120.16H105.28V145.12H94.72ZM54.88 94.72H79.84V105.28H54.88ZM100 90.4L109.6 100L100 109.6L90.4 100Z" fill="#0A2352"/>
+            </g>
+          </svg>
+          <div class="hero-wordmark">
+            <span class="team-num">1307</span>scout
+          </div>
         </div>
         <p class="hero-tagline">
           Free scouting for every FRC team. Scout matches and pits, look up any team's history and
@@ -467,6 +873,434 @@
         </ul>
         <a href="/signin.html" class="hero-cta">Sign in or create an account</a>
         <a href="#get-the-app" class="app-ghost" style="color:#fff;">Get the app</a>
+      </div>
+    </section>
+
+    <!-- Feature tour: every main feature in a 16:9 animated loop. The script after the page's own builds the
+         index and runs it; ?display shows it full screen for a TV at events. Each scene's mock-up uses
+         made-up teams and names. a-* classes animate, starting --d seconds after the scene appears. -->
+    <section class="tour-section" id="tour">
+      <div class="container">
+        <div class="tour-head">
+          <div>
+            <h2>1307scout in two minutes</h2>
+            <p class="features-lead">Every main feature, one at a time. Putting a screen up in your pit or at an event?
+              Display mode plays this full screen on a loop and keeps the screen awake. Stickers, posters and
+              logos are in the <a href="/brand.html">brand kit</a>.</p>
+          </div>
+          <a href="/1307scout.html?display" class="hero-cta"><i class="fa fa-television" aria-hidden="true"></i> Display mode</a>
+        </div>
+        <p class="tour-small">Turn your phone sideways and open Display mode to watch the tour, or see every feature below.</p>
+
+        <div class="showcase" id="showcase">
+          <div class="sc-frame">
+            <div class="sc-stage" role="region" aria-roledescription="carousel" aria-label="1307scout feature tour">
+
+              <div class="sc-top">
+                <svg viewBox="0 0 200 200" aria-hidden="true">
+                  <path d="M0 0H160L200 40V200H0Z" fill="#fff"/>
+                  <g transform="translate(100 100) scale(.75) translate(-100 -100)">
+                    <path d="M81.02 23.6L84.98 5.18A96 96 0 0 1 115.02 5.18L118.98 23.6A78.72 78.72 0 0 1 140.6 32.56L156.43 22.33A96 96 0 0 1 177.67 43.57L167.44 59.4A78.72 78.72 0 0 1 176.4 81.02L194.82 84.98A96 96 0 0 1 194.82 115.02L176.4 118.98A78.72 78.72 0 0 1 167.44 140.6L177.67 156.43A96 96 0 0 1 156.43 177.67L140.6 167.44A78.72 78.72 0 0 1 118.98 176.4L115.02 194.82A96 96 0 0 1 84.98 194.82L81.02 176.4A78.72 78.72 0 0 1 59.4 167.44L43.57 177.67A96 96 0 0 1 22.33 156.43L32.56 140.6A78.72 78.72 0 0 1 23.6 118.98L5.18 115.02A96 96 0 0 1 5.18 84.98L23.6 81.02A78.72 78.72 0 0 1 32.56 59.4L22.33 43.57A96 96 0 0 1 43.57 22.33L59.4 32.56A78.72 78.72 0 0 1 81.02 23.6ZM100 42.4A57.6 57.6 0 1 0 100 157.6A57.6 57.6 0 1 0 100 42.4Z" fill="#0A2352" fill-rule="evenodd"/>
+                    <path class="mark-sweep" d="M100 100L100 52A48 48 0 0 1 148 100Z" fill="#7FA6F7"/>
+                    <path d="M94.72 54.88H105.28V79.84H94.72ZM120.16 94.72H145.12V105.28H120.16ZM94.72 120.16H105.28V145.12H94.72ZM54.88 94.72H79.84V105.28H54.88ZM100 90.4L109.6 100L100 109.6L90.4 100Z" fill="#0A2352"/>
+                  </g>
+                </svg>
+                <div class="sc-word"><span class="team-num">1307</span>scout</div>
+                <div class="sc-scan">
+                  <div><strong>Free for every FRC team</strong><span>Scan to start: scout.robosaints1307.com</span></div>
+                  <img src="/img/brand/qr-scout.svg" alt="QR code for scout.robosaints1307.com">
+                </div>
+              </div>
+
+              <div class="sc-scenes">
+
+                <!-- ═══ 01 Scout ═══ -->
+                <article class="sc-scene" data-group="0" data-icon="fa-clipboard">
+                  <h3>Match and pit scouting</h3>
+                  <p>One quick form per match and one pit entry per team, with fields set for each season's game and robot photos straight from the camera.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Scout<small>Qual 14 · Red 2</small></div>
+                    <div class="sc-win-body m-scout">
+                      <div>
+                        <div class="m-row"><span class="m-chip red">RED 2</span><span class="m-h" style="font-size:28px">Team 2468</span><span class="m-mut">Qual 14</span></div>
+                        <div class="m-count"><span>Auto scored</span><b>−</b><output data-to="3" data-delay="600" data-step="650">3</output><b class="plus" style="--d:.6s">+</b></div>
+                        <div class="m-count"><span>Teleop scored</span><b>−</b><output data-to="11" data-delay="1500" data-step="260">11</output><b class="plus" style="--d:1.5s">+</b></div>
+                        <div class="m-choice"><span>Endgame</span><i>None</i><i>Park</i><i class="pick" style="--d:4.6s">Climb</i></div>
+                      </div>
+                      <div>
+                        <div class="m-photo a-pop" style="--d:1.2s"><i class="fa fa-camera" aria-hidden="true"></i>robot-2468.jpg</div>
+                        <div class="m-note" data-type="Fast cycles, played strong defense late." data-delay="2400"></div>
+                        <div class="m-submit"><span class="a-out" style="--d:5.4s">Submit</span><span class="done a-in" style="--d:5.4s"><i class="fa fa-check" aria-hidden="true"></i> Saved</span></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="0" data-icon="fa-wifi">
+                  <h3>Works offline</h3>
+                  <p>No Wi-Fi in the stands? Entries wait on the device and send when it reconnects, or hand them to a scout who's online by QR code.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Scout<small>Saved on this device</small></div>
+                    <div class="sc-win-body m-off">
+                      <div class="m-phone">
+                        <div class="m-status"><span class="s-off a-out" style="--d:3.4s"><i class="fa fa-ban" aria-hidden="true"></i> No connection</span><span class="s-on a-in" style="--d:3.4s"><i class="fa fa-wifi" aria-hidden="true"></i> Back online</span></div>
+                        <div class="m-q a-up" style="--d:.5s"><b>Qual 15</b>Team 1357<em><span class="wait a-out" style="--d:3.9s">Waiting to send</span><span class="sent a-in" style="--d:3.9s"><i class="fa fa-check"></i> Sent</span></em></div>
+                        <div class="m-q a-up" style="--d:1.2s"><b>Qual 16</b>Team 5432<em><span class="wait a-out" style="--d:4.3s">Waiting to send</span><span class="sent a-in" style="--d:4.3s"><i class="fa fa-check"></i> Sent</span></em></div>
+                        <div class="m-q a-up" style="--d:1.9s"><b>Qual 17</b>Team 9876<em><span class="wait a-out" style="--d:4.7s">Waiting to send</span><span class="sent a-in" style="--d:4.7s"><i class="fa fa-check"></i> Sent</span></em></div>
+                        <div class="m-q a-up" style="--d:2.6s"><b>Pit</b>Team 2468, 2 photos<em><span class="wait a-out" style="--d:5.1s">Waiting to send</span><span class="sent a-in" style="--d:5.1s"><i class="fa fa-check"></i> Sent</span></em></div>
+                      </div>
+                      <div class="m-or">or</div>
+                      <div class="m-relay a-pop" style="--d:2.4s"><img src="/img/brand/qr-scout.svg" alt="">Hand entries to a scout<br>who's online</div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="0" data-icon="fa-users">
+                  <h3>Scout shifts</h3>
+                  <p>Managers give each scout a seat for a range of matches. Every scout sees their next match and team, ready to fill in.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Scout Shifts<small>Qual 1–30</small></div>
+                    <div class="sc-win-body">
+                      <div class="m-shifts">
+                        <div></div><div class="hd r">Red 1</div><div class="hd r">Red 2</div><div class="hd r">Red 3</div><div class="hd b">Blue 1</div><div class="hd b">Blue 2</div><div class="hd b">Blue 3</div>
+                        <div class="rg">Q1–10</div><div class="nm a-pop" style="--d:.4s">Ava</div><div class="nm a-pop" style="--d:.5s">Ben</div><div class="nm a-pop" style="--d:.6s">Cara</div><div class="nm a-pop" style="--d:.7s">Dev</div><div class="nm a-pop" style="--d:.8s">Eli</div><div class="nm a-pop" style="--d:.9s">Finn</div>
+                        <div class="rg">Q11–20</div><div class="nm a-pop" style="--d:1.2s">Gia</div><div class="nm a-pop" style="--d:1.3s">Hugo</div><div class="nm a-pop" style="--d:1.4s">Ivy</div><div class="nm a-pop" style="--d:1.5s">Jae</div><div class="nm me a-pop" style="--d:1.6s">Kai</div><div class="nm a-pop" style="--d:1.7s">Lena</div>
+                        <div class="rg">Q21–30</div><div class="nm a-pop" style="--d:2s">Mia</div><div class="nm a-pop" style="--d:2.1s">Noah</div><div class="nm a-pop" style="--d:2.2s">Omar</div><div class="nm a-pop" style="--d:2.3s">Pia</div><div class="nm a-pop" style="--d:2.4s">Quinn</div><div class="nm a-pop" style="--d:2.5s">Rae</div>
+                      </div>
+                      <div class="m-next a-up" style="--d:3.4s"><i class="fa fa-user-circle" aria-hidden="true"></i><span>Kai, your next match: <b>Qual 14</b>, Blue 2, <b>Team 5432</b></span></div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="0" data-icon="fa-flag">
+                  <h3>Match flags</h3>
+                  <p>Every played match is checked against the official results and the other scouts, so wrong or missing data gets rescouted.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Match Flags<small>4 to review</small></div>
+                    <div class="sc-win-body">
+                      <div class="m-flag red a-left" style="--d:.4s"><i class="fa fa-flag" aria-hidden="true"></i><b>Qual 22</b><span>Team 3456: scouted 2 endgame points, official says 12</span><small class="a-pop" style="--d:3.2s">RESCOUT</small></div>
+                      <div class="m-flag amber a-left" style="--d:1s"><i class="fa fa-question-circle" aria-hidden="true"></i><b>Qual 23</b><span>Blue 2: nobody scouted this robot</span><small class="a-pop" style="--d:3.6s">RESCOUT</small></div>
+                      <div class="m-flag amber a-left" style="--d:1.6s"><i class="fa fa-exchange" aria-hidden="true"></i><b>Qual 24</b><span>Team 7812: two scouts disagree, 5 vs 11</span><small class="a-pop" style="--d:4s">FIXED</small></div>
+                      <div class="m-flag green a-left" style="--d:2.2s"><i class="fa fa-check-circle" aria-hidden="true"></i><b>Qual 25</b><span>All six robots add up to the official score</span><small class="a-pop" style="--d:4.4s">FINE</small></div>
+                    </div></div>
+                </article>
+
+                <!-- ═══ 02 Know every team ═══ -->
+                <article class="sc-scene" data-group="1" data-icon="fa-database">
+                  <h3>Team Database</h3>
+                  <p>Any team's scouted and official history, pit data and photos, trend charts and OPR for every scoring category.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Team Database<small>Team 2468</small></div>
+                    <div class="sc-win-body m-team">
+                      <div>
+                        <div class="m-big">2468</div>
+                        <div class="m-mut" style="font-size:21px">Example Robotics<br>Rank 3 of 40</div>
+                        <div class="m-grades">
+                          <div class="m-row a-left" style="--d:.6s"><span class="m-grade" style="background:#1a7f4b">A−</span>Scouting rating</div>
+                          <div class="m-row a-left" style="--d:.9s"><span class="m-grade" style="background:#1B4DB1">B+</span>Official rating</div>
+                          <div class="m-row a-left" style="--d:1.2s"><span class="m-grade" style="background:#5B6B85">54</span>Points per match</div>
+                        </div>
+                      </div>
+                      <div class="m-chart">
+                        <svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true">
+                          <g stroke="#D3DEF0" stroke-width="2"><path d="M0 60H400M0 130H400M0 200H400M0 270H400"/></g>
+                          <path class="a-draw" style="--d:.5s" pathLength="1" d="M10 240 L45 220 L80 228 L115 190 L150 196 L185 160 L220 150 L255 120 L290 132 L325 96 L360 88 L392 64" fill="none" stroke="#1B4DB1" stroke-width="6" stroke-linejoin="round"/>
+                          <path class="a-draw" style="--d:1.1s" pathLength="1" d="M10 250 L80 238 L150 214 L220 180 L290 150 L392 110" fill="none" stroke="#7FA6F7" stroke-width="4" stroke-dasharray="1" />
+                          <text x="12" y="30" font-family="Chakra Petch" font-weight="700" font-size="22" fill="#0A2352">Points per match</text>
+                        </svg>
+                      </div>
+                      <div class="m-bars">
+                        <div class="m-h" style="font-size:22px;margin-bottom:10px">Component OPR</div>
+                        <div class="m-bar"><label>Auto <span>14.2</span></label><div><i class="a-growx" style="width:40%;--d:.8s"></i></div></div>
+                        <div class="m-bar"><label>Teleop <span>31.5</span></label><div><i class="a-growx" style="width:88%;--d:1s"></i></div></div>
+                        <div class="m-bar"><label>Endgame <span>9.8</span></label><div><i class="a-growx" style="width:28%;--d:1.2s"></i></div></div>
+                        <div class="m-bar"><label>Fouls drawn <span>3.1</span></label><div><i class="a-growx" style="width:10%;--d:1.4s"></i></div></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="1" data-icon="fa-refresh">
+                  <h3>Official results, synced</h3>
+                  <p>Scores flow in from FRC Events and The Blue Alliance on their own, about every 2 minutes while matches are running.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Official results<small>Synced automatically</small></div>
+                    <div class="sc-win-body m-sync">
+                      <svg viewBox="0 0 520 360" aria-hidden="true">
+                        <g font-family="Chakra Petch" font-weight="700" font-size="24" text-anchor="middle">
+                          <rect x="10" y="40" width="190" height="80" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="105" y="90" fill="#0A2352">FRC Events</text>
+                          <rect x="10" y="240" width="190" height="80" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="105" y="278" fill="#0A2352">The Blue</text><text x="105" y="304" fill="#0A2352">Alliance</text>
+                          <rect x="330" y="130" width="180" height="100" fill="#0A2352"/><text x="420" y="190" fill="#fff">1307scout</text>
+                        </g>
+                        <path class="m-flow" d="M200 80 C270 80 270 160 330 165" fill="none" stroke="#4479E3" stroke-width="5"/>
+                        <path class="m-flow" d="M200 280 C270 280 270 200 330 195" fill="none" stroke="#4479E3" stroke-width="5"/>
+                      </svg>
+                      <div>
+                        <div class="m-synced"><i class="fa fa-refresh" aria-hidden="true"></i> Synced 1 minute ago</div>
+                        <div class="m-res a-right" style="--d:.8s"><b>Qual 31</b><span class="sr">87</span>–<span class="sb">74</span></div>
+                        <div class="m-res a-right" style="--d:1.8s"><b>Qual 32</b><span class="sr">62</span>–<span class="sb">91</span></div>
+                        <div class="m-res a-right" style="--d:2.8s"><b>Qual 33</b><span class="sr">78</span>–<span class="sb">78</span></div>
+                        <div class="m-res a-right" style="--d:3.8s"><b>Qual 34</b><span class="sr">95</span>–<span class="sb">70</span></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="1" data-icon="fa-line-chart">
+                  <h3>Ratings you can check</h3>
+                  <p>Two separate letter grades, one from scouting and one from official results, with every formula explained and past predictions scored.</p>
+                  <div class="sc-win"><div class="sc-win-bar">How Ratings Work<small>Team 2468</small></div>
+                    <div class="sc-win-body m-rate">
+                      <div class="m-card a-pop" style="--d:.4s"><span class="m-h">Scouting rating</span><span class="m-grade" style="background:#1a7f4b">A−</span><small>From the scouts' entries</small></div>
+                      <div class="m-card a-pop" style="--d:.9s"><span class="m-h">Official rating</span><span class="m-grade" style="background:#1B4DB1">B+</span><small>From official OPR, events weighted</small></div>
+                      <div class="m-card m-cal a-up" style="--d:1.4s">
+                        <span class="m-h">How predictions held up</span>
+                        <svg viewBox="0 0 300 200" aria-hidden="true">
+                          <path d="M20 180 L280 20" stroke="#D3DEF0" stroke-width="3" stroke-dasharray="8 6"/>
+                          <g fill="#4479E3">
+                            <rect class="a-growy" style="--d:1.8s" x="30" y="128" width="36" height="52"/>
+                            <rect class="a-growy" style="--d:2s" x="82" y="100" width="36" height="80"/>
+                            <rect class="a-growy" style="--d:2.2s" x="134" y="78" width="36" height="102"/>
+                            <rect class="a-growy" style="--d:2.4s" x="186" y="56" width="36" height="124"/>
+                            <rect class="a-growy" style="--d:2.6s" x="238" y="26" width="36" height="154"/>
+                          </g>
+                        </svg>
+                        <small>Predicted win chance vs. how often it happened</small>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="1" data-icon="fa-columns">
+                  <h3>Alliance View</h3>
+                  <p>Six robots side by side, red against blue, with each alliance's grade and estimated win chance.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Alliance View<small>Qual 35</small></div>
+                    <div class="sc-win-body m-all">
+                      <div class="m-side red">
+                        <div class="m-h" style="color:#C0392B">Red<span class="m-grade a-pop" style="background:#1a7f4b;--d:1.8s">A</span></div>
+                        <div class="m-tr"><b>2468</b><div><i class="a-growx" style="width:86%;--d:.4s"></i></div><em>54.1</em></div>
+                        <div class="m-tr"><b>3456</b><div><i class="a-growx" style="width:62%;--d:.6s"></i></div><em>39.0</em></div>
+                        <div class="m-tr"><b>8765</b><div><i class="a-growx" style="width:45%;--d:.8s"></i></div><em>28.3</em></div>
+                      </div>
+                      <div class="m-win">
+                        <div class="m-pct"><output data-from="50" data-to="64" data-delay="1600" data-step="110" data-suffix="%">64%</output></div>
+                        <div class="m-split"><i data-split="64"></i></div>
+                        <div class="m-mut">Red's win chance</div>
+                      </div>
+                      <div class="m-side blue">
+                        <div class="m-h" style="color:#1B4DB1">Blue<span class="m-grade a-pop" style="background:#1B4DB1;--d:1.8s">B</span></div>
+                        <div class="m-tr"><b>5432</b><div><i class="a-growx" style="width:70%;--d:.5s"></i></div><em>44.2</em></div>
+                        <div class="m-tr"><b>1357</b><div><i class="a-growx" style="width:52%;--d:.7s"></i></div><em>32.8</em></div>
+                        <div class="m-tr"><b>9876</b><div><i class="a-growx" style="width:34%;--d:.9s"></i></div><em>21.5</em></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <!-- ═══ 03 Compete ═══ -->
+                <article class="sc-scene" data-group="2" data-icon="fa-television">
+                  <h3>Event Viewer</h3>
+                  <p>For the pit TV: the livestream, the match on the field, your next match and your record, all keeping itself up to date.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Event Viewer<small>Example District Event</small></div>
+                    <div class="sc-win-body m-ev">
+                      <div class="m-tv">
+                        <svg viewBox="0 0 640 340" aria-hidden="true">
+                          <rect x="40" y="40" width="560" height="260" fill="#2a3550" stroke="#56627d" stroke-width="4"/>
+                          <rect x="40" y="40" width="70" height="260" fill="#C0392B" opacity=".35"/><rect x="530" y="40" width="70" height="260" fill="#1B4DB1" opacity=".45"/>
+                          <path d="M320 40V300" stroke="#56627d" stroke-width="4" stroke-dasharray="12 10"/>
+                          <g class="m-robot"><rect x="140" y="90" width="44" height="44" fill="#222" stroke="#C0392B" stroke-width="8"/></g>
+                          <g class="m-robot two"><rect x="430" y="200" width="44" height="44" fill="#222" stroke="#1B4DB1" stroke-width="8"/></g>
+                          <rect x="200" y="210" width="44" height="44" fill="#222" stroke="#C0392B" stroke-width="8"/>
+                          <rect x="470" y="80" width="44" height="44" fill="#222" stroke="#1B4DB1" stroke-width="8"/>
+                        </svg>
+                        <span class="m-live">LIVE</span>
+                        <div class="m-score"><span class="r"><output data-from="31" data-to="45" data-delay="400" data-step="380">45</output></span><span class="t">Qual 32</span><span class="b"><output data-from="30" data-to="38" data-delay="700" data-step="600">38</output></span></div>
+                      </div>
+                      <div class="m-evside">
+                        <div class="m-card a-right" style="--d:.6s"><span class="m-mut">Our next match</span><b>Qual 35</b><span>3 matches away · Blue</span></div>
+                        <div class="m-card a-right" style="--d:1s"><span class="m-mut">Our record</span><b>7–2–0</b><span>Rank 4 of 40</span></div>
+                        <div class="m-card a-right" style="--d:1.4s"><span class="m-mut">After the match</span><b>Its video</b></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="2" data-icon="fa-bell">
+                  <h3>Our Matches and alerts</h3>
+                  <p>Every match your team has, with partners, opponents and win chance. Your phone tells you when it's time to queue.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Our Matches<small>Team 2468</small></div>
+                    <div class="sc-win-body m-alerts">
+                      <div>
+                        <div class="m-match a-up" style="--d:.3s"><b>Qual 28</b><span class="m-chip red">RED</span>with 3456, 8765<span class="wc m-ok">Won 92–70</span></div>
+                        <div class="m-match next a-up" style="--d:.5s"><b>Qual 35</b><span class="m-chip blue">BLUE</span>with 5432, 9876<span class="wc">61%</span></div>
+                        <div class="m-match a-up" style="--d:.7s"><b>Qual 41</b><span class="m-chip red">RED</span>with 1357, 4321<span class="wc">48%</span></div>
+                        <div class="m-match a-up" style="--d:.9s"><b>Qual 47</b><span class="m-chip blue">BLUE</span>with 6543, 7812<span class="wc">55%</span></div>
+                      </div>
+                      <div class="m-lock">
+                        <div class="m-clock">10:42</div>
+                        <div class="m-note-card a-down" style="--d:1.8s">
+                          <div class="m-row"><i class="fa fa-bell m-bell" aria-hidden="true"></i>1307scout · now</div>
+                          <strong>Time to queue for Qual 35.</strong> You're Blue 2 with 5432 and 9876.
+                        </div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="2" data-icon="fa-map-o">
+                  <h3>Match Strategy</h3>
+                  <p>Plan each match on a to-scale field map. Alliance partners share one plan that the other alliance can't see.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Match Strategy<small>Qual 35 · Blue</small></div>
+                    <div class="sc-win-body m-strat">
+                      <svg viewBox="0 0 700 360" aria-hidden="true">
+                        <g stroke="#E6EEFB" stroke-width="2"><path d="M0 72H700M0 144H700M0 216H700M0 288H700M140 0V360M280 0V360M420 0V360M560 0V360"/></g>
+                        <rect x="6" y="6" width="688" height="348" fill="none" stroke="#0A2352" stroke-width="5"/>
+                        <path d="M350 6V354" stroke="#5B6B85" stroke-width="3" stroke-dasharray="10 8"/>
+                        <rect x="6" y="6" width="60" height="348" fill="#C0392B" opacity=".15"/><rect x="634" y="6" width="60" height="348" fill="#1B4DB1" opacity=".18"/>
+                        <g fill="#C0392B"><rect x="80" y="70" width="40" height="40"/><rect x="80" y="160" width="40" height="40"/><rect x="80" y="250" width="40" height="40"/></g>
+                        <path class="a-draw" style="--d:.6s" pathLength="1" d="M600 90 C520 60 470 120 400 90" fill="none" stroke="#1B4DB1" stroke-width="6" stroke-linecap="round"/>
+                        <path class="a-draw" style="--d:1.6s" pathLength="1" d="M600 270 C540 330 420 300 380 240" fill="none" stroke="#4479E3" stroke-width="6" stroke-linecap="round"/>
+                        <path class="a-draw" style="--d:2.6s" pathLength="1" d="M330 180 m-34 0 a34 34 0 1 0 68 0 a34 34 0 1 0 -68 0" fill="none" stroke="#C26A00" stroke-width="5"/>
+                        <g fill="#1B4DB1"><rect x="580" y="70" width="40" height="40"/><rect x="580" y="250" width="40" height="40"/></g>
+                        <g class="m-mover"><rect x="580" y="160" width="40" height="40" fill="#1B4DB1" stroke="#7FA6F7" stroke-width="5"/></g>
+                      </svg>
+                      <div class="m-who">
+                        <div class="m-h" style="font-size:24px">Blue alliance plan</div>
+                        <div class="m-row a-right" style="--d:.8s"><i class="fa fa-users" aria-hidden="true"></i>Shared with 5432 and 9876</div>
+                        <div class="m-row a-right" style="--d:1.3s"><i class="fa fa-arrows" aria-hidden="true"></i>Drag robots to their spots</div>
+                        <div class="m-row a-right" style="--d:1.8s"><i class="fa fa-pencil" aria-hidden="true"></i>Draw the plan</div>
+                        <div class="m-row a-right" style="--d:2.3s"><i class="fa fa-lock" aria-hidden="true"></i>Red can't see it</div>
+                        <div class="m-row a-right" style="--d:2.8s"><i class="fa fa-history" aria-hidden="true"></i>Kept to review after</div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="2" data-icon="fa-wrench">
+                  <h3>Pit Crew</h3>
+                  <p>Your robot's pre-match checklist, battery voltages and repairs, with one line that says whether it's ready for the next match.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Pit Crew<small>Next: Qual 35</small></div>
+                    <div class="sc-win-body m-pit">
+                      <div class="m-ready"><span class="not a-out" style="--d:4.2s"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> 5 checks left before Qual 35</span><span class="yes a-in" style="--d:4.2s"><i class="fa fa-check-circle" aria-hidden="true"></i> Ready for Qual 35</span></div>
+                      <div>
+                        <div class="m-check"><i style="--d:.6s"></i>Battery in and strapped</div>
+                        <div class="m-check"><i style="--d:1.3s"></i>Bumpers on, right color</div>
+                        <div class="m-check"><i style="--d:2s"></i>Radio light green</div>
+                        <div class="m-check"><i style="--d:2.7s"></i>Air tanks full</div>
+                        <div class="m-check"><i style="--d:3.4s"></i>Mechanisms tested</div>
+                      </div>
+                      <div>
+                        <div class="m-batt"><b>Battery A</b><div><i class="a-growx" style="width:96%;--d:.5s"></i></div><em>12.9 V</em></div>
+                        <div class="m-batt"><b>Battery B</b><div><i class="a-growx" style="width:90%;--d:.7s"></i></div><em>12.7 V</em></div>
+                        <div class="m-batt"><b>Battery C</b><div><i class="a-growx" style="width:80%;--d:.9s"></i></div><em>12.4 V</em></div>
+                        <div class="m-batt low"><b>Battery D</b><div><i class="a-growx" style="width:52%;--d:1.1s"></i></div><em>11.9 V low</em></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <!-- ═══ 04 Playoffs and sharing ═══ -->
+                <article class="sc-scene" data-group="3" data-icon="fa-list-ol">
+                  <h3>Pick List</h3>
+                  <p>Rank teams for alliance selection, tier them and add notes. Teams grey out as they're picked.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Pick List<small>Example District Event</small></div>
+                    <div class="sc-win-body m-pick">
+                      <div>
+                        <div class="m-pr taken"><span class="rk">1</span><b>5432</b><span class="m-chip green">1st pick</span><span class="nt">Picked by alliance 2</span></div>
+                        <div class="m-pr moved"><span class="rk">2</span><b>7812</b><span class="m-chip green">1st pick</span><span class="nt">Best climber here</span></div>
+                        <div class="m-pr shift"><span class="rk">3</span><b>3456</b><span class="m-chip blue">2nd pick</span><span class="nt">Steady auto</span></div>
+                        <div class="m-pr shift"><span class="rk">4</span><b>1357</b><span class="m-chip blue">2nd pick</span><span class="nt">Good defense</span></div>
+                        <div class="m-pr"><span class="rk">5</span><b>6543</b><span class="m-chip amber">Maybe</span><span class="nt">Check the drivetrain</span></div>
+                      </div>
+                      <div class="m-tiers">
+                        <div class="m-h" style="font-size:24px">Tiers</div>
+                        <div class="m-row"><span class="m-chip green">1st pick</span></div>
+                        <div class="m-row"><span class="m-chip blue">2nd pick</span></div>
+                        <div class="m-row"><span class="m-chip amber">Maybe</span></div>
+                        <div class="m-row"><span class="m-chip red">Do not pick</span></div>
+                        <div class="m-mut a-in" style="--d:1.4s;font-size:21px">Drag to reorder</div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="3" data-icon="fa-trophy">
+                  <h3>Playoff Selection</h3>
+                  <p>Alliances update on every screen as they form, with the best teams still available ranked beside them.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Playoff Selection<small>Live</small></div>
+                    <div class="sc-win-body m-sel">
+                      <div class="m-als">
+                        <div class="m-al"><div class="m-h">Alliance 1</div><span class="cap">2468</span><span class="a-pop" style="--d:.6s">7812</span><span class="a-pop" style="--d:4.4s">4321</span></div>
+                        <div class="m-al"><div class="m-h">Alliance 2</div><span class="cap">9876</span><span class="a-pop" style="--d:1.1s">5432</span><span class="a-pop" style="--d:4.1s">2222</span></div>
+                        <div class="m-al"><div class="m-h">Alliance 3</div><span class="cap">3456</span><span class="a-pop" style="--d:1.6s">1357</span><span class="a-pop" style="--d:3.8s">8080</span></div>
+                        <div class="m-al"><div class="m-h">Alliance 4</div><span class="cap">6543</span><span class="a-pop" style="--d:2.1s">8765</span><span class="a-pop" style="--d:3.5s">5150</span></div>
+                      </div>
+                      <div class="m-avail">
+                        <div class="m-h" style="font-size:22px;margin-bottom:8px">Best available</div>
+                        <div class="m-row top"><span>4321</span><span class="m-chip green">Our next pick</span></div>
+                        <div class="m-row"><span>2222</span><span class="m-mut">B+</span></div>
+                        <div class="m-row"><span>8080</span><span class="m-mut">B</span></div>
+                        <div class="m-row"><span>5150</span><span class="m-mut">B−</span></div>
+                      </div>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="3" data-icon="fa-sitemap">
+                  <h3>Playoff Bracket</h3>
+                  <p>The double-elimination bracket, filled from the alliances and moved along by official results as the event syncs.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Playoff Bracket<small>Double elimination</small></div>
+                    <div class="sc-win-body m-brk">
+                      <svg viewBox="0 0 1080 360" aria-hidden="true" font-family="Chakra Petch" font-weight="700" font-size="22">
+                        <g fill="none" stroke="#4479E3" stroke-width="4">
+                          <path class="a-draw" style="--d:.6s" pathLength="1" d="M210 42 H250 V128 H290"/>
+                          <path class="a-draw" style="--d:.8s" pathLength="1" d="M210 128 H250 V128"/>
+                          <path class="a-draw" style="--d:.6s" pathLength="1" d="M210 214 H250 V300 H290"/>
+                          <path class="a-draw" style="--d:.8s" pathLength="1" d="M210 300 H250"/>
+                          <path class="a-draw" style="--d:1.8s" pathLength="1" d="M490 128 H530 V214 H570"/>
+                          <path class="a-draw" style="--d:1.8s" pathLength="1" d="M490 300 H530 V214"/>
+                          <path class="a-draw" style="--d:3s" pathLength="1" d="M770 214 H810 V172 H850"/>
+                          <path class="a-draw" style="--d:3s" pathLength="1" d="M770 42 H810 V140 H850" stroke="#C26A00" stroke-dasharray="1"/>
+                        </g>
+                        <g>
+                          <rect x="10" y="10" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="24" y="36" fill="#0A2352">A1 · 2468</text><text x="24" y="64" fill="#9aa5b8">A8 · 1111</text>
+                          <rect x="10" y="96" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="24" y="122" fill="#9aa5b8">A4 · 6543</text><text x="24" y="150" fill="#0A2352">A5 · 3030</text>
+                          <rect x="10" y="182" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="24" y="208" fill="#0A2352">A2 · 9876</text><text x="24" y="236" fill="#9aa5b8">A7 · 7070</text>
+                          <rect x="10" y="268" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="24" y="294" fill="#9aa5b8">A3 · 3456</text><text x="24" y="322" fill="#0A2352">A6 · 6060</text>
+                          <g class="a-pop" style="--d:1.2s"><rect x="290" y="96" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="304" y="122" fill="#0A2352">A1 · 2468</text><text x="304" y="150" fill="#9aa5b8">A5 · 3030</text></g>
+                          <g class="a-pop" style="--d:1.2s"><rect x="290" y="268" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="304" y="294" fill="#0A2352">A2 · 9876</text><text x="304" y="322" fill="#9aa5b8">A6 · 6060</text></g>
+                          <g class="a-pop" style="--d:2.4s"><rect x="570" y="182" width="200" height="64" fill="#fff" stroke="#D3DEF0" stroke-width="3"/><text x="584" y="208" fill="#0A2352">A1 · 2468</text><text x="584" y="236" fill="#9aa5b8">A2 · 9876</text></g>
+                          <g class="a-pop" style="--d:2.4s"><rect x="570" y="10" width="200" height="64" fill="#fff8ee" stroke="#C26A00" stroke-width="3"/><text x="584" y="36" fill="#C26A00">Lower final</text><text x="584" y="64" fill="#0A2352">A2 · 9876</text></g>
+                          <g class="a-pop" style="--d:3.8s"><rect x="850" y="110" width="210" height="96" fill="#0A2352"/><text x="866" y="140" fill="#7FA6F7" font-size="18">FINALS</text><text x="866" y="168" fill="#fff">A1 · 2468</text><text x="866" y="194" fill="#fff" opacity=".6">A2 · 9876</text></g>
+                        </g>
+                      </svg>
+                    </div></div>
+                </article>
+
+                <article class="sc-scene" data-group="3" data-icon="fa-qrcode">
+                  <h3>Share codes</h3>
+                  <p>Give an alliance partner, a parent or a new team a link or QR code for chosen data. It expires within 90 days and can be revoked any time.</p>
+                  <div class="sc-win"><div class="sc-win-bar">Share Data<small>New share code</small></div>
+                    <div class="sc-win-body m-share">
+                      <div>
+                        <div class="m-mut" style="font-size:21px">Share code</div>
+                        <div class="m-code" data-type="QX7-4MP" data-delay="500" data-step="160"></div>
+                        <div class="m-scope">
+                          <span class="a-pop" style="--d:1.8s"><i class="fa fa-users" aria-hidden="true"></i>Teams 2468, 1357</span>
+                          <span class="a-pop" style="--d:2.2s"><i class="fa fa-clock-o" aria-hidden="true"></i>Expires in 30 days</span>
+                          <span class="a-pop" style="--d:2.6s"><i class="fa fa-ban" aria-hidden="true"></i>Revoke any time</span>
+                        </div>
+                        <div class="m-row a-in" style="--d:3.2s"><i class="fa fa-lock" aria-hidden="true" style="color:#1a7f4b"></i>Your team's own plans are never shared</div>
+                      </div>
+                      <img class="a-pop" style="--d:1.2s" src="/img/brand/qr-scout.svg" alt="">
+                    </div></div>
+                </article>
+
+              </div><!-- /sc-scenes -->
+
+              <nav class="sc-index" aria-label="Features in the tour"></nav>
+
+              <div class="sc-bottom">
+                <div class="sc-facts">
+                  <span><i class="fa fa-globe" aria-hidden="true"></i>Every FRC team</span>
+                  <span><i class="fa fa-usd" aria-hidden="true"></i>Free</span>
+                  <span><i class="fa fa-plane" aria-hidden="true"></i>Works offline</span>
+                  <span><i class="fa fa-mobile" aria-hidden="true"></i>Installs as an app</span>
+                </div>
+                <div class="sc-progress" aria-hidden="true"></div>
+              </div>
+            </div>
+          </div>
+          <div class="sc-controls">
+            <button type="button" class="sc-btn" data-sc="prev" aria-label="Previous feature"><i class="fa fa-step-backward" aria-hidden="true"></i></button>
+            <button type="button" class="sc-btn" data-sc="pause"><i class="fa fa-pause" aria-hidden="true"></i> <span>Pause</span></button>
+            <button type="button" class="sc-btn" data-sc="next" aria-label="Next feature"><i class="fa fa-step-forward" aria-hidden="true"></i></button>
+            <button type="button" class="sc-btn" data-sc="full"><i class="fa fa-arrows-alt" aria-hidden="true"></i> Full screen</button>
+            <button type="button" class="sc-btn" data-sc="exit" hidden><i class="fa fa-times" aria-hidden="true"></i> Exit display mode</button>
+            <span class="sc-where" aria-live="polite"></span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -905,6 +1739,8 @@
     // More: How Ratings Work and (staff) the Staff Portal, ahead of the app tiles already in the page
     var more = document.getElementById("moreTiles"), first = more.firstElementChild;
     more.insertBefore(tileEl(tile("/ratings.html", "fa-question-circle", "How Ratings Work", "How grades, win chance and the other numbers are worked out")), first);
+    more.insertBefore(tileEl(tile("/1307scout.html?display", "fa-television", "Display mode", "The animated feature tour, full screen, for a TV at events")), first);
+    more.insertBefore(tileEl(tile("/brand.html", "fa-paint-brush", "Brand kit", "Logos, stickers, a pit poster and shirt artwork")), first);
     if (isStaff) more.insertBefore(tileEl(tile("/portal.html", "fa-cog", "Staff Portal", "Events, form fields, teams, members and the audit log", "staff-tile")), first);
 
     // ── Right now: the pages used most at an event, one tap away ──
@@ -966,6 +1802,180 @@
         document.getElementById("nowRow").classList.remove("no-match");
       }
     }
+  })();
+  </script>
+
+  <!-- ===== Feature tour: builds the index, scales the 1920x1080 stage to fit, and runs the loop.
+       ?display moves it into a full-screen host (any account, or none); &scene=N starts on feature N. ===== -->
+  <script>
+  (function () {
+    var root = document.getElementById("showcase");
+    if (!root) return;
+    var GROUPS = ["Scout", "Know every team", "Compete", "Playoffs and sharing"];
+    var DUR = 7000;   // ms per feature
+    var frame = root.querySelector(".sc-frame"), stage = root.querySelector(".sc-stage");
+    var scenes = Array.prototype.slice.call(root.querySelectorAll(".sc-scene"));
+    var params = new URLSearchParams(location.search);
+    var display = document.documentElement.classList.contains("sc-display");
+    var still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var $ = function (sel) { return root.querySelector(sel); };
+    stage.style.setProperty("--sc-dur", DUR + "ms");
+
+    // ── Index (right column), kickers and progress segments, from the scenes themselves ──
+    var index = $(".sc-index"), progress = $(".sc-progress"), items = [], segs = [];
+    GROUPS.forEach(function (g, gi) {
+      var box = document.createElement("div");
+      box.className = "sc-group";
+      box.innerHTML = '<div class="sc-group-head"><b>0' + (gi + 1) + "</b>" + g + "</div>";
+      scenes.forEach(function (s, i) {
+        if (+s.dataset.group !== gi) return;
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "sc-item";
+        b.innerHTML = '<i class="fa ' + s.dataset.icon + '" aria-hidden="true"></i>' + s.querySelector("h3").textContent;
+        b.addEventListener("click", function () { show(i); });
+        items[i] = b; box.appendChild(b);
+      });
+      index.appendChild(box);
+    });
+    scenes.forEach(function (s) {
+      var k = document.createElement("div");
+      k.className = "sc-kicker";
+      k.textContent = "0" + (+s.dataset.group + 1) + " · " + GROUPS[+s.dataset.group];
+      s.insertBefore(k, s.firstChild);
+      s.setAttribute("aria-roledescription", "slide");
+      segs.push(progress.appendChild(document.createElement("i")));
+    });
+
+    // ── Scale the stage to its frame ──
+    function fit() { stage.style.transform = "scale(" + (frame.clientWidth / 1920) + ")"; }
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(frame); else window.addEventListener("resize", fit);
+
+    // ── Per-scene effects: counters (data-to) and typing (data-type); final values are already in the page ──
+    var fx = [];
+    function later(fn, ms) { fx.push(setTimeout(fn, ms)); }
+    function startFx(s) {
+      fx.forEach(clearTimeout); fx = [];
+      s.querySelectorAll("output[data-to]").forEach(function (o) {
+        var from = +(o.dataset.from || 0), to = +o.dataset.to, suf = o.dataset.suffix || "";
+        if (still) { o.textContent = to + suf; return; }
+        o.textContent = from + suf;
+        for (var v = from + 1, k = 0; v <= to; v++, k++) {
+          (function (v) { later(function () { o.textContent = v + suf; }, +(o.dataset.delay || 0) + k * +(o.dataset.step || 300)); })(v);
+        }
+      });
+      s.querySelectorAll("[data-type]").forEach(function (el) {
+        var t = el.dataset.type;
+        if (still) { el.textContent = t; return; }
+        el.textContent = "";
+        for (var k = 1; k <= t.length; k++) {
+          (function (k) { later(function () { el.textContent = t.slice(0, k); }, +(el.dataset.delay || 0) + k * +(el.dataset.step || 55)); })(k);
+        }
+      });
+      s.querySelectorAll("[data-split]").forEach(function (el) {
+        el.style.width = still ? el.dataset.split + "%" : "50%";
+        if (!still) later(function () { el.style.width = el.dataset.split + "%"; }, 1600);
+      });
+    }
+
+    // ── The loop ──
+    var cur = -1, timer = null, started = 0, left = DUR, paused = false, onscreen = true;
+    var where = $(".sc-where"), pauseBtn = root.querySelector('[data-sc="pause"]');
+    function show(i) {
+      i = (i + scenes.length) % scenes.length;
+      if (cur >= 0) scenes[cur].classList.remove("on");
+      void stage.offsetWidth;   // restart the new scene's animations even when it's the same one
+      cur = i;
+      scenes.forEach(function (s, k) { s.setAttribute("aria-hidden", k === i ? "false" : "true"); });
+      items.forEach(function (b, k) { b.classList.toggle("on", k === i); b.classList.toggle("done", k < i); });
+      segs.forEach(function (g, k) { g.className = k < i ? "done" : k === i ? "on" : ""; });
+      scenes[i].classList.add("on");
+      startFx(scenes[i]);
+      where.textContent = (i + 1) + " of " + scenes.length + ": " + scenes[i].querySelector("h3").textContent;
+      left = DUR; schedule();
+    }
+    function schedule() {
+      clearTimeout(timer);
+      if (paused || !onscreen) return;
+      started = Date.now();
+      timer = setTimeout(function () { show(cur + 1); }, left);
+    }
+    function hold() { clearTimeout(timer); left = Math.max(0, left - (Date.now() - started)); }
+    function setPaused(p) {
+      if (p === paused) return;
+      if (p) hold();
+      paused = p;
+      root.classList.toggle("paused", p);
+      pauseBtn.querySelector("i").className = "fa " + (p ? "fa-play" : "fa-pause");
+      pauseBtn.querySelector("span").textContent = p ? "Play" : "Pause";
+      if (!p) schedule();
+    }
+    // Only run while it can be seen (saves the battery of a laptop that's scrolled past it)
+    function setOnscreen(v) {
+      if (v === onscreen) return;
+      if (!v) hold();
+      onscreen = v;
+      root.classList.toggle("paused", paused || !v);
+      if (v) schedule();
+    }
+    document.addEventListener("visibilitychange", function () { setOnscreen(!document.hidden); });
+    if (!display && window.IntersectionObserver) {
+      new IntersectionObserver(function (e) { setOnscreen(e[0].isIntersecting && !document.hidden); }).observe(frame);
+    }
+
+    root.querySelector('[data-sc="prev"]').addEventListener("click", function () { show(cur - 1); });
+    root.querySelector('[data-sc="next"]').addEventListener("click", function () { show(cur + 1); });
+    pauseBtn.addEventListener("click", function () { setPaused(!paused); });
+
+    // ── Full screen and display mode ──
+    function fullscreen() {
+      var el = document.documentElement;
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+    }
+    root.querySelector('[data-sc="full"]').addEventListener("click", function () {
+      if (display) fullscreen(); else location.href = "/1307scout.html?display";
+    });
+
+    if (display) {
+      var host = document.createElement("div");
+      host.className = "sc-display-host";
+      host.appendChild(root);
+      document.body.appendChild(host);
+      document.title = "1307scout · Feature tour";
+      var exit = root.querySelector('[data-sc="exit"]');
+      exit.hidden = false;
+      exit.addEventListener("click", function () { location.href = "/1307scout.html"; });
+      // Show the controls (and the cursor) on any movement, hide them after 3 seconds
+      var idle;
+      var wake = function () {
+        host.classList.add("awake");
+        clearTimeout(idle);
+        idle = setTimeout(function () { host.classList.remove("awake"); }, 3000);
+      };
+      ["mousemove", "pointerdown", "keydown"].forEach(function (ev) { document.addEventListener(ev, wake); });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight") show(cur + 1);
+        else if (e.key === "ArrowLeft") show(cur - 1);
+        else if (e.key === " ") { e.preventDefault(); setPaused(!paused); }
+        else if (e.key === "f" || e.key === "F") fullscreen();
+      });
+      // Keep the screen on while the tour is up (where the browser allows it)
+      var lock = function () {
+        if (navigator.wakeLock && !document.hidden) navigator.wakeLock.request("screen").catch(function () {});
+      };
+      lock();
+      document.addEventListener("visibilitychange", lock);
+      still = false;   // display mode was asked for: it always animates
+    } else if (still) {
+      paused = true;   // reduced motion: wait for the viewer to step through it
+      root.classList.add("paused");
+      pauseBtn.querySelector("i").className = "fa fa-play";
+      pauseBtn.querySelector("span").textContent = "Play";
+    }
+
+    fit();
+    var first = parseInt(params.get("scene"), 10);
+    show(first >= 1 && first <= scenes.length ? first - 1 : 0);
   })();
   </script>
 </body>

@@ -24,6 +24,9 @@ verify_jwt = false
 [functions.team-names]
 verify_jwt = false
 
+[functions.social-feed]
+verify_jwt = false
+
 # manage-member is deployed under the slug portal.html calls.
 [functions.bright-responder]
 verify_jwt = false

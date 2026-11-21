@@ -14,7 +14,7 @@
 
    Bump VERSION when the PRECACHE list changes; old caches are deleted when the new worker starts.
    ========================================================================================================= */
-var VERSION = "v7";
+var VERSION = "v8";
 var SITE_CACHE = "rs-site-" + VERSION;
 var CDN_CACHE = "rs-cdn-" + VERSION;
 
@@ -30,7 +30,8 @@ var PRECACHE = [
   "/js/theme.js", "/js/auth-config.js", "/js/auth.js", "/js/pwa.js", "/js/teams.js", "/js/ratings.js",
   "/js/opr.js", "/js/vision.js", "/js/resync.js", "/js/alliance.js", "/js/offline.js",
   "/js/schedule.js", "/js/bracket.js", "/js/visioncheck.js", "/js/alerts.js", "/js/team.js", "/js/tables.js", "/js/dialog.js",
-  "/manifest.webmanifest", "/img/robosaintslogo.png", "/img/robosaintslogo-dark.png", "/img/app/icon-192.png"
+  "/manifest.webmanifest", "/img/robosaintslogo.png", "/img/robosaintslogo-dark.png", "/img/app/icon-192.png",
+  "/img/brand/1307scout-mark.svg", "/img/brand/qr-scout.svg"
 ];
 
 // Hosts whose files are versioned libraries and fonts, safe to keep

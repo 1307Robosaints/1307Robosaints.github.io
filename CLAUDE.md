@@ -75,7 +75,7 @@ grade, alliance-grade and win-chance math, and the loader for it, used by `allia
 `playoffs.html` and `matches.html` (`query.html` still has its own grade code). Everything specific
 to a page (`scout.html`, `query.html`, `flags.html`, `alliance.html`, `matches.html`, `playoffs.html`,
 `bracket.html`, `live.html`, `strategy.html`, `shifts.html`, `share.html`, `picklist.html`, `pitcrew.html`, `results.html`, `portal.html`,
-`account.html`, `team.html`, `1307scout.html`) is written as a
+`account.html`, `team.html`, `1307scout.html`, `brand.html`) is written as a
 large inline `<script>` block at the bottom of that HTML file — there's no per-page `.js` file
 to go hunting for. When asked to change scouting-app behavior, go straight into the relevant
 `.html` file's inline script.
@@ -86,6 +86,9 @@ Page styles must use the color tokens, not hex, to follow the theme: navy *text*
 (`--navy` stays a dark plate with white text in both themes), status colors are `--green`/`--red`/
 `--amber`/`--purple`/`--grey` with `-bg` pairs. Solid fills with white text (grade chips) keep hex.
 A new logo on a transparent background needs a dark copy named in `data-dark-src`.
+The 1307scout brand (mark, wordmark, stickers, merch) is in `img/brand/` and shown on `brand.html`; the
+team's own Robosaints logo stays on the info pages and the nav. The feature tour on `1307scout.html` (and
+its `?display` mode for event TVs) has a scene per main feature: keep it in step with the feature cards.
 
 Every page loads, in order: jQuery, Bootstrap, the Supabase JS CDN bundle
 (`@supabase/supabase-js` UMD), then `/js/auth-config.js`, then `/js/auth.js`. `auth.js` builds
@@ -211,8 +214,13 @@ Key tables/functions to know when touching 1307scout:
 - `scouting_entries.prefilled` / `relayed_by` (8r) — fields filled from vision, and who scanned in an
   entry from an offline scout's QR code via `relay_scouting_entry()` (keeps the original scout as
   `scouted_by`, who must pass `is_team_member()`).
-- `public_team_results()` (8s) — 1307's played official matches for the public `results.html`; the only
-  function granted to `anon`. Keep it limited to public competition results.
+- `public_team_results()` (8s) — 1307's played official matches for the public `results.html`. Granted
+  to `anon`, with `public_social_feed()`: keep both limited to public data.
+- `social_posts` / `social_tokens` (8t) — the homepage's Recent Posts (the team's YouTube, Instagram,
+  Facebook) and FRC News (FIRST's blog RSS, the FRC YouTube channel), cached by the `social-feed` Edge
+  Function every 30 minutes (pg_cron, `social_feed_request()`) and read by `index.html` through
+  `public_social_feed()`. Instagram/Facebook need tokens in `social_tokens` (service role only); TikTok
+  has no public feed, so it's only linked.
 - `alliance_strategies` / `match_strategies` (section 8k) — `strategy.html` plans (`plan` jsonb:
   line-up override, robot spots, drawn strokes), last save wins. For a match the team plays in, one
   plan per alliance, shared by the alliance's teams (`my_alliance()`: the official line-up, or the

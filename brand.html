@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<!-- =========================================================================================================
+     brand.html  –  the 1307scout brand kit: logos, colors, type, how to use the logo, stickers, and event
+     and merch artwork, each with SVG/PNG downloads. The files live in /img/brand/ (SVG, text already in
+     outlines) and /img/brand/png/; /img/brand/1307scout-brand-kit.zip holds all of them with a README.
+     Previews sit on fixed white or navy plates, so they look the same in either theme.
+     Linked from the 1307scout home page (the feature tour and the More tiles).
+     ========================================================================================================= -->
+<html lang="en">
+<head>
+  <link rel="icon" href="/img/brand/1307scout-mark.svg" type="image/svg+xml">
+  <!-- 1307scout app (PWA): see /js/pwa.js and /sw.js -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0A2352">
+  <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="1307scout">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>1307scout brand kit</title>
+
+  <!-- Styles: Bootstrap, Font Awesome icons, site fonts, then the site theme (modern.css loads last so it wins) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <!-- Light/dark theme, before the stylesheets so a dark page never flashes white -->
+  <script src="/js/theme.js"></script>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="/css/modern.css" rel="stylesheet">
+  <style>
+    body::before { display: none; }
+
+    /* Header: navy band with the logo and the download-everything button */
+    .brand-hero { background: var(--navy); color: #fff; padding: 3.5rem 0 3rem; position: relative;
+                  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%); }
+    .brand-hero::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #4479E3; }
+    .brand-hero img { height: clamp(56px, 9vw, 92px); width: auto; max-width: 100%; margin-bottom: 1.25rem; }
+    .brand-hero h1 { color: #fff; margin-bottom: .5rem; }
+    .brand-hero h1::after { display: none; }
+    .brand-hero p { color: rgba(255,255,255,.8); max-width: 60ch; }
+    .hero-cta { display: inline-block; background: #4479E3; color: #fff; font-family: var(--display); font-weight: 600;
+                padding: .7rem 1.6rem; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); }
+    .hero-cta:hover { background: #2560d4; color: #fff; text-decoration: none; }
+    .hero-cta + .ghost { margin-left: 1rem; color: #fff; text-decoration: underline; text-underline-offset: 3px; font-family: var(--display); font-weight: 600; }
+
+    .brand-section { padding: 3rem 0 .5rem; }
+    .brand-section > .container > h2 { font-size: 1.5rem; }
+    .brand-section .lead-note { color: var(--muted); max-width: 64ch; margin-bottom: 1.5rem; }
+
+    /* Asset cards: a preview plate, a name, what it's for, and downloads */
+    .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 1rem; }
+    .asset-grid.wide { grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
+    .asset { background: var(--white); border: 1px solid var(--line); display: flex; flex-direction: column; }
+    .plate { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; padding: 1.5rem; position: relative; }
+    .plate > img { position: absolute; inset: 1.5rem; width: calc(100% - 3rem); height: calc(100% - 3rem); object-fit: contain; }
+    .plate.light { background: #fff; border-bottom: 1px solid var(--line); }
+    .plate.dark  { background: #0A2352; }
+    .plate.grey  { background: #DCE3EE; }
+    .plate.tall  { aspect-ratio: 3 / 4; }
+    .asset-info { padding: .8rem 1rem 1rem; flex: 1; display: flex; flex-direction: column; }
+    .asset-info strong { font-family: var(--display); color: var(--heading); }
+    .asset-info small { color: var(--muted); font-size: .85rem; line-height: 1.45; margin: .15rem 0 .7rem; }
+    .dl { margin-top: auto; display: flex; gap: .5rem; flex-wrap: wrap; }
+    .dl a { font-family: var(--display); font-weight: 600; font-size: .82rem; border: 1px solid var(--line); padding: .2rem .6rem; color: var(--link); }
+    .dl a:hover { border-color: var(--blue); background: var(--tint); text-decoration: none; }
+    .dl .fa { margin-right: .3rem; }
+
+    /* Colors */
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 1rem; }
+    .swatch { border: 1px solid var(--line); background: var(--white); }
+    .swatch .chip { height: 96px; }
+    .swatch div:last-child { padding: .6rem .8rem .8rem; font-size: .85rem; color: var(--muted); }
+    .swatch strong { display: block; font-family: var(--display); color: var(--heading); font-size: 1rem; }
+    .swatch code { color: var(--ink); background: none; padding: 0; font-size: .85rem; }
+
+    /* Type specimens */
+    .type-card { background: var(--white); border: 1px solid var(--line); padding: 1.25rem 1.4rem; height: 100%; }
+    .type-card .spec { font-size: 2.4rem; line-height: 1.1; color: var(--heading); margin: .4rem 0 .6rem; }
+    .type-card p { color: var(--muted); font-size: .9rem; margin: 0; }
+
+    /* Rules */
+    .rules { list-style: none; padding: 0; margin: 0; }
+    .rules li { display: flex; gap: .7rem; margin-bottom: .6rem; font-size: .95rem; }
+    .rules .fa { margin-top: .3rem; width: 1rem; flex-shrink: 0; }
+    .rules .fa-check { color: var(--green); }
+    .rules .fa-times { color: var(--red); }
+    .space-demo { background: #fff; border: 1px solid var(--line); padding: 1.5rem; display: flex; justify-content: center; }
+    .space-demo svg { width: 100%; max-width: 460px; height: auto; }
+
+    /* Tee mock-ups: the print laid on a shirt shape */
+    .tee { position: relative; width: 100%; max-width: 260px; }
+    .tee svg { width: 100%; display: block; }
+    .tee img { position: absolute; }
+    .tee .back  { left: 33%; top: 24%; width: 34%; }
+    .tee .chest { left: 53%; top: 25%; width: 17%; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Navigation ===== -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" id="navigation">
+      <div class="container">
+        <a class="navbar-brand" href="/index.html">
+          <img src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" id="navbarlogo" alt="">
+          St. Thomas Aquinas Robotics Team 1307
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+                aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarResponsive">
+          <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/index.html">Home</a>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navSponsors" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sponsors</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navSponsors">
+                <a class="dropdown-item" href="/oursponsors.html">Our Sponsors</a>
+                <a class="dropdown-item" href="/business-plan.html">Business Plan</a>
+              </div>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navAbout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">About Us</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navAbout">
+                <a class="dropdown-item" href="/about-the-students.html">The Students</a>
+                <a class="dropdown-item" href="/about-the-mentors.html">The Mentors</a>
+                <a class="dropdown-item" href="/about-the-robot.html">The Robots</a>
+                <a class="dropdown-item" href="/results.html">Season Results</a>
+              </div>
+            </li>
+
+            <li class="nav-item">
+              <a class="nav-link" href="/Gallery/gallery.html">Picture Gallery</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/contact.html">Contact Us</a>
+            </li>
+
+            <!-- 1307scout command center. Items marked data-role are shown or hidden by auth.js -->
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navScout" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">1307scout</a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navScout">
+                <a class="dropdown-item" href="/1307scout.html">1307scout Home</a>
+                <h6 class="dropdown-header" data-role="team" hidden>Data</h6>
+                <a class="dropdown-item" href="/live.html" data-role="team" hidden>Event Viewer</a>
+                <a class="dropdown-item" href="/query.html" data-role="team" hidden>Team Database</a>
+                <a class="dropdown-item" href="/alliance.html" data-role="team" hidden>Alliance View</a>
+                <a class="dropdown-item" href="/scout.html" data-role="team" hidden>Scout</a>
+                <a class="dropdown-item" href="/flags.html" data-role="team" hidden>Match Flags</a>
+                <a class="dropdown-item" href="/playoffs.html" data-role="team" hidden>Playoff Selection</a>
+                <a class="dropdown-item" href="/bracket.html" data-role="team" hidden>Playoff Bracket</a>
+                <a class="dropdown-item" href="/share.html" data-role="team" hidden>Share Data</a>
+                <h6 class="dropdown-header" data-role="team" hidden>My Team</h6>
+                <a class="dropdown-item" href="/matches.html" data-role="team" hidden>Our Matches</a>
+                <a class="dropdown-item" href="/strategy.html" data-role="team" hidden>Match Strategy</a>
+                <a class="dropdown-item" href="/pitcrew.html" data-role="team" hidden>Pit Crew</a>
+                <a class="dropdown-item" href="/picklist.html" data-role="team" hidden>Pick List</a>
+                <a class="dropdown-item" href="/shifts.html" data-role="team" hidden>Scout Shifts</a>
+                <a class="dropdown-item" href="/team.html" data-role="team" hidden>Team Management</a>
+                <div class="dropdown-divider" data-role="staff" hidden></div>
+                <a class="dropdown-item" href="/portal.html" data-role="staff" hidden>Staff Portal</a>
+              </div>
+            </li>
+
+            <li class="nav-item" id="authNavItem">
+              <a class="nav-link" href="/signin.html">Sign In</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+  <!-- ===== Header ===== -->
+  <section class="brand-hero">
+    <div class="container">
+      <img src="/img/brand/1307scout-lockup-white.svg" alt="1307scout">
+      <h1>Brand kit</h1>
+      <p>Logos, colors and artwork for 1307scout: for stickers, shirts, slides, posters and anywhere you tell
+        people about it. Every file is free to use to promote 1307scout. Vector files have the lettering in
+        outlines, so they print the same anywhere without the fonts.</p>
+      <a href="/img/brand/1307scout-brand-kit.zip" class="hero-cta" download><i class="fa fa-download" aria-hidden="true"></i> Download everything (.zip)</a>
+      <a href="/1307scout.html?display" class="ghost">Feature tour for a screen</a>
+    </div>
+  </section>
+
+  <!-- ===== Logos ===== -->
+  <section class="brand-section" id="logos">
+    <div class="container">
+      <h2>Logos</h2>
+      <p class="lead-note">The mark is a gear crossed with a scope reticle, with a radar sweep in the corner the
+        tile cuts away. Use the main logo first; the others are for spaces it doesn't fit. Use the white
+        versions on navy, black or photos, and the one-color versions for vinyl, engraving and embroidery.</p>
+      <div class="asset-grid" data-assets="logos"></div>
+    </div>
+  </section>
+
+  <!-- ===== Colors and type ===== -->
+  <section class="brand-section" id="colors">
+    <div class="container">
+      <h2>Colors</h2>
+      <p class="lead-note">Navy and blue lead. Signal and ice are accents on navy. Red and blue together always
+        mean the two alliances, so keep that pairing for alliance information.</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#0A2352"></div><div><strong>Navy</strong><code>#0A2352</code> · RGB 10 35 82<br>Plates, backgrounds, "scout"</div></div>
+        <div class="swatch"><div class="chip" style="background:#1B4DB1"></div><div><strong>Blue</strong><code>#1B4DB1</code> · RGB 27 77 177<br>"1307" on light, buttons, links</div></div>
+        <div class="swatch"><div class="chip" style="background:#4479E3"></div><div><strong>Signal</strong><code>#4479E3</code> · RGB 68 121 227<br>The radar sweep, accents on navy</div></div>
+        <div class="swatch"><div class="chip" style="background:#7FA6F7"></div><div><strong>Ice</strong><code>#7FA6F7</code> · RGB 127 166 247<br>"1307" and accents on navy</div></div>
+        <div class="swatch"><div class="chip" style="background:#F4F7FC;border-bottom:1px solid #D3DEF0"></div><div><strong>Paper</strong><code>#F4F7FC</code> · RGB 244 247 252<br>Light backgrounds</div></div>
+        <div class="swatch"><div class="chip" style="background:linear-gradient(90deg,#C0392B 50%,#1B4DB1 50%)"></div><div><strong>Alliances</strong><code>#C0392B</code> / <code>#1B4DB1</code><br>Red and blue alliance only</div></div>
+      </div>
+
+      <h2 class="mt-5" id="type">Type</h2>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <div class="type-card">
+            <strong class="m-0" style="font-family:var(--display);color:var(--heading)">Chakra Petch</strong>
+            <div class="spec" style="font-family:var(--display);font-weight:700">1307scout 0123456789</div>
+            <p>Display: the wordmark, headings, numbers and buttons. Bold for the logo, SemiBold for headings.
+              Free from <a href="https://fonts.google.com/specimen/Chakra+Petch" target="_blank" rel="noopener">Google Fonts</a>.</p>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="type-card">
+            <strong style="font-family:var(--display);color:var(--heading)">IBM Plex Sans</strong>
+            <div class="spec" style="font-family:var(--body)">Scout every match.</div>
+            <p>Body text, descriptions and anything long. Regular and SemiBold.
+              Free from <a href="https://fonts.google.com/specimen/IBM+Plex+Sans" target="_blank" rel="noopener">Google Fonts</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Using the logo ===== -->
+  <section class="brand-section" id="rules">
+    <div class="container">
+      <h2>Using the logo</h2>
+      <div class="row">
+        <div class="col-lg-6 mb-4">
+          <div class="space-demo">
+            <!-- Clear space: the tile's cut corner (c) on every side -->
+            <svg viewBox="0 0 520 170" aria-label="Clear space around the logo equals the tile's cut corner">
+              <rect x="10" y="10" width="500" height="150" fill="none" stroke="#7FA6F7" stroke-width="2" stroke-dasharray="6 5"/>
+              <image href="/img/brand/1307scout-lockup.svg" x="50" y="40" width="422" height="90"/>
+              <g fill="#4479E3" font-family="Chakra Petch" font-weight="700" font-size="16">
+                <rect x="10" y="40" width="40" height="18" fill-opacity=".25"/><text x="24" y="54">c</text>
+                <rect x="232" y="10" width="18" height="30" fill-opacity=".25"/><text x="236" y="31">c</text>
+              </g>
+            </svg>
+          </div>
+          <p class="mt-2" style="color:var(--muted);font-size:.9rem">Leave clear space on every side at least as big as the tile's cut corner (c).
+            Smallest sizes: the mark 16 px on screen or ¼ in in print; the main logo 120 px or 1 in wide.</p>
+        </div>
+        <div class="col-lg-6 mb-4">
+          <ul class="rules">
+            <li><i class="fa fa-check" aria-hidden="true"></i>Write the name as one word with "scout" in lowercase: 1307scout.</li>
+            <li><i class="fa fa-check" aria-hidden="true"></i>Use the white version on navy, black or dark photos; put the logo on a navy or white plate over busy photos.</li>
+            <li><i class="fa fa-check" aria-hidden="true"></i>Use the one-color files when a printer allows only one ink.</li>
+            <li><i class="fa fa-times" aria-hidden="true"></i>Don't stretch, squash, rotate or tilt it.</li>
+            <li><i class="fa fa-times" aria-hidden="true"></i>Don't recolor parts of it, add outlines, shadows or glows, or move the pieces around.</li>
+            <li><i class="fa fa-times" aria-hidden="true"></i>Don't retype the wordmark in another font: use the files.</li>
+            <li><i class="fa fa-times" aria-hidden="true"></i>Don't mix it with the Robosaints team logo into one new logo. They can sit side by side.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Stickers ===== -->
+  <section class="brand-section" id="stickers">
+    <div class="container">
+      <h2>Stickers</h2>
+      <p class="lead-note">Ready for a sticker printer: send the SVG. The die-cut sticker is cut along its white
+        plate; the round and hex ones along their white rims.</p>
+      <div class="asset-grid" data-assets="stickers"></div>
+    </div>
+  </section>
+
+  <!-- ===== Events and merch ===== -->
+  <section class="brand-section" id="merch">
+    <div class="container">
+      <h2>Events and merch</h2>
+      <p class="lead-note">For competitions and outreach. The poster and badge have a QR code to
+        scout.robosaints1307.com. For a TV in the pit, use the <a href="/1307scout.html?display">feature tour's display mode</a>.</p>
+      <div class="asset-grid wide" data-assets="merch"></div>
+    </div>
+  </section>
+
+  <div class="mb-5"></div>
+
+  <footer class="py-5" id="bottomrow">
+    <a href="https://instagram.com/1307robosaints" class="fa fa-instagram" target="_blank" rel="noopener" aria-label="Instagram"></a>
+    <a href="https://www.youtube.com/@1307Robosaints" class="fa fa-youtube" target="_blank" rel="noopener" aria-label="YouTube"></a>
+    <a href="https://www.facebook.com/1307robosaints" class="fa fa-facebook" target="_blank" rel="noopener" aria-label="Facebook"></a>
+    <a href="https://www.tiktok.com/@1307.robotics" class="fa social-tt" target="_blank" rel="noopener" aria-label="TikTok">
+      <!-- Font Awesome 4.7 has no TikTok logo, so this one is an inline SVG -->
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+      </svg>
+    </a>
+    <div class="container">
+      <p class="m-0 text-center text-white">Copyright &copy; STA Robotics Team 2026</p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        Website and 1307scout service created and maintained by Daniel Lowry —
+        <a href="/contact.html" style="color:#fff;text-decoration:underline;">website support</a>
+      </p>
+      <p class="m-0 mt-2 text-center" style="font-size:.78rem;">
+        <a href="/privacy-policy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/terms-of-service.html" style="color:#fff;text-decoration:underline;">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
+
+  <!-- ===== Scripts ===== -->
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+  <script src="/js/auth-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/pwa.js"></script>
+  <script>
+  // Asset cards: the preview plate, what it's for, and its downloads. Plates: light, dark (white artwork) or grey.
+  (function () {
+    var B = "/img/brand/";
+    var SETS = {
+      logos: [
+        ["1307scout-lockup", "light", "Main logo", "The mark beside the wordmark. Use this one first."],
+        ["1307scout-lockup-white", "dark", "Main logo, white", "For navy, black and photo backgrounds."],
+        ["1307scout-stacked", "light", "Stacked", "For square and tall spaces: shirts, avatars, signs."],
+        ["1307scout-stacked-white", "dark", "Stacked, white", "For dark backgrounds."],
+        ["1307scout-mark", "light", "App icon", "The tile. Use it where the name is already nearby."],
+        ["1307scout-symbol", "light", "Symbol", "The gear and reticle alone, no tile."],
+        ["1307scout-symbol-white", "dark", "Symbol, white", "For dark backgrounds."],
+        ["1307scout-wordmark", "light", "Wordmark", "The name alone, for tight horizontal spaces."],
+        ["1307scout-wordmark-white", "dark", "Wordmark, white", "For dark backgrounds."],
+        ["1307scout-lockup-black", "light", "One color", "Vinyl cutting, engraving, embroidery, stamps."],
+        ["1307scout-symbol-black", "light", "Symbol, one color", "For one-ink printing."],
+        ["1307scout-wordmark-black", "light", "Wordmark, one color", "For one-ink printing."]
+      ],
+      stickers: [
+        ["sticker-round", "grey", "Round badge", "3 in circle with the name around the edge."],
+        ["sticker-hex", "grey", "Hexagon", "The laptop-sticker hexagon, about 2 in tall."],
+        ["sticker-diecut", "grey", "Die-cut logo", "The main logo on a white plate, cut to its shape."],
+        ["sticker-trust-the-data", "grey", "Trust the data", "About 3 x 1.2 in."],
+        ["sticker-scouted", "grey", "Scouted", "A rubber-stamp style sticker, about 3 x 1.4 in."],
+        ["sticker-no-wifi", "grey", "No Wi-Fi? No problem.", "Scouting works offline. 2.5 in circle."]
+      ],
+      merch: [
+        ["badge-scout", "grey", "Scout badge", "3 x 4 in lanyard badge: write a name and team, circle the seat.", "tall"],
+        ["poster-pit", "grey", "Pit poster", "8.5 x 11 in, for the pit table or a hallway, with a QR code.", "tall"],
+        ["tee", "grey", "Team shirt", "Main logo on the left chest, the large print on the back. For navy or black shirts.", "tee"],
+        ["qr-scout", "light", "QR code", "Opens scout.robosaints1307.com. Keep the white border when you place it."]
+      ]
+    };
+    var TEE = '<svg viewBox="0 0 400 420" aria-hidden="true"><path d="M140 14 Q200 54 260 14 L372 66 L338 156 L298 140 L298 410 L102 410 L102 140 L62 156 L28 66 Z" fill="#0A2352"/></svg>';
+    function card(a) {
+      var file = a[0], plate = a[1], name = a[2], use = a[3], kind = a[4] || "";
+      var preview = kind === "tee"
+        ? '<div class="tee">' + TEE + '<img class="chest" src="' + B + '1307scout-stacked-white.svg" alt=""></div>' +
+          '<div class="tee">' + TEE + '<img class="back" src="' + B + 'tee-back.svg" alt=""></div>'
+        : '<img src="' + B + file + '.svg" alt="' + name + '" loading="lazy">';
+      var dl = kind === "tee"
+        ? '<a href="' + B + 'tee-back.svg" download><i class="fa fa-download"></i>Back SVG</a>' +
+          '<a href="' + B + 'png/tee-back.png" download><i class="fa fa-download"></i>Back PNG</a>' +
+          '<a href="' + B + '1307scout-stacked-white.svg" download><i class="fa fa-download"></i>Chest SVG</a>'
+        : '<a href="' + B + file + '.svg" download><i class="fa fa-download"></i>SVG</a>' +
+          (file === "qr-scout" ? "" : '<a href="' + B + 'png/' + file + '.png" download><i class="fa fa-download"></i>PNG</a>');
+      return '<div class="asset"><div class="plate ' + plate + (kind === "tall" ? " tall" : "") + '"' +
+        (kind === "tee" ? ' style="gap:.75rem"' : "") + ">" + preview + "</div>" +
+        '<div class="asset-info"><strong>' + name + "</strong><small>" + use + '</small><div class="dl">' + dl + "</div></div></div>";
+    }
+    document.querySelectorAll("[data-assets]").forEach(function (box) {
+      box.innerHTML = SETS[box.getAttribute("data-assets")].map(card).join("");
+    });
+  })();
+  </script>
+</body>
+</html>

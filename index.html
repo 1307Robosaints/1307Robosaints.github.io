@@ -130,7 +130,10 @@
           <li data-target="#carouselExampleIndicators" data-slide-to="4"></li>
           <li data-target="#carouselExampleIndicators" data-slide-to="5"></li>
           <li data-target="#carouselExampleIndicators" data-slide-to="6"></li>
-            
+          <li data-target="#carouselExampleIndicators" data-slide-to="7"></li>
+          <li data-target="#carouselExampleIndicators" data-slide-to="8"></li>
+          <li data-target="#carouselExampleIndicators" data-slide-to="9"></li>
+
         </ol>
         <div class="carousel-inner" role="listbox" id="slideshow">
           <!-- Slide One - Set the background image for this slide in the line below -->
@@ -178,6 +181,10 @@
                 <p>Insert Comment Here</p> -->
             </div>
           </div>
+          <!-- Stills from the team's "Why Robotics" YouTube video (img/social/) -->
+          <div class="carousel-item" style="background-image: url(/img/social/pit-crew.jpg)"></div>
+          <div class="carousel-item" style="background-image: url(/img/social/robot-on-field.jpg)"></div>
+          <div class="carousel-item" style="background-image: url(/img/social/mentor-build-table.jpg)"></div>
         </div>
         <a class="carousel-control-prev" href="#carouselExampleIndicators" role="button" data-slide="prev">
           <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -207,6 +214,38 @@
           <img class="img-fluid rounded" src="img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" alt="Robosaints Team 1307 logo">
         </div>
       </div>
+
+      <hr>
+
+      <!-- Recent Posts: the team's newest social posts. FRC News: FIRST's blog and the FRC YouTube channel.
+           Both come from public_social_feed() (social-feed Edge Function, section 8t of rebuild_all.sql). -->
+      <section class="my-4" id="recentPosts" aria-labelledby="recentPostsTitle">
+        <div class="feed-head">
+          <h2 id="recentPostsTitle">Recent Posts</h2>
+          <span class="feed-follow">Follow us:
+            <a href="https://instagram.com/1307robosaints" target="_blank" rel="noopener">Instagram</a>
+            <a href="https://www.youtube.com/@1307Robosaints" target="_blank" rel="noopener">YouTube</a>
+            <a href="https://www.facebook.com/1307robosaints" target="_blank" rel="noopener">Facebook</a>
+            <a href="https://www.tiktok.com/@1307.robotics" target="_blank" rel="noopener">TikTok</a>
+          </span>
+        </div>
+        <div class="row" id="recentPostsList">
+          <div class="col-md-4 mb-3"><div class="feed-loading"></div></div>
+          <div class="col-md-4 mb-3 d-none d-md-block"><div class="feed-loading"></div></div>
+          <div class="col-md-4 mb-3 d-none d-md-block"><div class="feed-loading"></div></div>
+        </div>
+      </section>
+
+      <section class="my-4" id="frcNews" aria-labelledby="frcNewsTitle">
+        <div class="feed-head">
+          <h2 id="frcNewsTitle"><i>FIRST</i> Robotics Competition News</h2>
+          <span class="feed-follow">More:
+            <a href="https://www.firstinspires.org/community-blog/topic/frc" target="_blank" rel="noopener">FRC blog</a>
+            <a href="https://www.youtube.com/@FIRSTRoboticsCompetition" target="_blank" rel="noopener">FRC on YouTube</a>
+          </span>
+        </div>
+        <ul class="news-list" id="frcNewsList"><li class="news-item"><div class="feed-loading w-100"></div></li></ul>
+      </section>
 
       <hr>
 
@@ -258,6 +297,84 @@
     <script src="/js/auth-config.js"></script>
     <script src="/js/auth.js"></script>
     <script src="/js/pwa.js"></script>
+
+    <script>
+    // ===== Recent Posts and FRC News =====
+    // Reads the cached feed (no sign-in needed). If it can't load, each section says so and the
+    // follow links beside its heading still work.
+    (function () {
+      var SOURCES = {
+        instagram:    { name: "Instagram", icon: "fa-instagram",    verb: "View on Instagram" },
+        facebook:     { name: "Facebook",  icon: "fa-facebook",     verb: "View on Facebook" },
+        team_youtube: { name: "YouTube",   icon: "fa-youtube-play", verb: "Watch on YouTube" },
+        first_blog:   { name: "FIRST blog" },
+        frc_youtube:  { name: "FRC on YouTube" }
+      };
+      function esc(t) {
+        return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+      function safeUrl(u) { return /^https:\/\//i.test(u || "") ? u : ""; }
+      function dateText(iso) {
+        var d = new Date(iso), o = { month: "short", day: "numeric" };
+        if (isNaN(d.getTime())) return "";
+        if (d.getFullYear() !== new Date().getFullYear()) o.year = "numeric";
+        return d.toLocaleDateString([], o);
+      }
+      // A picture that fails to load (an expired link) is removed rather than shown broken
+      function img(url, cls) {
+        url = safeUrl(url);
+        return url ? '<img class="' + cls + '" src="' + esc(url) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : "";
+      }
+
+      function drawPosts(posts) {
+        var box = document.getElementById("recentPostsList");
+        if (!posts.length) {
+          box.innerHTML = '<div class="col-12"><p class="feed-empty mb-0">Our latest posts couldn’t be loaded right now. Find us on the links above.</p></div>';
+          return;
+        }
+        box.innerHTML = posts.map(function (p) {
+          var s = SOURCES[p.source] || { name: "", icon: "fa-link", verb: "View post" }, url = esc(safeUrl(p.url));
+          var text = p.title && p.body ? "<strong>" + esc(p.title) + "</strong> " + esc(p.body) : esc(p.title || p.body || "");
+          return '<div class="col-md-4 mb-3"><div class="card post-card">' +
+            (p.image_url ? '<a href="' + url + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' + img(p.image_url, "post-img") + "</a>" : "") +
+            '<div class="card-body"><div class="post-meta"><i class="fa ' + s.icon + '" aria-hidden="true"></i>' +
+            "<span>" + esc(s.name) + " · " + esc(dateText(p.posted_at)) + "</span></div>" +
+            '<p class="post-text">' + text + "</p>" +
+            '<a class="post-link" href="' + url + '" target="_blank" rel="noopener">' + esc(s.verb) + " &rarr;</a></div></div></div>";
+        }).join("");
+      }
+
+      function drawNews(items) {
+        var list = document.getElementById("frcNewsList");
+        if (!items.length) {
+          list.innerHTML = '<li class="news-item"><p class="feed-empty mb-0">FRC news couldn’t be loaded right now. See the links above.</p></li>';
+          return;
+        }
+        list.innerHTML = items.map(function (n) {
+          var url = esc(safeUrl(n.url));
+          return '<li class="news-item">' + img(n.image_url, "news-thumb") + '<div class="flex-grow-1" style="min-width:0;">' +
+            '<span class="news-src">' + esc((SOURCES[n.source] || {}).name || "") + " · " + esc(dateText(n.posted_at)) + "</span>" +
+            '<h3><a href="' + url + '" target="_blank" rel="noopener">' + esc(n.title || "Untitled") + "</a></h3>" +
+            (n.body ? "<p>" + esc(n.body) + "</p>" : "") + "</div></li>";
+        }).join("");
+      }
+
+      async function load() {
+        var rows = [];
+        try {
+          if (window.RS && RS.sb) {
+            var r = await RS.sb.rpc("public_social_feed", { p_team: 3, p_frc: 5 });
+            if (!r.error) rows = (r.data || []).filter(function (x) { return safeUrl(x.url); });
+          }
+        } catch (e) { /* offline or the server is down: show the fallback */ }
+        drawPosts(rows.filter(function (x) { return x.feed === "team"; }));
+        drawNews(rows.filter(function (x) { return x.feed === "frc"; }));
+      }
+      load();
+    })();
+    </script>
 
   </body>
 

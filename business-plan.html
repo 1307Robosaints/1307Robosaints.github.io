@@ -126,230 +126,29 @@
         <li class="breadcrumb-item active">Business Plan</li>
       </ol>
 
-      <!-- Content from the business team's official 2026 Business Plan. Event history is checked
-           against The Blue Alliance (js/history.js), so a few entries differ from the PDF. -->
+      <!-- The business team's official 2026 Business Plan, shown as the PDF itself. PDF.js (vendored in
+           /vendor/pdfjs) draws each page as it scrolls into view, so it works on phones that can't show a
+           PDF inline. To update the plan, replace /files/robosaints-business-plan-2026.pdf. -->
       <style>
-        .bp-section { margin: 2.5rem 0; }
-        .bp-mission { font-size: 1.15rem; color: var(--heading); border-left: 4px solid var(--blue); padding-left: 1rem; }
-        .bp-list li { margin-bottom: .4rem; }
-        .bp-history { list-style: none; padding: 0; }
-        .bp-history li { display: flex; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--line); }
-        .bp-history .yr { font-family: var(--display); font-weight: 700; color: var(--heading); min-width: 3rem; }
-        .bp-history .win { color: var(--green); font-weight: 600; }
-        .bp-org-top { max-width: 320px; margin: 0 auto 1rem; }
-        .bp-org .card-text small { color: var(--muted); }
-        .bp-tiers { background: var(--white); color: var(--ink); }
-        .bp-tiers th, .bp-tiers td { text-align: center; vertical-align: middle; border-color: var(--line); }
-        .bp-tiers th:first-child { text-align: left; }
-        .bp-tiers thead th { color: var(--heading); font-size: .85rem; }
-        .bp-tiers .fa-check { color: var(--green); }
-        .bp-tiers .amt { white-space: nowrap; color: var(--muted); font-size: .9rem; font-weight: 400; }
-        .bp-tier { font-family: var(--display); font-weight: 700; color: var(--heading); }
-        .bp-mail { font-style: normal; line-height: 1.6; }
-        .bp-contacts { list-style: none; padding: 0; margin: 0; }
-        .bp-contacts li { margin-bottom: .35rem; }
+        .bp-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+        .bp-bar .bp-count { color: var(--muted); margin-right: auto; }
+        .bp-viewer { background: var(--line); border-radius: .5rem; padding: 1rem; }
+        .bp-page { display: block; margin: 0 auto 1rem; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25); max-width: 100%; }
+        .bp-page:last-child { margin-bottom: 0; }
+        @media (max-width: 575px) { .bp-viewer { padding: .5rem; } .bp-page { margin-bottom: .5rem; } }
       </style>
 
-      <p class="text-muted">2026 Business Plan &middot; Team 1307 Robosaints &middot; St. Thomas Aquinas High School, Dover, NH</p>
+      <p>Our 2026 business plan covers our mission, team, history, goals, budget and sponsorship levels.
+         Interested in sponsoring us? <a href="/contact.html">Contact us</a> with &ldquo;Sponsorships&rdquo; checked,
+         or see <a href="/oursponsors.html">our sponsors</a>.</p>
 
-      <!-- Mission + who we are -->
-      <div class="row bp-section align-items-start">
-        <div class="col-12 col-lg-7">
-          <h2>Mission Statement</h2>
-          <p class="bp-mission">At Saint Thomas Aquinas High School Robotics, our mission is to inspire innovation and leadership through hands-on experience in STEM. By supporting us, sponsors invest in the future engineers and leaders who will shape tomorrow's world. Together, we build more than robots&mdash;we build a brighter future.</p>
-          <h2 class="mt-4">Who Are We?</h2>
-          <p>The Robosaints design and build robots in the St. Thomas Aquinas makerspace, with students leading the charge under the guidance of teachers and parent mentors. This support has allowed us to expand our outreach, grow our team, and positively impact our community. For instance, we've launched a LEGO robotics program at a local elementary school, teaching 5th&ndash;8th graders the basics of coding and engineering. We also visit area schools to demonstrate our robots, offering younger students hands-on experience.</p>
-          <p>Founded in 2004, the Robosaints serve as an extracurricular program for students in grades 9&ndash;12, providing opportunities to develop skills in engineering, programming, critical thinking, leadership, and teamwork. Our goal is to apply academic knowledge to solve real-world technical challenges while also focusing on marketing, finance, business, and communication&mdash;key facets of any successful enterprise.</p>
-          <p>Despite having fewer members than many other teams, our robots are robust and competitive, a testament to our dedication and resourcefulness. In <i>FIRST</i> competitions, our ability to build cost-effective yet capable robots sets us apart, proving that passion and ingenuity can rival even the largest teams.</p>
-        </div>
-        <div class="col-12 col-lg-5 text-center">
-          <img class="img-fluid rounded" src="/img/robosaintslogo.png" data-dark-src="/img/robosaintslogo-dark.png" alt="Robosaints Team 1307 logo" style="max-width:360px;width:100%;">
-        </div>
+      <div class="bp-bar">
+        <span class="bp-count" id="bpCount">Loading the business plan&hellip;</span>
+        <a class="btn btn-outline-secondary btn-sm" href="/files/robosaints-business-plan-2026.pdf" target="_blank" rel="noopener"><i class="fa fa-external-link" aria-hidden="true"></i> Open in new tab</a>
+        <a class="btn btn-primary btn-sm" href="/files/robosaints-business-plan-2026.pdf" download><i class="fa fa-download" aria-hidden="true"></i> Download PDF</a>
       </div>
 
-      <!-- FIRST -->
-      <div class="bp-section">
-        <h2>What is <i>FIRST</i>?</h2>
-        <p><i>FIRST</i> (For the Inspiration and Recognition of Science and Technology) is an organization that runs robotics competitions for students ages five to eighteen. <i>FIRST</i> prepares them for the future through Science, Technology, Engineering, and Mathematics (STEM). The <i>FIRST</i> Robotics Competition covers a league of high school students in which &ldquo;under strict rules, limited resources, and the guidance of volunteer mentors, including engineers, teachers, business professionals, parents, alumni and more, teams of students build and program robots to perform challenging tasks against a field of competitors. They must also raise funds, design a team &lsquo;brand,&rsquo; hone teamwork skills, and perform community outreach.&rdquo; (<a href="https://www.firstinspires.org" target="_blank" rel="noopener">firstinspires.org</a>)</p>
-        <p>The <i>FIRST</i> Robotics Competition season consists of a six-week build phase to accomplish conceptualization, design, fabrication, and testing of a robot that accomplishes a series of competitive sport-like tasks for points. The robot is operated autonomously through its internal programming and through radio control.</p>
-      </div>
-
-      <!-- Growth + future plans -->
-      <div class="row bp-section">
-        <div class="col-12 col-lg-6 mb-4">
-          <h2>Our Growth Over the Last Few Years</h2>
-          <ul class="bp-list">
-            <li>Upgraded from a converted storage closet to a dedicated robotics makerspace, featuring an adjoining woodshop and additional classroom space to integrate with the St. Thomas Aquinas science curriculum.</li>
-            <li>Enhanced our facilities with 3D printers, a metal lathe, and a CNC machine to support robotics and physics programs.</li>
-            <li>Introduced robotics school spirit wear, including custom buttons and team logo shirts for competitions.</li>
-            <li>Established a leadership committee and formalized team bylaws.</li>
-            <li>Expanded team membership from 5 to 16 members over the past two years.</li>
-            <li>Guided other students in completing 3D printing projects that support academic initiatives in the arts and sciences.</li>
-            <li>Launched an elective week-long &ldquo;winter term&rdquo; program, offering new students an introduction to the world of robotics.</li>
-          </ul>
-        </div>
-        <div class="col-12 col-lg-6 mb-4">
-          <h2>Future Plans</h2>
-          <ul class="bp-list">
-            <li>Strengthen recruitment across all areas.</li>
-            <li>Enhance connections with alumni.</li>
-            <li>Refurbish old robots to optimize them for demonstrations and provide hands-on learning for new recruits.</li>
-            <li>Promote <i>FIRST</i> in the Seacoast area by increasing membership and supporting other robotics leagues.</li>
-            <li>Continue to support local <i>FIRST</i> LEGO League teams.</li>
-            <li>Forge stronger connections with the local business community.</li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Organizational structure: President over three department leads, each with sub teams -->
-      <div class="bp-section bp-org">
-        <h2>Organizational Structure</h2>
-        <p>The Robosaints team is composed of students specializing in Engineering, Computer Programming, and Business. Working collaboratively under the guidance of our mentors, team members focus on productivity, progress, and effective communication. Student team leaders, each overseeing engineering design, programming, and business analysis, report directly to the Robosaints Student President or Vice President.</p>
-        <p>The Engineering Design leader manages electrical, mechanical, and Computer-Aided Design (CAD) tasks. The Programming leader handles all robot control functions, including pre-programmed operations. The Business leader develops our business plan, manages external relations, formulates strategy, and monitors the budget.</p>
-        <div class="card text-center bp-org-top">
-          <h4 class="card-header">President</h4>
-          <div class="card-body"><p class="card-text">Camden Chesley</p></div>
-        </div>
-        <div class="row">
-          <div class="col-12 col-md-4 mb-3">
-            <div class="card h-100 text-center">
-              <h4 class="card-header">Mechanical Lead</h4>
-              <div class="card-body"><p class="card-text">Dominic Meyers<br><small>Mechanical sub teams</small></p></div>
-            </div>
-          </div>
-          <div class="col-12 col-md-4 mb-3">
-            <div class="card h-100 text-center">
-              <h4 class="card-header">Business Lead</h4>
-              <div class="card-body"><p class="card-text">Savannah Senter<br><small>Business sub teams</small></p></div>
-            </div>
-          </div>
-          <div class="col-12 col-md-4 mb-3">
-            <div class="card h-100 text-center">
-              <h4 class="card-header">Software Lead</h4>
-              <div class="card-body"><p class="card-text">John Riddle<br><small>Coding sub teams</small></p></div>
-            </div>
-          </div>
-        </div>
-        <p>Read more about them on <a href="/about-the-students.html">The Students</a> and <a href="/about-the-mentors.html">The Mentors</a>.</p>
-      </div>
-
-      <!-- Event history highlights (full record on results.html) -->
-      <div class="row bp-section align-items-start">
-        <div class="col-12 col-lg-6 mb-4">
-          <h2>Team Event History</h2>
-          <ul class="bp-history">
-            <li><span class="yr">2004</span><span>Team founded at St. Thomas Aquinas</span></li>
-            <li><span class="yr">2004</span><span>BAE Systems Granite State Regional &ndash; Judges' Award</span></li>
-            <li><span class="yr">2004</span><span>Battlecry @ WPI &ndash; Octofinalist</span></li>
-            <li><span class="yr">2006</span><span>BAE Systems Granite State Regional &ndash; Quarterfinalist</span></li>
-            <li><span class="yr">2007</span><span>BAE Systems Granite State Regional &ndash; Semifinalist</span></li>
-            <li><span class="yr">2008</span><span>BAE Systems Granite State Regional &ndash; Semifinalist</span></li>
-            <li><span class="yr">2015</span><span class="win">NE District Granite State Event &ndash; Winner</span></li>
-            <li><span class="yr">2015</span><span>NE District UNH Event &ndash; Quarterfinalist</span></li>
-            <li><span class="yr">2017</span><span>NE District Greater Boston Event &ndash; Semifinalist</span></li>
-            <li><span class="yr">2019</span><span class="win">NE District Greater Boston Event &ndash; Winner</span></li>
-            <li><span class="yr">2022</span><span>Governor's Cup &ndash; Quarterfinalist</span></li>
-            <li><span class="yr">2022</span><span class="win">Battle of the Bay (off-season) &ndash; Winner</span></li>
-            <li><span class="yr">2023</span><span>Governor's Cup &ndash; Runner-up</span></li>
-            <li><span class="yr">2023</span><span>Battle of the Bay (off-season) &ndash; Finalist</span></li>
-            <li><span class="yr">2026</span><span class="win">NE District Pine Tree Event &ndash; Winner</span></li>
-          </ul>
-          <a href="/results.html" class="btn btn-outline-secondary mt-2">View full history</a>
-        </div>
-      </div>
-
-      <!-- Expenditures + why sponsor -->
-      <div class="bp-section">
-        <h2>Team Expenditures</h2>
-        <p>Team expenditures are an important part of managing a high school <i>FIRST</i> Robotics Competition (FRC) team, as they ensure that the team has the resources necessary to design, build, and compete with a successful robot. Major expenses include robot materials and components, such as motors, electronics, raw materials, tools, and mechanical parts, as well as registration fees for the year and competitions. Additional costs may include team apparel, safety equipment, software, and outreach activities within the community. Since FRC is an expensive program, we rely on sponsorships, grants, and donations to cover these expenses. Careful budgeting and responsible spending help ensure that funds are used effectively, allowing all team members to participate and giving the team the best possible opportunity to succeed.</p>
-      </div>
-
-      <div class="bp-section" id="sponsorship">
-        <h2>Why Sponsor 1307 Robosaints Annually?</h2>
-        <p>Our mission is to provide high school students, regardless of their prior experience, with the opportunity to delve into the world of robotics. As they progress through our program, they will develop the skills and mindset necessary to confidently address complex technical challenges and craft innovative solutions in diverse, fast-paced environments, ultimately contributing to the advancement of technology and shaping a brighter future.</p>
-
-        <h3 class="mt-4">Sponsorship Levels</h3>
-        <div class="table-responsive">
-          <table class="table bp-tiers">
-            <thead>
-              <tr>
-                <th scope="col">Level</th>
-                <th scope="col">Signed photo of team with robot</th>
-                <th scope="col">Company logo on team T-shirts worn at every event<sup>*</sup></th>
-                <th scope="col">Company logo on robot</th>
-                <th scope="col">Recognition on our website with a link, and on the sponsor board in our shop</th>
-                <th scope="col">Social media shout-outs<sup>&dagger;</sup></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row"><span class="bp-tier">Premium</span><br><span class="amt">$5,000 &ndash; $10,000</span></th>
-                <td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td>
-              </tr>
-              <tr>
-                <th scope="row"><span class="bp-tier">Platinum</span><br><span class="amt">$1,000 &ndash; $4,999</span></th>
-                <td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td></td>
-              </tr>
-              <tr>
-                <th scope="row"><span class="bp-tier">Gold</span><br><span class="amt">$500 &ndash; $999</span></th>
-                <td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td></td><td></td>
-              </tr>
-              <tr>
-                <th scope="row"><span class="bp-tier">Silver</span><br><span class="amt">$100 &ndash; $499</span></th>
-                <td><i class="fa fa-check" aria-label="Included"></i></td><td><i class="fa fa-check" aria-label="Included"></i></td><td></td><td></td><td></td>
-              </tr>
-              <tr>
-                <th scope="row"><span class="bp-tier">Bronze</span><br><span class="amt">$1 &ndash; $99</span></th>
-                <td><i class="fa fa-check" aria-label="Included"></i></td><td></td><td></td><td></td><td></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="text-muted small mb-1"><sup>*</sup> Over 1,000 people attend each event.</p>
-        <p class="text-muted small"><sup>&dagger;</sup> Mentioned in the comments of an Instagram and a TikTok post, once a month for the season.</p>
-      </div>
-
-      <!-- How to give + contact -->
-      <div class="row bp-section">
-        <div class="col-12 col-lg-6 mb-4">
-          <div class="card h-100">
-            <h4 class="card-header">Donating by Check</h4>
-            <div class="card-body">
-              <address class="bp-mail">
-                ROBOSAINTS<br>
-                St. Thomas Aquinas High School<br>
-                197 Dover Point Rd.<br>
-                Dover, NH 03820<br>
-                Attn: Chrys Demos, Lead Mentor<br>
-                <a href="tel:+12074789373">207-478-9373</a>
-              </address>
-              <p class="card-text">Please write &ldquo;RoboSaints&rdquo; in the memo line.</p>
-              <p class="card-text">Tax ID # 88-1978958. St. Thomas Aquinas High School is a 501(c)(3) non-profit organization, and all donations are tax-deductible as allowed by law.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6 mb-4">
-          <div class="card h-100">
-            <h4 class="card-header">Contact Us</h4>
-            <div class="card-body">
-              <ul class="bp-contacts">
-                <li>Chrys Demos (Lead Mentor): <a href="mailto:cdemos@stalux.org">cdemos@stalux.org</a></li>
-                <li>Camden Chesley (President): <a href="mailto:cchesley27@stalux.org">cchesley27@stalux.org</a></li>
-                <li>Savannah Senter (Business Lead): <a href="mailto:ssenter28@stalux.org">ssenter28@stalux.org</a></li>
-                <li>Dominic Meyers (Mechanical Lead): <a href="mailto:dmeyers28@stalux.org">dmeyers28@stalux.org</a></li>
-                <li>John Riddle (Software Lead): <a href="mailto:jriddle27@stalux.org">jriddle27@stalux.org</a></li>
-              </ul>
-              <p class="card-text mt-3">Or send us a message with &ldquo;Sponsorships&rdquo; checked on our contact form.</p>
-            </div>
-            <div class="card-footer">
-              <a href="/contact.html" class="btn btn-primary">Contact Us</a>
-              <a href="/oursponsors.html" class="btn btn-outline-secondary ml-2">Our Sponsors</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <p class="text-center bp-section"><strong>Thank you for considering a donation to support Team #1307, the Robosaints!</strong></p>
+      <div class="bp-viewer mb-5" id="bpViewer" aria-label="2026 Business Plan"></div>
 
     </div>
     <!-- /.container -->
@@ -388,6 +187,82 @@
     <script src="/js/auth-config.js"></script>
     <script src="/js/auth.js"></script>
     <script src="/js/pwa.js"></script>
+
+    <!-- PDF viewer: PDF.js 3.11.174 (vendored) -->
+    <script src="/vendor/pdfjs/pdf.min.js"></script>
+    <script>
+      (function () {
+        var URL_PDF = "/files/robosaints-business-plan-2026.pdf";
+        var viewer = document.getElementById("bpViewer");
+        var count = document.getElementById("bpCount");
+
+        function fail() {
+          count.textContent = "The business plan couldn't be shown here.";
+          viewer.innerHTML = '<p class="text-center m-3">Use <a href="' + URL_PDF + '" target="_blank" rel="noopener">Open in new tab</a> or Download PDF to read it.</p>';
+        }
+        if (!window.pdfjsLib) return fail();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.js";
+
+        pdfjsLib.getDocument(URL_PDF).promise.then(function (pdf) {
+          count.textContent = pdf.numPages + " page" + (pdf.numPages === 1 ? "" : "s");
+          var pages = [], drawnWidth = {}, tasks = {};
+          function innerWidth() { return viewer.clientWidth - 2 * parseFloat(getComputedStyle(viewer).paddingLeft); }
+
+          // Draws page n at the viewer's current width, sharp on high-density screens
+          function draw(n) {
+            var canvas = pages[n - 1], width = innerWidth();
+            if (drawnWidth[n] === width) return;
+            drawnWidth[n] = width;
+            pdf.getPage(n).then(function (page) {
+              var base = page.getViewport({ scale: 1 });
+              var vp = page.getViewport({ scale: width / base.width });
+              var ratio = window.devicePixelRatio || 1;
+              if (tasks[n]) tasks[n].cancel();   // a canvas takes one render at a time
+              canvas.width = Math.floor(vp.width * ratio);
+              canvas.height = Math.floor(vp.height * ratio);
+              canvas.style.width = Math.floor(vp.width) + "px";
+              canvas.style.height = Math.floor(vp.height) + "px";
+              tasks[n] =page.render({ canvasContext: canvas.getContext("2d"), viewport: vp, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null });
+              tasks[n].promise.catch(function () {});
+            });
+          }
+
+          // One placeholder per page (sized from page 1), drawn when it nears the screen
+          pdf.getPage(1).then(function (first) {
+            var base = first.getViewport({ scale: 1 }), width = innerWidth();
+            for (var n = 1; n <= pdf.numPages; n++) {
+              var c = document.createElement("canvas");
+              c.className = "bp-page";
+              c.dataset.page = n;
+              c.setAttribute("role", "img");
+              c.setAttribute("aria-label", "Business plan page " + n);
+              c.style.width = width + "px";
+              c.style.height = Math.floor(width * base.height / base.width) + "px";
+              viewer.appendChild(c);
+              pages.push(c);
+            }
+            var visible = {};
+            var io = "IntersectionObserver" in window ? new IntersectionObserver(function (entries) {
+              entries.forEach(function (e) {
+                var n = +e.target.dataset.page;
+                visible[n] = e.isIntersecting;
+                if (e.isIntersecting) draw(n);
+              });
+            }, { rootMargin: "800px 0px" }) : null;
+            pages.forEach(function (c, i) { io ? io.observe(c) : draw(i + 1); });
+
+            // Redraw what's on screen after the window changes width
+            var timer;
+            window.addEventListener("resize", function () {
+              clearTimeout(timer);
+              timer = setTimeout(function () {
+                for (var n in visible) if (visible[n] || !io) draw(+n);
+              }, 200);
+            });
+          });
+        }).catch(fail);
+      })();
+    </script>
 
   </body>
 

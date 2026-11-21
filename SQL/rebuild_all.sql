@@ -26,6 +26,7 @@
 --  8j  Vision data + match flag reviews     8k  Match strategy plans
 --  8l  Team member names    8m Scout shifts  8n  Pick list   8o Match predictions
 --  8p  Robot log   8q Match alerts   8r Vision pre-fill + relayed entries   8s Public results
+--  8t  Homepage social feed (Recent Posts, FRC News)
 --  12  Permissions  13  Form field seed data   14  First staff member
 --  15  Optional: schedule the automatic sync    16  Audit log
 -- 16b  Teams step 2: per-team keys (run 2026-11-16, after 0.1.0)
@@ -85,7 +86,8 @@
 -- (picklist.html), 8o match predictions and their calibration (matches.html, ratings.html),
 -- 8p the robot log (pitcrew.html), 8q match alerts (push notifications, match-alerts Edge
 -- Function), 8r vision pre-fill and QR-relayed entries (scout.html), 8s public season results
--- (results.html, the only function anon can call).
+-- (results.html, callable without signing in), 8t the homepage social feed (index.html: Recent Posts
+-- and FRC News, the only other function anon can call).
 --
 -- Teams update: section 3b gives each FRC team its own members, managers (verified by site staff,
 -- then vouching for others), join codes and settings. Strategy plans, the robot log, the pick list
@@ -3342,6 +3344,74 @@ $$;
 
 
 -- =====================================================================
+-- 8t. Homepage social feed (index.html: Recent Posts and FRC News)
+--
+--    social_posts is a cache written only by the social-feed Edge Function (service role),
+--    which pg_cron runs every 30 minutes, so a page view never reaches YouTube, Instagram or
+--    FIRST. Everything in it is already public on those sites. Visitors read it through
+--    public_social_feed(), granted to anon like public_team_results(). social_tokens holds the
+--    Instagram/Facebook access tokens: service role only, set from the SQL Editor:
+--      insert into public.social_tokens (network, token) values ('instagram', '<token>')
+--        on conflict (network) do update set token = excluded.token, refreshed_at = now();
+-- =====================================================================
+create table if not exists public.social_posts (
+  source     text not null,                        -- team_youtube, instagram, facebook, first_blog, frc_youtube
+  post_id    text not null,
+  feed       text not null check (feed in ('team', 'frc')),
+  title      text,
+  body       text,
+  url        text not null,
+  image_url  text,
+  posted_at  timestamptz not null,
+  fetched_at timestamptz not null default now(),
+  primary key (source, post_id)
+);
+create index if not exists social_posts_feed_idx on public.social_posts (feed, posted_at desc);
+alter table public.social_posts enable row level security;
+revoke all on public.social_posts from anon, authenticated;
+
+create table if not exists public.social_tokens (
+  network      text primary key check (network in ('instagram', 'facebook')),
+  token        text not null,
+  refreshed_at timestamptz not null default now()
+);
+alter table public.social_tokens enable row level security;
+revoke all on public.social_tokens from anon, authenticated;
+
+-- The newest posts of each feed. Team posts are mixed across networks; FRC news too.
+-- Posts not seen in 30 days (a network that was disconnected) are left out.
+create or replace function public.public_social_feed(p_team int default 3, p_frc int default 5)
+returns table (feed text, source text, title text, body text, url text, image_url text, posted_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  (select s.feed, s.source, s.title, s.body, s.url, s.image_url, s.posted_at from public.social_posts s
+    where s.feed = 'team' and s.fetched_at > now() - interval '30 days'
+    order by s.posted_at desc limit least(greatest(p_team, 0), 12))
+  union all
+  (select s.feed, s.source, s.title, s.body, s.url, s.image_url, s.posted_at from public.social_posts s
+    where s.feed = 'frc' and s.fetched_at > now() - interval '30 days'
+    order by s.posted_at desc limit least(greatest(p_frc, 0), 12));
+$$;
+
+-- pg_cron, every 30 minutes (section 15). Same vault secret as the official sync.
+create or replace function public.social_feed_request() returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_secret text;
+begin
+  select btrim(decrypted_secret, E' \t\r\n') into v_secret from vault.decrypted_secrets where name = 'sync_secret';
+  if v_secret is null or v_secret = '' then
+    raise exception 'Vault secret sync_secret is missing (see section 15).';
+  end if;
+  return net.http_post(
+    url     := 'https://nyanwljgsazwuzmnlrcz.supabase.co/functions/v1/social-feed',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
+    body    := '{}'::jsonb,
+    timeout_milliseconds := 60000);
+end $$;
+revoke all on function public.social_feed_request() from public, anon, authenticated;
+
+
+-- =====================================================================
 -- 9. Team rating (the S-F grade). Plain-language version for users: ratings.html.
 --    Keep that page in step with any change to the math below.
 --
@@ -4659,6 +4729,7 @@ revoke all on function public.push_subscribe(text, text, text, int) from public,
 revoke all on function public.push_unsubscribe(text)        from public, anon;
 revoke all on function public.relay_scouting_entry(jsonb)   from public, anon;
 revoke all on function public.public_team_results()         from public;
+revoke all on function public.public_social_feed(int, int)   from public;
 revoke all on function public.home_team()                   from public, anon;
 revoke all on function public.my_team()                     from public, anon;
 revoke all on function public.is_team_manager()             from public, anon;
@@ -4755,6 +4826,8 @@ grant execute on function public.staff_act_as_team(int) to authenticated;
 grant execute on function public.staff_set_require_claims(boolean) to authenticated;
 -- The public Season Results page calls this without signing in (section 8s)
 grant execute on function public.public_team_results()        to anon, authenticated;
+-- The homepage's Recent Posts and FRC News, also without signing in (section 8t)
+grant execute on function public.public_social_feed(int, int)  to anon, authenticated;
 
 -- 12b. The Edge Functions (official-sync, manage-member) connect as service_role.
 --      It skips row security but still needs table privileges. Without these
@@ -4913,6 +4986,10 @@ where user_id = (select id from auth.users where lower(email) = 'dmartinl878@gma
 --     Match alerts (section 8q) need the match-alerts Edge Function (supabase/functions) and
 --     its VAPID keys; see the comment at the top of its index.ts. The job is scheduled below.
 --     To stop it:  select cron.unschedule('match-alerts');
+--
+--     Homepage social feed (section 8t): deploy social-feed (supabase/functions); it uses SYNC_SECRET.
+--     Instagram and Facebook posts also need their tokens in social_tokens (see 8t).
+--     To stop it:  select cron.unschedule('social-feed');
 -- =====================================================================
 do $$
 begin
@@ -4935,6 +5012,8 @@ begin
     -- Match alerts (section 8q), on the odd minutes so each run sees the sync just before it.
     -- Does nothing unless auto-sync is on and someone turned alerts on.
     perform cron.schedule('match-alerts', '1-59/2 * * * *', 'select public.run_match_alerts()');
+    -- Homepage Recent Posts and FRC News (section 8t); until social-feed is deployed it fails quietly
+    perform cron.schedule('social-feed', '11,41 * * * *', 'select public.social_feed_request()');
     -- pg_cron logs every run and never prunes, so keep two days (auto_sync_health reads the latest)
     perform cron.schedule('cron-history-cleanup', '17 4 * * *',
       $job$delete from cron.job_run_details where end_time < now() - interval '2 days'$job$);
@@ -5371,6 +5450,7 @@ with expected(kind, name) as (values
   ('function','is_team_member'), ('function','on_my_team'), ('function','team_member_names'), ('function','log_prediction'),
   ('function','prediction_calibration'), ('function','push_subscribe'), ('function','push_unsubscribe'),
   ('function','run_match_alerts'), ('function','relay_scouting_entry'), ('function','public_team_results'),
+  ('table','social_posts'), ('table','social_tokens'), ('function','public_social_feed'), ('function','social_feed_request'),
   ('view','official_matches_combined'), ('view','official_team_matches'),
   ('view','official_match_teams'), ('function','official_match_teams_for'), ('function','official_lineups_for'),
   ('function','is_staff'), ('function','is_student'), ('function','my_access_level'), ('function','official_set_alliances'),

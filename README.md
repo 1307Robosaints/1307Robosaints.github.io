@@ -19,8 +19,12 @@ ratings and the other derived stats are calculated (update it whenever that math
 `results.html`, Season Results: every event 1307 has played since 2004, by season, with records,
 ranks, playoff finishes, awards and every match, under a highlight reel of the team's event wins.
 Past seasons come from `js/history.js`, a one-time copy of The Blue Alliance's record (2004 to 2026);
-live seasons come from `public_team_results()`, the one function anyone can call without signing in,
+live seasons come from `public_team_results()`, one of two functions anyone can call without signing in,
 and win over the copy for any event in both. It's in the About Us menu.
+
+The homepage's **Recent Posts** (the team's three newest posts across its social media) and **FRC News**
+(FIRST's FRC blog and the FRC YouTube channel) come from `public_social_feed()`, the other one. See
+*Homepage social feed* under Backend.
 
 **1307scout** — the scouting app, gated by sign-in (`signin.html`, `account.html`). It has two halves,
 and the 1307scout menu and home page are split the same way:
@@ -43,7 +47,15 @@ every page and change any setting. Quarantine is on (`app_settings.require_team_
 the Teams tab): quarantined accounts have exactly a guest's access. The one exception is for the stable
 release, which has no team prompt: an `@stalux.org` account that hasn't answered the prompt yet is
 still on team 1307 as a member, since that domain verifies it anyway. How Ratings Work is linked from the home page. For team members the home page also shows their team's next match at the default event:
-- `1307scout.html` — landing/command-center page, links out based on your access level.
+- `1307scout.html` — landing/command-center page, links out based on your access level. The logged-out
+  page opens with the feature tour: every main feature as an animated 16:9 loop (a 1920x1080 stage
+  scaled to fit). `1307scout.html?display` shows the tour alone, full screen, for a TV at events (any
+  account or none; it keeps the screen awake and `&scene=N` starts on feature N). When a feature
+  changes, update its scene there along with the feature cards below it.
+- `brand.html` — the 1307scout brand kit: logos, colors, type, logo rules, stickers, a scout lanyard
+  badge, a pit poster and shirt artwork. The files are in `img/brand/` (SVG with the lettering in
+  outlines, so they print without the fonts), `img/brand/png/`, and `img/brand/1307scout-brand-kit.zip`
+  (all of them plus a README). The app icons in `img/app/` and the 1307scout pages' favicon are the mark.
 - `app.html` — Get the app: how to install 1307scout as an app on each kind of device, and what
   works offline. Linked as "Get the app" in the 1307scout menu, and from the home page and My Account.
 - `scout.html` — enter match and pit scouting data for the current event. Anyone else with a
@@ -241,7 +253,7 @@ FRC/TBA code, etc.) — row-only changes that don't touch the schema. They're ke
 what was imported and when; re-running `rebuild_all.sql` doesn't depend on them.
 
 **Edge Functions** all live in `supabase/functions/`: `official-sync`, `official-alliances`,
-`team-events`, `team-names`, `match-alerts`, `delete-account` and `manage-member` (deployed under the
+`team-events`, `team-names`, `social-feed`, `match-alerts`, `delete-account` and `manage-member` (deployed under the
 slug `bright-responder`, which `portal.html` calls). `supabase/config.toml` records each one's
 settings, so deploy one at a time with `supabase functions deploy <name> --use-api` from a clone
 linked with `supabase link --project-ref nyanwljgsazwuzmnlrcz`. Never deploy them all at once:
@@ -254,6 +266,17 @@ look it up on The Blue Alliance. It saves the nickname and the team's FIRST avat
 that tab lists the test teams and teams TBA has no name for, which are the ones that need it. Deploy it once with
 `supabase functions deploy team-names --no-verify-jwt`; it uses the `TBA_API_KEY` secret that
 official-sync already has.
+
+**Homepage social feed**: the `social-feed` Edge Function (`supabase/functions/social-feed/`) reads the
+team's YouTube channel, Instagram and Facebook, FIRST's blog RSS (FRC posts) and the FRC YouTube channel
+every 30 minutes (pg_cron, scheduled by `rebuild_all.sql`) and caches them in `social_posts`, so a visit
+never calls those sites' APIs. Deploy it with `supabase functions deploy social-feed --use-api`; it uses
+`SYNC_SECRET`. YouTube and the blog need nothing else. Instagram needs a token from the Instagram API
+with Instagram Login (the account must be a professional account), and Facebook a non-expiring Page
+access token; add each in the SQL Editor:
+`insert into public.social_tokens (network, token) values ('instagram', '<token>') on conflict (network) do update set token = excluded.token, refreshed_at = now();`
+The function refreshes the Instagram token weekly. TikTok has no public feed, so it's only linked.
+If the channel lookup from the @handle ever breaks, set `YT_CHANNEL_TEAM`/`YT_CHANNEL_FRC` secrets to the UC… IDs.
 
 Robot photos uploaded from the Scout page land in a public Supabase Storage bucket
 (`scouting-photos`), created by `rebuild_all.sql`. Deleting an entry or replacing its photo
